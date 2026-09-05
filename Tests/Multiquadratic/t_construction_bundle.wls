@@ -4,16 +4,16 @@
 
    THE DEFECTS THIS WAVE CLOSES, demonstrated red on the pre-fix code
    (scratchpad round3/a3_prefix_red_probe.log, 2026-08-26): divisor
-   metadata was computed from Together of the MATERIALIZED forcing, so a
+   metadata was computed from Together of the MATERIALIZED inhomogeneity, so a
    divisor lost to cancellation was unrecoverable; the public result
    carried no bundle at all; "Roots" -> Automatic manufactured an
    independent generator from every observed radical base
-   (Sqrt[d1 d2] became its own root); and blockEquationDeferredForcing
+   (Sqrt[d1 d2] became its own root); and blockEquationDeferredInhomogeneity
    always materialized before anything else.
 
    ACCEPTANCE CRITERIA, stated before the run (the Codex A3 test list):
 
-   (a) CONTRACT AND VALIDATION.  blockEquationDeferredForcing produces a
+   (a) CONTRACT AND VALIDATION.  blockEquationDeferredInhomogeneity produces a
        BlockEquationDeferredBundleV2 whose TargetOrder is complete,
        unique and lexicographic, whose Jobs align with it, and which
        passes blockEquationDeferredBundleValidate.  The bundle is plain
@@ -68,24 +68,25 @@
 
    (l) Exact repeated factor spellings are interned before the semantic
        fallback matcher; the four counters are coherent, and statistics do
-       not enter the bundle fingerprint or perturb deterministic numbering. *)
+       not perturb deterministic mathematical data or numbering. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-{forcingOf, compileBundle, compileWithCache, validate, evaluateBundle,
-  targetOrderOf, fingerprintOf, zeroQ, materialize, rootFrameOf} =
- mq /@ {"blockEquationDeferredForcing", "blockEquationDeferredCompileBundle",
+{inhomogeneityOf, compileBundle, compileWithCache, validate, evaluateBundle,
+  targetOrderOf, zeroQ, materialize, rootFrameOf,
+  presentationRootsInVariables} =
+ mq /@ {"blockEquationDeferredInhomogeneity", "blockEquationDeferredCompileBundle",
    "blockEquationDeferredCompileBundleWithCache",
    "blockEquationDeferredBundleValidate",
    "blockEquationDeferredBundleEvaluate",
    "blockEquationDeferredBundleTargetOrder",
-   "blockEquationDeferredBundleFingerprint",
    "blockEquationDeferredAlgebraicZeroQ",
    "blockEquationDeferredMaterialize",
-   "blockEquationDeferredValidateSquareRootGenerators"};
+   "blockEquationDeferredValidateSquareRootGenerators",
+   "coefficientPresentationSquareRootsInVariables"};
 
 Clear[gx, gy, ge];
 
@@ -102,7 +103,8 @@ rationalConnection = buildConnection[rationalEntry];
 solved = <|2 -> {{(1 + gx)/(1 - gy)}, {gy/(1 + gx)}}|>;
 
 delta = 1 + gx;
-deltaRoot = <|"Root" -> Sqrt[delta], "RootSquare" -> delta|>;
+deltaRoot = <|"Generator" -> Sqrt[delta],
+  "QuadraticRadicand" -> delta, "SourceRadicand" -> delta|>;
 algebraicEntry[mu_, i_, j_] := (ge + mu + i gx + j gy)/
   ((2 + gx + Sqrt[delta])^If[mu === 1, 2, 1] (i + j));
 algebraicConnection = buildConnection[algebraicEntry];
@@ -110,17 +112,24 @@ algebraicConnection = buildConnection[algebraicEntry];
 allTargets[dims_] := Flatten[
   Table[{mu, i, jj}, {mu, dims[[1]]}, {i, dims[[2]]}, {jj, dims[[3]]}], 2];
 
+bundleRoots[bundle_Association] := Module[{allRoots},
+  allRoots = presentationRootsInVariables[bundle["CoefficientPresentation"],
+    bundle["Variables"]];
+  allRoots[[bundle["SquareRootGeneratorIndices"]]]
+];
+
 (* ---- (a) contract and validation ------------------------------------ *)
-result = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge];
-FTAssert["(a) the compat mode returns forcing AND the bundle",
+result = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge];
+FTAssert["(a) the compat mode returns inhomogeneity AND the bundle",
   Lookup[result, "Status", None] === "OK" &&
     AssociationQ[Lookup[result, "DeferredBundle", None]]];
 bundle = result["DeferredBundle"];
-FTAssert["(a) the bundle carries the V2 schema and status",
-  bundle["Schema"] === "BlockEquationDeferredBundleV2" &&
+FTAssert["(a) the bundle carries the V3 schema and explicit coefficient presentation",
+  bundle["Schema"] === "BlockEquationDeferredBundleV3" &&
+    bundle["SchemaVersion"] === 3 &&
     bundle["Status"] === "PreparedDeferredBundle" &&
-    StringQ[bundle["BundleFingerprint"]] &&
-    StringQ[bundle["SourceFingerprint"]]];
+    AssociationQ[bundle["CoefficientPresentation"]] &&
+    VectorQ[bundle["SquareRootGeneratorIndices"], IntegerQ]];
 FTAssert["(a) the bundle passes consumer validation",
   validate[bundle]["Status"] === "BundleValid"];
 FTAssert["(a) TargetOrder is complete, unique and lexicographic and Jobs align",
@@ -137,11 +146,10 @@ leaked temporary grade symbols",
         s_Symbol :> SymbolName[Unevaluated[s]], {0, Infinity},
         Heads -> True]],
       StringStartsQ[#, "bedGradeRoot" | "bedOrbitRoot" | "denestRoot"] &]];
-FTAssert["(a) every operand record carries numerator, ordered factor pairs, \
-root mask and fingerprint",
+FTAssert["(a) every operand record carries explicit numerator, ordered factor pairs and root mask",
   AllTrue[bundle["OperandTable"], AssociationQ[#] &&
     KeyExistsQ[#, "Numerator"] && ListQ[#["DenominatorFactors"]] &&
-    IntegerQ[#["RootMask"]] && StringQ[#["Fingerprint"]] &]];
+    IntegerQ[#["RootMask"]] &]];
 
 (* ---- (b) oracle equality: rational block ---------------------------- *)
 evaluation = evaluateBundle[bundle, {}];
@@ -153,7 +161,7 @@ FTAssert["(b) rational block: bundle evaluation equals the materialized \
 oracle entry by entry",
   And @@ Map[Function[target, TrueQ[Together[
       evaluation["Image"][[Sequence @@ target]] -
-        result["Forcing"][[Sequence @@ target]]] === 0]],
+        result["Inhomogeneity"][[Sequence @@ target]]] === 0]],
     allTargets[bundle["Dimensions"]]]];
 point = {gx -> 3/7, gy -> 5/11, ge -> 1/13};
 pointEvaluation = evaluateBundle[bundle, point];
@@ -162,11 +170,11 @@ equals the oracle there",
   pointEvaluation["Status"] === "OK" &&
     And @@ Map[Function[target, TrueQ[Together[
         pointEvaluation["Image"][[Sequence @@ target]] -
-          (result["Forcing"][[Sequence @@ target]] /. point)] === 0]],
+          (result["Inhomogeneity"][[Sequence @@ target]] /. point)] === 0]],
       allTargets[bundle["Dimensions"]]]];
 
 (* ---- (b) oracle equality: algebraic block --------------------------- *)
-algebraicResult = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+algebraicResult = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "DivisorRoots" -> {deltaRoot}];
 FTAssert["(b) the algebraic block builds with the declared frame",
   Lookup[algebraicResult, "Status", None] === "OK" &&
@@ -179,18 +187,18 @@ oracle over the declared field",
   algebraicEvaluation["Status"] === "OK" &&
     And @@ Map[Function[target, TrueQ[zeroQ[
         algebraicEvaluation["Image"][[Sequence @@ target]] -
-          algebraicResult["Forcing"][[Sequence @@ target]],
+          algebraicResult["Inhomogeneity"][[Sequence @@ target]],
         {Together[delta]}]]],
       allTargets[algebraicBundle["Dimensions"]]]];
 FTAssert["(b) the algebraic bundle's root frame is the declared one",
-  Length[algebraicBundle["RootFrame"]["Roots"]] === 1 &&
-    TrueQ[Together[algebraicBundle["RootFrame"]["Roots"][[1]][
-      "RootSquare"] - delta] === 0]];
+  Length[bundleRoots[algebraicBundle]] === 1 &&
+    TrueQ[Together[First[bundleRoots[algebraicBundle]]["QuadraticRadicand"] -
+      delta] === 0]];
 
 (* ---- (c) provenance survives cancellation --------------------------- *)
 (* row 1: base 1/(a+r), feed -(1-a-r)/(a+r) -> the assembled numerator
    is (a+r), the exact cancellation divides it out, the entry is 1 and
-   the algebraic divisor's visible spelling is GONE from the forcing.
+   the algebraic divisor's visible spelling is GONE from the inhomogeneity.
    row 2: base and feed equal -> the entry is exactly 0. *)
 aLetter = 2 + gx + Sqrt[delta];
 cancelConnection = buildConnection[Function[{mu, i, j}, 0]];
@@ -201,7 +209,7 @@ cancelConnection[[2, 3, 1]] = (1 + gx)/(1 - gy);
 cancelConnection[[2, 4, 1]] = gy/(3 + gx);
 cancelConnection[[2, 2, 1]] = 1/(1 - gy);
 cancelSolved = <|2 -> {{1}, {1}}|>;
-cancelResult = forcingOf[cancelConnection, ranges, 3, 1, cancelSolved,
+cancelResult = inhomogeneityOf[cancelConnection, ranges, 3, 1, cancelSolved,
   {gx, gy}, ge, "DivisorRoots" -> {deltaRoot}];
 FTAssert["(c) the cancellation fixture builds",
   Lookup[cancelResult, "Status", None] === "OK" &&
@@ -210,8 +218,8 @@ FTAssert["(c) the cancellation fixture builds",
 cancelBundle = cancelResult["DeferredBundle"];
 FTAssert["(c) the materialized entry no longer carries the algebraic \
 divisor's spelling",
-  TrueQ[zeroQ[cancelResult["Forcing"][[1, 1, 1]] - 1, {Together[delta]}]] &&
-    FreeQ[cancelResult["Forcing"][[1, 1, 1]], Sqrt[delta]]];
+  TrueQ[zeroQ[cancelResult["Inhomogeneity"][[1, 1, 1]] - 1, {Together[delta]}]] &&
+    FreeQ[cancelResult["Inhomogeneity"][[1, 1, 1]], Sqrt[delta]]];
 cancelFactors = cancelBundle["DivisorSummary"]["Factors"];
 cancelFactor = SelectFirst[cancelFactors,
   TrueQ[#["Algebraic"]] &&
@@ -228,7 +236,7 @@ cancelled entry",
 
 (* ---- (d) complete cancellation, upper-bound labels only ------------- *)
 FTAssert["(d) the completely cancelled entry is exactly zero",
-  cancelResult["Forcing"][[1, 2, 1]] === 0];
+  cancelResult["Inhomogeneity"][[1, 2, 1]] === 0];
 FTAssert["(d) its divisor provenance is retained",
   ! MissingQ[cancelFactor] && Length[Select[
     cancelBundle["DivisorOccurrences"],
@@ -245,12 +253,14 @@ pole",
 
 (* ---- (e) Sqrt[Delta1 Delta2] uses the two declared generators ------- *)
 d1 = 1 + gx; d2 = 1 + gy;
-compositeRoots = {<|"Root" -> Sqrt[d1], "RootSquare" -> d1|>,
-  <|"Root" -> Sqrt[d2], "RootSquare" -> d2|>};
+compositeRoots = {<|"Generator" -> Sqrt[d1],
+    "QuadraticRadicand" -> d1, "SourceRadicand" -> d1|>,
+  <|"Generator" -> Sqrt[d2], "QuadraticRadicand" -> d2,
+    "SourceRadicand" -> d2|>};
 compositeEntry[mu_, i_, j_] :=
   (1 + mu gx + Sqrt[d1 d2])/((3 + gx) (1 - gy) (i + j));
 compositeConnection = buildConnection[compositeEntry];
-compositeResult = forcingOf[compositeConnection, ranges, 3, 1, solved,
+compositeResult = inhomogeneityOf[compositeConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "DivisorRoots" -> compositeRoots];
 FTAssert["(e) the composite-radical block builds with the two declared \
 generators",
@@ -260,9 +270,9 @@ generators",
 compositeBundle = compositeResult["DeferredBundle"];
 FTAssert["(e) the root frame holds exactly the two declared generators, \
 never a third",
-  Length[compositeBundle["RootFrame"]["Roots"]] === 2 &&
-    Sort[Together /@ Lookup[compositeBundle["RootFrame"]["Roots"],
-      "RootSquare"]] === Sort[{Together[d1], Together[d2]}]];
+  Length[bundleRoots[compositeBundle]] === 2 &&
+    Sort[Together /@ Lookup[bundleRoots[compositeBundle],
+      "QuadraticRadicand"]] === Sort[{Together[d1], Together[d2]}]];
 FTAssert["(e) no operand carries the composite radicand: every radical base \
 in the bundle is a declared square",
   FreeQ[compositeBundle["OperandTable"], Sqrt[d1 d2]] &&
@@ -279,38 +289,44 @@ equals the oracle after the composite rewrite",
     compositeEvaluation["Status"] === "OK" &&
       And @@ Map[Function[target, TrueQ[zeroQ[
           compositeEvaluation["Image"][[Sequence @@ target]] -
-            (compositeResult["Forcing"][[Sequence @@ target]] /.
+            (compositeResult["Inhomogeneity"][[Sequence @@ target]] /.
               {Sqrt[d1 d2] -> Sqrt[d1] Sqrt[d2],
                Sqrt[Expand[d1 d2]] -> Sqrt[d1] Sqrt[d2]}),
           {Together[d1], Together[d2]}]]],
         allTargets[compositeBundle["Dimensions"]]]]];
 
 (* ---- (f) dependent and duplicate frames refused before orbits ------- *)
-dependentBundle = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+dependentBundle = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "Bundle",
-  "BundleRoots" -> {<|"Root" -> Sqrt[gx], "RootSquare" -> gx|>,
-    <|"Root" -> Sqrt[gy], "RootSquare" -> gy|>,
-    <|"Root" -> Sqrt[gx gy], "RootSquare" -> gx gy|>}];
+  "BundleRoots" -> {<|"Generator" -> Sqrt[gx],
+      "QuadraticRadicand" -> gx, "SourceRadicand" -> gx|>,
+    <|"Generator" -> Sqrt[gy], "QuadraticRadicand" -> gy,
+      "SourceRadicand" -> gy|>,
+    <|"Generator" -> Sqrt[gx gy], "QuadraticRadicand" -> gx gy,
+      "SourceRadicand" -> gx gy|>}];
 FTAssert["(f) a dependent declared frame is the typed DependentRootSquares, \
 with no orbit ever generated",
   Lookup[dependentBundle, "Status", None] === "DependentRootSquares" &&
     ! KeyExistsQ[dependentBundle, "DivisorSummary"] &&
     ! KeyExistsQ[dependentBundle, "GaloisOrbits"]];
-duplicateBundle = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+duplicateBundle = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "Bundle",
-  "BundleRoots" -> {deltaRoot, <|"Root" -> Sqrt[1 + gx],
-    "RootSquare" -> 1 + gx|>}];
+  "BundleRoots" -> {deltaRoot, <|"Generator" -> Sqrt[1 + gx],
+    "QuadraticRadicand" -> 1 + gx,
+    "SourceRadicand" -> 1 + gx|>}];
 FTAssert["(f) a duplicate square is the typed DuplicateRootSquares",
   Lookup[duplicateBundle, "Status", None] === "DuplicateRootSquares"];
 
 (* ---- (g) out-of-frame radical; no synthesis without a frame --------- *)
-outsideBundle = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+outsideBundle = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "Bundle",
-  "BundleRoots" -> {<|"Root" -> Sqrt[1 - gy], "RootSquare" -> 1 - gy|>}];
+  "BundleRoots" -> {<|"Generator" -> Sqrt[1 - gy],
+    "QuadraticRadicand" -> 1 - gy,
+    "SourceRadicand" -> 1 - gy|>}];
 FTAssert["(g) a radical outside the declared square-class span is the typed \
 RadicalOutsideDeclaredFrame",
   Lookup[outsideBundle, "Status", None] === "RadicalOutsideDeclaredFrame"];
-frameless = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+frameless = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "Bundle"];
 FTAssert["(g) algebraic content with no declared frame is the typed \
 DeferredRootFrameRequired, never a synthesized root",
@@ -346,27 +362,33 @@ mutatedOrder = Join[bundle, <|"TargetOrder" -> Reverse[bundle["TargetOrder"]],
   "Jobs" -> Reverse[bundle["Jobs"]]|>];
 FTAssert["(i) a permuted target order is refused",
   validate[mutatedOrder]["Status"] === "TargetOrderNotLexicographic"];
-mutatedRoots = Join[compositeBundle, <|"RootFrame" -> Join[
-  compositeBundle["RootFrame"], <|"Roots" -> Reverse[
-    compositeBundle["RootFrame"]["Roots"]]|>]|>];
-FTAssert["(i) a reordered root frame is refused",
-  validate[mutatedRoots]["Status"] === "RootOrderFingerprintMismatch"];
+mutatedRoots = ReplacePart[compositeBundle,
+  "SquareRootGeneratorIndices" ->
+    Reverse[compositeBundle["SquareRootGeneratorIndices"]]];
+FTAssert["(i) a reordered generator index list is refused structurally",
+  validate[mutatedRoots]["Status"] === "SquareRootGeneratorDataInvalid"];
 mutatedCoefficient = ReplacePart[bundle,
-  {Key["Jobs"], 1, Key["Terms"], 1, 1} -> 2];
-FTAssert["(i) a changed job coefficient breaks the recomputed bundle \
-fingerprint",
-  validate[mutatedCoefficient]["Status"] === "BundleFingerprintMismatch"];
+  {Key["Jobs"], 1, Key["Terms"], 1, 1} ->
+    bundle["Jobs"][[1, "Terms", 1, 1]] + 1];
+mutatedCoefficientEvaluation = evaluateBundle[mutatedCoefficient, {}];
+FTAssert["(i) direct evaluation detects a changed job coefficient",
+  validate[mutatedCoefficient]["Status"] === "BundleValid" &&
+    mutatedCoefficientEvaluation["Status"] === "OK" &&
+    mutatedCoefficientEvaluation["Image"] =!= evaluation["Image"]];
 mutatedNumerator = ReplacePart[bundle,
-  {Key["OperandTable"], 1, Key["Numerator"]} -> 1 + gx];
-FTAssert["(i) a changed operand numerator breaks the recomputed bundle \
-fingerprint",
-  validate[mutatedNumerator]["Status"] === "BundleFingerprintMismatch"];
+  {Key["OperandTable"], 1, Key["Numerator"]} ->
+    bundle["OperandTable"][[1, "Numerator"]] + 1];
+mutatedNumeratorEvaluation = evaluateBundle[mutatedNumerator, {}];
+FTAssert["(i) direct evaluation detects a changed operand numerator",
+  validate[mutatedNumerator]["Status"] === "BundleValid" &&
+    mutatedNumeratorEvaluation["Status"] === "OK" &&
+    mutatedNumeratorEvaluation["Image"] =!= evaluation["Image"]];
 
 (* ---- (j) the early-bundle path never materializes ------------------- *)
 oracleInvoked = False;
 injectedOracle = Function[{},
   (oracleInvoked = True; <|"Status" -> "InjectedOracleInvoked"|>)];
-earlyBundle = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy},
+earlyBundle = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy},
   ge, "Output" -> "Bundle", "MaterializeFunction" -> injectedOracle];
 FTAssert["(j) Output -> Bundle returns the bundle and never calls the \
 materializer (injected oracle untouched)",
@@ -375,17 +397,17 @@ materializer (injected oracle untouched)",
     validate[earlyBundle]["Status"] === "BundleValid"];
 FTAssert["(j) the early bundle carries the census in its statistics",
   AssociationQ[earlyBundle["Statistics"]["Census"]] &&
-    KeyExistsQ[earlyBundle["Statistics"], "ZeroForcingCandidateQ"]];
+    KeyExistsQ[earlyBundle["Statistics"], "ZeroInhomogeneityCandidateQ"]];
 oracleInvoked = False;
-adaptiveBundle = forcingOf[rationalConnection, ranges, 3, 1, solved,
+adaptiveBundle = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
   "MaterializeFunction" -> injectedOracle];
 FTAssert["(j) BundleOrMaterialized returns a witnessed-nonzero bundle and \
 does not invoke the materializer",
   Lookup[adaptiveBundle, "Status", None] === "PreparedDeferredBundle" &&
-    TrueQ[! adaptiveBundle["Statistics"]["ZeroForcingCandidateQ"]] &&
+    TrueQ[! adaptiveBundle["Statistics"]["ZeroInhomogeneityCandidateQ"]] &&
     oracleInvoked === False];
-framelessInvoked = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+framelessInvoked = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
   "MaterializeFunction" -> injectedOracle];
 FTAssert["(j) a typed bundle refusal on the adaptive path also never \
@@ -393,7 +415,7 @@ materializes",
   Lookup[framelessInvoked, "Status", None] === "DeferredRootFrameRequired" &&
     oracleInvoked === False];
 oracleInvoked = False;
-adaptiveMaterialized = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+adaptiveMaterialized = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
   "BundleRoots" -> {deltaRoot}, "MaterializeFunction" -> injectedOracle];
 FTAssert["(j) BundleOrMaterialized invokes the exact materializer after an \
@@ -401,17 +423,23 @@ inconclusive algebraic census",
   oracleInvoked === True &&
     Lookup[adaptiveMaterialized, "Status", None] ===
       "InjectedOracleInvoked"];
-adaptiveAlgebraic = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+adaptiveAlgebraic = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
   "BundleRoots" -> {deltaRoot}, "Progress" -> False];
-FTAssert["(j) adaptive exact materialization preserves forcing and the \
-authenticated bundle fingerprint",
+adaptiveAlgebraicBundle = adaptiveAlgebraic["DeferredBundle"];
+adaptiveAlgebraicEvaluation = evaluateBundle[adaptiveAlgebraicBundle, {}];
+FTAssert["(j) adaptive exact materialization preserves inhomogeneity and explicit bundle data",
   Lookup[adaptiveAlgebraic, "Status", None] === "OK" &&
-    adaptiveAlgebraic["Forcing"] === algebraicResult["Forcing"] &&
-    adaptiveAlgebraic["DeferredBundle"]["BundleFingerprint"] ===
-      algebraicBundle["BundleFingerprint"]];
+    adaptiveAlgebraic["Inhomogeneity"] === algebraicResult["Inhomogeneity"] &&
+    validate[adaptiveAlgebraicBundle]["Status"] === "BundleValid" &&
+    adaptiveAlgebraicBundle["CoefficientPresentation"] ===
+      algebraicBundle["CoefficientPresentation"] &&
+    adaptiveAlgebraicBundle["SquareRootGeneratorIndices"] ===
+      algebraicBundle["SquareRootGeneratorIndices"] &&
+    adaptiveAlgebraicEvaluation["Status"] === "OK" &&
+    adaptiveAlgebraicEvaluation["Image"] === algebraicEvaluation["Image"]];
 oracleInvoked = False;
-compatControl = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy},
+compatControl = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy},
   ge, "Output" -> "BundleAndMaterialized",
   "MaterializeFunction" -> injectedOracle];
 FTAssert["(j) negative control: the compat mode DOES reach the injected \
@@ -419,7 +447,7 @@ oracle",
   oracleInvoked === True &&
     Lookup[compatControl, "Status", None] === "InjectedOracleInvoked"];
 FTAssert["(j) an unknown output mode is the typed InvalidOutputMode",
-  Lookup[forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
+  Lookup[inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
     "Output" -> "Everything"], "Status", None] === "InvalidOutputMode"];
 
 (* ---- (k) the seeded materializer agrees with the unseeded one ------- *)
@@ -449,8 +477,8 @@ bundleDeadInternDispatcher[data_Association, batchList_List] :=
   preparation, "Roots" -> {}, "Parallel" -> True, "Helpers" -> 3,
   "InternDispatcher" -> bundleInternDispatcher, "Progress" -> False];
 FTAssert["(k) bundle parallel interning preserves deterministic content",
-  parallelSeedBundle["BundleFingerprint"] ===
-      seedBundle["BundleFingerprint"] &&
+  KeyDrop[parallelSeedBundle, "Statistics"] ===
+      KeyDrop[seedBundle, "Statistics"] &&
     parallelSeedBundle["OperandTable"] === seedBundle["OperandTable"] &&
     parallelSeedBundle["Jobs"] === seedBundle["Jobs"] &&
     parallelSeedCache === seedCache &&
@@ -461,7 +489,8 @@ FTAssert["(k) bundle parallel interning preserves deterministic content",
   "InternDispatcher" -> bundleDeadInternDispatcher,
   "Progress" -> False];
 FTAssert["(k) failed bundle intern jobs are recomputed on the controller",
-  deadSeedBundle["BundleFingerprint"] === seedBundle["BundleFingerprint"] &&
+  KeyDrop[deadSeedBundle, "Statistics"] ===
+      KeyDrop[seedBundle, "Statistics"] &&
     deadSeedBundle["OperandTable"] === seedBundle["OperandTable"] &&
     deadSeedCache === seedCache];
 
@@ -490,11 +519,14 @@ restattedBundle = Append[seedBundle, "Statistics" -> Join[
       "FactorExactInternHitCount" -> -1,
       "FactorFallbackComparisonCount" -> -1,
       "FactorMatchSeconds" -> -1.|>]];
-FTAssert["(l) factor-intern telemetry is outside the fingerprinted bundle",
-  fingerprintOf[restattedBundle] === seedBundle["BundleFingerprint"] &&
+FTAssert["(l) factor-intern telemetry is outside the validated mathematical bundle",
+  KeyDrop[restattedBundle, "Statistics"] ===
+      KeyDrop[seedBundle, "Statistics"] &&
     validate[restattedBundle]["Status"] === "BundleValid"];
 FTAssert["(l) interning preserves factor numbering and bundle content",
-  seedBundle["BundleFingerprint"] === bundle["BundleFingerprint"] &&
+  seedBundle["CoefficientPresentation"] === bundle["CoefficientPresentation"] &&
+    seedBundle["SquareRootGeneratorIndices"] ===
+      bundle["SquareRootGeneratorIndices"] &&
     seedBundle["DivisorSummary"]["Factors"] ===
       bundle["DivisorSummary"]["Factors"] &&
     seedBundle["Jobs"] === bundle["Jobs"] &&

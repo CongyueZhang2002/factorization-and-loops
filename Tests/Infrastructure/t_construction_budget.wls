@@ -7,19 +7,19 @@
    campaign missions sat more than two hours in the work BETWEEN the
    driver's "strip {i,j}" announcement and the first solver call --
    CANONICA NextEquationD (or the blockwise block equation), the
-   strip-input write, the zero-forcing probe, and then, inside
-   SolveEpsFormStripInFrame, the chart pullback, the gauge pullback and
+   strip-input write, the zero-inhomogeneity probe, and then, inside
+   SolveOffDiagonalBasisTransformationBlock, the chart pullback, the gauge pullback and
    the source-representation identity check -- where no deadline was ever checked,
    so the 7200 s sector budget passed silently on both families with no
    record of where the time went.
 
    Acceptance criteria, stated before the run:
 
-   (a) EXPIRY BEFORE CONSTRUCTION.  SolveEpsFormStripInFrame called with
+   (a) EXPIRY BEFORE CONSTRUCTION.  SolveOffDiagonalBasisTransformationBlock called with
        an already-expired deadline returns an Association with
-       Status "BudgetExhausted" and Stage "StripConstruction:Entry", and
-       INVOKES NO SOLVER: SolveEpsFormStripFiniteField, SolveEpsFormStrip
-       and solveEpsFormStripMultiquadratic are each called zero times
+       Status "BudgetExhausted" and Stage "OffDiagonalBlockConstruction:Entry", and
+       INVOKES NO SOLVER: SolveOffDiagonalBasisTransformationBlockFiniteField, SolveOffDiagonalBlock
+       and solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators are each called zero times
        (counted by Block-scoped stand-ins).  The stop is never $Aborted,
        never $Failed and never an exception.
 
@@ -48,17 +48,17 @@
 
    (c) PROPAGATION THROUGH THE DRIVER.  The driver
        Scripts/family_epsform_sector.wls contains EXACTLY ONE
-       StripBudgetExhausted stop record (there is no parallel path for
+       OffDiagonalBlockBudgetExhausted stop record (there is no parallel path for
        construction stops), its strip-solve dispatch is guarded by
-       ! stripBudgetExhaustedQ[solution], and its SolveEpsFormStripInFrame
+       ! offDiagonalBlockBudgetExhaustedQ[solution], and its SolveOffDiagonalBasisTransformationBlock
        call site passes "Deadline" -> sectorDeadline (the Legacy
        CANONICA/Maple dispatch was removed on 2026-09-02).  Evaluating that single stop record verbatim --
        the text is EXTRACTED from the driver source, never copied into
        this test -- on a real construction stop yields a state Stop
-       record with Status "StripBudgetExhausted", a Stage of the form
-       "StripConstruction:<substage>", Resumable True, and a Progress
+       record with Status "OffDiagonalBlockBudgetExhausted", a Stage of the form
+       "OffDiagonalBlockConstruction:<substage>", Resumable True, and a Progress
        association carrying the substage wall times.  The driver's own
-       construction stop (stripConstructionStop, also extracted from the
+       construction stop (offDiagonalBlockConstructionStop, also extracted from the
        source) feeds the same record. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
@@ -73,19 +73,19 @@ report[label_, value_] := Print["     ", label, ": ", Short[value, 6]];
    BudgetExhausted result outside it is a defect, not a pass *)
 inFrameSubstages = {"Entry", "ParametrizationSelection",
   "ParametrizationPreparation", "ParametrizationPullBack",
-  "ParametrizationPullBackComplete", "GaugePullBack",
+  "ParametrizationPullBackComplete", "BasisTransformationReexpression",
   "SourceRepresentationIdentity", "SolverDispatch",
   "MultiquadraticDispatch"};
-driverSubstages = {"Entry", "EquationConstructed", "StripInputWritten",
-  "ZeroForcingProbe", "SolverDispatch"};
+driverSubstages = {"Entry", "EquationConstructed", "OffDiagonalBlockInputWritten",
+  "ZeroInhomogeneityProbe", "SolverDispatch"};
 
 budgetExhaustedQ[r_] := AssociationQ[r] &&
   Lookup[r, "Status", None] === "BudgetExhausted";
 constructionStopQ[r_, vocabulary_List] := budgetExhaustedQ[r] &&
   StringQ[Lookup[r, "Stage", None]] &&
-  StringStartsQ[r["Stage"], "StripConstruction:"] &&
+  StringStartsQ[r["Stage"], "OffDiagonalBlockConstruction:"] &&
   MemberQ[vocabulary, Lookup[r, "Substage", None]] &&
-  r["Stage"] === "StripConstruction:" <> r["Substage"] &&
+  r["Stage"] === "OffDiagonalBlockConstruction:" <> r["Substage"] &&
   NumericQ[Lookup[r, "Elapsed", None]] && r["Elapsed"] >= 0 &&
   TrueQ[Lookup[r, "Resumable", False]] &&
   AssociationQ[Lookup[r, "ConstructionTimings", None]];
@@ -128,25 +128,22 @@ check["the three-generator quadratic relations are verified",
     coefficientPresentation["Status"] ===
       "SquareRootGeneratorRelationsVerified"];
 
-knownGauge = {{Sqrt[lambda1]}};
+knownOffDiagonalBasisTransformationBlock = {{Sqrt[lambda1]}};
 zeroOneForm = {ConstantArray[0, {1, 1}], ConstantArray[0, {1, 1}]};
 algebraicStrip = {zeroOneForm, zeroOneForm,
-  {D[knownGauge, v], D[knownGauge, w]}};
+  {D[knownOffDiagonalBasisTransformationBlock, v], D[knownOffDiagonalBasisTransformationBlock, w]}};
 fixtureOptions = {
-  "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
-  "CANONICATimeLimit" -> 30, "CANONICAKernels" -> 1,
-  "MapleTimeLimit" -> 60, "MapleResidueKernels" -> 1,
   "Verbose" -> False};
 
 (* ------------------------------------------------------------------ *)
 (* (b) identity at Deadline -> Infinity                                 *)
 (* ------------------------------------------------------------------ *)
 
-{baselineSeconds, baseline} = AbsoluteTiming[SolveEpsFormStripInFrame[
+{baselineSeconds, baseline} = AbsoluteTiming[SolveOffDiagonalBasisTransformationBlock[
   algebraicStrip, {v, w}, eps, coefficientPresentation,
   Sequence @@ fixtureOptions]];
 {infinitySeconds, infinityResult} = AbsoluteTiming[
-  SolveEpsFormStripInFrame[
+  SolveOffDiagonalBasisTransformationBlock[
     algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> Infinity]];
 
@@ -156,7 +153,7 @@ check["the fixture solves without the option (the existing suite's expectation)"
       "RationalizingParametrization/Kallen1/"] &&
     TrueQ[baseline["ExactDLog"]] &&
     TrueQ[baseline["Validation"]["CoordinateComposition"]] &&
-    TrueQ[baseline["Validation"]["GaugeRoundTrip"]] &&
+    TrueQ[baseline["Validation"]["BasisTransformationCoordinateReexpressionVerified"]] &&
     TrueQ[baseline["Validation"]["TransformedOneFormPullBack"]] &&
     TrueQ[baseline["Validation"]["SourceDLog"]] &&
     baseline["Validation"]["Method"] === "Exact" &&
@@ -173,7 +170,7 @@ report["fixture baseline / Deadline -> Infinity seconds",
   Round[{baselineSeconds, infinitySeconds}, 0.01]];
 
 check["a malformed deadline is a typed refusal, not a crash",
-  Lookup[SolveEpsFormStripInFrame[
+  Lookup[SolveOffDiagonalBasisTransformationBlock[
     algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> "soon"],
     "Status", None] === "InvalidDeadline"];
@@ -183,33 +180,25 @@ check["a malformed deadline is a typed refusal, not a crash",
 (*     solver                                                           *)
 (* ------------------------------------------------------------------ *)
 
-(* Block clears Options together with the definitions, and the
-   construction stage reads Options[SolveEpsFormStrip] to filter its own
-   option list; the saved lists are reinstated inside the Block so the
-   ONLY thing the stand-ins change is whether a call is counted. *)
-savedFiniteFieldOptions = Options[FeynFacet`SolveEpsFormStripFiniteField];
-savedStripOptions = Options[FeynFacet`SolveEpsFormStrip];
+(* Block clears Options together with the definitions; the saved lists are
+   reinstated so the only change is whether a solver call is counted. *)
+savedFiniteFieldOptions = Options[FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField];
 savedMultiquadraticOptions =
-  Options[FeynFacet`Private`solveEpsFormStripMultiquadratic];
+  Options[FeynFacet`Private`solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators];
 solverCalls = 0;
 capturedSolverOptions = {};
 SetAttributes[withSolverStandIns, HoldAll];
 withSolverStandIns[body_] := Block[
-  {FeynFacet`SolveEpsFormStripFiniteField, FeynFacet`SolveEpsFormStrip,
-   FeynFacet`Private`solveEpsFormStripMultiquadratic},
-  Options[FeynFacet`SolveEpsFormStripFiniteField] = savedFiniteFieldOptions;
-  Options[FeynFacet`SolveEpsFormStrip] = savedStripOptions;
-  Options[FeynFacet`Private`solveEpsFormStripMultiquadratic] =
+  {FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField,
+   FeynFacet`Private`solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators},
+  Options[FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField] = savedFiniteFieldOptions;
+  Options[FeynFacet`Private`solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators] =
     savedMultiquadraticOptions;
-  FeynFacet`SolveEpsFormStripFiniteField[record_, options___] := (
+  FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[record_, options___] := (
     solverCalls++;
     capturedSolverOptions = Join[capturedSolverOptions, {options}];
     <|"Status" -> "StandIn"|>);
-  FeynFacet`SolveEpsFormStrip[strip_, variables_, epsilon_, options___] := (
-    solverCalls++;
-    capturedSolverOptions = Join[capturedSolverOptions, {options}];
-    <|"Status" -> "StandIn"|>);
-  FeynFacet`Private`solveEpsFormStripMultiquadratic[record_, algebraicFrame_,
+  FeynFacet`Private`solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators[record_, algebraicFrame_,
       options___] := (
     solverCalls++;
     capturedSolverOptions = Join[capturedSolverOptions, {options}];
@@ -218,13 +207,13 @@ withSolverStandIns[body_] := Block[
 
 solverCalls = 0; capturedSolverOptions = {};
 {expirySeconds, expired} = AbsoluteTiming[withSolverStandIns[
-  SolveEpsFormStripInFrame[
+  SolveOffDiagonalBasisTransformationBlock[
     algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] - 1]]];
 
 check["an expired deadline returns Status BudgetExhausted at the entry boundary",
   constructionStopQ[expired, inFrameSubstages] &&
-    expired["Stage"] === "StripConstruction:Entry"];
+    expired["Stage"] === "OffDiagonalBlockConstruction:Entry"];
 check["the construction stop is typed, never $Aborted and never $Failed",
   expired =!= $Aborted && expired =!= $Failed && AssociationQ[expired]];
 check["no solver is invoked when the deadline has already expired",
@@ -237,18 +226,18 @@ check["the entry stop carries the construction identifiers",
     expired["SquareRootGeneratorIndices"] === Missing["NotClassified"] &&
     expired["InnerStatus"] === Missing["NotSolved"] &&
     expired["RationalizingParametrizationName"] === None &&
-    expired["StripDimensions"] === {1, 1} &&
+    expired["OffDiagonalBlockDimensions"] === {1, 1} &&
     expired["Deadline"] < AbsoluteTime[]];
 check["the entry stop returns in under 30 s of wall time", expirySeconds < 30];
 report["entry stop", KeyTake[expired,
   {"Stage", "Substage", "Elapsed", "ConstructionTimings",
    "RationalizingParametrizationName",
-   "StripDimensions", "InnerStatus"}]];
+   "OffDiagonalBlockDimensions", "InnerStatus"}]];
 
 (* an input error outranks a budget stop, and still reaches no solver *)
 solverCalls = 0; capturedSolverOptions = {};
 malformedPresentation = withSolverStandIns[
-  SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps,
+  SolveOffDiagonalBasisTransformationBlock[algebraicStrip, {v, w}, eps,
     <|"Status" -> "Malformed"|>, "Deadline" -> AbsoluteTime[] - 1]];
 check["a malformed coefficient presentation outranks the budget stop and reaches no solver",
   Lookup[malformedPresentation, "Status", None] ===
@@ -288,7 +277,7 @@ solverCalls = 0; capturedSolverOptions = {};
 {lateSeconds, late} = AbsoluteTiming[withSolverStandIns[Block[
   {LookupCataloguedRationalizingParametrizationForRoots},
   LookupCataloguedRationalizingParametrizationForRoots[___] := (Pause[chartSelectionPause]; trueChart);
-  SolveEpsFormStripInFrame[
+  SolveOffDiagonalBasisTransformationBlock[
     algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions,
     "Deadline" -> AbsoluteTime[] + lateDeadlineOffset]]]];
@@ -353,7 +342,7 @@ withCountingDeadline[expireAt_, body_] := Block[
 
 deadlineReads = 0;
 countingBaseline = withCountingDeadline[0,
-  SolveEpsFormStripInFrame[
+  SolveOffDiagonalBasisTransformationBlock[
     algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] + 3600]];
 totalDeadlineReads = deadlineReads;
@@ -367,7 +356,7 @@ deadlineReads = 0;
 solverCalls = 0; capturedSolverOptions = {};
 {acceptanceSeconds, acceptanceStop} = AbsoluteTiming[
   withCountingDeadline[totalDeadlineReads,
-    SolveEpsFormStripInFrame[
+    SolveOffDiagonalBasisTransformationBlock[
       algebraicStrip, {v, w}, eps, coefficientPresentation,
       Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] + 3600]]];
 
@@ -375,7 +364,7 @@ check["a deadline reached inside an acceptance zero test stops typed",
   constructionStopQ[acceptanceStop, inFrameSubstages]];
 check["the acceptance stop names an acceptance substage, not the entry gate",
   budgetExhaustedQ[acceptanceStop] &&
-    MemberQ[{"GaugePullBack", "SourceRepresentationIdentity"},
+    MemberQ[{"BasisTransformationReexpression", "SourceRepresentationIdentity"},
       acceptanceStop["Substage"]]];
 check["the LAST deadline read of a construction is inside a zero test, \
 i.e. the test is preemptible per entry and not only per stage",
@@ -401,9 +390,9 @@ rationalStrip = {zeroOneForm, zeroOneForm,
 handedDeadline = AbsoluteTime[] + 3600;
 solverCalls = 0; capturedSolverOptions = {};
 handed = withSolverStandIns[
-  SolveEpsFormStripInFrame[
+  SolveOffDiagonalBasisTransformationBlock[
     rationalStrip, {v, w}, eps, coefficientPresentation,
-    "FiniteFieldFirst" -> True, "Verbose" -> False,
+    "Verbose" -> False,
     "Deadline" -> handedDeadline]];
 check["a rational strip reaches the solver and the solver gets the deadline",
   solverCalls === 1 &&
@@ -413,9 +402,9 @@ check["a rational strip reaches the solver and the solver gets the deadline",
 explicitDeadline = AbsoluteTime[] + 12345;
 solverCalls = 0; capturedSolverOptions = {};
 handedExplicit = withSolverStandIns[
-  SolveEpsFormStripInFrame[
+  SolveOffDiagonalBasisTransformationBlock[
     rationalStrip, {v, w}, eps, coefficientPresentation,
-    "FiniteFieldFirst" -> True, "Verbose" -> False,
+    "Verbose" -> False,
     "FiniteFieldOptions" -> {"Deadline" -> explicitDeadline},
     "Deadline" -> handedDeadline]];
 check["an explicit FiniteFieldOptions deadline still wins over the inherited one",
@@ -426,7 +415,7 @@ report["deadlines handed to the solver",
   {handedDeadline, explicitDeadline}];
 
 (* ------------------------------------------------------------------ *)
-(* (c) propagation through the driver's StripBudgetExhausted handling   *)
+(* (c) propagation through the driver's OffDiagonalBlockBudgetExhausted handling   *)
 (* ------------------------------------------------------------------ *)
 
 driverPath = FileNameJoin[{root, "Scripts", "family_epsform_sector.wls"}];
@@ -441,18 +430,18 @@ extractSpan[source_String, head_String, terminator_String] :=
       None];
     If[to === None, $Failed, StringTake[source, {from, to[[2]]}]]];
 
-stopHeader = "state[\"Stop\"] = <|\"Status\" -> \"StripBudgetExhausted\"";
-stopTail = "\"StripCheckpointFile\" -> stripCheckpointFile|>";
-check["the driver has EXACTLY ONE StripBudgetExhausted stop record (no parallel path)",
+stopHeader = "state[\"Stop\"] = <|\"Status\" -> \"OffDiagonalBlockBudgetExhausted\"";
+stopTail = "\"OffDiagonalBlockCheckpointFile\" -> offDiagonalBlockCheckpointFile|>";
+check["the driver has EXACTLY ONE OffDiagonalBlockBudgetExhausted stop record (no parallel path)",
   StringCount[driverSource, stopHeader] === 1];
 stopText = extractSpan[driverSource, stopHeader, stopTail];
 check["the driver's stop record extracts as one expression",
   StringQ[stopText] && StringLength[stopText] > 0];
 
 deadlinePredicateText = extractSpan[driverSource,
-  "stripDeadlineExpiredQ[d_] :=", "AbsoluteTime[] >= d;"];
+  "offDiagonalBlockDeadlineExpiredQ[d_] :=", "AbsoluteTime[] >= d;"];
 constructionStopText = extractSpan[driverSource,
-  "stripConstructionStop[substage_String,",
+  "offDiagonalBlockConstructionStop[substage_String,",
   "\"ConstructionTimings\" -> stageTimings|>;"];
 check["the driver's construction-stage helpers extract as expressions",
   StringQ[deadlinePredicateText] && StringQ[constructionStopText]];
@@ -464,7 +453,7 @@ driverStopRecord[solutionValue_] := If[! StringQ[stopText], $Failed,
   Block[
     {Global`state = <||>, Global`k = 12, Global`nlow = 9,
      Global`sectorBudget = 7200,
-     Global`stripCheckpointFile = "/nonexistent/CF300_12_strip_state.wl",
+     Global`offDiagonalBlockCheckpointFile = "/nonexistent/CF300_12_strip_state.wl",
      Global`solution = solutionValue},
     ToExpression[stopText];
     Global`state["Stop"]]];
@@ -472,29 +461,29 @@ driverStopRecord[solutionValue_] := If[! StringQ[stopText], $Failed,
 packageStopRecord = driverStopRecord[expired];
 lateStopRecord = driverStopRecord[late];
 
-check["the package construction stop becomes a StripBudgetExhausted state record",
+check["the package construction stop becomes a OffDiagonalBlockBudgetExhausted state record",
   AssociationQ[packageStopRecord] &&
-    packageStopRecord["Status"] === "StripBudgetExhausted" &&
-    packageStopRecord["Strip"] === {12, 9} &&
-    packageStopRecord["Stage"] === "StripConstruction:Entry" &&
+    packageStopRecord["Status"] === "OffDiagonalBlockBudgetExhausted" &&
+    packageStopRecord["OffDiagonalBlockPair"] === {12, 9} &&
+    packageStopRecord["Stage"] === "OffDiagonalBlockConstruction:Entry" &&
     packageStopRecord["SectorBudget"] === 7200 &&
     packageStopRecord["Method"] ===
       "OffDiagonalBlockBasisTransformationConstruction" &&
     TrueQ[packageStopRecord["Resumable"]] &&
     NumericQ[packageStopRecord["Elapsed"]] &&
-    packageStopRecord["StripCheckpointFile"] ===
+    packageStopRecord["OffDiagonalBlockCheckpointFile"] ===
       "/nonexistent/CF300_12_strip_state.wl"];
 check["the state record's Progress carries the construction evidence",
   AssociationQ[packageStopRecord] &&
     AssociationQ[packageStopRecord["Progress"]] &&
     packageStopRecord["Progress"]["Substage"] === "Entry" &&
     KeyExistsQ[packageStopRecord["Progress"], "ConstructionTimings"] &&
-    KeyExistsQ[packageStopRecord["Progress"], "StripDimensions"]];
+    KeyExistsQ[packageStopRecord["Progress"], "OffDiagonalBlockDimensions"]];
 check["a later-boundary stop records its substage wall times in the state record",
   AssociationQ[lateStopRecord] &&
-    lateStopRecord["Status"] === "StripBudgetExhausted" &&
+    lateStopRecord["Status"] === "OffDiagonalBlockBudgetExhausted" &&
     lateStopRecord["Stage"] ===
-      "StripConstruction:ParametrizationPreparation" &&
+      "OffDiagonalBlockConstruction:ParametrizationPreparation" &&
     lateStopRecord["Progress", "ConstructionTimings",
       "ParametrizationSelection"] >=
       chartSelectionPause];
@@ -508,25 +497,25 @@ driverOwnStop = If[
   Block[{Global`sectorDeadline = AbsoluteTime[] - 1},
     ToExpression[deadlinePredicateText];
     ToExpression[constructionStopText];
-    Global`stripConstructionStop["EquationConstructed",
+    Global`offDiagonalBlockConstructionStop["EquationConstructed",
       AbsoluteTime[] - 12.5, {12, 9}, <|"NextEquationD" -> 12.4|>]]];
 check["the driver's own construction stop has the solver stop's shape",
   constructionStopQ[driverOwnStop, driverSubstages] &&
-    driverOwnStop["Stage"] === "StripConstruction:EquationConstructed" &&
-    driverOwnStop["Method"] === "StripConstructionDriver" &&
+    driverOwnStop["Stage"] === "OffDiagonalBlockConstruction:EquationConstructed" &&
+    driverOwnStop["Method"] === "OffDiagonalBlockConstructionDriver" &&
     driverOwnStop["ConstructionTimings"]["NextEquationD"] === 12.4 &&
     driverOwnStop["Elapsed"] >= 12.4];
 check["the driver's expiry predicate is a no-op at an unbounded deadline",
   StringQ[deadlinePredicateText] &&
-    ! TrueQ[Global`stripDeadlineExpiredQ[Infinity]] &&
-    TrueQ[Global`stripDeadlineExpiredQ[AbsoluteTime[] - 1]]];
+    ! TrueQ[Global`offDiagonalBlockDeadlineExpiredQ[Infinity]] &&
+    TrueQ[Global`offDiagonalBlockDeadlineExpiredQ[AbsoluteTime[] - 1]]];
 
 driverOwnStopRecord = driverStopRecord[driverOwnStop];
 check["the driver's own construction stop becomes the same state record",
   AssociationQ[driverOwnStopRecord] &&
-    driverOwnStopRecord["Status"] === "StripBudgetExhausted" &&
+    driverOwnStopRecord["Status"] === "OffDiagonalBlockBudgetExhausted" &&
     driverOwnStopRecord["Stage"] ===
-      "StripConstruction:EquationConstructed" &&
+      "OffDiagonalBlockConstruction:EquationConstructed" &&
     driverOwnStopRecord["Progress"]["ConstructionTimings"] ===
       <|"NextEquationD" -> 12.4|> &&
     TrueQ[driverOwnStopRecord["Resumable"]]];
@@ -537,16 +526,16 @@ check["the driver's own construction stop becomes the same state record",
    Legacy CANONICA/Maple dispatch was removed with its route. *)
 check["the driver's strip-solve dispatch is guarded by the budget stop and no legacy dispatch remains",
   StringCount[driverSource,
-      "blockwiseRouteQ && ! stripBudgetExhaustedQ[solution]"] === 1 &&
+      "blockwiseRouteQ && ! offDiagonalBlockBudgetExhaustedQ[solution]"] === 1 &&
     StringCount[driverSource,
-      "! blockwiseRouteQ && ! stripBudgetExhaustedQ[solution]"] === 0];
+      "! blockwiseRouteQ && ! offDiagonalBlockBudgetExhaustedQ[solution]"] === 0];
 
 normalizeSource[s_String] := StringReplace[s, {
   RegularExpression["(?s)\\(\\*.*?\\*\\)"] -> "",
   RegularExpression["\\s+"] -> " "}];
 inFrameChunks = Rest[StringSplit[driverSource,
-  "FeynFacet`SolveEpsFormStripInFrame["]];
-check["every driver SolveEpsFormStripInFrame call site carries the sector deadline",
+  "FeynFacet`SolveOffDiagonalBasisTransformationBlock["]];
+check["every driver SolveOffDiagonalBasisTransformationBlock call site carries the sector deadline",
   Length[inFrameChunks] === 1 &&
     AllTrue[inFrameChunks, Function[chunk,
       Module[{normalized = normalizeSource[
@@ -562,9 +551,9 @@ check["the construction stage is never TimeConstrained",
   ! StringContainsQ[driverSource, "TimeConstrained[canonicaNextEq"] &&
     ! StringContainsQ[driverSource, "TimeConstrained[blockEquation"] &&
     ! StringContainsQ[
-      Import[FeynFacet`Private`feynFacetPrivateFile["EpsFormStripInFrame.wl"],
+      Import[FeynFacet`Private`feynFacetPrivateFile["OffDiagonalBasisTransformationBlock.wl"],
         "Text"],
-      "TimeConstrained[transportChartPullBackStrip"]];
+      "TimeConstrained[transportChartPullBackOffDiagonalBlockEquation"]];
 
 Print["t_construction_budget: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

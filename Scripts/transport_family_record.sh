@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Observable transport of ONE family record (goal 8, 2026-09-02): the
+# Requested-output iterated-integral coefficient operator for one family record:
 # scripted form of the manual launch used for the triple-root stragglers.
 # Runs Scripts/family_observable_transport.wls as one standalone main kernel
 # under a hard allowance (setsid + kill of the process group), retries a
@@ -10,8 +10,10 @@
 #   <epsilon-form-record.wl>  a certified family record, or a compact
 #                             TransportReadyEpsilonConnection record that
 #                             carries TransportEpsilonValuations
-#   card.wl                   optional transport card (Path, Verbose,
-#                             DiagnosticDirectory, WordRepresentation, ...)
+#   card.wl                   optional coefficient-operator settings
+#                             (RegularBasePointAndFirstPathParameterScale,
+#                             DiagnosticDirectory,
+#                             IteratedIntegralCoefficientRepresentation, ...)
 # Environment: CORES (cpu list, default 2-5,10-13), FACET_CHECK_LEVEL (default Production),
 #              REPO (repository root, default: the directory above this script).
 set -u

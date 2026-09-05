@@ -66,7 +66,8 @@ inwardScalarMode = MatchBoundaryAsymptoticsToFrobeniusModes[inwardScalarFrobeniu
     "IntegerValuation" -> 1, "LogLevel" -> 0,
     "DemandedOutputs" -> {{0, 1}}|>}];
 FTAssert["mode normalization uses the same inward coordinate as its Frobenius series",
-  inwardScalarMode["Status"] === "BoundaryAsymptoticModeMatching" &&
+  inwardScalarMode["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     inwardScalarMode["LocalExpansionSpecification", "LocalDirection"] === -1 &&
     inwardScalarMode["FrobeniusModes"][[1, "CanonicalMode"]] === {1} &&
     inwardScalarMode["FrobeniusModes"][[1, "PhysicalLeadingCoefficients"]] === {1}];
@@ -149,7 +150,8 @@ realizations = {
 modeMap = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, {{1, 0}, {u, 2}},
   modeSpec, realizations];
 FTAssert["physical modes are globally extended and normalized in the canonical boundary space",
-    modeMap["Status"] === "BoundaryAsymptoticModeMatching" &&
+    modeMap["Status"] ===
+        "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     modeMap["LocalExpansionSpecification"] === <|"Variable" -> u,
       "LocalExpansionPoint" -> 0, "LocalDirection" -> 1, "FixedRules" -> {}|> &&
     modeMap["FrobeniusModes"][[1, "CanonicalMode"]] === {1, 0} &&
@@ -199,7 +201,8 @@ expectedCoordinateModes = {
   {eps coordinateLog/2 + eps^2 coordinateLog^2/2,
    1 + eps coordinateLog + eps^2 coordinateLog^2/2}};
 FTAssert["t = alpha rho^kappa converts eigenvectors and Jordan modes through the retained epsilon order",
-  coordinateModes["Status"] === "BoundaryAsymptoticModeMatching" &&
+  coordinateModes["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     coordinateModes["FrobeniusModes"][[All, "CanonicalMode"]] ===
       {{1, 0}, {0, 1}} &&
     And @@ Flatten[MapThread[Together[#1 - #2] === 0 &,
@@ -220,12 +223,15 @@ zeroNegativeModes = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
     Join[#, <|"LeadingCoefficient" -> -4|>] &, modeSpec,
     Key["PhysicalEndpointRelation"]], realizations];
 FTAssert["a non-positive coordinate factor needs an explicit logarithm branch only when the residue acts nontrivially",
-  negativeCoordinateModes["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+  negativeCoordinateModes["Status"] ===
+      "BoundaryAsymptoticsNotFullyMatchedToFrobeniusModes" &&
     Lookup[negativeCoordinateModes["FrobeniusModes"], "Status"] ===
       {"PhysicalLimitLogBranchRequired",
        "PhysicalLimitLogBranchRequired"} &&
-    branchedCoordinateModes["Status"] === "BoundaryAsymptoticModeMatching" &&
-    zeroNegativeModes["Status"] === "BoundaryAsymptoticModeMatching" &&
+    branchedCoordinateModes["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
+    zeroNegativeModes["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     zeroNegativeModes["FrobeniusModes"][[All, "PhysicalToLocalMode"]] ===
       zeroNegativeModes["FrobeniusModes"][[All, "CanonicalMode"]]];
 
@@ -240,7 +246,8 @@ jordanMode = MatchBoundaryAsymptoticsToFrobeniusModes[jordanFrobenius, IdentityM
     "EpsilonExponent" -> 0, "IntegerValuation" -> 0,
     "LogLevel" -> 1, "DemandedOutputs" -> {{0, 2}}|>}];
 FTAssert["a genuine generalized residue mode is found at its minimal log level",
-  jordanMode["Status"] === "BoundaryAsymptoticModeMatching" &&
+  jordanMode["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     jordanMode["FrobeniusModes"][[1, "GeneralizedLevel"]] === 1 &&
     jordanMode["FrobeniusModes"][[1, "CanonicalMode"]] === {0, 1}];
 
@@ -459,7 +466,8 @@ degenerateRealization[id_, valuation_, extra_: <||>] := Join[<|
 selectedByValuation = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, {{u, 1}, {0, 1}},
   modeSpec, {degenerateRealization["sel", 1]}];
 FTAssert["a repeated block eigenvalue is resolved when the integral's valuation cancels the lower powers of all but one direction",
-  selectedByValuation["Status"] === "BoundaryAsymptoticModeMatching" &&
+  selectedByValuation["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     selectedByValuation["FrobeniusModes"][[1, "CanonicalMode"]] === {1, 0} &&
     selectedByValuation["FrobeniusModes"][[1, "PhysicalLocalOrders"]] === {1, Infinity} &&
     selectedByValuation["FrobeniusModes"][[1, "PhysicalLeadingCoefficients"]][[1]] === 1 &&
@@ -468,7 +476,8 @@ FTAssert["a repeated block eigenvalue is resolved when the integral's valuation 
 noDirection = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, {{1, 1}, {0, 1}},
   modeSpec, {degenerateRealization["none", 1]}];
 FTAssert["a repeated eigenvalue with no direction compatible with the valuation is refused typed",
-  noDirection["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+  noDirection["Status"] ===
+      "BoundaryAsymptoticsNotFullyMatchedToFrobeniusModes" &&
     noDirection["FrobeniusModes"][[1, "Status"]] === "PhysicalValuationMismatch" &&
     noDirection["FrobeniusModes"][[1, "PhysicalAdmissibleNullity"]] === 0 &&
     noDirection["FrobeniusModes"][[1, "BlockNullity"]] === 2 &&
@@ -482,11 +491,13 @@ degenerateBasis = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, IdentityMa
   modeSpec, {degenerateRealization["deg", 0,
     <|"DegenerateResidueEigenspacePolicy" -> "Basis"|>]}];
 FTAssert["a genuinely multi-dimensional admissible eigenspace is refused by default and realized as exact echelon sub-realizations only under the explicit Basis policy",
-  genuinelyDegenerate["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+  genuinelyDegenerate["Status"] ===
+      "BoundaryAsymptoticsNotFullyMatchedToFrobeniusModes" &&
     genuinelyDegenerate["FrobeniusModes"][[1, "Status"]] === "AmbiguousPhysicalEigenspace" &&
     genuinelyDegenerate["FrobeniusModes"][[1, "PhysicalAdmissibleNullity"]] === 2 &&
     Length[genuinelyDegenerate["FrobeniusModes"][[1, "AdmissibleBasis"]]] === 2 &&
-    degenerateBasis["Status"] === "BoundaryAsymptoticModeMatching" &&
+    degenerateBasis["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     Length[degenerateBasis["FrobeniusModes"]] === 2 &&
     degenerateBasis["FrobeniusModes"][[All, "BoundaryConstantID"]] === {{"deg", 1}, {"deg", 2}} &&
     degenerateBasis["FrobeniusModes"][[All, "CanonicalMode"]] === {{1, 0}, {0, 1}} &&
@@ -513,7 +524,8 @@ invalidPolicies = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, IdentityMa
     {degenerateRealization["deg", 0, <|"DegenerateResidueEigenspacePolicy" -> #|>]}] & /@
   {"basis", "Bases", True};
 FTAssert["an invalid DegenerateResidueEigenspacePolicy value is refused typed with the value named",
-  AllTrue[invalidPolicies, #["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+  AllTrue[invalidPolicies, #["Status"] ===
+      "BoundaryAsymptoticsNotFullyMatchedToFrobeniusModes" &&
     #["FrobeniusModes"][[1, "Status"]] === "DegenerateResidueEigenspacePolicyInvalid" &] &&
     invalidPolicies[[All, "FrobeniusModes", 1, "Policy"]] === {"basis", "Bases", True} &&
     invalidPolicies[[1, "BoundaryDataRequirements", 1, "Problem"]] === "DegenerateResidueEigenspacePolicyInvalid"];
@@ -567,12 +579,19 @@ functionSelectors = ConstructBoundarySelectorMatrices[functionMatching,
 functionValues = ConstructBoundaryValueVectorFromFunctions[functionMatching,
   <||>, {0, 0}, "MissingBoundaryDataAction" -> "Formal"];
 FTAssert["a positive-dimensional physical boundary stratum emits a boundary function, never a boundary constant",
-  functionMatching["Status"] === "BoundaryAsymptoticModeMatching" &&
+  functionMatching["DataType"] === "BoundaryAsymptoticModeMatching" &&
+    functionMatching["SchemaVersion"] === 2 &&
+    functionMatching["Status"] ===
+      "BoundaryAsymptoticsMatchedToFrobeniusModes" &&
     functionMatching["BoundaryDataType"] === "BoundaryFunction" &&
     functionMatching["FrobeniusModes"][[1, "BoundaryFunctionID"]] === "f" &&
     functionValues["Status"] === "FormalBoundaryFunctionValueVectorConstructed" &&
     functionValues["BoundaryFunctionVector"] ===
-      {BoundaryFunctionEpsilonCoefficient["f", 0]} &&
+      {BoundaryFunctionEpsilonCoefficient["f", 0][tangentialVariable]} &&
+    ! FreeQ[D[First[functionValues["BoundaryFunctionVector"]],
+        tangentialVariable], Derivative[1][
+          BoundaryFunctionEpsilonCoefficient["f", 0]][
+            tangentialVariable]] &&
     functionValues["BoundaryFunctionEpsilonCoefficientLabels"] === {{"f", 0}} &&
     functionSelectors["BoundarySelectorMatricesByEpsilonOrder"][0] === {{1}, {0}} &&
     ConstructBoundaryValueVectorFromConstants[functionMatching, <||>, {0, 0},

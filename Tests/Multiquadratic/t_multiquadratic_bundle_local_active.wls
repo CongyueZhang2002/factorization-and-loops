@@ -9,22 +9,23 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
-{deferredPrepare, compileBundle, validateBundle, fingerprintBundle,
+{deferredPrepare, compileBundle, validateBundle,
   frameCanonicalize, directProvider, providerChannels, modRational,
-  projectConjugates, providerFingerprint} = mq /@ {
+  projectConjugates, presentationRootsInVariables, rootRadicand} = mq /@ {
   "blockEquationDeferredPrepare", "blockEquationDeferredCompileBundle",
   "blockEquationDeferredBundleValidate",
-  "blockEquationDeferredBundleFingerprint",
   "blockEquationDeferredCanonicalizeWithSquareRootGenerators",
-  "multiquadraticStripDirectProvider",
-  "multiquadraticStripProviderChannels",
-  "multiquadraticStripModRational", "multiquadraticProjectSignChangeImages",
-  "multiquadraticStripFingerprint"};
+  "multiquadraticOffDiagonalBlockDirectProvider",
+  "multiquadraticOffDiagonalBlockProviderChannels",
+  "multiquadraticOffDiagonalBlockModRational", "multiquadraticProjectSignChangeImages",
+  "coefficientPresentationSquareRootsInVariables",
+  "squareRootRecordRadicand"};
 applyBranches = mq["transportChartApplyRootBranches"];
 
 Clear[lx, ly, le];
 rootSquares = {1 + lx, 1 + ly, 2 + lx + 2 ly};
-declaredRoots = <|"Root" -> Sqrt[#], "RootSquare" -> #|> & /@ rootSquares;
+declaredRoots = <|"Generator" -> Sqrt[#], "QuadraticRadicand" -> #,
+    "SourceRadicand" -> #|> & /@ rootSquares;
 ranges = {{1}, {2}};
 baseConnection = {{{0, 0}, {1/(5 + lx), 0}},
   {{0, 0}, {0, 0}}};
@@ -32,8 +33,14 @@ baseConnection = {{{0, 0}, {1/(5 + lx), 0}},
 activeIndices[mask_, rank_] := Select[Range[rank],
   BitGet[mask, # - 1] === 1 &];
 
+bundleRoots[bundle_Association] := Module[{allRoots},
+  allRoots = presentationRootsInVariables[bundle["CoefficientPresentation"],
+    bundle["Variables"]];
+  allRoots[[bundle["SquareRootGeneratorIndices"]]]
+];
+
 buildMixedBundle[rank_Integer] := Module[
-  {preparation, base, frame, roots, squares, rawGrades, grades, operands,
+  {preparation, base, roots, squares, rawGrades, grades, operands,
    jobs, bundle},
   preparation = deferredPrepare[baseConnection, ranges, 2, 1, <||>,
     {lx, ly}, le];
@@ -42,24 +49,21 @@ buildMixedBundle[rank_Integer] := Module[
     "PruneUnusedRoots" -> False];
   If[Lookup[base, "Status", None] =!= "PreparedDeferredBundle",
     Return[base]];
-  frame = base["RootFrame"];
-  roots = frame["Roots"];
-  squares = Lookup[roots, "RootSquare", {}];
+  roots = bundleRoots[base];
+  squares = rootRadicand /@ roots;
   (* Pair/triple grades start as genuine composite radicals.  The same
      canonicalizer used by bundle construction fixes their declared branch. *)
   rawGrades = Table[If[mask === 0, 1,
       Sqrt[Expand[Times @@ squares[[activeIndices[mask, rank]]]]]],
     {mask, 0, 2^rank - 1}];
   grades = Table[If[mask === 0, 1,
-      frameCanonicalize[rawGrades[[mask + 1]], frame,
+      frameCanonicalize[rawGrades[[mask + 1]], roots,
         {lx, ly}]["Expression"]],
     {mask, 0, 2^rank - 1}];
   operands = Table[Module[{pairs = {{7 + lx + mask, 1}},
       numerator = (mask + 2) grades[[mask + 1]]},
       <|"ID" -> mask + 1, "Numerator" -> numerator,
-        "DenominatorFactors" -> pairs, "RootMask" -> mask,
-        "Fingerprint" -> Hash[{numerator, pairs}, "SHA256",
-          "HexString"]|>],
+        "DenominatorFactors" -> pairs, "RootMask" -> mask|>],
     {mask, 0, 2^rank - 1}];
   jobs = MapIndexed[<|"Target" -> #1,
       "Terms" -> If[First[#2] === 1,
@@ -68,12 +72,12 @@ buildMixedBundle[rank_Integer] := Module[
     base["TargetOrder"]];
   bundle = Join[base, <|"OperandTable" -> operands, "Jobs" -> jobs,
     "DivisorOccurrences" -> {}|>];
-  Append[bundle, "BundleFingerprint" -> fingerprintBundle[bundle]]
+  bundle
 ];
 
 buildProvider[bundle_Association, kind_String, rootsSpec_: Automatic] := Module[
   {roots = Replace[rootsSpec,
-      Automatic :> bundle["RootFrame"]["Roots"]],
+      Automatic :> bundleRoots[bundle]],
    dimensions, zeroE, zeroC,
    zeroB, record},
   dimensions = Rest[bundle["Dimensions"]];
@@ -81,10 +85,10 @@ buildProvider[bundle_Association, kind_String, rootsSpec_: Automatic] := Module[
   zeroC = ConstantArray[0, {2, dimensions[[2]], dimensions[[2]]}];
   zeroB = ConstantArray[0, bundle["Dimensions"]];
   record = <|"Variables" -> {lx, ly}, "Regulator" -> le,
-    "Strip" -> {zeroE, zeroC, zeroB}, "DeferredBundle" -> bundle|>;
+    "OffDiagonalBlockEquation" -> {zeroE, zeroC, zeroB}, "DeferredBundle" -> bundle|>;
   directProvider[record, roots, "Kind" -> kind, "OneForms" -> {},
-    "GaugeDenominator" -> 1, "DeferredBundle" -> bundle,
-    "SourceFingerprint" -> "bundle-local-active-fixture"]
+    "OffDiagonalBasisTransformationDenominator" -> 1,
+    "DeferredBundle" -> bundle]
 ];
 
 prime = 2147483423; epsilonValue = 5;
@@ -92,7 +96,7 @@ splitPoint[roots_List] := SelectFirst[
   Flatten[Table[{xValue, yValue}, {xValue, 2, 40},
     {yValue, 2, 40}], 1],
   Function[point, Module[{values = Table[modRational[
-        roots[[k, "RootSquare"]] /. Thread[{lx, ly} -> point], prime],
+        rootRadicand[roots[[k]]] /. Thread[{lx, ly} -> point], prime],
       {k, Length[roots]}]},
     values =!= $Failed && ! MemberQ[values, 0] &&
       AllTrue[values, JacobiSymbol[#, prime] === 1 &]]],
@@ -107,7 +111,7 @@ globalSheetOracle[provider_Association, point_List] := Module[
   rules = {lx -> point[[1]], ly -> point[[2]], le -> epsilonValue};
   rootValues = mq["multiquadraticSquareRoots"][
     modRational[# /. rules, prime] & /@
-      Lookup[roots, "RootSquare", {}], prime];
+      (rootRadicand /@ roots), prime];
   branchImages = Table[
     signs = Table[If[BitGet[mask, k - 1] === 1, -1, 1],
       {k, rank}];
@@ -152,7 +156,7 @@ results = Association@Table[Module[
         " local SplitBranch equals the global-sheet oracle exactly",
       Lookup[image, "Status", None] ===
           "MultiquadraticPointCoefficientsV1" &&
-        image["BBar"] === oracle];
+        image["Inhomogeneity"] === oracle];
     check["rank " <> ToString[rank] <>
         " operand and coefficient masks are derived once and aligned",
       provider["BundleOperandRootMasks"] === expectedMasks &&
@@ -169,15 +173,13 @@ results = Association@Table[Module[
         image["BundleScalarBranchEvaluationReduction"] ===
           2 gradeCount^2 - expectedScalarCount];
     check["rank " <> ToString[rank] <>
-        " QuotientGrade ABI and provider seals are unchanged",
+        " QuotientGrade and SplitBranch use identical coefficient data",
       Lookup[quotientImage, "Status", None] ===
           "MultiquadraticPointCoefficientsV1" &&
-        quotientImage["BBar"] === image["BBar"] &&
-        quotient["CoefficientABIFingerprint"] ===
-          provider["CoefficientABIFingerprint"] &&
-        provider["ProviderFingerprint"] === providerFingerprint[{
-          "SplitBranch", provider["CoefficientABIFingerprint"],
-          provider["SourceFingerprint"], bundle["BundleFingerprint"]}]];
+        quotientImage["Inhomogeneity"] === image["Inhomogeneity"] &&
+        quotient["CoefficientData"] === provider["CoefficientData"] &&
+        image["CoefficientData"] === provider["CoefficientData"] &&
+        quotientImage["CoefficientData"] === quotient["CoefficientData"]];
     rank -> <|"Bundle" -> bundle, "Provider" -> provider,
       "Image" -> image, "OracleSeconds" -> oracleTiming|>
   ], {rank, 0, 3}];
@@ -190,7 +192,7 @@ prunePreparation = deferredPrepare[baseConnection, ranges, 2, 1, <||>,
 prunedRational = compileBundle[prunePreparation, "Roots" -> declaredRoots];
 check["an unused declared root frame is pruned completely",
   Lookup[validateBundle[prunedRational], "Status", None] === "BundleValid" &&
-    prunedRational["RootFrame"]["Roots"] === {} &&
+    bundleRoots[prunedRational] === {} &&
     prunedRational["Statistics"]["PrunedRootCount"] === 3];
 partialConnection = {{{0, 0},
     {Sqrt[rootSquares[[1]]] + Sqrt[rootSquares[[3]]], 0}},
@@ -199,7 +201,7 @@ partialPreparation = deferredPrepare[partialConnection, ranges, 2, 1, <||>,
   {lx, ly}, le];
 prunedPartial = compileBundle[partialPreparation, "Roots" -> declaredRoots];
 partialSquares = Together /@
-  Lookup[prunedPartial["RootFrame"]["Roots"], "RootSquare", {}];
+  Lookup[bundleRoots[prunedPartial], "QuadraticRadicand", {}];
 check["a strict active root subset is retained in canonical order",
   Lookup[validateBundle[prunedPartial], "Status", None] === "BundleValid" &&
     Length[partialSquares] === 2 &&
@@ -207,18 +209,18 @@ check["a strict active root subset is retained in canonical order",
     ContainsAll[Together /@ rootSquares[[{1, 3}]], partialSquares] &&
     prunedPartial["Statistics"]["PrunedRootCount"] === 1];
 
-(* The solver field is the union of diagonal-block and forcing roots.  A
-   production bundle contains only roots active in the forcing, so its frame
+(* The solver field is the union of diagonal-block and inhomogeneity roots.  A
+   production bundle contains only roots active in the inhomogeneity, so its frame
    may be empty or a strict subframe.  Provider masks must be lifted from that
    local frame into the solver's canonical root order. *)
 globalFrame = mq["blockEquationDeferredValidateSquareRootGenerators"][declaredRoots,
   {lx, ly}, le];
-globalRoots = globalFrame["Roots"];
+globalRoots = globalFrame["SquareRootGenerators"];
 emptyProvider = buildProvider[prunedRational, "SplitBranch", globalRoots];
 emptyPoint = splitPoint[globalRoots];
 emptyImage = providerChannels[emptyProvider, epsilonValue, prime, emptyPoint];
 emptyOracle = globalSheetOracle[emptyProvider, emptyPoint];
-check["a root-free forcing bundle embeds in a larger diagonal root frame",
+check["a root-free inhomogeneity bundle embeds in a larger diagonal root frame",
   Lookup[emptyProvider, "Status", None] ===
       "MultiquadraticDirectProviderV1" &&
     emptyProvider["RootCount"] === Length[globalRoots] &&
@@ -228,7 +230,7 @@ check["a root-free forcing bundle embeds in a larger diagonal root frame",
       Length[prunedRational["OperandTable"]]] &&
     Lookup[emptyImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    emptyImage["BBar"] === emptyOracle];
+    emptyImage["Inhomogeneity"] === emptyOracle];
 
 partialProvider = buildProvider[prunedPartial, "SplitBranch", globalRoots];
 partialPoint = splitPoint[globalRoots];
@@ -236,21 +238,21 @@ partialImage = providerChannels[partialProvider, epsilonValue, prime,
   partialPoint];
 partialOracle = globalSheetOracle[partialProvider, partialPoint];
 partialPositions = Flatten[FirstPosition[
-      Together /@ Lookup[globalRoots, "RootSquare", {}], #] & /@
+      Together /@ (rootRadicand /@ globalRoots), #] & /@
     partialSquares];
 partialLocalMasks = Lookup[prunedPartial["OperandTable"], "RootMask", {}];
 partialExpectedActive = Map[
   Function[mask, partialPositions[[activeIndices[mask,
     Length[partialPositions]]]]], partialLocalMasks];
 partialExpectedMasks = Total[2^(# - 1)] & /@ partialExpectedActive;
-check["a strict forcing subframe is relabelled into the solver root order",
+check["a strict inhomogeneity subframe is relabelled into the solver root order",
   Lookup[partialProvider, "Status", None] ===
       "MultiquadraticDirectProviderV1" &&
     partialProvider["BundleOperandActiveRoots"] === partialExpectedActive &&
     partialProvider["BundleOperandRootMasks"] === partialExpectedMasks &&
     Lookup[partialImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    partialImage["BBar"] === partialOracle];
+    partialImage["Inhomogeneity"] === partialOracle];
 
 rank3 = results[3];
 check["rank 3 exercises root-free, single, pair, and triple masks",
@@ -289,17 +291,13 @@ largerOperands = MapIndexed[Module[
       (3 + Mod[id, 7]) (1 + lx ly)^4];
     numerator = polynomial largerGrades[[mask + 1]];
     <|"ID" -> id, "Numerator" -> numerator,
-      "DenominatorFactors" -> pairs, "RootMask" -> mask,
-      "Fingerprint" -> Hash[{numerator, pairs}, "SHA256",
-        "HexString"]|>] &, largerMasks];
+      "DenominatorFactors" -> pairs, "RootMask" -> mask|>] &, largerMasks];
 largerJobs = MapIndexed[<|"Target" -> #1,
     "Terms" -> If[First[#2] === 1,
       MapIndexed[{1 + Mod[First[#2], 5] lx, {First[#2]}} &,
         largerMasks], {}]|> &, largerBase["TargetOrder"]];
 largerBundle = Join[largerBase, <|"OperandTable" -> largerOperands,
   "Jobs" -> largerJobs, "DivisorOccurrences" -> {}|>];
-largerBundle = Append[largerBundle,
-  "BundleFingerprint" -> fingerprintBundle[largerBundle]];
 largerProvider = buildProvider[largerBundle, "SplitBranch"];
 largerPoint = splitPoint[largerProvider["Roots"]];
 largerImages = Table[providerChannels[largerProvider, epsilonValue, prime,
@@ -311,7 +309,7 @@ check["larger mixed-mask bundle validates and equals the global oracle",
   Lookup[validateBundle[largerBundle], "Status", None] === "BundleValid" &&
     AllTrue[largerImages, Lookup[#, "Status", None] ===
         "MultiquadraticPointCoefficientsV1" &&
-      #["BBar"] === largerOracle &]];
+      #["Inhomogeneity"] === largerOracle &]];
 check["larger mixed-mask branch telemetry records the exact reduction",
   AllTrue[largerImages,
     #["BundleGlobalSheetScalarBranchEvaluationCount"] === 1024 &&
@@ -324,9 +322,7 @@ Print["LARGER_RANK3_BENCH operands=", Length[largerOperands],
 
 tampered = ReplacePart[rank3["Bundle"],
   {Key["OperandTable"], 1, Key["RootMask"]} -> 1];
-tampered = Append[tampered,
-  "BundleFingerprint" -> fingerprintBundle[tampered]];
-check["a refingerprinted tampered operand RootMask is recomputed and refused",
+check["a tampered operand RootMask is recomputed and refused",
   Lookup[validateBundle[tampered], "Status", None] ===
     "OperandRootMaskMismatch"];
 check["a direct provider fails closed on the tampered RootMask",

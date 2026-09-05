@@ -7,17 +7,17 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Clear[xPreparation, yPreparation, epsPreparation];
 record = <|"Variables" -> {xPreparation, yPreparation},
   "Regulator" -> epsPreparation,
-  "Strip" -> {
+  "OffDiagonalBlockEquation" -> {
     {{{1}}, {{0}}},
     {{{0}}, {{0}}},
     {{{1 - epsPreparation xPreparation}}, {{0}}}}|>;
 
-prep = FeynFacet`PrepareEpsFormStripSampling[record];
-plain = FeynFacet`SampleEpsFormStripAffine[record, 3/17, 1000003,
+prep = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[record];
+plain = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 3/17, 1000003,
   "NumeratorDegreeOffset" -> {1, 0}];
-reused = FeynFacet`SampleEpsFormStripAffine[record, 3/17, 1000003,
+reused = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 3/17, 1000003,
   "NumeratorDegreeOffset" -> {1, 0}, "Preparation" -> prep];
-stale = FeynFacet`SampleEpsFormStripAffine[record, 3/17, 1000003,
+stale = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 3/17, 1000003,
   "NumeratorDegreeOffset" -> {1, 0},
   "Preparation" -> Join[prep, <|"DefiningInput" ->
     Append[prep["DefiningInput"], "ExtraLetters" -> {1 + record["Variables"][[1]]}]|>]];
@@ -31,10 +31,36 @@ optionsFile = FeynFacet`Private`taskBrokerPutAtomic[
 helper = FeynFacet`Private`taskBrokerSampleTask[recordFile, {3/17},
   1000003, optionsFile];
 
+(* The production first support is the exact denominator monomial support
+   enlarged by the infinity-degree simplex.  It is only a fast seed: the
+   solver retains the complete certified simplex as its terminal fallback. *)
+Clear[xSeed, ySeed, epsSeed];
+seedRecord = <|"Variables" -> {xSeed, ySeed}, "Regulator" -> epsSeed,
+  "OffDiagonalBlockEquation" -> {
+    {{{0}}, {{0}}}, {{{0}}, {{0}}},
+    {{{ySeed^2/xSeed^2}}, {{0}}}}|>;
+seedPreparation = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[
+  seedRecord];
+seedCensus = seedPreparation["SupportCensus"];
+denominatorSupport = First /@ CoefficientRules[
+  Expand[seedPreparation["OffDiagonalBasisTransformationDenominator"]],
+  seedPreparation["Variables"]];
+supportInflation = seedCensus["NumeratorSupportInflation"];
+supportShifts = Flatten[Table[{px, py}, {px, 0, supportInflation},
+  {py, 0, supportInflation - px}], 1];
+expectedSeed = Sort@DeleteDuplicates@Flatten[
+  Outer[Plus, denominatorSupport, supportShifts, 1], 1];
+denominatorSeed = FeynFacet`Private`finiteFieldOffDiagonalBlockSupport[
+  seedPreparation, seedPreparation["DenominatorDegrees"],
+  "DenominatorSupportSeed", 0];
+offsetSeed = FeynFacet`Private`finiteFieldOffDiagonalBlockSupport[
+  seedPreparation, seedPreparation["DenominatorDegrees"] + {1, 0},
+  "DenominatorSupportSeed", 0];
+
 mathematicalKeys = {"EpsilonValue", "Prime", "AcceptedPoints",
-  "MatrixDimensions", "GaugeDimensions", "Alphabet", "GaugeDenominator",
-  "GaugeDenominatorDegrees", "GaugeNumeratorDegrees", "GaugeSupport",
-  "GaugeUnknownCount", "FreeResidueCount", "Rank", "AugmentedRank",
+  "MatrixDimensions", "OffDiagonalBasisTransformationBlockDimensions", "Alphabet", "OffDiagonalBasisTransformationDenominator",
+  "OffDiagonalBasisTransformationDenominatorDegrees", "OffDiagonalBasisTransformationNumeratorDegrees", "OffDiagonalBasisTransformationNumeratorSupport",
+  "OffDiagonalBasisTransformationUnknownCount", "FreeResidueCount", "Rank", "AugmentedRank",
   "Nullity", "Consistent", "ParticularSolution", "NullspaceBasis"};
 strip[a_] := KeyTake[a, mathematicalKeys];
 
@@ -48,7 +74,17 @@ tests = <|
     strip[plain] === strip[stale],
   "BrokerHelperUsesTheSameDefiningInput" -> ListQ[helper] &&
     Length[helper] === 1 && strip[First[helper]] === strip[reused],
-  "ReusedSetupCheaper" -> reused["SetupSeconds"] < plain["SetupSeconds"]
+  "ReusedSetupCheaper" -> reused["SetupSeconds"] < plain["SetupSeconds"],
+  "DenominatorSupportSeedIsMinkowskiSupport" ->
+    denominatorSeed === expectedSeed &&
+    seedCensus["DenominatorSupportSeedCount"] === Length[denominatorSeed],
+  "DenominatorSupportSeedOffsetExpansion" ->
+    offsetSeed === Sort@DeleteDuplicates@Join[
+      denominatorSeed, (# + {1, 0} & /@ denominatorSeed)],
+  "DenominatorSupportFirstIsDefault" ->
+    ("SupportStrategy" /. Options[
+      FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField]) ===
+        "DenominatorSupportFirst"
 |>;
 Print[InputForm[tests]];
 Quiet[DeleteDirectory[brokerDirectory, DeleteContents -> True]];

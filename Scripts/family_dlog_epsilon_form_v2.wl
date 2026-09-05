@@ -99,7 +99,7 @@ BuildValidatedFamilyDLogEpsilonFormV2[
     systemReference_Association, opts : OptionsPattern[]] := Module[
   {data, family, sourceVariables, basis, dimension, referenceValid,
    presentation, validationPresentation, workingSystem, validationOptions,
-   validated, permutation,
+   validationResult, permutation,
    permutationMatrix, transformation, inverseTransformation, blocks,
    blockDecomposition, validation, retained},
   data = familyDifferentialSystemV2Data[system];
@@ -143,38 +143,42 @@ BuildValidatedFamilyDLogEpsilonFormV2[
     FilterRules[{opts}, Options[FeynFacet`ValidateFamilyDLogEpsilonForm]],
     Rule[key_, _] /; MemberQ[
       {"SourceVariables", "CoefficientPresentation"}, key]];
-  validated = FeynFacet`ValidateFamilyDLogEpsilonForm[
+  validationResult = FeynFacet`ValidateFamilyDLogEpsilonForm[
     workingResult, workingSystem,
     "SourceVariables" -> sourceVariables,
     "CoefficientPresentation" -> validationPresentation,
     Sequence @@ validationOptions];
-  If[! AssociationQ[validated] ||
-      ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[validated],
+  If[! AssociationQ[validationResult] ||
+      Lookup[validationResult, "DataType", None] =!=
+        "FamilyDLogEpsilonFormValidationResult" ||
+      Lookup[validationResult, "SchemaVersion", None] =!= 2 ||
+      Lookup[validationResult, "Status", None] =!=
+        "FamilyDLogEpsilonFormValidationPassed",
     Return[<|"Status" -> "FamilyDLogEpsilonFormValidationFailed",
-      "ValidationResult" -> validated|>]];
-  permutation = Lookup[validated, "BasisPermutation", Range[dimension]];
+      "ValidationResult" -> validationResult|>]];
+  permutation = Lookup[validationResult, "BasisPermutation", Range[dimension]];
   If[! MatchQ[permutation, {__Integer}] ||
       Sort[permutation] =!= Range[dimension],
     Return[<|"Status" -> "BasisPermutationInvalid"|>]];
   permutationMatrix = IdentityMatrix[dimension][[permutation]];
   transformation = Transpose[permutationMatrix] .
-    validated["BasisTransformationMatrix"];
+    validationResult["BasisTransformationMatrix"];
   inverseTransformation =
-    validated["CachedInverseBasisTransformationMatrix"] .
+    validationResult["CachedInverseBasisTransformationMatrix"] .
       permutationMatrix;
-  blocks = validated["IrreducibleDiagonalBlocks"];
+  blocks = validationResult["IrreducibleDiagonalBlocks"];
   blockDecomposition = <|
     "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
     "SchemaVersion" -> 2,
     "FamilyDifferentialSystemReference" -> systemReference,
     "IrreducibleDiagonalBlocks" -> blocks|>;
-  validation = validated["Validation"];
-  retained = KeyTake[validated,
-    {"DataType", "SchemaVersion", "Family",
-      "CoefficientPresentation", "CoefficientVariables",
+  validation = validationResult["Validation"];
+  retained = KeyTake[validationResult,
+    {"Family", "CoefficientPresentation", "CoefficientVariables",
       "DimensionalRegulator", "Letters", "ConstantResidueMatrices",
       "BasisTransformationConvention", "DifferentialEquationConvention"}];
-  Join[retained, <|
+  Join[<|"DataType" -> "FamilyDLogEpsilonForm",
+      "SchemaVersion" -> 2|>, retained, <|
     "Status" -> "FamilyDLogEpsilonFormValidated",
     "OriginalMasterIntegralBasis" -> basis,
     "BlockDecomposition" -> blockDecomposition,

@@ -8,21 +8,6 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
 {recordFile, systemFile, outputFile} = Rest[$ScriptCommandLine];
-(* The per-family chart inventory -- including the legacy chart-alias
-   strings that early records carry instead of a catalog name -- is
-   project data since 2026-08-23 (generality pass A1/A3); the package
-   registry starts empty, so this driver registers the table that travels
-   with the differential system it was given. *)
-familyChartFile = FileNameJoin[{
-  ParentDirectory[DirectoryName[ExpandFileName[systemFile]]],
-  "TransportFamilyCharts.wl"}];
-If[FileExistsQ[familyChartFile],
-  familyChartRegistration = FeynFacet`LoadFamilyRootData[familyChartFile];
-  If[Lookup[familyChartRegistration, "Status", None] =!=
-      "FamilyRootDataRegistered",
-    Print["CERTIFY family chart registration refused: ",
-      InputForm[familyChartRegistration]];
-    Exit[2]]];
 record = FeynFacet`FamilyArtifactRead[recordFile];
 system = FeynFacet`FamilyArtifactRead[systemFile];
 If[! AssociationQ[record] || ! AssociationQ[system],
@@ -31,13 +16,19 @@ If[! AssociationQ[record] || ! AssociationQ[system],
   Exit[3]
 ];
 
-systemReference = <|
-  "RelativePath" -> FileNameJoin[
-    {FileNameTake[DirectoryName[ExpandFileName[systemFile]]],
-      FileNameTake[systemFile]}],
+systemAbsolutePath = ExpandFileName[systemFile];
+rootParts = FileNameSplit[root];
+systemPathParts = FileNameSplit[systemAbsolutePath];
+systemReferencePath = If[
+  Length[systemPathParts] >= Length[rootParts] &&
+    Take[systemPathParts, Length[rootParts]] === rootParts,
+  <|"RelativePath" ->
+    FileNameJoin[Drop[systemPathParts, Length[rootParts]]]|>,
+  <|"ExplicitPath" -> systemAbsolutePath|>];
+systemReference = Join[systemReferencePath, <|
   "DataType" -> "FamilyDifferentialSystem",
   "SchemaVersion" -> 2,
-  "Family" -> Lookup[system, "Family", Missing["NotGiven"]]|>;
+  "Family" -> Lookup[system, "Family", Missing["NotGiven"]]|>];
 {seconds, certified} = AbsoluteTiming[
   FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
     record, system, systemReference, "IdentityMethod" -> "Modular"]

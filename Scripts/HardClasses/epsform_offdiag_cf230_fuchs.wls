@@ -46,7 +46,7 @@ log[a___] := Print["[fuchs +", ToString[Round[AbsoluteTime[] - start]], "s] ",
   StringJoin[ToString /@ {a}]];
 
 log["loading FACET"];
-If[Names["FeynFacet`TransportFamily"] === {},
+If[Names["FeynFacet`FamilyArtifactRead"] === {},
   Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]]];
 
 xx = Symbol["Global`x"]; yy = Symbol["Global`y"]; ee = Symbol["Global`eps"];

@@ -91,7 +91,7 @@ typedef struct parser parser_t;
    three contiguous vectors {value, d/dx, d/dy}.  Derivatives are propagated
    by forward-mode automatic differentiation while the preserved expression
    DAG is parsed; this avoids materializing symbolic derivatives of the large
-   deferred forcing. */
+   deferred inhomogeneity. */
 typedef struct { uint64_t *x; int ok; } value_t;
 struct parser {
     const unsigned char *begin, *p, *end;
@@ -1106,6 +1106,29 @@ failed:
     fclose(f); return ST_OUTPUT_IO;
 }
 
+static void print_expression_failure(const expression_t *expressions,
+                                     size_t expression_count,
+                                     uint64_t detail_index,
+                                     uint64_t detail_offset) {
+    span_t expression;
+    size_t length, offset, begin, before_count, after_count;
+    if (!expressions || detail_index == 0 ||
+        detail_index > expression_count) return;
+    expression = expressions[(size_t)detail_index - 1U].span;
+    length = (size_t)(expression.b - expression.a);
+    offset = detail_offset > length ? length : (size_t)detail_offset;
+    begin = offset > 120U ? offset - 120U : 0U;
+    before_count = offset - begin;
+    after_count = length - offset;
+    if (after_count > 240U) after_count = 240U;
+    fprintf(stderr, "Expression=%" PRIu64 " Offset=%" PRIu64
+            " Before=%.*s<<<FAIL:%u>>>After=%.*s\n",
+            detail_index, detail_offset, (int)before_count,
+            (const char *)expression.a + begin,
+            offset < length ? (unsigned)expression.a[offset] : 0U,
+            (int)after_count, (const char *)expression.a + offset);
+}
+
 int main(int argc, char **argv) {
     request_t request;
     enum status_code status;
@@ -1360,6 +1383,10 @@ int main(int argc, char **argv) {
         (uint64_t)((parsed_at - started) * 1e9),
         (uint64_t)((evaluated_at - parsed_at) * 1e9), 0, 0, derivatives);
 finish:
+    if (status == ST_UNSUPPORTED_EXPRESSION ||
+        status == ST_UNDECLARED_RADICAL)
+        print_expression_failure(expressions, expression_count,
+                                 detail_index, detail_offset);
     if (status != ST_OK) {
         enum status_code written = write_output(argv[3], status,
             &request, NULL, 0, 0, 0, dimensions, NULL, 0, 0,

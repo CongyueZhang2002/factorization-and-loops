@@ -4,24 +4,23 @@
    MEASURED MOTIVATION (2026-08-24 production, two watchdog
    confirmations).  The driver's blockEquation built
 
-     bbar_{ij} = A_{kj} - Sum_{j<m<k} D_{km} A_{mj}
+     inhomogeneity_{ij} = A_{kj} - Sum_{j<m<k} D_{km} A_{mj}
 
    as one dense Dot per feeder followed by Map[Together, ., {2}] over the
-   whole block.  On CF259 sector 21 the single block (21,18) spent 536 s
-   there (run log: strip {21,19} announced at +71 s, strip {21,18} at
+   whole block.  A measured production block spent 536 s
+   there (run log: offDiagonalBlockEquation {21,19} announced at +71 s, offDiagonalBlockEquation {21,18} at
    +607 s); 28x28 / 37x37 truncations were measured at 2+ h between
    blocks.  The cost is NOT finite-field linear algebra; it is the
    repeated symbolic materialization of a sum of rational functions,
    whose Together does one polynomial gcd per pair of terms.
 
-   THE CONTRACT this file implements is Codex's Q5 review
-   (Exchange/Fable/2026-08-24/01_cf300_12_9_state_and_reply/
-   codex_response_to_fable_cf300_129_2026-08-24.md), points 1-4, 6 and 8:
+   THE CONTRACT this file implements follows an audited design, with these
+   requirements:
 
      1. a sparse tagged term DAG is kept for the accumulated object; the
         sum is NEVER formed as Together[Total[terms]] during
         construction.  A term stores REFERENCES to its source entries
-        (the gauge entry and the connection entry), so preparation
+        (the basisTransformationBlock entry and the connection entry), so preparation
         allocates no new large expressions;
      2. the defining mathematical input is stored directly -- variables,
         parameters, regulator, block indices, row/column indices and feeder
@@ -41,7 +40,7 @@
         materialized.
 
    WHY THE EXACT MATERIALIZATION IS FASTER, AND STILL EXACT.
-   Every operand (a gauge entry, a connection entry) is Together'd ONCE
+   Every operand (a basisTransformationBlock entry, a connection entry) is Together'd ONCE
    and interned -- an Association keyed by the expression uses exact SameQ
    key semantics -- and its denominator is factored once.  A
    term's denominator is then the multiset union of two already-factored
@@ -54,7 +53,7 @@
    against the whole accumulated denominator.  An entry that vanishes
    identically is proved zero by that Expand alone -- no gcd at all --
    which is the cheapest exact zero test available here and replaces the
-   driver's Together-based zero-forcing probe.
+   driver's Together-based zero-inhomogeneity probe.
 
    SCOPE, MEASURED AND STATED.  The exact materialization is frame
    independent: it is ordinary exact algebra and is used on rational and
@@ -68,21 +67,21 @@
 
    THE ONE MEASURED DIFFERENCE FROM THE SYMBOLIC ROUTE, and its blast
    radius.  The two routes agree EXACTLY as rational functions (proved
-   entry by entry on fixtures and on the real CF259 (21,18) block, and
-   against the strip input production itself wrote).  They do not agree
+   entry by entry on fixtures and on a production block, and
+   against the offDiagonalBlockEquation input production itself wrote).  They do not agree
    in FORM on an algebraic frame: Together is not a canonical form on
    algebraic expressions, and the assembled entry keeps one extra power
-   of an algebraic denominator factor -- measured on CF259 (21,18), the
-   downstream gauge denominator carries
+   of an algebraic denominator factor -- measured on that production block, the
+   downstream basisTransformationBlock denominator carries
    (-1 - x + y + Sqrt[...])^5 where the symbolic route gives ^4.  The
-   consequence is CONSERVATIVE: a larger gauge denominator is a larger
-   ansatz, so the solver searches a superset and can never miss a gauge;
+   consequence is CONSERVATIVE: a larger basisTransformationBlock denominator is a larger
+   ansatz, so the solver searches a superset and can never miss a basisTransformationBlock;
    it costs solve time.  It reaches the solver only on the CHARTLESS
-   multiquadratic path, because SolveEpsFormStripInFrame pulls the strip
-   back into a rational chart first and transportChartPullBackStrip ends
+   multiquadratic path, because SolveOffDiagonalBasisTransformationBlock pulls the offDiagonalBlockEquation
+   back into a rational chart first and transportChartPullBackOffDiagonalBlockEquation ends
    in Map[Together, ., {2}] on now-rational entries -- and Together IS
-   canonical there, so two exactly equal forcings pull back to the same
-   strip.  On a rational frame the cancellation is complete and the
+   canonical there, so two exactly equal inhomogeneities pull back to the same
+   offDiagonalBlockEquation.  On a rational frame the cancellation is complete and the
    denominators agree outright.  FACET_CONSTRUCTION_ROUTE=Symbolic is the
    revert if a chartless multiquadratic block proves sensitive to it.
 
@@ -121,13 +120,12 @@ ClearAll[
   blockEquationDeferredEvaluate,
   blockEquationDeferredNonzeroCensus,
   blockEquationDeferredActiveGradeCensus,
-  blockEquationDeferredMapleCanonicalOperandValue,
   blockEquationDeferredCanonicalOperandValue,
   blockEquationDeferredCanonicalOperand,
   blockEquationDeferredInternQueueOrder,
   blockEquationDeferredMaterialize,
   blockEquationDeferredSourceExpression,
-  blockEquationDeferredForcing,
+  blockEquationDeferredInhomogeneity,
   blockEquationDeferredProgressRecord,
   blockEquationDeferredProgressIntervalDefault,
   blockEquationDeferredParallelRouteQ,
@@ -227,7 +225,7 @@ blockEquationDeferredPrepare[connection_, ranges_, k_Integer, j_Integer,
     solved_Association, variables_, regulator_] := Module[
   {started = AbsoluteTime[], n, rk, rj, feeders, involved, pairs,
    upper, records = {}, untouchedCount = 0, terms, base, feedTerms,
-   gaugeBlock, feedBlock, gaugeRowSupport, feedColumnSupport,
+   offDiagonalBasisTransformationBlock, feedBlock, basisTransformationRowSupport, feedColumnSupport,
    support, dimensions, parameters, preparation,
    productCount = 0, termCount = 0, mu, i, jj, m, l},
 
@@ -255,7 +253,7 @@ blockEquationDeferredPrepare[connection_, ranges_, k_Integer, j_Integer,
   feeders = Sort[Select[Keys[solved], j < # < k &]];
   If[! AllTrue[feeders, MatrixQ[solved[#]] &&
       Dimensions[solved[#]] === {Length[rk], Length[ranges[[#]]]} &],
-    Return[<|"Status" -> "InvalidGaugeDimensions",
+    Return[<|"Status" -> "InvalidOffDiagonalBasisTransformationBlockDimensions",
       "Feeders" -> feeders|>]];
 
   (* Codex 4: the truncated row formula is valid only on a
@@ -276,20 +274,20 @@ blockEquationDeferredPrepare[connection_, ranges_, k_Integer, j_Integer,
     base = connection[[mu, rk[[i]], rj[[jj]] ]];
     feedTerms = {};
     Do[
-      gaugeBlock = solved[m];
+      offDiagonalBasisTransformationBlock = solved[m];
       feedBlock = connection[[mu, ranges[[m]], rj]];
-      gaugeRowSupport = blockEquationDeferredSupport[gaugeBlock[[i]]];
+      basisTransformationRowSupport = blockEquationDeferredSupport[offDiagonalBasisTransformationBlock[[i]]];
       feedColumnSupport = blockEquationDeferredSupport[
         feedBlock[[All, jj]]];
-      support = Intersection[gaugeRowSupport, feedColumnSupport];
+      support = Intersection[basisTransformationRowSupport, feedColumnSupport];
       productCount += Length[support];
       feedTerms = Join[feedTerms,
         Table[<|"Kind" -> "Feed", "Feeder" -> m, "Index" -> l,
           "Coefficient" -> -1,
-          "Operands" -> {gaugeBlock[[i, l]], feedBlock[[l, jj]]}|>,
+          "Operands" -> {offDiagonalBasisTransformationBlock[[i, l]], feedBlock[[l, jj]]}|>,
           {l, support}]],
       {m, feeders}];
-    (* THE BASE IS ONE TERM, MEASURED, NOT ASSUMED.  On CF259 (21,18)
+    (* THE BASE IS ONE TERM, MEASURED, NOT ASSUMED.  In a production block
        the eight base entries carry 848337 leaves and their eight
        Together calls are 130 of the 173 s the deferred route spends, so
        splitting a Plus-headed base into one term per summand looks like
@@ -349,8 +347,8 @@ blockEquationDeferredSourceExpression[preparation_Association,
 (* ---- modular evaluation --------------------------------------------- *)
 
 (* Recursive arithmetic in F_p over a tagged term.  This is the single
-   production implementation; the row-gauge oracle
-   (FamilyRowGaugeFiniteField.wl, familyRowGaugeFFModEvaluate) delegates
+   production implementation; the row-basisTransformationBlock oracle
+   (FamilyRowBasisTransformationFiniteField.wl, familyRowBasisTransformationFFModEvaluate) delegates
    to it with its own root-placeholder head, exactly as that file already
    delegates every multiquadratic algebra operation to the shared routines.
    rootHead = None means "no algebraic placeholders in this expression".
@@ -411,7 +409,7 @@ blockEquationDeferredModEvaluate[expression_, scalarValues_Association,
 (* The active-grade router needs the same exact image on every one of the
    2^r root-sign sheets.  Walking a large deferred operand separately on
    every sheet made that routing probe eight symbolic-tree traversals at
-   rank three (CF259 (27,9): 132 s for the first accepted image).  Evaluate
+   rank three (measured: 132 s for the first accepted image).  Evaluate
    the sheets as one short vector instead: scalar subexpressions stay scalar,
    a root placeholder introduces its sign vector, and ordinary Plus/Times
    then thread elementwise.  This changes only evaluation scheduling; each
@@ -542,7 +540,7 @@ blockEquationDeferredEvaluate[___] := <|"Status" -> "InvalidInput"|>;
 
 (* A single nonzero image over F_p is an EXACT proof that the entry does
    not vanish identically; that is what makes the modular census a
-   replacement for the driver's Together-based zero-forcing probe rather
+   replacement for the driver's Together-based zero-inhomogeneity probe rather
    than a heuristic.  The converse is not a proof, so entries no image
    separates from zero are reported Undecided and decided exactly by the
    materializer's Expand. *)
@@ -615,7 +613,7 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
   If[Lookup[preparation, "Status", None] =!= "Prepared" ||
       ! MatchQ[Lookup[preparation, "Variables", None], {_Symbol, _Symbol}] ||
       ! SymbolQ[Lookup[preparation, "Regulator", None]] ||
-      ! Between[rank, {1, $multiquadraticStripMaximumRootCount}],
+      ! Between[rank, {1, $multiquadraticOffDiagonalBlockMaximumRootCount}],
     Return[<|"Status" -> "ActiveGradeCensusInconclusive",
       "Reason" -> "InvalidInput"|>]];
   variables = preparation["Variables"];
@@ -850,92 +848,17 @@ blockEquationDeferredActiveGradeCensus[___] :=
 
 (* ---- exact materialization ------------------------------------------ *)
 
-(* Maple's algebraic Normal is dramatically better on the rare chartless
-   multiquadratic tail where the rational FLINT collector is inapplicable.
-   Measured on genuine CF259 (27,9) operands 75/76: Wolfram Together was still
-   running after 800 s; Maple took 5.2--5.5 s and the final Wolfram FactorList
-   0.85--0.89 s.  This is a fallback only after the existing cheap Wolfram
-   probe/rational collector refuses, and its exact expression then enters the
-   same canonical quotient contract as every other route. *)
-blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
-  {scratch, key, timeout, normalized, pair, radicalBases, rootImages,
-   mapleExpression, position, restoreRules, restoredNumerator,
-   restoredEntries, numericContent, restoredFactors},
-  radicalBases = DeleteDuplicates[Cases[Unevaluated[expression],
-    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
-      base, {0, Infinity}, Heads -> True]];
-  If[radicalBases === {}, Return[$Failed]];
-  scratch = FileNameJoin[{$TemporaryDirectory, "FeynFacet",
-      "DeferredBundleMaple"}];
-  key = StringReplace[CreateUUID[], "-" -> ""];
-  (* Keep the declared square-root basis opaque to Maple.  Algebraic Normal
-     may otherwise rewrite r1 r2 as Sqrt[d1 d2], which is equal but outside
-     the bundle's declared frame.  Rational normalization in independent
-     placeholders is an exact formal identity; substituting the roots back
-     afterwards therefore preserves the source function without changing its
-     generator spelling. *)
-  rootImages = Table[Symbol[StringJoin[
-      "FeynFacetMapleRoot`facetBEDRoot", key, "x",
-      ToString[index]]], {index, Length[radicalBases]}];
-  mapleExpression = expression /. Power[base_, exponent_Rational /;
-      Denominator[exponent] === 2] :> Module[{},
-        position = FirstPosition[radicalBases,
-          candidate_ /; SameQ[candidate, base], Missing["NoRoot"], {1},
-          Heads -> False];
-        If[MissingQ[position], Power[base, exponent],
-          rootImages[[First[position]]]^(2 exponent)]];
-  restoreRules = Thread[rootImages -> (Sqrt /@ radicalBases)];
-  timeout = With[{value = Environment["FACET_DEFERRED_MAPLE_SECONDS"]},
-    If[StringQ[value] && StringMatchQ[value, NumberString] &&
-        Quiet[Check[ToExpression[value] > 0, False]],
-      N[ToExpression[value]], 900.]];
-  normalized = Quiet[Check[epsFormStripMapleCanonicalize[{mapleExpression},
-      "MapleExecutable" -> "maple", "ScratchDirectory" -> scratch,
-      "CacheDirectory" -> FileNameJoin[{scratch, "cache"}],
-      "Tag" -> StringJoin["operand_", ToString[$ProcessID], "_",
-        StringTake[key, 12]], "TimeLimit" -> timeout,
-      "Verbose" -> False], $Failed]];
-  If[! AssociationQ[normalized] ||
-      Lookup[normalized, "Status", None] =!= "MapleCanonicalGaugeV1" ||
-      ! MatchQ[Lookup[normalized, "Result", None], {_}],
-    Return[$Failed]];
-  pair = Quiet[Check[rationalMaterializationCanonicalQuotientValue[
-      First[normalized["Result"]]], $Failed]];
-  If[! MatchQ[pair, {_, _Association}], Return[$Failed]];
-  restoredNumerator = First[pair] /. restoreRules;
-  restoredEntries = Map[
-    (First[#1] /. restoreRules) -> Last[#1] &, Normal[Last[pair]]];
-  (* Root restoration is not injective: distinct formal factors can become
-     identical after r_i^2 -> Delta_i.  Preserve their total valuation rather
-     than letting Association silently keep one rule.  A restored numeric
-     factor is denominator content and belongs in the numerator, matching the
-     canonical quotient contract. *)
-  If[AnyTrue[First /@ restoredEntries, TrueQ[#1 === 0] &],
-    Return[$Failed]];
-  numericContent = Times @@ Map[
-    Function[entry, First[entry]^Last[entry]],
-    Select[restoredEntries, NumericQ[First[#1]] &]];
-  restoredFactors = Select[
-    Merge[Select[restoredEntries, ! NumericQ[First[#1]] &], Total],
-    ! TrueQ[#1 === 0] &];
-  {If[TrueQ[numericContent === 1], restoredNumerator,
-     Cancel[restoredNumerator/numericContent]], restoredFactors}
-];
-blockEquationDeferredMapleCanonicalOperandValue[___] := $Failed;
-
 (* Pure canonicalization of one operand: {numerator with the denominator's
    numeric content folded in, denominator factor -> exponent}.  Keeping the
    arithmetic separate from the cache lets independent operands be evaluated
    by pool helpers after their deterministic IDs have been assigned. *)
 blockEquationDeferredCanonicalOperandValue[expression_,
     polynomialSymbols_: Automatic] :=
-  Module[{accelerated, algebraic},
+  Module[{accelerated},
     accelerated = Quiet[Check[
       rationalMaterializationCanonicalValue[expression, polynomialSymbols],
       $Failed]];
     If[MatchQ[accelerated, {_, _Association}], Return[accelerated]];
-    algebraic = blockEquationDeferredMapleCanonicalOperandValue[expression];
-    If[MatchQ[algebraic, {_, _Association}], Return[algebraic]];
     rationalMaterializationTogetherValue[expression]];
 
 (* The mutable wrapper remains the single cache contract used by bundle
@@ -959,8 +882,8 @@ blockEquationDeferredInternQueueOrder[___] := {};
 (* ---- phase telemetry (Codex 2026-08-25 06:30, item A) --------------- *)
 
 (* MEASURED MOTIVATION.  The materializer returned its substage totals
-   only at the END, so a 1868 s construction (CF303 {17,12}, production
-   2026-08-25 08:31) was a single silent interval: the campaign watchdog
+   only at the END, so a 1868 s production construction was a single
+   silent interval: the campaign watchdog
    could not tell one expensive entry from a deadlock, and twice escalated
    an interval that was in fact healthy.  A start record and a
    RATE-LIMITED progress record make the distinction without touching the
@@ -1047,10 +970,10 @@ blockEquationDeferredAssembleJob[operands_List, job_List, cancelQ_,
          an ALGEBRAIC frame the quotient is a polynomial in the chart
          variables AND the declared radicals, and PolynomialQ over the
          bare symbols alone answers False for every such quotient -- so
-         no algebraic factor ever cancelled.  MEASURED on CF259
-         (21,18), 2026-08-25: that left one extra power of
-         (-1 - x + y + Sqrt[...]) in the forcing's denominator, which
-         the downstream gauge denominator inherits (exponent 5 against
+         no algebraic factor ever cancelled.  MEASURED on a production
+         block, 2026-08-25: that left one extra power of
+         (-1 - x + y + Sqrt[...]) in the inhomogeneity's denominator, which
+         the downstream basisTransformationBlock denominator inherits (exponent 5 against
          the symbolic route's 4) and which would enlarge the solver's
          ansatz.  The radicals of the common denominator are therefore
          adjoined to the polynomial variables; a radical the quotient
@@ -1081,9 +1004,9 @@ blockEquationDeferredAssembleJob[operands_List, job_List, cancelQ_,
   (* A radical still left in the common denominator means the factored
      cancellation could not finish: dividing out (a + Sqrt[D]) needs the
      relation Sqrt[D]^2 = D, which Cancel does not use when Sqrt[D] is
-     an opaque polynomial variable.  MEASURED on CF259 (21,18): without
-     this step the assembled forcing keeps one extra power of
-     (-1 - x + y + Sqrt[...]) and the solver's gauge denominator comes
+     an opaque polynomial variable.  MEASURED on a production block: without
+     this step the assembled inhomogeneity keeps one extra power of
+     (-1 - x + y + Sqrt[...]) and the solver's basisTransformationBlock denominator comes
      out at exponent 5 against the symbolic route's 4 -- a larger
      ansatz, which would give back at the solve what the construction
      saved.  One Together on the ASSEMBLED RATIO restores exactly the
@@ -1097,12 +1020,12 @@ blockEquationDeferredAssembleJob[operands_List, job_List, cancelQ_,
      Tests/Multiquadratic/t_construction_dag:
      it is exact, cheap (0.38 s) and yields the SMALLEST entries of all
      three routes -- and it is wrong for this pipeline, because it
-     removes the algebraic letters from the forcing's denominators
-     altogether: the gauge denominator came out as x^3 (3 + x) (1 + y),
+     removes the algebraic letters from the inhomogeneity's denominators
+     altogether: the basisTransformationBlock denominator came out as x^3 (3 + x) (1 + y),
      purely rational, with the letter (1 + x - y + Sqrt[...]) gone,
-     since its norm is 4 x.  epsFormStripAlphabet reads the ALPHABET
+     since its norm is 4 x.  offDiagonalBlockAlphabet reads the ALPHABET
      off those denominators, so rationalizing would silently delete
-     letters the gauge needs -- the Together-destroys-algebraic-words
+     letters the basisTransformationBlock needs -- the Together-destroys-algebraic-words
      trap this repository already records.  The algebraic factor is
      therefore kept, at the price named below. *)
   If[! FreeQ[Keys[denominator], Power[_, _Rational]],
@@ -1191,7 +1114,7 @@ blockEquationDeferredMaterializeTask[dataFile_String, indices_List] :=
    canonical form the DOWNSTREAM alphabet builder expects.  The default
    is the contract: an entry no feeder touched is returned unchanged.
    The driver overrides it to True, deliberately, because
-   epsFormStripAlphabet reads the entry through CANONICA's
+   offDiagonalBlockAlphabet reads the entry through CANONICA's
    ExtractIrreducibles, which enumerates the denominators it FINDS -- an
    un-normalized sum of two rational terms would contribute both
    denominators as letters even when the reduced entry has one.  On that
@@ -1316,7 +1239,7 @@ blockEquationDeferredMaterialize[preparation_Association,
      Once that ordered pass is complete, distinct transformed expressions
      are immutable independent Together/FactorList jobs.  Farming only those
      jobs preserves first-encounter IDs and SeedPool semantics while avoiding
-     the measured CF259 serial canonicalization wall. *)
+     the measured production serial-canonicalization wall. *)
   internStarted = AbsoluteTime[];
   planned = Count[records, candidate_ /;
     (requested === All || MemberQ[requested, candidate["Target"]])];
@@ -1683,17 +1606,17 @@ blockEquationDeferredMaterialize[___] := <|"Status" -> "InvalidInput"|>;
 (* ---- THE PRESERVED DAG AND THE DIVISOR METADATA (2026-08-26,
    round-2 item 8; Codex review 2.2) ---------------------------------
 
-   TWO PRODUCTS, NOT ONE.  Until now the public forcing result did
+   TWO PRODUCTS, NOT ONE.  Until now the public inhomogeneity result did
    KeyDrop[preparation, "Records"] and returned only the materialized
    dense matrices, so every downstream consumer had to work from a huge
    symbolic expression that this file had just finished avoiding.  Codex
-   2.2: preserve the DAG (or a compiled modular plan) in the strip
+   2.2: preserve the DAG (or a compiled modular plan) in the offDiagonalBlockEquation
    record, and return a SECOND product beside it --
 
      * a compact arithmetic DAG a coefficient provider can evaluate at a
        point, and
      * explicit divisor / Galois-orbit / multiplicity metadata for
-       alphabet and gauge-denominator construction.
+       alphabet and basisTransformationBlock-denominator construction.
 
    The reason they must be separate is recorded at
    blockEquationDeferredCancelledValue: the arithmetic may rationalize or
@@ -1735,30 +1658,30 @@ blockEquationDeferredDAGRecord[preparation_Association, byteLimit_] := Module[
 
 (* ---- divisor / Galois-orbit / multiplicity metadata ---------------- *)
 
-(* The polar divisor of the assembled forcing, kept in the form the
+(* The polar divisor of the assembled inhomogeneity, kept in the form the
    ALPHABET needs: algebraic factors are NEVER rationalized away (that is
    the measured trap recorded above -- rationalizing an algebraic
-   denominator by its norm deletes the letter the gauge needs), each
+   denominator by its norm deletes the letter the basisTransformationBlock needs), each
    distinct irreducible factor carries the highest multiplicity it
    reaches in any single entry, and the algebraic factors are grouped
    into Galois orbits under the declared root sign flips with the orbit
    norm computed exactly.
 
    Cost: one FactorList per DISTINCT denominator.  That is the work the
-   gauge-denominator rule already does, so this product adds no dominant
+   basisTransformationBlock-denominator rule already does, so this product adds no dominant
    stage; what it adds is that the result is recorded instead of being
    re-derived by every consumer from the printed expression. *)
 Options[blockEquationDeferredDivisorMetadata] = {"Roots" -> Automatic};
 
-blockEquationDeferredDivisorMetadata[forcing_, variables_List,
+blockEquationDeferredDivisorMetadata[inhomogeneity_, variables_List,
     opts : OptionsPattern[]] := Module[
   {started = AbsoluteTime[], entries, denominators, factorPairs, roots,
    radicalBases, rationalFactors, algebraicFactors, canonical, groups,
    orbits, orbitOf, conjugates, norm},
-  entries = DeleteCases[Flatten[{forcing}], 0];
+  entries = DeleteCases[Flatten[{inhomogeneity}], 0];
   If[entries === {},
     Return[<|"Schema" -> $blockEquationDeferredDivisorSchema,
-      "Status" -> "EmptyForcing", "RationalFactors" -> {},
+      "Status" -> "EmptyInhomogeneity", "RationalFactors" -> {},
       "AlgebraicFactors" -> {}, "GaloisOrbits" -> {},
       "RadicalBases" -> {}, "Seconds" -> 0.|>]];
   denominators = DeleteDuplicates[
@@ -1858,7 +1781,7 @@ blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
    Codex codex_round3_detailed_fix_instructions section A3) ------------
 
    THE DEFECT THIS REPLACES.  blockEquationDeferredDivisorMetadata above
-   reads Together of the MATERIALIZED forcing, so a divisor lost to
+   reads Together of the MATERIALIZED inhomogeneity, so a divisor lost to
    cancellation before that point cannot be recovered from it; the
    preserved DeferredDAG is the raw record forest, so the measured
    interning phase was repeated by every downstream consumer; and
@@ -1882,7 +1805,7 @@ blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
        "DivisorSummary", "DeferredPreparation",
        "Statistics"|>
 
-   IMMUTABILITY.  The returned bundle is plain data: no delayed rules,
+   IMMUTdata-layout contractLITY.  The returned bundle is plain data: no delayed rules,
    closures, mutable pool symbols or memoized downvalues -- construction
    mutates only builders local to the compiler.  Consumers treat it as
    read-only and validate its schema, dimensions, generator relations,
@@ -1914,7 +1837,7 @@ blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
    safe for candidate-letter discovery, CONSERVATIVE as an ansatz
    denominator) and CertifiedEntryPoleOrder -> None until a divisor
    support census proves noncancellation.  Nothing here labels the
-   source maximum as an exact forcing multiplicity. *)
+   source maximum as an exact inhomogeneity multiplicity. *)
 
 $blockEquationDeferredBundleSchema = "BlockEquationDeferredBundleV3";
 
@@ -1922,7 +1845,7 @@ $blockEquationDeferredBundleSchema = "BlockEquationDeferredBundleV3";
 
 (* The caller's ordered generator records are validated without changing
    their order.  The dependence
-   test is the solver's own (multiquadraticStripSquareClassSquareQ,
+   test is the solver's own (multiquadraticOffDiagonalBlockSquareClassSquareQ,
    called read-only): {x, y, x y} has rank two, and a dependent set must
    be refused BEFORE any orbit is generated. *)
 blockEquationDeferredValidateSquareRootGenerators[roots_List, variables_List, regulator_] :=
@@ -1943,7 +1866,7 @@ blockEquationDeferredValidateSquareRootGenerators[roots_List, variables_List, re
     Return[<|"Status" -> "DuplicateRootSquares",
       "DuplicatePairs" -> duplicates|>]];
   dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
-    subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+    subset_ /; TrueQ[multiquadraticOffDiagonalBlockSquareClassSquareQ[
       Times @@ squares[[subset]]]] :> subset, None];
   If[dependent =!= None,
     Return[<|"Status" -> "DependentRootSquares",
@@ -2156,7 +2079,7 @@ blockEquationDeferredChartMaterializableQ[___] := False;
    but a proper chartable subset exists do we census the ASSEMBLED deferred
    source's active grades modulo two primes; roots used by the diagonal blocks
    remain mandatory.  This is not a certificate: the chart materializer and
-   SolveEpsFormStripInFrame repeat their exact frame gates, while an
+   SolveOffDiagonalBasisTransformationBlock repeat their exact frame gates, while an
    inconclusive census leaves the direct-provider route unchanged. *)
 blockEquationDeferredChartDecision[connection_, preparation_Association,
     roots_List] := Module[
@@ -2457,7 +2380,7 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
       (* RootMask is executable hot-path metadata, not advisory telemetry.
          Recompute it from the immutable canonical operand at every bundle
          authentication boundary.  Merely checking its numeric range lets a
-         refingerprinted artifact suppress a root and evaluate the operand in
+         revalidated after mutation artifact suppress a root and evaluate the operand in
          the wrong local subfield. *)
       expression = record["Numerator"]/Times @@
         (Power[First[#1], Last[#1]] & /@ recordPairs);
@@ -2648,7 +2571,8 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
    prefillDispatcher, prefillParallel = False, prefillStarted,
    prefillCanonicalExpressions = {}, prefillBytes = {},
    prefillResults = {}, prefillLocalIndices = {},
-   prefillFarmedIndices = {}, prefillDataFile, prefillCodes,
+   prefillFarmedIndices = {}, prefillFarmedBatches = {},
+   prefillBatchCount = 0, prefillDataFile, prefillCodes,
    prefillHandle, prefillFarmed, prefillMissing = {}, prefillFailure,
    prefillTag,
    prefillRoute = "Serial", prefillSeconds = 0.},
@@ -2701,7 +2625,7 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
      Together/FactorList kernel one operand at a time.  Materialization
      already farms that exact pure kernel.  Prefill only its cache here;
      the existing serial walk below still owns every deterministic ID,
-     valuation, factor, orbit and fingerprint. *)
+     valuation, factor, orbit and data record. *)
   (* Join only the two container levels.  An operand is an arbitrary exact
      expression and may itself have List heads; unrestricted Flatten would
      silently change such an operand and make this optimization non-general. *)
@@ -2759,19 +2683,34 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
       Range[Length[prefillCanonicalExpressions]], prefillLocalIndices];
     prefillFarmedIndices = SortBy[prefillFarmedIndices,
       {-prefillBytes[[#]], #} &];
+    (* Small and medium operands are dominated by the file-queue polling
+       latency when submitted one at a time.  Give each helper one
+       round-robin byte-balanced batch.  Only genuinely large operands keep
+       singleton tasks, where the queue's dynamic scheduling protects the
+       critical path from an uneven symbolic tail. *)
+    prefillBatchCount = Min[prefillHelpers,
+      Length[prefillFarmedIndices]];
+    prefillFarmedBatches = If[
+      Total[prefillBytes] >= 2^26 ||
+        Max[prefillBytes[[prefillFarmedIndices]]] >= 2^23,
+      List /@ prefillFarmedIndices,
+      DeleteCases[Table[
+        prefillFarmedIndices[[batchIndex ;; ;; prefillBatchCount]],
+        {batchIndex, prefillBatchCount}], {}]];
     If[TrueQ[OptionValue["Progress"]],
       Print["[deferred-bundle] intern-dispatch: operands ",
-        Length[prefillCanonicalExpressions], ", to helpers ",
-        Length[prefillFarmedIndices], ", helpers free ", prefillHelpers]];
+        Length[prefillCanonicalExpressions], ", batches ",
+        Length[prefillFarmedBatches], ", helpers free ", prefillHelpers,
+        ", batch sizes ", Length /@ prefillFarmedBatches]];
     If[prefillDispatcher === Automatic,
       prefillDataFile = taskBrokerDataFile[
         "bedbundleintern_" <> StringReplace[CreateUUID[], "-" -> ""],
         <|"Expressions" -> prefillCanonicalExpressions,
           "PolynomialSymbols" -> Automatic|>];
-      prefillCodes = Map[Function[index, StringJoin[
+      prefillCodes = Map[Function[batch, StringJoin[
           "FeynFacet`Private`blockEquationDeferredInternTask[",
-          ToString[prefillDataFile, InputForm], ", {",
-          ToString[index], "}]" ]], prefillFarmedIndices];
+          ToString[prefillDataFile, InputForm], ", ",
+          ToString[batch, InputForm], "]" ]], prefillFarmedBatches];
       prefillHandle = taskBrokerSubmit[prefillCodes,
         "Label" -> "bedbundleintern" <> ToString[OptionValue["Label"]],
         "Timeout" -> OptionValue["BatchTimeout"]]];
@@ -2784,14 +2723,14 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
       prefillDispatcher[
         <|"Expressions" -> prefillCanonicalExpressions,
           "PolynomialSymbols" -> Automatic|>,
-        List /@ prefillFarmedIndices]];
-    Do[Module[{index = prefillFarmedIndices[[position]], value},
+        prefillFarmedBatches]];
+    Do[Module[{indices = prefillFarmedBatches[[position]], value},
       value = If[ListQ[prefillFarmed] &&
           position <= Length[prefillFarmed],
         prefillFarmed[[position]], $Failed];
-      If[ListQ[value] && Length[value] === 1,
-        prefillResults[[index]] = First[value]]],
-      {position, Length[prefillFarmedIndices]}];
+      If[ListQ[value] && Length[value] === Length[indices],
+        prefillResults[[indices]] = value]],
+      {position, Length[prefillFarmedBatches]}];
     prefillMissing = Select[Range[Length[prefillCanonicalExpressions]],
       ! MatchQ[prefillResults[[#]], {_, _Association}] &];
     If[prefillMissing =!= {},
@@ -2974,7 +2913,7 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
   If[failure =!= None, Return[{failure, pool}]];
 
   (* A declared family frame may be larger than this deferred source.  Keeping
-     unused generators doubles every sheet and gauge grade for each one.  The
+     unused generators doubles every sheet and basisTransformationBlock grade for each one.  The
      compiler has now authenticated every operand mask and coefficient, so it
      can project the immutable bundle to its exact active subfield once. *)
   originalRootCount = Length[generatorData["SquareRootGenerators"]];
@@ -3095,7 +3034,7 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     "DivisorOccurrences" -> occurrences,
     "DivisorSummary" -> summary,
     (* The native modular evaluator reads this prepared raw DAG from the
-       immutable strip input file. *)
+       immutable offDiagonalBlockEquation input file. *)
     "DeferredPreparation" -> <|"Preparation" -> preparation|>,
     "Statistics" -> statistics|>;
   {bundle, pool}
@@ -3105,13 +3044,13 @@ blockEquationDeferredCompileBundleWithCache[___] :=
 
 (* ---- driver entry point --------------------------------------------- *)
 
-(* The forcing bbar of block (k, j) as the dense matrix pair the strip
+(* The inhomogeneity inhomogeneity of block (k, j) as the dense matrix pair the offDiagonalBlockEquation
    solvers consume, built through the deferred route.  Returns the
-   preparation, the census and the materialized forcing so the caller can
-   reuse the census as its zero-forcing decision (a nonzero image is an
+   preparation, the census and the materialized inhomogeneity so the caller can
+   reuse the census as its zero-inhomogeneity decision (a nonzero image is an
    exact proof that the block is NOT zero-forced) instead of paying a
    second Together pass over every entry. *)
-Options[blockEquationDeferredForcing] = {
+Options[blockEquationDeferredInhomogeneity] = {
   "CensusTriples" -> Automatic, "Cancel" -> True, "Fallback" -> True,
   (* round-2 item 8 (Codex 2.2): the public result no longer discards the
      expression DAG.  Automatic keeps it whole and records its measured
@@ -3129,15 +3068,16 @@ Options[blockEquationDeferredForcing] = {
      "Output" -> "Bundle" returns the immutable pre-cancellation bundle
      WITHOUT ever materializing -- the early-return mode the direct
      provider consumes; "BundleAndMaterialized" additionally
-     materializes as the oracle/artifact.  "BundleOrMaterialized" is the
+     materializes as the oracle/artifact and derives its zero/nonzero
+     result directly from those exact reduced entries.  "BundleOrMaterialized" is the
      production decision mode: a modular nonzero witness returns the
      bundle immediately, while an inconclusive census materializes from
      the SAME preparation and compiler cache.  This avoids compiling a
-     costly algebraic bundle twice merely to decide exact zero forcing.
+     costly algebraic bundle twice merely to decide exact zero inhomogeneity.
      The default stays
      "BundleAndMaterialized" until the provider consumer lands in
-     MultiquadraticStripSolve.wl (its sole production caller reads
-     "Forcing"); it then flips to "Bundle" per the Codex instruction.
+     MultiquadraticOffDiagonalBlockSolve.wl (its sole production caller reads
+     "Inhomogeneity"); it then flips to "Bundle" per the Codex instruction.
 
      "ChartOrBundle" is the production algebraic route.  It performs a
      cheap root-support/chart lookup before compilation.  A chartable block
@@ -3156,10 +3096,10 @@ Options[blockEquationDeferredForcing] = {
      fails if invoked, proving the early-bundle path never calls it *)
   "MaterializeFunction" -> Automatic};
 
-blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
+blockEquationDeferredInhomogeneity[connection_, ranges_, k_Integer, j_Integer,
     solved_Association, variables_, regulator_, OptionsPattern[]] :=
   Module[{preparation, triples, census, materialized, dimensions,
-    forcing, values, output, bundleRoots, bundle, internCache,
+    inhomogeneity, values, output, bundleRoots, bundle, internCache,
     materializeFunction, materializeOptions, chartDecision = <||>,
     chartFastQ = False, directPreparationQ = False,
     coefficientPresentation, directRootIndices = {}, compileBundleQ},
@@ -3191,9 +3131,9 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
        bundleRoots]|>];
    If[! algebraSquareRootGeneratorRelationsRecordQ[coefficientPresentation],
      Return[<|"Status" -> "CoefficientPresentationNotWellFormed"|>]];
-   (* The routing question precedes provider construction.  On CF259
-      (21,16), the old order spent 2330.6 s constructing a one-root direct
-      bundle only for SolveEpsFormStripInFrame to pull it into a rational
+   (* The routing question precedes provider construction.  On a measured
+      production block, the old order spent 2330.6 s constructing a one-root direct
+      bundle only for SolveOffDiagonalBasisTransformationBlock to pull it into a rational
       chart immediately.  The probe below reads root support only; the chart
       solver performs the normal exact frame gates later. *)
    If[MemberQ[{"ChartOrBundle", "ChartOrPreparation"}, output],
@@ -3206,7 +3146,7 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
      (* Do not factor or sum in the multiquadratic source frame.  The chart
         solver substitutes rational root images into this raw DAG first and
         materializes there.  The source-frame nonzero census is also skipped:
-        this route never uses it to select zero forcing, so evaluating the DAG
+        this route never uses it to select zero inhomogeneity, so evaluating the DAG
         at eight extra images was pure logging work. *)
      Return[<|"Status" -> "PreparedChartDeferred",
        "DeferredPreparation" -> preparation,
@@ -3219,7 +3159,7 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
        "ChartDecision" -> chartDecision,
        "Census" -> <|"Status" -> "SkippedForChart",
          "AcceptedSamples" -> 0, "NonzeroProvedQ" -> False|>,
-       "ZeroForcingCandidateQ" -> False|>]];
+       "ZeroInhomogeneityCandidateQ" -> False|>]];
    (* ChartOrPreparation is the production contract: after the chart probe
       declines, it always hands the declared raw field to the native solver.
       Probe inconclusiveness is not permission to enter the legacy symbolic
@@ -3247,13 +3187,21 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
        "ChartDecision" -> chartDecision,
        "Census" -> <|"Status" -> "SkippedForNativeDirect",
          "AcceptedSamples" -> 0, "NonzeroProvedQ" -> False|>,
-       "ZeroForcingCandidateQ" -> False|>]];
-   triples = Replace[OptionValue["CensusTriples"], Automatic :>
-     Flatten[Table[{censusPoint, censusRegulator, censusPrime},
-       {censusPrime, {1000003, 1000033}},
-       {censusPoint, {{7717, 9227}, {31627, 44417}}},
-       {censusRegulator, {104729, 15485867}}], 2]];
-   census = blockEquationDeferredNonzeroCensus[preparation, triples];
+       "ZeroInhomogeneityCandidateQ" -> False|>]];
+   (* BundleAndMaterialized necessarily constructs the exact reduced entries.
+      Sampling the unreduced DAG at eight modular points first duplicated the
+      same zero/nonzero decision and dominated hard rational blocks.  The
+      provider-selecting modes still need the early census because it decides
+      whether materialization can be avoided. *)
+   If[output === "BundleAndMaterialized",
+     census = <|"Status" -> "DeferredToExactMaterialization",
+       "AcceptedSamples" -> 0, "NonzeroProvedQ" -> False|>,
+     triples = Replace[OptionValue["CensusTriples"], Automatic :>
+       Flatten[Table[{censusPoint, censusRegulator, censusPrime},
+         {censusPrime, {1000003, 1000033}},
+         {censusPoint, {{7717, 9227}, {31627, 44417}}},
+         {censusRegulator, {104729, 15485867}}], 2]];
+     census = blockEquationDeferredNonzeroCensus[preparation, triples]];
    compileBundleQ =
      ! (MemberQ[{"ChartOrBundle", "ChartOrPreparation"}, output] &&
        chartFastQ);
@@ -3290,7 +3238,7 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
      Return[Append[bundle, "Statistics" -> Join[
        Lookup[bundle, "Statistics", <||>],
        <|"Census" -> census,
-         "ZeroForcingCandidateQ" ->
+         "ZeroInhomogeneityCandidateQ" ->
            ! TrueQ[census["NonzeroProvedQ"]],
          (* ChartOrPreparation reaches this bundle path only after the
             native route refused at classification (an inconclusive or
@@ -3322,14 +3270,18 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
      Return[materialized]];
    dimensions = preparation["Dimensions"];
    values = materialized["Values"];
-   forcing = Table[values[{mu, i, jj}],
+   If[output === "BundleAndMaterialized",
+     census = <|"Status" -> "DerivedFromExactMaterialization",
+       "AcceptedSamples" -> 0,
+       "NonzeroProvedQ" -> ! AllTrue[Values[values], SameQ[#, 0] &]|>];
+   inhomogeneity = Table[values[{mu, i, jj}],
      {mu, dimensions[[1]]}, {i, dimensions[[2]]}, {jj, dimensions[[3]]}];
-   <|"Status" -> "OK", "Forcing" -> forcing,
+   <|"Status" -> "OK", "Inhomogeneity" -> inhomogeneity,
      "Preparation" -> KeyDrop[preparation, "Records"],
      (* TWO PRODUCTS, not one (round-2 item 8).  The compact arithmetic
         DAG a coefficient provider can evaluate at a point, and the
         explicit divisor / Galois-orbit / multiplicity metadata the
-        alphabet and the gauge denominator are built from.  The visible
+        alphabet and the basisTransformationBlock denominator are built from.  The visible
         spelling of a giant rational expression is not the alphabet API. *)
      "DeferredDAG" -> If[TrueQ[Replace[OptionValue["PreserveDAG"],
          Automatic :> True]],
@@ -3340,7 +3292,7 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
          "Bytes" -> ByteCount[Lookup[preparation, "Records", {}]]|>],
      "DivisorMetadata" -> If[TrueQ[Replace[OptionValue["DivisorMetadata"],
          Automatic :> True]],
-       blockEquationDeferredDivisorMetadata[forcing, variables,
+       blockEquationDeferredDivisorMetadata[inhomogeneity, variables,
          "Roots" -> OptionValue["DivisorRoots"]],
        <|"Schema" -> $blockEquationDeferredDivisorSchema,
          "Status" -> "DivisorMetadataSkipped"|>],
@@ -3352,9 +3304,9 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
         bundle mode *)
    "DeferredBundle" -> bundle,
     "Census" -> census, "Materialization" -> KeyDrop[materialized, "Values"],
-     "ZeroForcingCandidateQ" -> ! TrueQ[census["NonzeroProvedQ"]]|>
+     "ZeroInhomogeneityCandidateQ" -> ! TrueQ[census["NonzeroProvedQ"]]|>
 ];
 
-blockEquationDeferredForcing[___] := <|"Status" -> "InvalidInput"|>;
+blockEquationDeferredInhomogeneity[___] := <|"Status" -> "InvalidInput"|>;
 
 End[];

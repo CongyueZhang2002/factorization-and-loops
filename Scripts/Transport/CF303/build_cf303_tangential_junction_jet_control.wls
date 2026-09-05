@@ -3,18 +3,28 @@ $AllowInternet = False;
 $HistoryLength = 0;
 scriptDirectory = DirectoryName[ExpandFileName[$InputFileName]];
 arguments = Rest[$ScriptCommandLine];
-pointPath = If[arguments =!= {}, ExpandFileName[First[arguments]],
-  "/tmp/cf303_junction_local_q2305843009213691819_p310.json"];
-outputPath = FileNameJoin[{scriptDirectory, "Artifacts",
-  "CF303TangentialJunctionJetControl.wl"}];
+If[Length[arguments] =!= 4,
+  Print["Usage: build_cf303_tangential_junction_jet_control.wls " <>
+    "<junction-point.json> <inherited-lower-soft-jets.wl> " <>
+    "<tangential-junction-map.wl> <output.wl>"];
+  Quit[64]];
+pointPath = ExpandFileName[arguments[[1]]];
+lowerJetsPath = ExpandFileName[arguments[[2]]];
+junctionPath = ExpandFileName[arguments[[3]]];
+outputPath = ExpandFileName[arguments[[4]]];
+If[! AllTrue[{pointPath, lowerJetsPath, junctionPath}, FileExistsQ],
+  Print["FAIL CF303TangentialJunctionJetInputMissing"]; Quit[2]];
 pointData = Import[pointPath, "RawJSON"];
-lowerJets = Get[FileNameJoin[{scriptDirectory, "Artifacts",
-  "CF303InheritedLowerSoftJets.wl"}]];
+lowerJets = Get[lowerJetsPath];
+junction = Get[junctionPath];
 If[Lookup[pointData, "status", None] =!=
       "CF303TangentialJunctionPointV1" ||
     Lookup[pointData, "normal_connection_local_window", {}] =!= {-1, 1} ||
     Lookup[lowerJets, "Status", None] =!=
-      "CF303InheritedLowerSoftJetsAcceptedV2",
+      "CF303InheritedLowerSoftJetsAcceptedV2" ||
+    ! AssociationQ[junction] ||
+    Lookup[junction, "Status", None] =!=
+      "CF303TangentialJunctionMapReconstructedV1",
   Print["FAIL CF303TangentialJunctionJetInputs"]; Quit[2]];
 
 prime = pointData["prime"];
@@ -22,6 +32,13 @@ pPoint = First[pointData["p"]]/Last[pointData["p"]];
 epsilonWindow = {-4, 3};
 supportRows = {1, 2, 12, 21, 22, 29, 30};
 modeEigenvalues = {-2, 0, 0, 0, -4, 0, -4};
+inheritedModeOrder = junction["InheritedModeOrder"];
+combinedModeOrder = junction["CombinedModeOrder"];
+inheritedModePositions =
+  (First@FirstPosition[combinedModeOrder, #]) & /@ inheritedModeOrder;
+If[Length[inheritedModeOrder] =!= 7 ||
+    inheritedModePositions =!= Range[7, 13],
+  Print["FAIL CF303TangentialJunctionJetModeOrder"]; Quit[2]];
 ff[expression_] := Module[{value = Together[expression /. p -> pPoint]},
   Mod[Numerator[value]*PowerMod[Mod[Denominator[value], prime], -1,
     prime], prime]];
@@ -96,11 +113,12 @@ seriesScale[series_, scalar_] := Association@Table[order ->
     Mod[scalar*seriesGet[series, order], prime], {order, orders}];
 seriesShift[series_, shift_] := Association@Table[order ->
     seriesGet[series, order - shift], {order, orders}];
-seriesMatrixVector[matrixSeries_, vectorSeries_] := Association@Table[
+seriesMatrixVector[matrixSeries_, vectorSeries_, resultOrders_: orders] :=
+ Association@Table[
   order -> Mod[Total[Table[
       Lookup[matrixSeries, left, ConstantArray[0, {2, 7}]] .
         Lookup[vectorSeries, order - left, ConstantArray[0, 7]],
-      {left, Keys[matrixSeries]}]], prime], {order, orders}];
+      {left, Keys[matrixSeries]}]], prime], {order, resultOrders}];
 seriesTargetProduct[matrixSeries_, vectorSeries_] := Association@Table[
   order -> Mod[Total[Table[
       Lookup[matrixSeries, left, ConstantArray[0, {2, 2}]] .
@@ -121,15 +139,16 @@ targetSeries[rhoOrder_] := <|1 -> targetMatrices[rhoOrder]|>;
 sourceModeSeries[rhoOrder_, mode_] := Association@Table[
   epsilonOrder -> sourceJets[{rhoOrder, epsilonOrder}][[All, mode]],
   {epsilonOrder, 0, 6}];
-bp[rhoOrder_, sourceOrder_, mode_] := seriesMatrixVector[
-  bSeries[rhoOrder], sourceModeSeries[sourceOrder, mode]];
+bp[rhoOrder_, sourceOrder_, mode_, resultOrders_: orders] :=
+ seriesMatrixVector[bSeries[rhoOrder],
+  sourceModeSeries[sourceOrder, mode], resultOrders];
 atp[rhoOrder_, vector_] := seriesTargetProduct[
   targetSeries[rhoOrder], vector];
 
 checks = {};
 nonzeroData = Association@Table[With[
   {r = modeEigenvalues[[mode]],
-    bMinusP0 = bp[-1, 0, mode]},
+    bMinusP0 = bp[-1, 0, mode, Range[-3, 4]]},
   y0 = seriesScale[seriesShift[bMinusP0, -1], PowerMod[Mod[r, prime], -1,
     prime]];
   rhs1 = seriesAdd[{atp[0, y0], bp[-1, 1, mode], bp[0, 0, mode]}];
@@ -188,6 +207,7 @@ targetChecks = Flatten@Table[With[{unit = UnitVector[2, target]},
      seriesScale[seriesAdd[{atp[0, t1], atp[1, t0]}], -1]}]]}],
   {target, 2}];
 checks = Join[checks, targetChecks];
+normalRecurrenceChecks = checks;
 
 zeroModeOrder = {2, 3, 4, 6};
 logCoefficientDeck = Association@Table[order -> SparseArray[Transpose[
@@ -195,6 +215,24 @@ logCoefficientDeck = Association@Table[order -> SparseArray[Transpose[
   {order, orders}];
 finitePartDeck = Association@Table[order -> SparseArray[{}, {2, 4}],
   {order, orders}];
+junctionTargetSeries = Association@Table[mode -> Association@Table[
+    order -> (ff /@ Normal[junction["TargetGModeMap"][order]][[
+        All, inheritedModePositions[[mode]]]]), {order, orders}],
+  {mode, 7}];
+targetLeadingChecks = Table[
+  If[MemberQ[{1, 5, 7}, mode],
+    nonzeroData[mode]["TargetJet0"],
+    zeroData[mode]["CanonicalFiniteTargetJet0"]] ===
+      junctionTargetSeries[mode], {mode, 7}];
+junctionLogDeck = Association@Table[order -> SparseArray[
+    Map[ff,
+      Normal@Lookup[junction["ResonantZeroSector",
+        "LogarithmicJordanCoefficientC"], order,
+        SparseArray[{}, {2, 4}]], {2}]],
+  {order, orders}];
+logarithmicLeadingCheck = AllTrue[orders,
+  Normal[logCoefficientDeck[#]] === Normal[junctionLogDeck[#]] &];
+checks = Join[checks, targetLeadingChecks, {logarithmicLeadingCheck}];
 maximumLogRank = Max[MatrixRank[Normal[#], Modulus -> prime] & /@
   Values[logCoefficientDeck]];
 homogeneousShift = Array[CF303TargetZeroModeShift, {2, 4}];
@@ -207,13 +245,26 @@ basisShiftIdentity = TrueQ[Simplify[
 checks = Append[checks, basisShiftIdentity];
 
 result = <|
+  "DataType" -> "CF303ExplicitTargetNormalFrobeniusJets",
+  "SchemaVersion" -> 2,
   "Status" -> If[And @@ checks,
-    "CF303TangentialJunctionIntertwiningJetsAcceptedV1",
-    "CF303TangentialJunctionIntertwiningJetsFailed"],
+    "CF303ExplicitTargetNormalFrobeniusJetsFiniteFieldValidated",
+    "CF303ExplicitTargetNormalFrobeniusJetsFiniteFieldFailed"],
+  "Family" -> "CF303",
   "Prime" -> prime, "PPoint" -> pPoint,
-  "CheckedRhoOrders" -> {0, 1},
+  "NormalCoordinate" -> "rho=2*p-z",
+  "EllipticNormalizationBasePoint" -> 1/2,
+  "EllipticBaseSheetFiniteFieldValue" ->
+    pointData["elliptic_base_sheet"],
+  "EllipticBaseSheetSignChoice" ->
+    pointData["elliptic_base_sheet_sign_choice"],
+  "NormalCoordinatePowerWindow" -> {0, 2},
   "EpsilonCoefficientWindow" -> epsilonWindow,
   "CheckCount" -> Length[checks], "PassedCheckCount" -> Count[checks, True],
+  "InheritedModeOrder" -> inheritedModeOrder,
+  "NormalEigenvalueOverEpsilonByInheritedMode" -> modeEigenvalues,
+  "FrobeniusRepresentation" ->
+    "Analytic jets are stored after factoring rho^(r*eps); resonant logarithmic jets are explicit",
   "NonzeroEigenmodes" -> nonzeroData,
   "ResonantZeroModes" -> zeroData,
   "ResonantZeroModeOrder" -> zeroModeOrder,
@@ -243,11 +294,30 @@ result = <|
     "Stage3TargetColumns" -> {5, 6},
     "RequiredEpsilonOrderThrough" -> 2,
     "NewPhysicalPeriodsIntroduced" -> 0,
-    "TargetGModeMapComplete" -> True|>,
+    "TargetGNormalJetPowerWindowComplete" -> {0, 2}|>,
+  "Validation" -> <|
+    "Conditions" -> <|
+      "NormalRecurrencesSatisfied" -> And @@ Take[checks,
+        Length[normalRecurrenceChecks]],
+      "TargetJetZeroMatchesReconstructedTangentialJunctionMap" ->
+        And @@ targetLeadingChecks,
+      "ResonantLogJetZeroMatchesReconstructedTangentialJunctionMap" ->
+        logarithmicLeadingCheck|>|>,
+  "InputReferences" -> <|
+    "JunctionPointRecord" -> pointPath,
+    "JunctionPointConstructionInputReferences" ->
+      Lookup[pointData, "input_references", <||>],
+    "InheritedLowerSoftJets" -> lowerJetsPath,
+    "TangentialJunctionMap" -> junctionPath,
+    "InheritedLowerSoftJetConstructionInputProvenance" ->
+      lowerJets["ConstructionInputProvenance"]|>,
   "EquivalentConstruction" ->
     HoldForm[Reg[Inverse[PhiG].Inverse[UH].PsiPhysical]],
   "Scope" ->
     "Contracted seven-source-state recurrence; no dense H or K deck"|>;
+If[! DirectoryQ[DirectoryName[outputPath]],
+  CreateDirectory[DirectoryName[outputPath],
+    CreateIntermediateDirectories -> True]];
 Put[result, outputPath];
 Print[If[And @@ checks, "PASS ", "FAIL "], result["Status"],
   " checks=", result["PassedCheckCount"], "/", result["CheckCount"],

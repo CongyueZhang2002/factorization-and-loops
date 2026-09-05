@@ -26,19 +26,14 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[2]
-DEFAULT_SCRATCH = REPOSITORY.parent / "factorization-and-loops-codex"
+BUNDLE = HERE / "data/normal_factor_exact_circuit"
 DEFAULT_PRIME = 2_305_843_009_213_641_971
-DEFAULT_BLOCK1_DECK = DEFAULT_SCRATCH / (
-    "Runtime/2026-08-31_cf303_native_dlog_residues/"
+DEFAULT_BLOCK1_DECK = BUNDLE / (
     "block1_modular_laurent_decks/"
-    f"cf303_block1_laurent_deck_q{DEFAULT_PRIME}.json"
+    f"cf303_block1_laurent_deck_q{DEFAULT_PRIME}.json.gz"
 )
-RESOLVER = DEFAULT_SCRATCH / (
-    "Diagnostics/Scripts/cf303_block1_circuit_point_resolver.py"
-)
-EVALUATOR = DEFAULT_SCRATCH / (
-    "Diagnostics/Scripts/cf303_hybrid_baseline_modular_circuit.py"
-)
+RESOLVER = BUNDLE / "cf303_block1_circuit_point_resolver.py"
+EVALUATOR = BUNDLE / "cf303_hybrid_baseline_modular_circuit.py"
 ENDPOINT_PROVIDER = HERE / "cf303_deferred_soft_residue_point.py"
 INHERITED_PROVIDER = HERE / "cf303_inherited_soft_projection_point.py"
 
@@ -102,13 +97,28 @@ def radical_squares(p_value: int, prime: int) -> tuple[int, ...]:
     )
 
 
-def prepare_adapter_context(prime: int, p: Fraction,
-                            block1: Path) -> dict[str, Any]:
+def prepare_adapter_context(
+    prime: int, p: Fraction, block1: Path | None,
+    epsilon_orders: tuple[int, ...] = tuple(range(-3, 5)),
+    selected_support_masters: tuple[int, ...] | None = None,
+    base_sheet_sign: int = 1,
+) -> dict[str, Any]:
     started = time.perf_counter()
     evaluator = load_module(
         f"cf303_junction_evaluator_{prime}_{p.numerator}_{p.denominator}",
         EVALUATOR,
     )
+    original_laurent_coefficients = evaluator.laurent_coefficients
+
+    def laurent_coefficients(expression, helper, low=None, high=None):
+        return original_laurent_coefficients(
+            expression, helper,
+            low=epsilon_orders[0] if low is None else low,
+            high=epsilon_orders[-1] if high is None else high,
+        )
+
+    evaluator.ORDERS = epsilon_orders
+    evaluator.laurent_coefficients = laurent_coefficients
     evaluator.Q7 = prime
     extension_nonresidue = 2
     while evaluator.legendre(extension_nonresidue, prime) != -1:
@@ -124,20 +134,49 @@ def prepare_adapter_context(prime: int, p: Fraction,
         evaluator.ELLIPTIC_HELPER,
     )
     inputs = evaluator.parse_inputs()
-    resolution = json.loads(block1.read_text())
-    if resolution.get("base_sheet") is None:
-        raise JunctionPointError("CF303JunctionBaseSheetUnavailable")
+    resolution = (json.loads(block1.read_text()) if block1 is not None
+                  else {"prime": prime, "outputs": []})
     p_mod = fraction_mod(p, prime)
     base = pow(2, -1, prime)
     curve_polynomial = evaluator.curve_polynomial(p_mod, prime)
     curve = evaluator.RationalFunction.make(
         curve_polynomial, [1], prime, helper
     )
-    support_masters = evaluator.ADAPTER_SUPPORT_MASTERS
+    if base_sheet_sign not in (-1, 1):
+        raise JunctionPointError("CF303JunctionBaseSheetSignInvalid")
+    if resolution.get("base_sheet") is None:
+        base_curve = curve.evaluate(base)
+        base_root = evaluator.fq2_sqrt_base(base_curve, prime)
+        base_sheet = tuple(base_sheet_sign*value % prime
+                           for value in base_root)
+    else:
+        base_sheet = (base_sheet_sign*int(resolution["base_sheet"]) % prime,
+                      0)
+    requested_support = (evaluator.ADAPTER_SUPPORT_MASTERS
+                         if selected_support_masters is None
+                         else selected_support_masters)
+    allowed_positions = {
+        evaluator.SOURCE_ROWS.index(master)
+        for master in evaluator.ADAPTER_SUPPORT_MASTERS
+    }
+    support_set = {
+        evaluator.SOURCE_ROWS.index(master) for master in requested_support
+    }
+    changed = True
+    while changed:
+        changed = False
+        for record in inputs["source_forms"]:
+            row, column = int(record[0]) - 1, int(record[1]) - 1
+            if (column in support_set and row in allowed_positions
+                    and row not in support_set):
+                support_set.add(row)
+                changed = True
+    support_masters = tuple(
+        evaluator.SOURCE_ROWS[position] for position in sorted(support_set)
+    )
     support_positions = tuple(
         evaluator.SOURCE_ROWS.index(master) for master in support_masters
     )
-    support_set = set(support_positions)
     source_records = [
         record for record in inputs["source_forms"]
         if int(record[0]) - 1 in support_set
@@ -160,7 +199,8 @@ def prepare_adapter_context(prime: int, p: Fraction,
         "elliptic": elliptic,
         "inputs": inputs, "resolution": resolution, "p": p,
         "p_mod": p_mod, "endpoint": 2*p_mod % prime,
-        "base": base, "base_sheet": int(resolution["base_sheet"]) % prime,
+        "base": base, "base_sheet": base_sheet,
+        "base_sheet_sign": base_sheet_sign,
         "curve_polynomial": curve_polynomial, "curve": curve,
         "support_masters": support_masters,
         "support_positions": support_positions,
@@ -168,17 +208,42 @@ def prepare_adapter_context(prime: int, p: Fraction,
         "radical_squares": squares, "radical_roots": roots,
         "extension_nonresidue": extension_nonresidue,
         "original_sqrt": original_sqrt,
+        "epsilon_orders": epsilon_orders,
         "prepare_seconds": time.perf_counter() - started,
     }
 
 
-def evaluate_adapter_branch(context: dict[str, Any], signs: tuple[int, ...]
+def evaluate_adapter_branch(context: dict[str, Any], signs: tuple[int, ...],
+                            h_endpoint_modes: list[dict[str, Any]] | None = None,
+                            h_endpoint_localizer: Any | None = None,
                             ) -> tuple[dict[str, Any], float]:
     started = time.perf_counter()
     evaluator = context["evaluator"]
     helper = context["helper"]
     elliptic = context["elliptic"]
     prime = context["prime"]
+
+    def normalize_at_declared_base(function_pair):
+        rational_value = evaluator.ext_evaluate(
+            function_pair[0], context["base"]
+        )
+        elliptic_value = evaluator.ext_evaluate(
+            function_pair[1], context["base"]
+        )
+        value = evaluator.fq2_add(
+            rational_value,
+            evaluator.fq2_multiply(
+                context["base_sheet"], elliptic_value, prime
+            ),
+            prime,
+        )
+        return (
+            evaluator.ext_add(
+                function_pair[0],
+                evaluator.ext_constant(value, prime), helper, -1,
+            ),
+            function_pair[1],
+        )
     sign_by_square = dict(zip(context["radical_squares"], signs))
     seen_squares: set[int] = set()
     unknown_squares: set[int] = set()
@@ -215,6 +280,8 @@ def evaluate_adapter_branch(context: dict[str, Any], signs: tuple[int, ...]
                 for _ in evaluator.TARGET_ROWS]
     by_order = {}
     cross_by_order = {}
+    recurrence_checks = 0
+    basepoint_checks = 0
     for order in evaluator.ORDERS:
         cross = [[evaluator.zero_pair(prime) for _ in evaluator.SOURCE_ROWS]
                  for _ in evaluator.TARGET_ROWS]
@@ -250,21 +317,67 @@ def evaluate_adapter_branch(context: dict[str, Any], signs: tuple[int, ...]
                         form, context["curve_polynomial"], helper, elliptic
                     )
                 cross_k[row][column] = remainder
-                current[row][column] = evaluator.normalize_at_base(
+                current[row][column] = normalize_at_declared_base(
                     evaluator.pair_add(
                         incoming[order][row][column], primitive, helper
-                    ), context["base"], context["base_sheet"], helper,
+                    )
                 )
+                rational_value = evaluator.ext_evaluate(
+                    current[row][column][0], context["base"]
+                )
+                elliptic_value = evaluator.ext_evaluate(
+                    current[row][column][1], context["base"]
+                )
+                base_value = evaluator.fq2_add(
+                    rational_value,
+                    evaluator.fq2_multiply(
+                        context["base_sheet"], elliptic_value, prime
+                    ),
+                    prime,
+                )
+                if base_value != (0, 0):
+                    raise JunctionPointError(
+                        "CF303JunctionPathGaugeNormalizationFailure",
+                        order=order, row=row + 1, column=column + 1,
+                    )
+                basepoint_checks += 1
+                left = evaluator.pair_add(
+                    evaluator.derivative_function_pair(
+                        current[row][column], context["curve"], helper
+                    ),
+                    remainder, helper,
+                )
+                right = evaluator.pair_add(
+                    evaluator.derivative_function_pair(
+                        incoming[order][row][column],
+                        context["curve"], helper,
+                    ),
+                    form, helper,
+                )
+                if not evaluator.pair_equal(left, right, helper):
+                    raise JunctionPointError(
+                        "CF303JunctionPathGaugeHermiteRecurrenceFailure",
+                        order=order, row=row + 1, column=column + 1,
+                    )
+                recurrence_checks += 1
         by_order[order] = current
         cross_by_order[order] = cross_k
         previous = current
 
+    before_block1 = {
+        (order, row, column): by_order[order][row][column]
+        for order in evaluator.ORDERS
+        for row in range(len(evaluator.TARGET_ROWS))
+        for column in support_positions
+    }
     block1_h = evaluator.load_block1_h(context["resolution"], helper)
     for order in evaluator.ORDERS:
         for row in range(2):
             channel = by_order[order][row][0][0]
             by_order[order][row][0] = (
-                (channel[0].add(block1_h[(order, row)], helper), channel[1]),
+                (channel[0].add(block1_h.get(
+                    (order, row), evaluator.RationalFunction.zero(prime)
+                ), helper), channel[1]),
                 by_order[order][row][0][1],
             )
     cross_outputs = []
@@ -281,8 +394,66 @@ def evaluate_adapter_branch(context: dict[str, Any], signs: tuple[int, ...]
                             cross_by_order[order][row][column]
                         ),
                     })
+    endpoint_h_mode_outputs = []
+    endpoint_h_mode_component_outputs = []
+    if h_endpoint_modes:
+        if h_endpoint_localizer is None:
+            raise JunctionPointError(
+                "CF303JunctionMovingBoundaryRegularizationRequired"
+            )
+        source_position = {
+            master: index
+            for index, master in enumerate(evaluator.SOURCE_ROWS)
+        }
+        for order in evaluator.ORDERS:
+            for row in range(2):
+                for mode in h_endpoint_modes:
+                    contracted = evaluator.zero_pair(prime)
+                    for master, weight in mode["state_weights"].items():
+                        contracted = evaluator.pair_add(
+                            contracted,
+                            by_order[order][row][source_position[master]],
+                            helper, int(weight),
+                        )
+                    endpoint_record = {
+                        "order": order,
+                        "row": row + 1,
+                        "target_master": evaluator.TARGET_ROWS[row],
+                        "mode_index": mode["mode_index"],
+                        "mode_id": mode["mode_id"],
+                    }
+                    endpoint_record["local_data"] = h_endpoint_localizer(
+                        contracted, context["endpoint"], prime,
+                        through_power=0,
+                    )
+                    endpoint_h_mode_outputs.append(endpoint_record)
+                    if 1 in mode["state_weights"]:
+                        before = evaluator.zero_pair(prime)
+                        for master, weight in mode["state_weights"].items():
+                            before = evaluator.pair_add(
+                                before,
+                                before_block1[
+                                    order, row, source_position[master]
+                                ],
+                                helper, int(weight),
+                            )
+                        block1_component = evaluator.pair_add(
+                            contracted, before, helper, -1
+                        )
+                        for component, value in (
+                            ("CrossHermite", before),
+                            ("Block1Homogeneous", block1_component),
+                        ):
+                            endpoint_h_mode_component_outputs.append({
+                                **endpoint_record,
+                                "component": component,
+                                "local_data": h_endpoint_localizer(
+                                    value, context["endpoint"], prime,
+                                    through_power=0,
+                                ),
+                            })
     return {
-        "status": "CF303HybridBaselineLazyAdapterPointV1",
+        "status": "CF303NormalFactorFiniteFieldAdapterPointValidated",
         "abi_version": 1, "prime": prime,
         "p": [context["p"].numerator, context["p"].denominator],
         "source_rows": list(evaluator.SOURCE_ROWS),
@@ -291,6 +462,14 @@ def evaluate_adapter_branch(context: dict[str, Any], signs: tuple[int, ...]
         "support_source_masters": list(context["support_masters"]),
         "cross_k_output_count": len(cross_outputs),
         "cross_k_outputs": cross_outputs,
+        "h_endpoint_mode_output_count": len(endpoint_h_mode_outputs),
+        "h_endpoint_mode_outputs": endpoint_h_mode_outputs,
+        "h_endpoint_mode_component_output_count":
+            len(endpoint_h_mode_component_outputs),
+        "h_endpoint_mode_component_outputs":
+            endpoint_h_mode_component_outputs,
+        "hermite_recurrence_comparison_count": recurrence_checks,
+        "normalization_basepoint_comparison_count": basepoint_checks,
         "evaluation_scope": "AcceptedSevenColumnInvariantSupport",
         "radical_signs": list(signs),
         "active_radical_square_count": len(seen_squares),
@@ -483,6 +662,9 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
                 orbit: str = "single", local_through: int = -1,
                 emit_components: bool = False,
                 component_keys: set[str] | None = None,
+                epsilon_high: int = 4,
+                mode_indices: set[int] | None = None,
+                base_sheet_sign: int = 1,
                 ) -> dict[str, Any]:
     started = time.perf_counter()
     endpoint_provider = load_module(
@@ -493,21 +675,48 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
         f"cf303_junction_modes_{prime}_{p.numerator}_{p.denominator}",
         INHERITED_PROVIDER,
     )
-    if not block1_deck.is_file():
+    if epsilon_high < 4:
+        raise JunctionPointError(
+            "CF303JunctionEpsilonWindowInvalid", high=epsilon_high
+        )
+    epsilon_orders = tuple(range(-3, epsilon_high + 1))
+    all_modes = list(enumerate(inherited_provider.MODE_SPECS, 1))
+    selected_modes = (all_modes if mode_indices is None else
+                      [item for item in all_modes if item[0] in mode_indices])
+    if mode_indices is not None and {
+            index for index, _ in selected_modes} != mode_indices:
+        raise JunctionPointError(
+            "CF303JunctionModeSelectionInvalid",
+            mode_indices=sorted(mode_indices),
+        )
+    selected_support_masters = tuple(sorted({
+        state_row for _, mode in selected_modes
+        for state_row in mode["state_weights"]
+    }))
+    requires_block1 = 1 in selected_support_masters
+    if requires_block1 and not block1_deck.is_file():
         raise JunctionPointError(
             "CF303Block1LaurentDeckMissing", path=str(block1_deck)
         )
+    endpoint_provider.ORDERS = epsilon_orders
     with tempfile.TemporaryDirectory(prefix="cf303-junction-") as directory:
         temporary = Path(directory)
         block1_path = temporary / "block1.json"
-        block1_seconds = resolve_block1(
+        block1_seconds = (resolve_block1(
             prime, p, block1_deck, block1_path
+        ) if requires_block1 else 0.0)
+        context = prepare_adapter_context(
+            prime, p, block1_path if requires_block1 else None,
+            epsilon_orders, selected_support_masters, base_sheet_sign,
         )
-        context = prepare_adapter_context(prime, p, block1_path)
         evaluator = context["evaluator"]
         helper = context["helper"]
+        accepted_inputs = {**context["inputs"], "entries": [
+            entry for entry in context["inputs"]["entries"]
+            if int(entry[0][1]) in selected_support_masters
+        ]}
         accepted, _ = endpoint_provider.accepted_k_contributions(
-            context["inputs"], evaluator, helper, prime,
+            accepted_inputs, evaluator, helper, prime,
             context["p_mod"], context["endpoint"],
         )
         block1, _ = endpoint_provider.block1_contributions(
@@ -547,9 +756,8 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
                         "CF303JunctionComponentHasEllipticNormalChannel"
                     )
                 projection = {}
-                for mode_index, mode in enumerate(
-                        inherited_provider.MODE_SPECS, 1):
-                    for order in range(-3, 5):
+                for mode_index, mode in selected_modes:
+                    for order in epsilon_orders:
                         for target in evaluator.TARGET_ROWS:
                             value = [0, 0]
                             for state_row, weight in mode["state_weights"].items():
@@ -580,7 +788,7 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
                 )
             pairs = local_connection_pairs(context, adapter, endpoint_provider)
             local_state_projection: list[dict[str, Any]] = []
-            for order in range(-3, 5):
+            for order in epsilon_orders:
                 for target in evaluator.TARGET_ROWS:
                     for state_row in context["support_masters"]:
                         local = endpoint_provider.function_pair_local_data(
@@ -607,9 +815,8 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
                                     "rho_power": rho_power,
                                     "value": list(channels),
                                 })
-            for mode_index, mode in enumerate(
-                    inherited_provider.MODE_SPECS, 1):
-                for order in range(-3, 5):
+            for mode_index, mode in selected_modes:
+                for order in epsilon_orders:
                     for target in evaluator.TARGET_ROWS:
                         pair = evaluator.zero_pair(prime)
                         for state_row, weight in mode["state_weights"].items():
@@ -680,9 +887,9 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
     projected_components: list[dict[str, Any]] = []
     target_extensions: list[dict[str, Any]] = []
     zero_mode_couplings: list[dict[str, Any]] = []
-    for mode_index, mode in enumerate(inherited_provider.MODE_SPECS, 1):
+    for mode_index, mode in selected_modes:
         eigenvalue = int(mode["normal_eigenvalue"])
-        for order in range(-3, 5):
+        for order in epsilon_orders:
             for target in evaluator.TARGET_ROWS:
                 key = (mode_index, order, target)
                 for mask in masks:
@@ -741,8 +948,8 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
 
     if emit_components:
         for component, component_branches in branch_component_values.items():
-            for mode_index, mode in enumerate(inherited_provider.MODE_SPECS, 1):
-                for order in range(-3, 5):
+            for mode_index, mode in selected_modes:
+                for order in epsilon_orders:
                     for target in evaluator.TARGET_ROWS:
                         coordinate_key = f"{mode_index}:{order}:{target}:0"
                         if component_keys and coordinate_key not in component_keys:
@@ -786,7 +993,11 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
                             })
 
     return {
-        "status": "CF303TangentialJunctionPointV1",
+        "status": (
+            "CF303TangentialJunctionPointV1"
+            if mode_indices is None and epsilon_high == 4
+            else "CF303TangentialJunctionSelectedModePointV1"
+        ),
         "prime": prime, "p": [p.numerator, p.denominator],
         "p_mod_prime": fraction_mod(p, prime),
         "coefficient_field": "Even subfield of four-radical extension",
@@ -801,11 +1012,16 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
             "Rational component assumed; certify with a held-out full orbit"
         ),
         "active_radical_square_counts": active_radical_counts,
+        "elliptic_base_sheet": list(context["base_sheet"]),
+        "elliptic_base_sheet_sign_choice": context["base_sheet_sign"],
+        "elliptic_base_sheet_in_base_field": context["base_sheet"][1] == 0,
         "basis": "AcceptedPathGaugeG25FinalLayer",
         "source_mode_basis": "CF303InheritedSoftSourceNeedsV1::NormalModeBlocks",
         "scope": "Seven inherited source modes contracted before p reconstruction",
         "target_rows": list(evaluator.TARGET_ROWS),
-        "mode_order": [mode["mode_id"] for mode in inherited_provider.MODE_SPECS],
+        "mode_order": [mode["mode_id"] for _, mode in selected_modes],
+        "mode_indices": [index for index, _ in selected_modes],
+        "epsilon_order_window": [epsilon_orders[0], epsilon_orders[-1]],
         "normal_residue_projection": projected,
         "normal_residue_projection_components": projected_components,
         "nonzero_eigenmode_target_g_extension": target_extensions,
@@ -819,6 +1035,20 @@ def build_point(prime: int, p: Fraction, block1_deck: Path,
         ),
         "normal_connection_local_window": [-1, local_through],
         "raw_residue_deck_emitted": False,
+        "input_references": {
+            "normal_factor_exact_circuit_bundle": str(
+                BUNDLE.relative_to(REPOSITORY)
+            ),
+            "block1_laurent_deck": str(
+                block1_deck.resolve().relative_to(REPOSITORY.resolve())
+            ),
+            "deferred_soft_residue_provider": str(
+                ENDPOINT_PROVIDER.relative_to(REPOSITORY)
+            ),
+            "inherited_mode_provider": str(
+                INHERITED_PROVIDER.relative_to(REPOSITORY)
+            ),
+        },
         "timings_seconds": {
             "block1_resolution": block1_seconds,
             "context_prepare": context["prepare_seconds"],
@@ -842,6 +1072,10 @@ def main() -> int:
                         default=-1)
     parser.add_argument("--emit-components", action="store_true")
     parser.add_argument("--component-key", action="append", default=[])
+    parser.add_argument("--epsilon-high", type=int, default=4)
+    parser.add_argument("--mode-index", type=int, action="append", default=[])
+    parser.add_argument("--base-sheet-sign", type=int, choices=(-1, 1),
+                        default=1)
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
     try:
@@ -849,6 +1083,9 @@ def main() -> int:
             arguments.prime, arguments.p, arguments.block1_deck,
             arguments.orbit, arguments.local_through,
             arguments.emit_components, set(arguments.component_key),
+            arguments.epsilon_high,
+            set(arguments.mode_index) if arguments.mode_index else None,
+            arguments.base_sheet_sign,
         )
     except (JunctionPointError, FileNotFoundError, ZeroDivisionError) as error:
         if isinstance(error, JunctionPointError):

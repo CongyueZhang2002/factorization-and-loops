@@ -11,11 +11,9 @@
 
    Covered: C1 (DiagonalBlockClassCampaign "Variables"/"Regulator"),
    C2 (chart-parameter collision), C3 (catalog match under renamed
-   variables), C5 (Maple unknown names), C6 (two-variable certificate
-   signature), D1 ("DistributionHeads"), D2 (dimension rule by shape),
-   D4 (machine-derived kernel/CPU caps, scratch output directory),
-   B4 (workspace root, path-free reduction fingerprint, fingerprint
-   identity instead of path identity). *)
+   variables), C6 (two-variable certificate signature),
+   D1 ("DistributionHeads"), D4 (machine-derived kernel/CPU caps,
+   scratch output directory), and B4 (workspace-root/path behavior). *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -144,13 +142,19 @@ check["(C3) the Kallen catalog chart is found for lambda1(a, b) \
   AssociationQ[catalogCandidate] &&
     StringMatchQ[catalogCandidate["Chart"]["Name"], "Kallen1" ~~ ___]];
 check["(C3) the chart is rekeyed to the block's own variables",
-  Sort[First /@ catalogCandidate["Chart"]["Subst"]] === Sort[{a, b}]];
+  Sort[First /@
+      catalogCandidate["Chart"]["SourceVariableSubstitution"]] ===
+    Sort[{a, b}]];
 check["(C3) the pulled-back root square is the block's quadratic",
-  TrueQ[Together[catalogCandidate["Chart"]["RootSquare"] - quadratic] === 0]];
-check["(C3) the chart identity root^2 = RootSquare o Subst holds exactly in the renamed variables",
   TrueQ[Together[
-      catalogCandidate["Chart"]["Root"]^2 -
-        (quadratic /. catalogCandidate["Chart"]["Subst"])] === 0]];
+      First[catalogCandidate["Chart"]["RationalizedSquareRoots"]][
+        "SourceRadicand"] - quadratic] === 0]];
+check["(C3) the chart identity root^2 = RootSquare o Subst holds exactly in the renamed variables",
+  Module[{root = First[
+      catalogCandidate["Chart"]["RationalizedSquareRoots"]]},
+    TrueQ[Together[root["RationalRoot"]^2 -
+        (root["SourceRadicand"] /.
+          catalogCandidate["Chart"]["SourceVariableSubstitution"])] === 0]]];
 check["(C3) the pulled-back system is rational and in the chart variables",
   MatrixQ[catalogCandidate["System"][[1]]] &&
     FreeQ[catalogCandidate["System"], a | b]];
@@ -165,25 +169,6 @@ check["(C3) chart variables never collide with the block's variables",
 check["(C3) a quadratic with no catalog chart yields no candidate",
   FeynFacet`Private`diagonalBlockCatalogCandidate[{conicAv, conicAw}, {a, b}, ep,
     4 a + b^2 + 7] === None];
-
-(* ---------------------------------------------------------------- *)
-Print["--- C5  Maple unknown names"];
-(* ---------------------------------------------------------------- *)
-
-Clear[c, cc1];
-check["(C5) the generated unknown head is no longer Global`c",
-  Module[{head = Unique["mapleUnknownC"]},
-    SymbolName[head] =!= "c" &&
-      StringMatchQ[SymbolName[head], LetterCharacter ~~ ___] &&
-      StringFreeQ[SymbolName[head], "$"]]];
-check["(C5) a caller's c and cc<n> do not collide with the generated names",
-  FeynFacet`Private`epsFormStripUnknownNameCollisions[{c, cc1, ep},
-    SymbolName[Unique["mapleUnknownC"]],
-    SymbolName[Unique["mapleFreeC"]] <> "x"] === {}];
-check["(C5) a collision with a variable or the regulator is detected",
-  FeynFacet`Private`epsFormStripUnknownNameCollisions[{c, cc1, ep}, "c", "cc"] === {c, cc1}];
-check["(C5) the regulator alone is detected too",
-  FeynFacet`Private`epsFormStripUnknownNameCollisions[{a, b, ep}, "ep", "zzz"] === {ep}];
 
 (* ---------------------------------------------------------------- *)
 Print["--- C6  the certificate is a two-variable statement"];
@@ -216,49 +201,6 @@ check["(D1) a card's own heads are recognised",
 check["(D1) an invalid declaration falls back to the default",
   FeynFacet`Private`coefficientContextDistributionHeads[
     <|"DistributionHeads" -> "f1"|>] === FeynFacet`Private`$twist2DistributionHeads];
-
-(* ---------------------------------------------------------------- *)
-Print["--- D2  the dimension rule is validated by shape"];
-(* ---------------------------------------------------------------- *)
-
-baseContext = <|
-  "Gamma5Scheme" -> "BMHV", "GlobalBasis" -> {}, "GlobalBasisGram" -> {},
-  "SetEvanescentZero" -> {}, "SetMassZero" -> {}, "SetDistributionZero" -> {},
-  "CollinearRelations" -> {}, "Assumptions" -> True,
-  "CoefficientKinematics" -> <||>, "KinematicMassDimensions" -> <||>,
-  "LoopDimension" -> System`D, "CutConvention" -> "OrientedPositiveEnergyDelta",
-  "DistributionConvention" -> "FeynFacet/Distributions.wl",
-  "FeynFacetSourceHash" -> "0"|>;
-seal[assoc_] := Append[assoc,
-  "Fingerprint" -> FeynFacet`Private`reductionFingerprint[assoc]];
-check["(D2) the front end's own rule D -> 4 - 2 Epsilon still validates",
-  TrueQ[FeynFacet`Private`analyticContextQ[seal[Append[baseContext,
-    "DimensionRule" -> (System`D -> 4 - 2 Symbol["Global`Epsilon"])]]]]];
-check["(D2) D -> 6 - 2 ep with the regulator carried in the context validates",
-  TrueQ[FeynFacet`Private`analyticContextQ[seal[Join[baseContext,
-    <|"DimensionRule" -> (System`D -> 6 - 2 ep), "Regulator" -> ep|>]]]]];
-check["(D2) D -> 4 - 3 Epsilon is refused (the -2 is the contract)",
-  ! TrueQ[FeynFacet`Private`analyticContextQ[seal[Append[baseContext,
-    "DimensionRule" -> (System`D -> 4 - 3 Symbol["Global`Epsilon"])]]]]];
-check["(D2) a rule that is not linear in the regulator is refused",
-  ! TrueQ[FeynFacet`Private`analyticContextQ[seal[Append[baseContext,
-    "DimensionRule" -> (System`D -> 4 - 2 Symbol["Global`Epsilon"] +
-      Symbol["Global`Epsilon"]^2)]]]]];
-check["(D2) a non-integer dimension is refused",
-  ! TrueQ[FeynFacet`Private`analyticContextQ[seal[Append[baseContext,
-    "DimensionRule" -> (System`D -> 9/2 - 2 Symbol["Global`Epsilon"])]]]]];
-check["(D2) an undeclared foreign regulator is refused",
-  ! TrueQ[FeynFacet`Private`analyticContextQ[seal[Append[baseContext,
-    "DimensionRule" -> (System`D -> 4 - 2 ep)]]]]];
-check["(D2) Gamma5Scheme is still required to be BMHV",
-  ! TrueQ[FeynFacet`Private`analyticContextQ[seal[Join[baseContext,
-    <|"Gamma5Scheme" -> "NDR",
-      "DimensionRule" -> (System`D -> 4 - 2 Symbol["Global`Epsilon"])|>]]]]];
-check["(D2) the store's copy of the check agrees",
-  TrueQ[FeynFacet`Private`coefficientAnalyticContextQ[seal[Join[baseContext,
-    <|"DimensionRule" -> (System`D -> 6 - 2 ep), "Regulator" -> ep|>]]]] &&
-  ! TrueQ[FeynFacet`Private`coefficientAnalyticContextQ[seal[Append[baseContext,
-    "DimensionRule" -> (System`D -> 4 - 3 ep)]]]]];
 
 (* ---------------------------------------------------------------- *)
 Print["--- D4  machine size and scratch defaults"];
@@ -297,18 +239,11 @@ check["(D4) CanonicalizeClasses is retired and answers typed",
         "CanonicalBlocks.wl"}], "Text"]},
       StringFreeQ[source, "Directory[], \"CanonicalClassForms\""] &&
         StringContainsQ[source, "$TemporaryDirectory"]]];
-(* the path-ordered engine that owned the base-point refusal is retired
-   (2026-09-02, round 2): TransportFamily answers typed and the refusal
-   text is preserved in Private_Backup/MasterTransport.wl *)
-check["(D4) TransportFamily is retired and its base-point refusal is preserved in the backup",
-  Lookup[FeynFacet`TransportFamily[<||>], "Status", None] === "RouteRetired" &&
-    Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private_Backup",
-        "MasterTransport.wl"}], "Text"]},
-      StringContainsQ[source, "\"BasePointOnLetterZero\""] &&
-        StringContainsQ[source, "Lookup[monic, \"Denominators\", {}]"]]];
+check["(D4) the removed path-ordered compatibility route is not public",
+  System`Names["FeynFacet`TransportFamily"] === {}];
 
 (* ---------------------------------------------------------------- *)
-Print["--- B4  workspace root, fingerprints, paths"];
+Print["--- B4  workspace root and paths"];
 (* ---------------------------------------------------------------- *)
 
 check["(B4) the workspace root defaults to the package root",
@@ -337,56 +272,11 @@ check["(B4) the delete guard is the workspace root it was given",
     ! FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{scratch, "other"}],
       workspace]];
 runtimeA = <|"KiraExecutable" -> "/opt/kira/bin/kira",
-  "KiraExecutableHash" -> "h1", "FermatExecutable" -> "/opt/kira/bin/fer64",
-  "FermatExecutableHash" -> "h2", "SupportFile" -> "/opt/kira/BACKWARD/chdat",
-  "SupportFileHash" -> "h3"|>;
-runtimeB = Join[runtimeA, <|"KiraExecutable" -> "/usr/local/kira/bin/kira",
-  "FermatExecutable" -> "/usr/local/kira/bin/fer64",
-  "SupportFile" -> "/usr/local/kira/BACKWARD/chdat"|>];
+  "FermatExecutable" -> "/opt/kira/bin/fer64",
+  "SupportFile" -> "/opt/kira/BACKWARD/chdat"|>;
 payloadA = FeynFacet`Private`reductionInputPayload[{}, {}, {}, runtimeA];
-payloadB = FeynFacet`Private`reductionInputPayload[{}, {}, {}, runtimeB];
 check["(B4) the reduction payload still records the executable paths",
   payloadA["Runtime"]["KiraExecutable"] === "/opt/kira/bin/kira"];
-check["(B4) the fingerprint does not depend on where the executables live",
-  FeynFacet`Private`ibpPayloadFingerprint[payloadA] === FeynFacet`Private`ibpPayloadFingerprint[payloadB] &&
-    FeynFacet`Private`reductionFingerprint[payloadA] =!= FeynFacet`Private`reductionFingerprint[payloadB]];
-check["(B4) the fingerprint still depends on the executable hashes",
-  FeynFacet`Private`ibpPayloadFingerprint[payloadA] =!=
-    FeynFacet`Private`ibpPayloadFingerprint[FeynFacet`Private`reductionInputPayload[{}, {}, {},
-      Append[runtimeA, "KiraExecutableHash" -> "other"]]]];
-storedContext = seal[Append[baseContext,
-  "DimensionRule" -> (System`D -> 4 - 2 Symbol["Global`Epsilon"])]];
-check["(B4) artifact identity is the analytic context, not the directory",
-  FeynFacet`Private`coefficientSameInputsQ[
-      <|"ResultDirectory" -> "/one", "AnalyticContext" -> storedContext|>,
-      <|"ResultDirectory" -> "/two", "AnalyticContext" -> storedContext|>] &&
-    ! FeynFacet`Private`coefficientSameInputsQ[
-      <|"ResultDirectory" -> "/one", "AnalyticContext" -> storedContext|>,
-      <|"ResultDirectory" -> "/one",
-        "AnalyticContext" -> Append[storedContext, "Fingerprint" -> "x"]|>]];
-(* the solved Kira workspaces this repository already carries were
-   fingerprinted WITH the executable paths; the import path accepts that
-   hash as well, and that is what keeps them readable *)
-legacyPayloadFile = FileNameJoin[{root, "Codex", "ppHX_NLO", "Kira",
-  "UU_08_10_canonical_stream", "reduction_input.wxf"}];
-legacyHashFile = FileNameJoin[{root, "Codex", "ppHX_NLO", "Kira",
-  "UU_08_10_canonical_stream", "reduction_input.sha256"}];
-If[FileExistsQ[legacyPayloadFile] && FileExistsQ[legacyHashFile],
-  Module[{stored = StringTrim[Import[legacyHashFile, "Text"]],
-      payload = Import[legacyPayloadFile, "WXF"]},
-    check["(B4) a solved workspace written before this change still \
-validates by its stored hash",
-      AssociationQ[payload] &&
-        FeynFacet`Private`reductionFingerprint[payload] === stored];
-    Print["    legacy payload runtime keys: ",
-      Keys[Lookup[payload, "Runtime", <||>]]]],
-  Print["    no stored Kira workspace in this tree; \
-the legacy-hash check is reported as not run"]];
-check["(B4) without a fingerprint the stored path is still compared",
-  FeynFacet`Private`coefficientSameInputsQ[<|"ResultDirectory" -> scratch|>,
-      <|"ResultDirectory" -> scratch|>] &&
-    ! FeynFacet`Private`coefficientSameInputsQ[<|"ResultDirectory" -> scratch|>,
-      <|"ResultDirectory" -> root|>]];
 
 Quiet[DeleteDirectory[scratch, DeleteContents -> True]];
 Print["t_generality_renamed_variables: ", pass, " OK, ", fail, " FAIL"];

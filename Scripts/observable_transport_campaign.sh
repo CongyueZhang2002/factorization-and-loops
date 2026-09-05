@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# STANDALONE observable-transport campaign driver: one family per
+# STANDALONE requested-output coefficient-operator campaign: one family per
 # wolframscript process (each its own main kernel, no KernelPool, no
 # task broker), FACET_TRANSPORT_JOBS families at a time.
 #
@@ -34,7 +34,7 @@ if (( transport_jobs > kernel_count )); then transport_jobs="$kernel_count"; fi
 export FACET_CPU_LIST="$cpu_list"
 
 if [[ ! -f "$manifest" ]]; then
-  printf 'Observable-transport manifest does not exist: %s\n' "$manifest"
+  printf 'Coefficient-operator input manifest does not exist: %s\n' "$manifest"
   exit 66
 fi
 
@@ -68,7 +68,8 @@ run_family() {
   arguments=("$epsilon_form" "$differential_system" "$valuations" "$output")
   if [[ -n "${card:-}" ]]; then arguments+=("$card"); fi
 
-  # BuildObservableTransport is serial.  Keep the subkernel allowance at one
+  # ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs is serial.
+  # Keep the subkernel allowance at one
   # inside each worker: campaign parallelism belongs between independent
   # families, and nested pools here only spend license seats and memory.
   if "$cpu_runner" "$cpu_list" env FACET_KERNEL_COUNT=1 \

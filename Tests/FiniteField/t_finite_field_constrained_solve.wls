@@ -14,29 +14,29 @@ diagonal = Table[
     {a, Length[letters]}], {mu, 2}];
 record = <|"Variables" -> {xConstrained, yConstrained},
   "Regulator" -> epsConstrained,
-  "Strip" -> {diagonal, diagonal, Table[Together[
+  "OffDiagonalBlockEquation" -> {diagonal, diagonal, Table[Together[
     epsConstrained Sum[{{{1}}, {{2}}, {{-3}}}[[a]] *
         dlog[letters[[a]]][[mu]], {a, Length[letters]}] +
       D[{{xConstrained + yConstrained}},
         {xConstrained, yConstrained}[[mu]]]], {mu, 2}]}|>;
-prep = FeynFacet`PrepareEpsFormStripSampling[record];
+prep = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[record];
 prime = 1000003;
 common = {"PointCount" -> 10, "NumeratorDegreeOffset" -> {0, 0},
   "Preparation" -> prep};
 
-pilot = FeynFacet`SampleEpsFormStripAffine[record, 1/21, prime,
+pilot = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 1/21, prime,
   "DiscoverPlan" -> True, Sequence @@ common];
 plan = Lookup[pilot, "EliminationPlan", <||>];
 
-full = FeynFacet`SampleEpsFormStripAffine[record, 2/23, prime,
+full = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 2/23, prime,
   Sequence @@ common];
-constrained = FeynFacet`SampleEpsFormStripAffine[record, 2/23, prime,
+constrained = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 2/23, prime,
   "EliminationPlan" -> plan, Sequence @@ common];
 normalizedFull = FeynFacet`NormalizeEpsFormAffineSample[full,
   plan["NormalizationColumns"], prime];
 
-stale = FeynFacet`SampleEpsFormStripAffine[record, 2/23, prime,
-  "EliminationPlan" -> Join[plan, <|"GaugeUnknownCount" -> 1|>],
+stale = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 2/23, prime,
+  "EliminationPlan" -> Join[plan, <|"OffDiagonalBasisTransformationUnknownCount" -> 1|>],
   Sequence @@ common];
 
 tests = <|

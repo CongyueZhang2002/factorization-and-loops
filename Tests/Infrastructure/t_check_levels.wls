@@ -7,8 +7,6 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 checks = <||>;
-B = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "BenchmarkStripBackends"}];
-R = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical"}];
 
 (* point zero test *)
 Clear[x, y, e];
@@ -19,49 +17,61 @@ checks["PointZeroRejectsNonzero"] = ! FeynFacet`Private`masterTransportPointZero
 checks["PointZeroSurvivesPoles"] = FeynFacet`Private`masterTransportPointZeroQ[
   {{1/(x - 1/2) - 1/(x - 1/2)}}, {x, y, e}];
 
-(* numerical Pfaffian check on the stored canonical (9,6) result *)
-fixture = FeynFacet`FamilyArtifactRead[FileNameJoin[{B, "fixtures", "fixture_CF254_9_6.wl"}]];
-stored = FeynFacet`FamilyArtifactRead[FileNameJoin[{B, "frozen_M0", "a4_run", "result_A4_CF254_9_6_FiniteField.wl"}]]["BackendResult"];
-{tN, vN} = AbsoluteTiming[FeynFacet`VerifyEpsFormStrip[fixture, stored, "Method" -> "Numerical"]];
-checks["NumericalVerifyAcceptsTrueGauge"] = TrueQ[vN["DLogFormCertified"]] && vN["CheckMethod"] === "Numerical" && tN < 30;
-bad = Join[stored, <|"Gauge" -> ReplacePart[stored["Gauge"], {1, 1} -> stored["Gauge"][[1, 1]] + fixture["Regulator"] First[fixture["Variables"]]]|>];
-vB = FeynFacet`VerifyEpsFormStrip[fixture, bad, "Method" -> "Numerical"];
-checks["NumericalVerifyRejectsCorruptedGauge"] = vB["NumericalPfaffianResidualsZero"] === False && vB["DLogFormCertified"] === False;
-badR = Join[stored, <|"ResidueMatrices" -> ReplacePart[stored["ResidueMatrices"], {1, 2, 1} -> stored["ResidueMatrices"][[1, 2, 1]] + 1]|>];
-checks["NumericalVerifyRejectsCorruptedResidue"] = FeynFacet`VerifyEpsFormStrip[fixture, badR, "Method" -> "Numerical"]["DLogFormCertified"] === False;
+(* Finite-field Pfaffian check on a self-contained exact dlog block. *)
+fixture = <|"Variables" -> {x, y}, "Regulator" -> e,
+  "OffDiagonalBlockEquation" -> {
+    {{{0}}, {{0}}}, {{{0}}, {{0}}},
+    {{{2 e/x}}, {{-3 e/y}}}}|>;
+stored = <|"OffDiagonalBasisTransformationBlock" -> {{0}},
+  "Alphabet" -> {x, y}, "ResidueMatrices" -> {{{2}}, {{-3}}}|>;
+{tN, vN} = AbsoluteTiming[
+  FeynFacet`VerifyOffDiagonalBasisTransformationBlock[
+    fixture, stored, "Method" -> "Numerical"]];
+checks["NumericalVerifyAcceptsTrueGauge"] =
+  TrueQ[vN["DLogFormCertified"]] &&
+    vN["CheckMethod"] === "Numerical" && tN < 30;
+bad = Join[stored, <|"OffDiagonalBasisTransformationBlock" ->
+    ReplacePart[stored["OffDiagonalBasisTransformationBlock"],
+      {1, 1} -> e x]|>];
+vB = FeynFacet`VerifyOffDiagonalBasisTransformationBlock[
+  fixture, bad, "Method" -> "Numerical"];
+checks["NumericalVerifyRejectsCorruptedBasisTransformationBlock"] =
+  vB["NumericalPfaffianResidualsZero"] === False &&
+    vB["DLogFormCertified"] === False;
+badR = Join[stored, <|"ResidueMatrices" ->
+    ReplacePart[stored["ResidueMatrices"],
+      {1, 1, 1} -> stored["ResidueMatrices"][[1, 1, 1]] + 1]|>];
+checks["NumericalVerifyRejectsCorruptedResidue"] =
+  FeynFacet`VerifyOffDiagonalBasisTransformationBlock[
+    fixture, badR, "Method" -> "Numerical"]["DLogFormCertified"] === False;
 
 (* solver: Numerical final check gives the same gauge as Exact on a synthetic block *)
 Clear[xH, yH, epsH];
 record = <|"Variables" -> {xH, yH}, "Regulator" -> epsH,
-  "Strip" -> {{{{1}}, {{0}}}, {{{0}}, {{0}}}, {{{1 - epsH xH}}, {{0}}}}|>;
+  "OffDiagonalBlockEquation" -> {{{{1}}, {{0}}}, {{{0}}, {{0}}}, {{{1 - epsH xH}}, {{0}}}}|>;
 common = {"Primes" -> {1000003, 2147483423, 2147483477}, "EpsilonSamples" -> ((#/(# + 20)) & /@ Range[12]),
   "NumeratorDegreeOffsets" -> {{0, 0}, {1, 0}}, "PointCount" -> 8, "KernelCount" -> 1, "ConstructionCount" -> 6,
   "MaximumTotalDegree" -> 4, "MinimumPrimeCount" -> 3, "AdaptiveValidationMargin" -> 4, "Verbose" -> False};
-exact = FeynFacet`SolveEpsFormStripFiniteField[record, Sequence @@ common];
-numerical = FeynFacet`SolveEpsFormStripFiniteField[record, "FinalCheck" -> "Numerical", Sequence @@ common];
+exact = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[record, Sequence @@ common];
+numerical = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[record, "FinalCheck" -> "Numerical", Sequence @@ common];
 checks["NumericalFinalCheckSameGauge"] = AssociationQ[exact] && AssociationQ[numerical] &&
   numerical["Status"] === "Solved" && numerical["Certificate"] === "NumericalResidual" &&
-  MissingQ[numerical["ExactDLog"]] && Map[Together, numerical["Gauge"], {2}] === Map[Together, exact["Gauge"], {2}] &&
+  MissingQ[numerical["ExactDLog"]] && Map[Together, numerical["OffDiagonalBasisTransformationBlock"], {2}] === Map[Together, exact["OffDiagonalBasisTransformationBlock"], {2}] &&
   numerical["ResidueMatrices"] === exact["ResidueMatrices"];
 
-(* assembly: production == development on a small family (CF34, dim 8) *)
-assignments = FeynFacet`FamilyArtifactRead[FileNameJoin[{R, "BlockClasses", "block_class_assign.wl"}]];
-family = "CF34";
-blocks = Table[{a["Rows"], a["ClassID"]}, {a, Select[assignments, #["Family"] === family &]}];
-de = FeynFacet`FamilyArtifactRead[FileNameJoin[{R, "DifferentialEquations", "nnlo_de_" <> family <> ".wl"}]];
-system = <|"Family" -> family, "Basis" -> de["BlockBasis"], "Av" -> de["Av"], "Aw" -> de["Aw"]|>;
-(* the per-family chart inventory is project data since 2026-08-23: register
-   it exactly as the sector driver does *)
-FeynFacet`LoadFamilyRootData[FileNameJoin[{R, "TransportFamilyCharts.wl"}]];
-chart = FeynFacet`FamilyRootData[family];
-If[chart === None || MissingQ[chart],   (* root-free or unregistered family: the identity chart, as the sector script does *)
-  chart = <|"Name" -> "RationalIdentity", "Kind" -> "TwoVariable", "CoefficientField" -> "Rational",
-    "Variables" -> {Global`x, Global`y}, "Subst" -> {Global`v -> Global`x, Global`w -> Global`y},
-    "Root" -> None, "RootSquare" -> None, "Roots" -> {}, "Notes" -> "identity chart"|>];
+(* Assembly: production and development checks must return the same
+   mathematical connection.  Keep this fixture V2 and self-contained; the
+   migrated V1 CF34 files are deliberately not live package inputs. *)
+Clear[xA, yA, epsA];
+family = "CheckLevelToy";
+system = <|"Family" -> family, "Basis" -> {m1, m2},
+  "Av" -> epsA {{1/xA, 0}, {1/(1 + xA), 2/xA}},
+  "Aw" -> ConstantArray[0, {2, 2}]|>;
+blocks = {{{1}, Automatic}, {{2}, Automatic}};
 assemble[level_] := Block[{FeynFacet`Private`masterTransportCheckLevel = (level &)},
-  FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system, chart, "SourceVariables" -> {Global`v, Global`w}, "Regulator" -> Global`eps,
-    "Blocks" -> blocks, "FormDirectory" -> FileNameJoin[{R, "ClassForms"}],
-    "Verbose" -> False]];
+  FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+    system, None, "SourceVariables" -> {xA, yA},
+    "Regulator" -> epsA, "Blocks" -> blocks, "Verbose" -> False]];
 {tD, dev} = AbsoluteTiming[assemble["Development"]];
 {tP, prod} = AbsoluteTiming[assemble["Production"]];
 If[! (AssociationQ[dev] && dev["Status"] ===
@@ -77,7 +87,45 @@ checks["AssemblyProductionSameConnection"] = checks["AssemblyBothModesSucceed"] 
 checks["AssemblyProductionLabelled"] = checks["AssemblyBothModesSucceed"] &&
   prod["FamilyDifferentialSystem"]["Certificate"]["CheckLevel"] === "Production" &&
   dev["FamilyDifferentialSystem"]["Certificate"]["CheckLevel"] === "Development";
-Print["CF34 assembly seconds: development ", Round[tD, 0.1], " production ", Round[tP, 0.1]];
+
+(* A validated non-scalar diagonal form is installed directly in production;
+   development still re-derives the same conjugated block. *)
+t2 = {{xA, 0}, {0, 1}};
+ti2 = {{1/xA, 0}, {0, 1}};
+e2v = epsA {{1/xA, 0}, {0, 2/xA}};
+a2v = Map[Together, t2 . e2v . ti2 + D[t2, xA] . ti2, {2}];
+system2 = <|"Family" -> "CheckLevelNonScalarToy", "Basis" -> {m1, m2},
+  "Av" -> a2v, "Aw" -> ConstantArray[0, {2, 2}]|>;
+record2 = <|"DataType" -> "DiagonalBlockDLogEpsilonForm",
+  "SchemaVersion" -> 2, "Status" -> "DLogEpsilonFormValidated",
+  "BlockRows" -> {1, 2}, "CoefficientVariables" -> {xA, yA},
+  "DimensionalRegulator" -> epsA,
+  "BasisTransformationMatrix" -> t2, "Letters" -> {xA},
+  "ConstantResidueMatrices" -> {{{1, 0}, {0, 2}}},
+  "Validation" -> <|"Passed" -> True|>|>;
+assemble2[level_] := Block[{
+    FeynFacet`Private`masterTransportCheckLevel = (level &)},
+  FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+    system2, None, "SourceVariables" -> {xA, yA},
+    "Regulator" -> epsA, "Blocks" -> {{{1, 2}, record2}},
+    "Verbose" -> False]];
+dev2 = assemble2["Development"];
+prod2 = assemble2["Production"];
+checks["ValidatedNonScalarProductionSameConnection"] =
+  AssociationQ[dev2] && AssociationQ[prod2] &&
+  dev2["FamilyDifferentialSystem", "Apv"] ===
+    prod2["FamilyDifferentialSystem", "Apv"] &&
+  dev2["FamilyDifferentialSystem", "Apw"] ===
+    prod2["FamilyDifferentialSystem", "Apw"];
+checks["ProductionDefersDuplicateDiagonalIdentities"] =
+  MissingQ[prod2["FamilyDifferentialSystem", "Certificate",
+    "DiagonalEqualsDeclaredForm"]] &&
+  MissingQ[prod2["FamilyDifferentialSystem", "Certificate",
+    "TransformationInverseVerified"]] &&
+  prod2["FamilyDifferentialSystem", "Certificate",
+    "FlatnessConjugatedRoute"] === "DeferredToFamilyCertificate";
+Print["synthetic assembly seconds: development ", Round[tD, 0.1],
+  " production ", Round[tP, 0.1]];
 Print[InputForm[checks]];
 Print["failed: ", Keys[Select[checks, ! TrueQ[#] &]]];
 Exit[If[And @@ Values[checks], 0, 1]];

@@ -1,80 +1,195 @@
+#!/usr/bin/env wolframscript
+
+(* Self-contained V2 coverage for requested row/order mapping and the lazy
+   requested-output iterated-integral coefficient operator. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
+Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
-(* Overhaul 2026-09-02: the production transport consumes CERTIFIED
-   records (their certificate carries the dlog residues and the
-   coefficient field); the uncertified FamilyEpsForms/ record of CF27
-   has no certificate and is refused with DLogResiduesRequired by
-   design.  The certified record's residues are modular, so the accepted
-   status is ModularlyVerifiedObservableTransport; an exact status is
-   also accepted.  Acceptance goes through the public predicate. *)
-record = FeynFacet`FamilyArtifactRead[FileNameJoin[{root,
-  "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical",
-  "FamilyEpsFormsCertified", "family_epsform_CF27.wl"}]];
-acceptedStatusQ[value_] := MemberQ[
-  {"ExactObservableTransport", "ModularlyVerifiedObservableTransport"},
-  Lookup[value, "Status", None]];
-system = Get[FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "DifferentialEquations", "nnlo_de_CF27.wl"}]];
-valuations = Get[FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "MasterCoefficientValuations.wl"}]];
+Clear[x, y, eps, master];
+family = "RequestedOutputCoefficientOperatorToy";
+connection = {
+  {{eps/x, 0}, {0, 0}},
+  {{0, 0}, {0, eps/y}}
+};
+familySystem = <|
+  "DataType" -> "FamilyDifferentialSystem",
+  "SchemaVersion" -> 2,
+  "Family" -> family,
+  "KinematicVariables" -> {x, y},
+  "DimensionalRegulator" -> eps,
+  "OriginalMasterIntegralBasis" ->
+    {master[family, {1}], master[family, {2}]},
+  "ConnectionMatrices" -> connection|>;
+candidate = <|
+  "Family" -> family,
+  "Variables" -> {x, y},
+  "Regulator" -> eps,
+  "Blocks" -> {{2}, {1}},
+  "Ranges" -> {{1}, {2}},
+  "TTotal" -> IdentityMatrix[2],
+  "TTotalInverse" -> IdentityMatrix[2],
+  "EpsFormX" -> connection[[1, {2, 1}, {2, 1}]],
+  "EpsFormY" -> connection[[2, {2, 1}, {2, 1}]]|>;
+systemReference = <|
+  "RelativePath" -> "requested_output_coefficient_operator_toy.wl",
+  "DataType" -> "FamilyDifferentialSystem",
+  "SchemaVersion" -> 2,
+  "Family" -> family|>;
+familyDLogEpsilonForm =
+  FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+    candidate, familySystem, systemReference,
+    "IdentityMethod" -> "Symbolic"];
+
 path = <|
-  "FirstVariable" -> v,
-  "FirstBase" -> 1/4,
-  "SecondBase" -> 1/4,
-  "FirstTargetSample" -> 2/7|>;
-
-demand = FeynFacet`BuildObservableTransportDemand[
-  record, system, valuations,
-  "HardFunctionOrders" -> {0},
-  "SafetyOrders" -> 1,
-  "MasterValuation" -> 0,
-  "Path" -> path
-  ];
-actual = FeynFacet`BuildObservableTransport[record, demand];
-cartesian = FeynFacet`BuildObservableTransport[record, <|
-  "PhysicalRows" -> {7, 8},
-  "PhysicalOrders" -> {0, 1, 2},
-  "PhysicalValuation" -> 0,
-  "Path" -> path|>];
-
-actualMaps = Association[
-  (ToString[#[[1]], InputForm] -> Normal[#[[2]]]) & /@
-    actual["FirstSegmentWordMaps"]];
-cartesianMaps = Association[
-  (ToString[#[[1]], InputForm] -> Normal[#[[2]]]) & /@
-    cartesian["FirstSegmentWordMaps"]];
-
-mapAgreement = Sort[Keys[actualMaps]] === Sort[Keys[cartesianMaps]] &&
-  AllTrue[Keys[cartesianMaps],
-    And @@ (TrueQ[Cancel[Together[#]] === 0] & /@
-      Flatten[actualMaps[#] - cartesianMaps[#]]) &];
+  "FirstVariable" -> x,
+  "SecondVariable" -> y,
+  "FirstBase" -> 1/2,
+  "SecondBase" -> 1/2,
+  "FirstPathParameterScale" -> -1/6|>;
+hardFunctionRequest = <|
+  "DataType" -> "HardFunctionEpsilonOrderRequest", "SchemaVersion" -> 2,
+  "Status" -> "HardFunctionEpsilonOrdersRequested",
+  "RequestedHardFunctionEpsilonOrders" -> {0, 1},
+  "Reference" -> <|
+    "RelativePath" -> "requested_output_hard_function_orders.wl",
+    "DataType" -> "HardFunctionEpsilonOrderRequest",
+    "SchemaVersion" -> 2|>|>;
+coefficientValuations = <|
+  "DataType" -> "HardFunctionMasterCoefficientEpsilonValuations",
+  "SchemaVersion" -> 2,
+  "Status" ->
+    "HardFunctionMasterCoefficientEpsilonValuationsDetermined",
+  "Reference" -> <|
+    "RelativePath" -> "requested_output_coefficient_valuations.wl",
+    "DataType" -> "HardFunctionMasterCoefficientEpsilonValuations",
+    "SchemaVersion" -> 2|>,
+  "Entries" -> {
+    <|"MasterIntegralIndex" -> 101,
+      "MasterIntegral" -> <|
+        "Family" -> family, "PropagatorPowers" -> {1}|>,
+      "HardFunctionCoefficientEpsilonValuation" -> 0,
+      "DeterminationMethod" -> "ExactToyInput"|>,
+    <|"MasterIntegralIndex" -> 202,
+      "MasterIntegral" -> <|
+        "Family" -> family, "PropagatorPowers" -> {2}|>,
+      "HardFunctionCoefficientEpsilonValuation" -> -2,
+      "DeterminationMethod" -> "ExactToyInput"|>}|>;
+requirements = DeriveMasterIntegralEpsilonOrderRequirements[
+  hardFunctionRequest, coefficientValuations];
+requirementsReference = <|
+  "RelativePath" -> "Tests/Fixtures/requested_output_requirements.wl",
+  "DataType" -> "MasterIntegralEpsilonOrderRequirements",
+  "SchemaVersion" -> 2,
+  "MathematicalInputReferences" ->
+    requirements["MathematicalInputReferences"]|>;
+legacyMappedDemand =
+  FeynFacet`Private`mapMasterIntegralCoefficientValuationsToRequestedRows[
+    familyDLogEpsilonForm, familySystem, {
+      <|"Family" -> family, "Indices" -> {1}, "Valuation" -> 0|>,
+      <|"Family" -> family, "Indices" -> {2}, "Valuation" -> -2|>},
+    "RequestedHardFunctionEpsilonOrders" -> {0, 1},
+    "AdditionalRetainedEpsilonOrders" -> 0,
+    "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
+    "RegularBasePointAndFirstPathParameterScale" -> path];
+operator =
+  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    familyDLogEpsilonForm, requirements,
+    "RegularBasePointAndFirstPathParameterScale" -> path,
+    "MasterIntegralEpsilonOrderRequirementsReference" ->
+      requirementsReference,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints"];
+zeroSequenceCoefficient =
+  FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+    operator, {}, {}];
+legacyCartesianDemand =
+  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    familyDLogEpsilonForm, <|
+      "PhysicalRows" -> {1, 2},
+      "PhysicalOrders" -> {0, 1},
+      "PhysicalValuation" -> 0,
+      "Path" -> path|>];
 
 tests = <|
-  "DemandStatus" -> demand["Status"] === "ExactObservableDemand",
-  "DemandPairs" -> demand["PhysicalDemandPairs"] ===
-    {{0, 7}, {0, 8}, {1, 7}, {1, 8}, {2, 7}, {2, 8}},
-  "ExactStatus" -> acceptedStatusQ[actual],
-  "CartesianStatus" -> acceptedStatusQ[cartesian],
-  "ConstraintRank" -> actual["ConstraintRank"] === 8,
-  "BoundaryCoordinates" -> actual["BoundaryCoordinates"] === 28,
-  "PhysicalRows" -> actual["PhysicalRows"] ===
-    demand["PhysicalDemandPairs"],
-  (* the active letters of the first segment are, by definition, the
-     record letters whose derivative in the first variable is nonzero;
-     the index set depends on the record's letter order, so it is
-     computed here rather than pinned to one fixture's numbering *)
-  "ActiveLetters" -> actual["FirstSegmentActiveLetters"] ===
-    Select[Range[Length[actual["DLogLetters"]]],
-      ! TrueQ[Together[D[actual["DLogLetters"][[#]], v]] === 0] &],
-  "MapCounts" -> actual["FirstSegmentMapCountsByWeight"] ===
-    {1, 3, 9, 21, 0, 0},
-  "ExactMapAgreement" -> mapAgreement,
-  "Certificates" -> And @@ Values[actual["Certificates"]],
-  "Accepted" -> TrueQ[FeynFacet`AcceptedObservableTransportQ[actual]] &&
-    TrueQ[FeynFacet`AcceptedObservableTransportQ[cartesian]]
+  "FamilyDLogEpsilonFormValidated" ->
+    FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[
+      familyDLogEpsilonForm],
+  "RequestedRowsMapped" ->
+    MasterIntegralEpsilonOrderRequirementsQ[requirements] &&
+      operator["RequestedMasterIntegralEpsilonOrderAndRowPairs"] ===
+        {{0, 1}, {1, 1}, {2, 2}, {3, 2}},
+  "NontrivialBasisPermutationUsesOriginalPhysicalRows" ->
+    familyDLogEpsilonForm["BlockDecomposition",
+        "IrreducibleDiagonalBlocks"] === {{2}, {1}} &&
+      familyDLogEpsilonForm["BasisTransformationMatrix"] ===
+        {{0, 1}, {1, 0}} &&
+      Lookup[operator["MasterIntegralEpsilonOrderRequirementRowMapping"],
+        "OriginalPhysicalRow"] === {1, 2},
+  "LiveLegacyCampaignBridgeAlsoUsesOriginalPhysicalRows" ->
+    Lookup[legacyMappedDemand["MasterIntegralRowRequirements"],
+      "OriginalPhysicalRow"] === {1, 2},
+  "V2OperatorValidated" ->
+    operator["Status"] ===
+        "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
+      FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+        operator] &&
+      operator["FamilyDifferentialSystemReference"] === systemReference &&
+      operator["MasterIntegralEpsilonOrderRequirementsReference"] ===
+        requirementsReference,
+  "ExplicitLetterIndexSequenceAccessor" ->
+    zeroSequenceCoefficient["Status"] ===
+        "IteratedIntegralCoefficientMatrixComputed" &&
+      zeroSequenceCoefficient["FirstPathSegmentLetterIndices"] === {} &&
+      zeroSequenceCoefficient["SecondPathSegmentLetterIndices"] === {},
+  "CartesianDemandCompatibilityRemoved" ->
+    legacyCartesianDemand["Status"] ===
+      "RequestedMasterIntegralEpsilonOrderAndRowPairsNotWellFormed",
+  "InvalidTypedRequirementsAreRefused" ->
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      familyDLogEpsilonForm,
+      ReplacePart[requirements,
+        {"Validation", "Passed"} -> False],
+      "MasterIntegralEpsilonOrderRequirementsReference" ->
+        requirementsReference,
+      "RegularBasePointAndFirstPathParameterScale" -> path]["Status"] ===
+        "MasterIntegralEpsilonOrderRequirementsInvalid",
+  "TypedMasterDescriptorMustResolveInOriginalBasis" ->
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      familyDLogEpsilonForm,
+      ReplacePart[requirements,
+        {"MathematicalInputData",
+          "HardFunctionMasterCoefficientEpsilonValuations", "Entries", 1,
+          "MasterIntegral", "PropagatorPowers"} -> {99}],
+      "MasterIntegralEpsilonOrderRequirementsReference" ->
+        requirementsReference,
+      "RegularBasePointAndFirstPathParameterScale" -> path]["Status"] ===
+        "MasterIntegralRequirementRowMappingFailed",
+  "TypedRequirementsArtifactReferenceIsRequired" ->
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      familyDLogEpsilonForm, requirements,
+      "RegularBasePointAndFirstPathParameterScale" -> path]["Status"] ===
+        "MasterIntegralEpsilonOrderRequirementsReferenceInvalid",
+  "TypedRequirementsArtifactReferenceInputsMustMatch" ->
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      familyDLogEpsilonForm, requirements,
+      "MasterIntegralEpsilonOrderRequirementsReference" ->
+        ReplacePart[requirementsReference,
+          "MathematicalInputReferences" -> <||>],
+      "RegularBasePointAndFirstPathParameterScale" -> path]["Status"] ===
+        "MasterIntegralEpsilonOrderRequirementsReferenceInvalid",
+  "StoredRequirementRowMappingIsValidated" ->
+    ! FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      ReplacePart[operator,
+        {"MasterIntegralEpsilonOrderRequirementRowMapping", 1,
+          "OriginalPhysicalRow"} -> 2]],
+  "OldPublicSchemaAbsent" ->
+    Intersection[Keys[operator],
+      {"PhysicalRows", "PhysicalOrders", "PhysicalDemandPairs",
+       "PhysicalValuation", "WordRepresentation",
+       "ExactOperatorAutomaton", "CompactTransportAutomaton"}] === {}
 |>;
-Print["statuses: ", actual["Status"], " / ", cartesian["Status"]];
 
 Print[InputForm[tests]];
-If[! And @@ Values[tests], Exit[1]];
+If[And @@ Values[tests], Exit[0], Exit[1]];

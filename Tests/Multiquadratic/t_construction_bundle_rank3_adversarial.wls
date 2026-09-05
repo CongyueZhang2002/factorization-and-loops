@@ -9,33 +9,42 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-{prepare, compileBundle, validateBundle, evaluateBundle, fingerprintBundle,
+{prepare, compileBundle, validateBundle, evaluateBundle,
   sourceExpression, algebraicZeroQ, rootFrame, frameCanonicalize,
-  fieldDecompose, maskFactor} =
+  fieldDecompose, maskFactor, presentationRootsInVariables} =
  mq /@ {"blockEquationDeferredPrepare",
    "blockEquationDeferredCompileBundle",
    "blockEquationDeferredBundleValidate",
    "blockEquationDeferredBundleEvaluate",
-   "blockEquationDeferredBundleFingerprint",
    "blockEquationDeferredSourceExpression",
    "blockEquationDeferredAlgebraicZeroQ",
    "blockEquationDeferredValidateSquareRootGenerators",
    "blockEquationDeferredCanonicalizeWithSquareRootGenerators",
-   "multiquadraticFieldDecompose", "multiquadraticMaskFactor"};
+   "multiquadraticFieldDecompose", "multiquadraticMaskFactor",
+   "coefficientPresentationSquareRootsInVariables"};
 
 Clear[rx, ry, re];
 lambda1 = Expand[(1 - rx - ry)^2 - 4 rx ry];
 lambda3 = Expand[(1 - rx + ry)^2 + 4 rx ry];
 q4 = Expand[4 rx + ry^2];
 declaredRoots = {
-  <|"Root" -> Sqrt[lambda1], "RootSquare" -> lambda1,
+  <|"Generator" -> Sqrt[lambda1], "QuadraticRadicand" -> lambda1,
+    "SourceRadicand" -> lambda1,
     "SourceIndex" -> 1|>,
-  <|"Root" -> Sqrt[lambda3], "RootSquare" -> lambda3,
+  <|"Generator" -> Sqrt[lambda3], "QuadraticRadicand" -> lambda3,
+    "SourceRadicand" -> lambda3,
     "SourceIndex" -> 3|>,
-  <|"Root" -> Sqrt[q4], "RootSquare" -> q4,
+  <|"Generator" -> Sqrt[q4], "QuadraticRadicand" -> q4,
+    "SourceRadicand" -> q4,
     "SourceIndex" -> 4|>};
-rootExpressions = Lookup[declaredRoots, "Root"];
+rootExpressions = Lookup[declaredRoots, "Generator"];
 grade[mask_] := maskFactor[mask, rootExpressions];
+
+bundleRoots[bundle_Association] := Module[{allRoots},
+  allRoots = presentationRootsInVariables[bundle["CoefficientPresentation"],
+    bundle["Variables"]];
+  allRoots[[bundle["SquareRootGeneratorIndices"]]]
+];
 
 (* Every grade is present.  A generic all-grade denominator has a full
    eight-member orbit, so this probes more than a frame declaration. *)
@@ -55,11 +64,11 @@ FTAssert["R1 the genuine three-root fixture compiles",
   Lookup[preparation, "Status", None] === "Prepared" &&
     Lookup[bundle, "Status", None] === "PreparedDeferredBundle"];
 FTAssert["R2 the bundle carries three independent roots and eight grades",
-  Length[bundle["RootFrame"]["Roots"]] === 3 &&
+  Length[bundleRoots[bundle]] === 3 &&
     Length[fieldDecompose[rank3Numerator,
-      bundle["RootFrame"]["Roots"]]] === 8];
+      bundleRoots[bundle]]] === 8];
 rank3Channels = fieldDecompose[rank3Numerator,
-  bundle["RootFrame"]["Roots"]];
+  bundleRoots[bundle]];
 FTAssert["R3 every one of the eight field grades is nonzero",
   MatchQ[rank3Channels, {_, _, _, _, _, _, _, _}] &&
     AllTrue[rank3Channels, ! TrueQ[Together[#] === 0] &]];
@@ -67,8 +76,8 @@ FTAssert["R4 the untouched rank-3 bundle passes validation",
   validateBundle[bundle]["Status"] === "BundleValid"];
 
 rank3Evaluation = evaluateBundle[bundle, {}];
-frameSquares = Together /@ Lookup[bundle["RootFrame"]["Roots"],
-  "RootSquare"];
+frameSquares = Together /@ Lookup[bundleRoots[bundle],
+  "QuadraticRadicand"];
 targets = bundle["TargetOrder"];
 FTAssert["R5 bundle assembly equals the deferred source in the rank-3 field",
   Lookup[rank3Evaluation, "Status", None] === "OK" &&
@@ -92,7 +101,8 @@ FTAssert["R7 its orbit has all eight conjugates and a rational norm",
 
 frame = rootFrame[declaredRoots, {rx, ry}, re];
 tripleComposite = Sqrt[Expand[lambda1 lambda3 q4]];
-canonicalComposite = frameCanonicalize[tripleComposite, frame, {rx, ry}];
+canonicalComposite = frameCanonicalize[tripleComposite,
+  frame["SquareRootGenerators"], {rx, ry}];
 positivePoint = {rx -> 1/5, ry -> 1/7};
 FTAssert["R8 a triple composite radical denests into the declared frame",
   Lookup[canonicalComposite, "Status", None] === "OK" &&
@@ -119,16 +129,11 @@ FTAssert["A2 canonical-equivalent operands are interned exactly once",
   Lookup[equivalentBundle, "Status", None] === "PreparedDeferredBundle" &&
     Length[equivalentBundle["OperandTable"]] === 1];
 
-(* A content hash detects accidental mutation only while the stale hash is
-   retained.  A validator must also reject a structurally inconsistent
-   bundle whose hash has been recomputed, as can happen at an artifact or
-   cache boundary. *)
+(* Structural validation checks the actual occurrence relations directly. *)
 badFactorIndex = Length[bundle["DivisorSummary"]["Factors"]] + 11;
 badOccurrence = ReplacePart[bundle,
   {Key["DivisorOccurrences"], 1, Key["FactorIndex"]} -> badFactorIndex];
-badOccurrence = Join[badOccurrence,
-  <|"BundleFingerprint" -> fingerprintBundle[badOccurrence]|>];
-FTAssert["A3 validation rejects a refingerprinted out-of-range factor index",
+FTAssert["A3 validation rejects an out-of-range factor index",
   validateBundle[badOccurrence]["Status"] =!= "BundleValid"];
 
 firstOccurrence = First[bundle["DivisorOccurrences"]];
@@ -141,20 +146,23 @@ otherOperandID = SelectFirst[Range[Length[bundle["OperandTable"]]],
 If[otherOperandID === None,
   badOccurrenceOperand = badOccurrence,
   badOccurrenceOperand = ReplacePart[bundle,
-    {Key["DivisorOccurrences"], 1, Key["OperandID"]} -> otherOperandID];
-  badOccurrenceOperand = Join[badOccurrenceOperand,
-    <|"BundleFingerprint" -> fingerprintBundle[badOccurrenceOperand]|>]];
+    {Key["DivisorOccurrences"], 1, Key["OperandID"]} -> otherOperandID]];
 FTAssert["A4 validation checks occurrence provenance against its job term",
   otherOperandID === None ||
     validateBundle[badOccurrenceOperand]["Status"] =!= "BundleValid"];
 
 positiveFrame = rootFrame[{
-    <|"Root" -> Sqrt[1 + rx], "RootSquare" -> 1 + rx|>}, {rx, ry}, re];
+    <|"Generator" -> Sqrt[1 + rx], "QuadraticRadicand" -> 1 + rx,
+      "SourceRadicand" -> 1 + rx|>}, {rx, ry}, re];
 negativeFrame = rootFrame[{
-    <|"Root" -> -Sqrt[1 + rx], "RootSquare" -> 1 + rx|>}, {rx, ry}, re];
-FTAssert["A5 root-frame fingerprints distinguish opposite root branches",
-  positiveFrame["Status"] === "StableRootOrder" &&
-    negativeFrame["Status"] === "StableRootOrder" &&
-    positiveFrame["RootFingerprints"] =!= negativeFrame["RootFingerprints"]];
+    <|"Generator" -> -Sqrt[1 + rx], "QuadraticRadicand" -> 1 + rx,
+      "SourceRadicand" -> 1 + rx|>}, {rx, ry}, re];
+FTAssert["A5 explicit generator records distinguish opposite sign choices",
+  positiveFrame["Status"] === "SquareRootGeneratorsValidated" &&
+    negativeFrame["Status"] === "SquareRootGeneratorsValidated" &&
+    First[positiveFrame["SquareRootGenerators"]]["Generator"] ===
+      -First[negativeFrame["SquareRootGenerators"]]["Generator"] &&
+    First[positiveFrame["SquareRootGenerators"]]["QuadraticRadicand"] ===
+      First[negativeFrame["SquareRootGenerators"]]["QuadraticRadicand"]];
 
 FTReport[];

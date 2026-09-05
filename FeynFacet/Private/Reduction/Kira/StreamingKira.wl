@@ -27,7 +27,7 @@
      KiraStreamResult[streamDirectory]
        compatibility loader.  It MATERIALIZES the whole reduction in memory in
        the schema of a KiraReduction result and is therefore intended for
-       NLO-scale reductions and for validation only; large reductions must be
+       small-scale reductions and for validation only; large reductions must be
        consumed through the record store instead. *)
 
 $kiraStreamFormat = "FeynFacet-KiraStream";
@@ -636,7 +636,7 @@ kiraStreamImportCore[solveData_Association] := Module[
   round = 0;
   maxRounds = 8 + 2 familyCount;
   (* resolveLocal/expandLinear recurse along the rule dependency chains;
-     NNLO-scale tables can exceed the default $RecursionLimit of 1024. *)
+     large production tables can exceed the default $RecursionLimit of 1024. *)
   closureSeconds = First @ AbsoluteTiming @ Block[
     {$RecursionLimit = 2^16},
     While[Length[pendingSet] > 0,
@@ -982,7 +982,7 @@ KiraStreamImport[
 
 (* KiraStreamResult materializes the complete reduction (all rules, all master
    coefficients) in one Association with the schema of a KiraReduction result.
-   It is intended for NLO-scale reductions and for validating the streaming
+   It is intended for small-scale reductions and for validating the streaming
    pipeline against a monolithic KiraResult.wl.  Large reductions must be read
    family by family through the record store instead. *)
 

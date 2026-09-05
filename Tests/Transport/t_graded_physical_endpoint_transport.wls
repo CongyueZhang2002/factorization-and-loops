@@ -6,6 +6,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 Get[FileNameJoin[{root, "Scripts", "Transport",
   "PhysicalBoundaryCampaignAdapter.wl"}]];
 
@@ -15,39 +16,43 @@ eps = Symbol["Global`eps"];
 rho = Symbol["Global`gradedRho"];
 family = "GradedEndpointToy";
 
-epsilonForm = <|
-  "Status" -> "ExactEpsilonForm", "Family" -> family,
-  "Variables" -> {x, y}, "Regulator" -> eps,
+connection = {
+  eps {{0, 0}, {1/x, 0}},
+  eps {{0, 0}, {1/y, 0}}
+};
+familySystem = <|
+  "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+  "Family" -> family, "KinematicVariables" -> {x, y},
+  "DimensionalRegulator" -> eps,
+  "OriginalMasterIntegralBasis" ->
+    {gradedMaster[family, {1}], gradedMaster[family, {2}]},
+  "ConnectionMatrices" -> connection|>;
+workingEpsilonForm = <|
+  "Family" -> family, "Variables" -> {x, y}, "Regulator" -> eps,
   "Ranges" -> {{1}, {2}}, "Blocks" -> {{1}, {2}},
   "TTotal" -> IdentityMatrix[2], "TTotalInverse" -> IdentityMatrix[2],
-  "EpsFormX" -> eps {{0, 0}, {1/x, 0}},
-  "EpsFormY" -> eps {{0, 0}, {1/y, 0}},
-  "Letters" -> {x, y},
-  "DLog" -> <|"Valid" -> True, "Dimension" -> 2,
-    "Variables" -> {x, y}, "Regulator" -> eps,
-    "Letters" -> {x, y},
-    "Residues" -> {{{0, 0}, {1, 0}}, {{0, 0}, {1, 0}}},
-    "ConstantResidues" -> True|>,
-  "ChartRecord" -> <|"CoefficientField" -> "Rational",
-    "Variables" -> {x, y}, "Subst" -> {x -> x, y -> y},
-    "Roots" -> {}|>,
-  "Chart" -> "RationalIdentity", "GateVerdict" -> True,
-  "GaugeIdentity" -> True, "Flatness" -> True,
-  "TTotalInvertible" -> True|>;
+  "EpsFormX" -> connection[[1]], "EpsFormY" -> connection[[2]]|>;
+epsilonForm = FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+  workingEpsilonForm, familySystem, <|
+    "RelativePath" -> "graded_endpoint_toy.wl",
+    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+    "Family" -> family|>, "IdentityMethod" -> "Symbolic"];
 path = <|"FirstVariable" -> x, "SecondVariable" -> y,
   "FirstBase" -> 3, "SecondBase" -> 1/2,
-  "FirstTargetSample" -> 4|>;
-demand = <|"PhysicalRows" -> {1, 2}, "PhysicalOrders" -> {0, 1, 2},
-  "PhysicalValuation" -> 0, "Path" -> path|>;
-transport = BuildObservableTransport[epsilonForm, demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
-transport = Join[transport, <|
-  "DLogLetters" -> epsilonForm["DLog", "Letters"],
-  "DLogResidues" -> epsilonForm["DLog", "Residues"]|>];
+  "FirstPathParameterScale" -> 1|>;
+demand = <|
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" ->
+    Flatten[Table[{order, row}, {order, 0, 2}, {row, 2}], 1],
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
+  "RegularBasePointAndFirstPathParameterScale" -> path|>;
+transport =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    epsilonForm, demand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints"];
 
 frobenius = ComputeTruncatedLocalFrobeniusExpansion[
-  epsilonForm["EpsFormY"], <|"Variable" -> y, "Regulator" -> eps,
+  connection[[2]], <|"Variable" -> y, "Regulator" -> eps,
     "LocalVariable" -> rho, "LocalExpansionPoint" -> 1,
     "LocalDirection" -> -1, "FixedRules" -> {x -> 2}|>,
   "MaximumSeriesOrder" -> 2, "MaximumEpsilonOrder" -> 3];
@@ -74,19 +79,24 @@ modeMap = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
 coordinateKey[coordinate_] := With[
   {id = coordinate["BoundaryConstantID"],
    order = coordinate["EpsilonOrder"]}, HoldComplete[id, order]];
-wordKey[term_] := With[
-  {currentFirst = Lookup[term, "CurrentFirstWord", {}],
-   currentSecond = Lookup[term, "CurrentSecondWord", {}],
-   endpointFirst = Lookup[term, "EndpointFirstWord", {}],
-   endpointSecond = Lookup[term, "EndpointSecondWord", {}]},
-  HoldComplete[currentFirst, currentSecond, endpointFirst, endpointSecond]];
+pathSegmentSequenceKey[term_] := With[
+  {currentFirst = Lookup[term,
+      "CurrentPathFirstSegmentLetterIndices", {}],
+   currentSecond = Lookup[term,
+      "CurrentPathSecondSegmentLetterIndices", {}],
+   boundaryFirst = Lookup[term,
+      "BoundaryPathFirstSegmentLetterIndices", {}],
+   boundarySecond = Lookup[term,
+      "BoundaryPathSecondSegmentLetterIndices", {}]},
+  HoldComplete[currentFirst, currentSecond, boundaryFirst, boundarySecond]];
 nonzeroVectorQ[vector_] := AnyTrue[Flatten[vector], Not@*PossibleZeroQ];
-canonicalWordMaps[result_] := Association@Map[Function[term,
-    wordKey[term] -> Association@Select[
+canonicalCoefficientMatrices[result_] := Association@Map[Function[term,
+    pathSegmentSequenceKey[term] -> Association@Select[
       Thread[(coordinateKey /@
           result["BoundaryConstantEpsilonCoefficientRecords"]) ->
-        Transpose[Normal[term["Map"]]]], nonzeroVectorQ[Last[#]] &]],
-  result["WordMaps"]];
+        Transpose[Normal[term["IteratedIntegralCoefficientMatrix"]]]],
+        nonzeroVectorQ[Last[#]] &]],
+  result["IteratedIntegralCoefficientMatrixRecords"]];
 
 buildTiming = AbsoluteTiming[
   binding = FeynFacetCampaign`PhysicalBoundary`BuildGradedPhysicalEndpointTransport[
@@ -95,7 +105,8 @@ FTAssert["a typed point-boundary fixture closes by exact weight without enumerat
   binding["Status"] === "GradedPhysicalEndpointTransportBuilt" &&
     binding["BoundaryDataType"] === "BoundaryConstant" &&
     binding["MaximumCurrentWeight"] ===
-      transport["ExactOperatorAutomaton", "RequestedMaximumWeight"] &&
+      transport["ExactIteratedIntegralCoefficientOperator",
+        "MaximumIteratedIntegralWeight"] &&
     Length[binding["GradesByWeight"]] >= 1 &&
     TrueQ[binding["FormalResultConvention",
       "NoAlphabetCartesianEnumeration"]]];
@@ -103,112 +114,98 @@ FTAssert["a typed point-boundary fixture closes by exact weight without enumerat
 zeroPair = {{}, {}};
 directAdapter =
   FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
-    transport, modeMap, <||>, "DemandWordPairs" -> {zeroPair}];
+    transport, modeMap, <||>,
+    "RequestedPathSegmentLetterIndexSequencePairs" -> {zeroPair}];
 directZero =
   FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonBoundaryCoefficientMaps[
     directAdapter, transport, {zeroPair}];
 gradedZero = FeynFacetCampaign`PhysicalBoundary`ComposeGradedPhysicalEndpointWords[
   binding, transport, {zeroPair}];
-FTAssert["the graded zero-word map equals the independently demand-pruned endpoint composition",
+FTAssert["the zero-letter-sequence coefficient matrix agrees with independent demand pruning",
   directZero["Status"] ===
       "EndpointAutomatonBoundaryCoefficientMapsBuilt" &&
     gradedZero["Status"] === "GradedPhysicalEndpointWordsBuilt" &&
-    canonicalWordMaps[directZero] === canonicalWordMaps[gradedZero]];
+    canonicalCoefficientMatrices[directZero] ===
+      canonicalCoefficientMatrices[gradedZero]];
 
-firstIndex = First[transport["ExactOperatorAutomaton",
-  "FirstAlphabetIndices"]];
-secondIndex = First[transport["ExactOperatorAutomaton",
-  "SecondAlphabetIndices"]];
+firstIndex = First[transport["ExactIteratedIntegralCoefficientOperator",
+  "FirstPathSegmentAlphabetLetterIndices"]];
+secondIndex = First[transport["ExactIteratedIntegralCoefficientOperator",
+  "SecondPathSegmentAlphabetLetterIndices"]];
 requestedPairs = {{{firstIndex}, {}}, {{}, {secondIndex}},
   {{firstIndex}, {secondIndex}}};
 directAdapter =
   FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
-    transport, modeMap, <||>, "DemandWordPairs" -> requestedPairs];
+    transport, modeMap, <||>,
+    "RequestedPathSegmentLetterIndexSequencePairs" -> requestedPairs];
 directWords =
   FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonBoundaryCoefficientMaps[
     directAdapter, transport, requestedPairs];
 gradedWords = FeynFacetCampaign`PhysicalBoundary`ComposeGradedPhysicalEndpointWords[
   binding, transport, requestedPairs];
-FTAssert["first-segment, second-segment and mixed iterated-integral words retain the four-segment multiplication order",
+FTAssert["first-segment, second-segment and mixed coefficient matrices retain the four-segment multiplication order",
   directWords["Status"] ===
       "EndpointAutomatonBoundaryCoefficientMapsBuilt" &&
     gradedWords["Status"] === "GradedPhysicalEndpointWordsBuilt" &&
-    canonicalWordMaps[directWords] === canonicalWordMaps[gradedWords]];
+    canonicalCoefficientMatrices[directWords] ===
+      canonicalCoefficientMatrices[gradedWords]];
 
-zeroAutomaton = Join[transport["ExactOperatorAutomaton"], <|
-  "FirstOperatorMatrices" ->
-    (0 # & /@ transport["ExactOperatorAutomaton", "FirstOperatorMatrices"]),
-  "SecondOperatorMatrices" ->
-    (0 # & /@ transport["ExactOperatorAutomaton", "SecondOperatorMatrices"])
+zeroAutomaton = Join[
+  transport["ExactIteratedIntegralCoefficientOperator"], <|
+  "FirstPathSegmentOperatorMatrices" ->
+    (0 # & /@ transport["ExactIteratedIntegralCoefficientOperator",
+      "FirstPathSegmentOperatorMatrices"]),
+  "SecondPathSegmentOperatorMatrices" ->
+    (0 # & /@ transport["ExactIteratedIntegralCoefficientOperator",
+      "SecondPathSegmentOperatorMatrices"])
 |>];
-zeroTransport = Join[transport, <|"ExactOperatorAutomaton" -> zeroAutomaton|>];
+zeroTransport = Join[transport, <|
+  "ExactIteratedIntegralCoefficientOperator" -> zeroAutomaton|>];
 zeroBinding =
   FeynFacetCampaign`PhysicalBoundary`BuildGradedPhysicalEndpointTransport[
     zeroTransport, modeMap, <||>];
 zeroWords = FeynFacetCampaign`PhysicalBoundary`ComposeGradedPhysicalEndpointWords[
   zeroBinding, zeroTransport, {{{firstIndex}, {}}}];
-FTAssert["a requested word in an exactly zero row-space grade composes to the empty map",
+FTAssert["a requested letter sequence in an exactly zero row-space grade gives no coefficient matrix",
   zeroWords["Status"] === "GradedPhysicalEndpointWordsBuilt" &&
-    zeroWords["WordMaps"] === {} &&
+    zeroWords["IteratedIntegralCoefficientMatrixRecords"] === {} &&
     AllTrue[zeroWords["BoundaryDataRequirements"],
       Lookup[#, "BoundaryConstantEpsilonCoefficientLabels", Missing[]] === {} &]];
 
-materializedDemand = Join[demand, <|"PhysicalOrders" -> {0, 1}|>];
-materializedTransport = BuildObservableTransport[epsilonForm,
-  materializedDemand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "MaterializedWords"];
-materializedTransport = Join[materializedTransport, <|
-  "DLogLetters" -> epsilonForm["DLog", "Letters"],
-  "DLogResidues" -> epsilonForm["DLog", "Residues"]|>];
-materializedBinding =
+boundedDemand = Join[demand, <|
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" ->
+    Flatten[Table[{order, row}, {order, 0, 1}, {row, 2}], 1]|>];
+boundedOperator =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    epsilonForm, boundedDemand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints"];
+boundedBinding =
   FeynFacetCampaign`PhysicalBoundary`BuildGradedPhysicalEndpointTransport[
-    materializedTransport, modeMap, <||>];
-materializedPairs = Take[
-  ({#[[1]], #[[2]]} &) /@
-    materializedTransport["TwoSegmentWordMaps"], UpTo[3]];
-materializedWords =
-  FeynFacetCampaign`PhysicalBoundary`ComposeGradedPhysicalEndpointWords[
-    materializedBinding, materializedTransport, materializedPairs];
-materializedDirectAdapter =
+    boundedOperator, modeMap, <||>];
+boundedFirstIndex = First[
+  boundedOperator["ExactIteratedIntegralCoefficientOperator",
+    "FirstPathSegmentAlphabetLetterIndices"]];
+boundedSecondIndex = First[
+  boundedOperator["ExactIteratedIntegralCoefficientOperator",
+    "SecondPathSegmentAlphabetLetterIndices"]];
+boundedPairs = {{{}, {}}, {{boundedFirstIndex}, {}},
+  {{}, {boundedSecondIndex}}};
+boundedAdapter =
   FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
-    materializedTransport, modeMap, <||>,
-    "DemandWordPairs" -> materializedPairs];
-materializedDirectWords =
+    boundedOperator, modeMap, <||>,
+    "RequestedPathSegmentLetterIndexSequencePairs" -> boundedPairs];
+boundedDirect =
   FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonBoundaryCoefficientMaps[
-    materializedDirectAdapter, materializedTransport, materializedPairs];
-FTAssert["the same graded endpoint representation consumes a bounded materialized transport",
-  materializedBinding["Status"] === "GradedPhysicalEndpointTransportBuilt" &&
-    materializedWords["Status"] === "GradedPhysicalEndpointWordsBuilt" &&
-    materializedDirectWords["Status"] ===
-      "EndpointAutomatonBoundaryCoefficientMapsBuilt" &&
-    canonicalWordMaps[materializedWords] ===
-      canonicalWordMaps[materializedDirectWords]];
-
-staleCoordinate = <|"BoundaryDataType" -> "BoundaryConstant",
-  "BoundaryConstantID" -> {"SyntheticStale", 1},
-  "FrobeniusModeID" -> {"SyntheticStale", 1},
-  "EpsilonOrder" -> 0|>;
-staleBinding = <|
-  "Status" -> "GradedPhysicalEndpointTransportBuilt",
-  "Family" -> "SyntheticStale", "BoundaryDataType" -> "BoundaryConstant",
-  "BoundaryConstantEpsilonCoefficientRecords" -> {staleCoordinate},
-  "BoundaryConstantEpsilonCoefficientLabels" ->
-    {{{"SyntheticStale", 1}, 0}},
-  "GradesByWeight" -> <|0 -> <|
-    "CurrentRowBasis" -> SparseArray[{{1, 0}}],
-    "ProjectionColumns" -> {1}, "ProjectionInverse" -> {{1}},
-    "EndpointWordTerms" -> {<|"EndpointFirstWord" -> {},
-      "EndpointSecondWord" -> {}, "Map" -> SparseArray[{{1}}]|>}|>|>,
-  "CurrentBaseRules" -> {}, "BoundaryDataRequirements" -> {},
-  "PhysicalDemandPairs" -> {}, "FormalResultConvention" -> <||>|>;
-staleTransport = <|"Family" -> "SyntheticStale",
-  "WordRepresentation" -> "MaterializedWords",
-  "TwoSegmentWordMaps" -> {{{}, {}, SparseArray[{{1, 1}}]}}|>;
-staleResult = FeynFacetCampaign`PhysicalBoundary`ComposeGradedPhysicalEndpointWords[
-  staleBinding, staleTransport, {{{}, {}}}];
-FTAssert["a same-family word outside the bound exact row space fails closed",
-  MatchQ[staleResult, Failure["CurrentPathRowSpaceMismatch", _Association]]];
+    boundedAdapter, boundedOperator, boundedPairs];
+boundedGraded =
+  FeynFacetCampaign`PhysicalBoundary`ComposeGradedPhysicalEndpointWords[
+    boundedBinding, boundedOperator, boundedPairs];
+FTAssert["an independently constructed bounded lazy operator preserves endpoint-composition coefficients",
+  IteratedIntegralCoefficientOperatorForRequestedOutputsQ[boundedOperator] &&
+    boundedBinding["Status"] === "GradedPhysicalEndpointTransportBuilt" &&
+    canonicalCoefficientMatrices[boundedDirect] ===
+      canonicalCoefficientMatrices[boundedGraded]];
 
 FTAssert["compound boundary-constant identifiers remain single coefficient keys",
   AllTrue[binding["BoundaryConstantEpsilonCoefficientRecords"],

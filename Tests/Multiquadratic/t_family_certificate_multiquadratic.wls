@@ -59,10 +59,12 @@ validated = FeynFacet`ValidateFamilyDLogEpsilonForm[
   candidate, system, options];
 evidence = validated["Validation", "SamplingEvidence"];
 check["three-root family is probabilistically validated",
+  validated["DataType"] ===
+      "FamilyDLogEpsilonFormValidationResult" &&
   validated["Status"] ===
-      "FamilyDLogEpsilonFormValidated" &&
-    FeynFacet`ValidatedFamilyDLogEpsilonFormQ[validated] &&
-    ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[validated] &&
+      "FamilyDLogEpsilonFormValidationPassed" &&
+    TrueQ[validated["Validation", "Probabilistic"]] &&
+    ! TrueQ[validated["Validation", "Exact"]] &&
     validated["Validation", "Method"] ===
       "ProbabilisticFiniteFieldSampling"];
 check["all eight sign-change images are evaluated",

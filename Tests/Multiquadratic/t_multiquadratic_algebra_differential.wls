@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
-(* Delegation gate: FeynFacet/Private/FamilyRowGaugeFiniteField.wl
+(* Delegation gate: FeynFacet/Private/FamilyRowBasisTransformationFiniteField.wl
    against the neutral modules MultiquadraticAlgebra.wl +
-   MultiquadraticStripSolve.wl (2026-08-23).
+   MultiquadraticOffDiagonalBlockSolve.wl (2026-08-23).
 
    Until 2026-08-23 this file was the AGREEMENT gate of the handoff's
    External gap 3: the unloaded duplicate kept its own root ordering,
@@ -54,12 +54,12 @@ Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
    names them in load order *)
 Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
   Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
 (* the consumer is not registered in FeynFacet.m; read it into
-   FeynFacet`Private` exactly as Tests/FiniteField/t_family_row_gauge_finite_field.wls
+   FeynFacet`Private` exactly as Tests/FiniteField/t_family_row_basis_transformation_finite_field.wls
    does *)
 Begin["FeynFacet`Private`"];
-Get[FileNameJoin[{root, "Prototypes", "FamilyRowGaugeFiniteField.wl"}]];
+Get[FileNameJoin[{root, "Prototypes", "FamilyRowBasisTransformationFiniteField.wl"}]];
 End[];
 
 pass = 0; fail = 0;
@@ -75,28 +75,28 @@ definitionCount[name_String] := Module[{symbol = mq[name]},
  mq /@ {"multiquadraticMultiply", "multiquadraticHadamardMatrix",
    "multiquadraticMaskFactor", "multiquadraticEvaluateSignChangeImages",
    "multiquadraticProjectSignChangeImages", "multiquadraticSquareRoots",
-   "multiquadraticFieldDecompose", "multiquadraticStripRootOrder",
-   "multiquadraticStripModRational", "multiquadraticStripSquareClassSquareQ"};
+   "multiquadraticFieldDecompose", "multiquadraticOffDiagonalBlockRootOrder",
+   "multiquadraticOffDiagonalBlockModRational", "multiquadraticOffDiagonalBlockSquareClassSquareQ"};
 {canonicalize, consumerSquareRoot, consumerRoot, consumerPrepare,
   consumerEvaluate} =
- mq /@ {"familyRowGaugeFFCanonicalizeRoots", "familyRowGaugeFFSquareRoot",
-   "familyRowGaugeFFRoot", "familyRowGaugeFiniteFieldPrepare",
-   "familyRowGaugeFiniteFieldEvaluate"};
+ mq /@ {"familyRowBasisTransformationFFCanonicalizeRoots", "familyRowBasisTransformationFFSquareRoot",
+   "familyRowBasisTransformationFFRoot", "familyRowBasisTransformationFiniteFieldPrepare",
+   "familyRowBasisTransformationFiniteFieldEvaluate"};
 
 Clear[x, y, eps, v, w, cx, cy];
 SeedRandom[20260823];
 
 (* ---- the duplicated implementations are gone ---- *)
-retired = {"familyRowGaugeFFStableKey", "familyRowGaugeFFEquivalentQ",
-  "familyRowGaugeFFRadicalBases", "familyRowGaugeFFUniqueEquivalent",
-  "familyRowGaugeFFRationalSquareConstantQ",
-  "familyRowGaugeFFRationalFunctionSquareQ", "familyRowGaugeFFHadamard",
-  "familyRowGaugeFFRootProducts", "familyRowGaugeFFProjectConjugates",
-  "familyRowGaugeFFUnresolvedRoot"};
+retired = {"familyRowBasisTransformationFFStableKey", "familyRowBasisTransformationFFEquivalentQ",
+  "familyRowBasisTransformationFFRadicalBases", "familyRowBasisTransformationFFUniqueEquivalent",
+  "familyRowBasisTransformationFFRationalSquareConstantQ",
+  "familyRowBasisTransformationFFRationalFunctionSquareQ", "familyRowBasisTransformationFFHadamard",
+  "familyRowBasisTransformationFFRootProducts", "familyRowBasisTransformationFFProjectConjugates",
+  "familyRowBasisTransformationFFUnresolvedRoot"};
 delegated = {"multiquadraticHadamardMatrix", "multiquadraticMaskFactor",
   "multiquadraticProjectSignChangeImages", "multiquadraticEvaluateSignChangeImages",
-  "multiquadraticSquareRoots", "multiquadraticStripZeroQ",
-  "multiquadraticStripCanonicalText", "multiquadraticStripSquareClassSquareQ",
+  "multiquadraticSquareRoots", "multiquadraticOffDiagonalBlockZeroQ",
+  "multiquadraticOffDiagonalBlockCanonicalText", "multiquadraticOffDiagonalBlockSquareClassSquareQ",
   "transportChartRadicalBases", "transportChartApplyRootBranches",
   "transportChartRootIndices"};
 check["every duplicated algebra implementation is deleted (" <>
@@ -160,9 +160,9 @@ check["the consumer's order IS the neutral order on every trial (" <>
   "; 7/12 before the deletion)",
   orderTrials >= 8 && orderAgreements === orderTrials];
 
-canonicalRules = FeynFacet`Private`multiquadraticStripCanonicalRules[{x, y}, eps];
+canonicalRules = FeynFacet`Private`multiquadraticOffDiagonalBlockCanonicalRules[{x, y}, eps];
 canonicalText[expression_] :=
-  FeynFacet`Private`multiquadraticStripCanonicalText[expression, canonicalRules];
+  FeynFacet`Private`multiquadraticOffDiagonalBlockCanonicalText[expression, canonicalRules];
 check["the consumer's sort key is the neutral canonical text",
   Lookup[canonicalize[declared[{x, 1 + x + y}], {x, y}]["Roots"],
       "CanonicalRootSquare", {}] === (canonicalText /@ {x, 1 + x + y})];
@@ -222,7 +222,7 @@ Print["     square-class verdicts: ", squareVerdicts];
 check["the neutral square-class predicate is the only one left, verdicts pinned",
   squareVerdicts === {False, False, True, True, True, True, True, False,
       False, False} &&
-    definitionCount["familyRowGaugeFFRationalFunctionSquareQ"] === 0];
+    definitionCount["familyRowBasisTransformationFFRationalFunctionSquareQ"] === 0];
 
 (* ---- end to end: the consumer's oracle channels are the exact
    channel decomposition evaluated in F_p ---- *)

@@ -34,23 +34,23 @@ normalized = FeynFacet`NormalizeEpsFormAffineSample[
   affineSample, {1, 3}, 1000003];
 
 (* the (9,6) lift: exact, a dlog form, not yet an epsilon form *)
-rawLift = FeynFacet`ReconstructEpsFormStrip[record, modularData, "KernelCount" -> 1, "ExactCheck" -> False];
-result = FeynFacet`ReconstructEpsFormStrip[record, modularData, "KernelCount" -> 1];
+rawLift = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[record, modularData, "KernelCount" -> 1, "ExactCheck" -> False];
+result = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[record, modularData, "KernelCount" -> 1];
 rawCheckpoint = <|"Sector" -> 9,
-  "PrevD" -> ConstantArray[0, {First[Rest[Dimensions[record["Strip"][[3]]]]], 1}],
-  "StripSolvers" -> {}|>;
-installed = FeynFacet`InstallEpsFormStripSolution[rawCheckpoint, record, expected, 9, 6];
+  "PrevD" -> ConstantArray[0, {First[Rest[Dimensions[record["OffDiagonalBlockEquation"][[3]]]]], 1}],
+  "OffDiagonalBlockSolutions" -> {}|>;
+installed = FeynFacet`Private`RecordVerifiedOffDiagonalBasisTransformationBlock[rawCheckpoint, record, expected, 9, 6];
 
 (* structural refusals: regulator-dependent letter; kinematics-dependent residue *)
 {xx, yy} = record["Variables"]; ee = record["Regulator"];
 badLetter = Join[expected, <|"Alphabet" -> ReplacePart[expected["Alphabet"], 1 -> expected["Alphabet"][[1]] + ee]|>];
 badResidue = Join[expected, <|"ResidueMatrices" -> ReplacePart[expected["ResidueMatrices"], {1, 1, 1} -> xx]|>];
-badLetterVerification = FeynFacet`VerifyEpsFormStrip[record, badLetter];
-badResidueVerification = FeynFacet`VerifyEpsFormStrip[record, badResidue];
-badLetterInstalled = Quiet[Check[FeynFacet`InstallEpsFormStripSolution[rawCheckpoint, record, badLetter, 9, 6], $Failed],
-  FeynFacet`InstallEpsFormStripSolution::state];
-badResidueInstalled = Quiet[Check[FeynFacet`InstallEpsFormStripSolution[rawCheckpoint, record, badResidue, 9, 6], $Failed],
-  FeynFacet`InstallEpsFormStripSolution::state];
+badLetterVerification = FeynFacet`VerifyOffDiagonalBasisTransformationBlock[record, badLetter];
+badResidueVerification = FeynFacet`VerifyOffDiagonalBasisTransformationBlock[record, badResidue];
+badLetterInstalled = Quiet[Check[FeynFacet`Private`RecordVerifiedOffDiagonalBasisTransformationBlock[rawCheckpoint, record, badLetter, 9, 6], $Failed],
+  FeynFacet`Private`RecordVerifiedOffDiagonalBasisTransformationBlock::state];
+badResidueInstalled = Quiet[Check[FeynFacet`Private`RecordVerifiedOffDiagonalBasisTransformationBlock[rawCheckpoint, record, badResidue, 9, 6], $Failed],
+  FeynFacet`Private`RecordVerifiedOffDiagonalBasisTransformationBlock::state];
 
 (* the canonical-benchmark (9,6) fixture: the A4 acceptance artifacts *)
 benchmark = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "BenchmarkStripBackends"}];
@@ -59,7 +59,7 @@ canonicalData = FeynFacet`FamilyArtifactRead /@ FileNames["*_mod_*.wl",
   FileNameJoin[{benchmark, "frozen_M0", "a4_run", "ff_artifacts_A4_CF254_9_6_155035"}]];
 stored = FeynFacet`FamilyArtifactRead[FileNameJoin[{benchmark, "frozen_M0", "a4_run",
   "result_A4_CF254_9_6_FiniteField.wl"}]]["BackendResult"];
-benchmarkLift = FeynFacet`ReconstructEpsFormStrip[fixture, canonicalData, "KernelCount" -> 1];
+benchmarkLift = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[fixture, canonicalData, "KernelCount" -> 1];
 
 checks = <|
   "AffineAssociation" -> AssociationQ[normalized],
@@ -71,9 +71,9 @@ checks = <|
   "UnverifiedLiftReportsStructure" -> AssociationQ[rawLift] && rawLift["Status"] === "LiftedUnverified" &&
     rawLift["LettersEpsFree"] === True && rawLift["ResiduesKinematicsFree"] === True && rawLift["ResiduesEpsFree"] === False,
   "ReconstructionAssociation" -> AssociationQ[result],
-  "GaugeAgreement" -> If[AssociationQ[result],
+  "OffDiagonalBasisTransformationBlockAgreement" -> If[AssociationQ[result],
     AllTrue[Flatten[MapThread[Together[#1 - #2] &,
-      {result["Gauge"], expected["Gauge"]}, 2]], TrueQ[# === 0] &],
+      {result["OffDiagonalBasisTransformationBlock"], expected["OffDiagonalBasisTransformationBlock"]}, 2]], TrueQ[# === 0] &],
     False],
   "ResidueAgreement" -> If[AssociationQ[result],
     AllTrue[Flatten[MapThread[Together[#1 - #2] &,
@@ -86,7 +86,7 @@ checks = <|
     result["CanonicalEpsFormCertified"] === False && result["ResiduesEpsFree"] === False,
   "AllModularImages" -> If[AssociationQ[result],
     And @@ result["CoefficientLiftChecks"], False],
-  "DLogFormInstalls" -> AssociationQ[installed] && Lookup[Last[installed["StripSolvers"]], "LowerSector"] === 6,
+  "DLogFormInstalls" -> AssociationQ[installed] && Lookup[Last[installed["OffDiagonalBlockSolutions"]], "LowerSector"] === 6,
   "RegulatorLetterRefusedBeforeExactPass" -> AssociationQ[badLetterVerification] &&
     badLetterVerification["DLogFormCertified"] === False &&
     badLetterVerification["StructuralFailureReasons"] === {"LettersDependOnRegulator"} &&
@@ -96,7 +96,7 @@ checks = <|
     badResidueVerification["StructuralFailureReasons"] === {"ResiduesDependOnKinematics"} &&
     badResidueVerification["ExactCheckSeconds"] === 0 && badResidueInstalled === $Failed,
   "BenchmarkLiftReproducesStored" -> AssociationQ[benchmarkLift] && benchmarkLift["Status"] === "Solved" &&
-    TrueQ[benchmarkLift["DLogFormCertified"]] && benchmarkLift["Gauge"] === stored["Gauge"] &&
+    TrueQ[benchmarkLift["DLogFormCertified"]] && benchmarkLift["OffDiagonalBasisTransformationBlock"] === stored["OffDiagonalBasisTransformationBlock"] &&
     benchmarkLift["ResidueMatrices"] === stored["ResidueMatrices"] && benchmarkLift["Alphabet"] === stored["Alphabet"]
 |>;
 

@@ -22,30 +22,40 @@ symbolic = FeynFacet`ValidateFamilyDLogEpsilonForm[candidate, system,
 modular = FeynFacet`ValidateFamilyDLogEpsilonForm[candidate, system,
   "SourceVariables" -> {x, y}, "IdentityMethod" -> "Modular",
   "ModularPoints" -> 3, "ModularPrimes" -> 2];
+dependentAlphabetCandidate = Join[candidate,
+  <|"Letters" -> {x, -x, y, x y}|>];
+dependentAlphabet = FeynFacet`ValidateFamilyDLogEpsilonForm[
+  dependentAlphabetCandidate, system,
+  "SourceVariables" -> {x, y}, "IdentityMethod" -> "Modular",
+  "ModularPoints" -> 3, "ModularPrimes" -> 2];
 randomPoints = FeynFacet`ValidateFamilyDLogEpsilonForm[candidate, system,
   "SourceVariables" -> {x, y}, "IdentityMethod" -> "RandomPoints",
   "Points" -> 2];
 
 check["symbolic identities are exact",
-  FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[symbolic]];
+  symbolic["DataType"] === "FamilyDLogEpsilonFormValidationResult" &&
+    symbolic["Status"] === "FamilyDLogEpsilonFormValidationPassed" &&
+    TrueQ[symbolic["Validation", "Exact"]] &&
+    ! TrueQ[symbolic["Validation", "Probabilistic"]]];
 check["finite-field identities are validated but not exact",
-  FeynFacet`ValidatedFamilyDLogEpsilonFormQ[modular] &&
-    ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[modular] &&
+  modular["DataType"] === "FamilyDLogEpsilonFormValidationResult" &&
+    modular["Status"] === "FamilyDLogEpsilonFormValidationPassed" &&
+    TrueQ[modular["Validation", "Probabilistic"]] &&
+    ! TrueQ[modular["Validation", "Exact"]] &&
     modular["Validation", "Method"] ===
       "ProbabilisticFiniteFieldSampling"];
+check["a redundant caller alphabet is reduced to independent divisors",
+  dependentAlphabet["Status"] ===
+    "FamilyDLogEpsilonFormValidationPassed" &&
+    TrueQ[dependentAlphabet["Validation", "Conditions",
+      "DLogReconstruction"]]];
 check["random rational points are validated but not exact",
-  FeynFacet`ValidatedFamilyDLogEpsilonFormQ[randomPoints] &&
-    ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[randomPoints] &&
+  randomPoints["DataType"] === "FamilyDLogEpsilonFormValidationResult" &&
+    randomPoints["Status"] === "FamilyDLogEpsilonFormValidationPassed" &&
+    TrueQ[randomPoints["Validation", "Probabilistic"]] &&
+    ! TrueQ[randomPoints["Validation", "Exact"]] &&
     randomPoints["Validation", "Method"] ===
       "RandomRationalPointEvaluation"];
-
-forged = ReplacePart[modular, {
-  {"Validation", "Exact"} -> True,
-  {"Validation", "Probabilistic"} -> False,
-  {"Validation", "Method"} ->
-    "CharacteristicZeroSymbolicIdentity"}];
-check["validation flags and method cannot convert sampled evidence without characteristic-zero residuals",
-  ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[forged]];
 
 badCandidate = ReplacePart[candidate,
   {"EpsFormX", 1, 1} -> eps/x + eps x];

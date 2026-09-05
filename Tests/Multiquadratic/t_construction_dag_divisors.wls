@@ -2,7 +2,7 @@
 (* THE PRESERVED DEFERRED DAG AND THE DIVISOR METADATA (round-2 wave
    item 8; Codex review 2.2).
 
-   THE DEFECT.  blockEquationDeferredForcing returned
+   THE DEFECT.  blockEquationDeferredInhomogeneity returned
    KeyDrop[preparation, "Records"]: the expression DAG this file exists
    to build was thrown away at the public boundary, so every downstream
    consumer had to work from the huge materialized expression the DAG
@@ -17,13 +17,13 @@
 
    The preserved DAG.
    G1  The public result carries a versioned "DeferredDAG" whose Records
-       are exactly the preparation's records, with the ABI version, the
-       source fingerprint and the term count.  (Pre-fix: absent.)
+       are exactly the preparation's records, with the schema version and
+       term count.  (Pre-fix: absent.)
    G2  Its measured byte size is recorded, so a future byte-bound
        decision has a number instead of a guess.
    G3  A finite "DAGByteLimit" below that size drops the records and SAYS
        SO ("Retained" -> False) rather than silently truncating.
-   G4  The preserved DAG still reproduces each forcing entry: summing a
+   G4  The preserved DAG still reproduces each inhomogeneity entry: summing a
        record's terms symbolically equals the materialized entry.  A
        preserved-but-wrong DAG would pass G1-G3.
 
@@ -49,8 +49,8 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 report[label_, value_] := Print["     ", label, ": ", Short[value, 8]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
-{forcingOf, dagRecord, divisorMetadata, sourceExpression} =
- mq /@ {"blockEquationDeferredForcing", "blockEquationDeferredDAGRecord",
+{inhomogeneityOf, dagRecord, divisorMetadata, sourceExpression} =
+ mq /@ {"blockEquationDeferredInhomogeneity", "blockEquationDeferredDAGRecord",
    "blockEquationDeferredDivisorMetadata",
    "blockEquationDeferredSourceExpression"};
 
@@ -67,25 +67,25 @@ rationalEntry[mu_, i_, j_] :=
 rationalConnection = buildConnection[rationalEntry];
 solved = <|2 -> {{(1 + gx)/(1 - gy)}, {gy/(1 + gx)}}|>;
 
-result = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge];
-check["the deferred forcing is built on the rational block",
+result = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge];
+check["the deferred inhomogeneity is built on the rational block",
   Lookup[result, "Status", None] === "OK"];
 
 (* ---- G1 / G2: the preserved DAG ---- *)
 dag = Lookup[result, "DeferredDAG", None];
 check["G1 the public result carries a versioned preserved DAG",
-  AssociationQ[dag] && dag["Schema"] === "BlockEquationDeferredDAGV1" &&
+  AssociationQ[dag] && dag["Schema"] === "BlockEquationDeferredDAGV2" &&
+    dag["SchemaVersion"] === 2 &&
     TrueQ[dag["Retained"]] && ListQ[dag["Records"]] &&
     dag["Records"] =!= {} &&
-    IntegerQ[dag["TermCount"]] && dag["TermCount"] >= 1 &&
-    StringQ[dag["SourceFingerprint"]]];
-report["G1 DAG", KeyTake[dag, {"Schema", "ABIVersion", "RecordCount",
+    IntegerQ[dag["TermCount"]] && dag["TermCount"] >= 1];
+report["G1 DAG", KeyTake[dag, {"Schema", "SchemaVersion", "RecordCount",
   "TermCount", "Bytes", "Retained", "Dimensions"}]];
 check["G2 the DAG's measured byte size is recorded",
   IntegerQ[dag["Bytes"]] && dag["Bytes"] > 0];
 
 (* ---- G3: the byte bound says so ---- *)
-bounded = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
+bounded = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
   "DAGByteLimit" -> 1];
 check["G3 a byte limit below the measured size drops the records and says so",
   AssociationQ[Lookup[bounded, "DeferredDAG", None]] &&
@@ -93,7 +93,7 @@ check["G3 a byte limit below the measured size drops the records and says so",
     MissingQ[bounded["DeferredDAG"]["Records"]] &&
     IntegerQ[bounded["DeferredDAG"]["Bytes"]]];
 
-(* ---- G4: the preserved DAG still reproduces the forcing ---- *)
+(* ---- G4: the preserved DAG still reproduces the inhomogeneity ---- *)
 preparationLike = Join[KeyTake[dag, {"Variables", "Regulator", "Dimensions"}],
   <|"Records" -> dag["Records"]|>];
 dimensions = dag["Dimensions"];
@@ -102,7 +102,7 @@ check["G4 every preserved record's term sum equals the materialized entry",
       {mu, dimensions[[1]]}, {i, dimensions[[2]]}, {j, dimensions[[3]]}], 2],
     Function[target,
       TrueQ[Together[sourceExpression[preparationLike, target] -
-        result["Forcing"][[target[[1]], target[[2]], target[[3]]]]] === 0]]]];
+        result["Inhomogeneity"][[target[[1]], target[[2]], target[[3]]]]] === 0]]]];
 
 (* ---- G5: multiplicities are per-factor maxima ---- *)
 metadata = Lookup[result, "DivisorMetadata", None];
@@ -128,10 +128,11 @@ algebraicEntry[mu_, i_, j_] :=
   (ge + mu + i gx + j gy)/((2 + gx + Sqrt[delta])^If[mu === 1, 2, 1] (i + j));
 algebraicConnection = buildConnection[algebraicEntry];
 algebraicSolved = <|2 -> {{(1 + gx)/(1 - gy)}, {gy/(1 + gx)}}|>;
-algebraicResult = forcingOf[algebraicConnection, ranges, 3, 1, algebraicSolved,
+algebraicResult = inhomogeneityOf[algebraicConnection, ranges, 3, 1, algebraicSolved,
   {gx, gy}, ge,
-  "DivisorRoots" -> {<|"Root" -> Sqrt[delta], "RootSquare" -> delta|>}];
-check["the deferred forcing is built on the algebraic block",
+  "DivisorRoots" -> {<|"Generator" -> Sqrt[delta],
+      "QuadraticRadicand" -> delta|>}];
+check["the deferred inhomogeneity is built on the algebraic block",
   Lookup[algebraicResult, "Status", None] === "OK"];
 algebraicMetadata = Lookup[algebraicResult, "DivisorMetadata", None];
 report["G6 algebraic factors", Lookup[algebraicMetadata, "AlgebraicFactors",
@@ -163,9 +164,9 @@ check["G7 the orbit list reproduces the two conjugates",
       TrueQ[Together[#1 - (2 + gx - Sqrt[delta])] === 0] &]];
 
 (* ---- G8: the two products are independent ---- *)
-noMetadata = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
+noMetadata = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
   "DivisorMetadata" -> False];
-noDAG = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
+noDAG = inhomogeneityOf[rationalConnection, ranges, 3, 1, solved, {gx, gy}, ge,
   "PreserveDAG" -> False];
 check["G8 the DAG survives with the metadata switched off",
   TrueQ[Lookup[noMetadata, "DeferredDAG", <||>]["Retained"]] &&

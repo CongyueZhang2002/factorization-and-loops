@@ -48,20 +48,23 @@ frameTiming = AbsoluteTiming[
 ];
 frameSeconds = First[frameTiming];
 
-(* The accepted final-block physical gauge is small enough to keep exactly.
+(* The accepted final-block basis transformation is small enough to keep exactly.
    In the convention I25=T25.F25 it changes only the two zero-exponent target
    modes, so it cannot mix the normal eigenspaces. *)
-targetGauge = {
+targetBasisTransformationMatrix = {
   {(-2 - 3*eps)/(4*(p - 1)^2*p^4*(p + 1)^2),
     (2 + 3*eps)*(2 + p)/(8*(p - 1)^2*p^4*(p + 1)^2)},
   {(-2 - 7*eps - 6*eps^2)/(4*(p - 1)^3*p^4*(p + 1)^3),
     (2 + 9*eps + 9*eps^2 + 8*p + 28*eps*p + 24*eps^2*p +
        2*p^2 + 5*eps*p^2 + 3*eps^2*p^2)/
       (16*(p - 1)^3*p^5*(p + 1)^3)}};
-targetGaugeInverse = Map[Cancel[Together[#]] &, Inverse[targetGauge], {2}];
-acceptedCoordinateGauge = IdentityMatrix[6];
-acceptedCoordinateGauge[[4 ;; 5, 4 ;; 5]] = targetGauge;
-acceptedNormalResidueEigenbasis = normalResidueEigenbasis . acceptedCoordinateGauge;
+inverseTargetBasisTransformationMatrix = Map[Cancel[Together[#]] &,
+  Inverse[targetBasisTransformationMatrix], {2}];
+acceptedCoordinateBasisTransformationMatrix = IdentityMatrix[6];
+acceptedCoordinateBasisTransformationMatrix[[4 ;; 5, 4 ;; 5]] =
+  targetBasisTransformationMatrix;
+acceptedNormalResidueEigenbasis = normalResidueEigenbasis .
+  acceptedCoordinateBasisTransformationMatrix;
 acceptedEigenbasisTransformation =
   TransformTangentialConnectionToNormalResidueEigenbasis[
     normalResidue, bParallel,
@@ -98,16 +101,18 @@ nonzeroNormalizationResidual = Cancel[Together[
   gamma[[6, 6]] - D[Log[nonzeroTangentialPrefactor], p] -
     epsilonNormalizedNonzeroConnection]];
 
-(* Compact source gauges.  The regular block-24 gauge is a simple rational
+(* Compact source basis transformations. The regular block-24 transformation
+   is a simple rational
    representative; its p-independent right binding identifies it exactly
    with the rho^0 slice of TDiagonal.S in accepted canonical coordinates. *)
-block24BaseGauge = {
+block24BaseBasisTransformationMatrix = {
   {1/(p^2*(p^2 - 1)), 0},
   {1/(p^2*(p^2 - 1)), 1/(p^3*(p^2 - 1))}};
-block24SourceGauge = block24BaseGauge .
+block24SourceBasisTransformationMatrix =
+  block24BaseBasisTransformationMatrix .
   {{1, 0}, {p*eps*(3 + 4*eps)/(1 + eps), 1}};
 canonicalPolynomial = -2 + 13*eps - 27*eps^2 + 18*eps^3;
-acceptedBlock24Gauge = {
+acceptedBlock24BasisTransformationMatrix = {
   {-3*canonicalPolynomial/(2*eps^3*(p - 1)*p^2*(p + 1)),
     3*canonicalPolynomial/(8*eps^3*(p - 1)*p^2*(p + 1))},
   {-3*(1 + 2*eps)^2*canonicalPolynomial/
@@ -115,8 +120,9 @@ acceptedBlock24Gauge = {
     3*(1 + 2*eps)*canonicalPolynomial*(-1 - 4*eps + 2*p +
        4*eps*p)/(16*eps^3*(1 + eps)*(p - 1)*p^3*(p + 1))}};
 block24AcceptedBinding = Map[Cancel[Together[#]] &,
-  Inverse[block24SourceGauge] . acceptedBlock24Gauge, {2}];
-block23ZeroGauge = 1/(p^4*(p^2 - 1));
+  Inverse[block24SourceBasisTransformationMatrix] .
+    acceptedBlock24BasisTransformationMatrix, {2}];
+block23ZeroBasisNormalizationFactor = 1/(p^4*(p^2 - 1));
 block23ZeroAcceptedNormalization =
   -7*canonicalPolynomial*(1 + 5*eps)/(4*eps^3*(1 + 4*eps));
 block23NonzeroAcceptedExtension =
@@ -125,12 +131,17 @@ block23NonzeroBaseNormalization =
   14*(1 + 4*eps)*canonicalPolynomial/eps^3;
 block23NonzeroExtensionInBaseFrame = Cancel[Together[
   block23NonzeroAcceptedExtension/block23NonzeroBaseNormalization]];
-productionCoordinateGauge = IdentityMatrix[6];
-productionCoordinateGauge[[1 ;; 2, 1 ;; 2]] = block24SourceGauge;
-productionCoordinateGauge[[3, 3]] = block23ZeroGauge;
-productionCoordinateGauge[[4 ;; 5, 4 ;; 5]] = targetGauge;
-productionCoordinateGauge[[6, 6]] = nonzeroTangentialPrefactor;
-productionNormalResidueEigenbasis = normalResidueEigenbasis . productionCoordinateGauge;
+productionCoordinateBasisTransformationMatrix = IdentityMatrix[6];
+productionCoordinateBasisTransformationMatrix[[1 ;; 2, 1 ;; 2]] =
+  block24SourceBasisTransformationMatrix;
+productionCoordinateBasisTransformationMatrix[[3, 3]] =
+  block23ZeroBasisNormalizationFactor;
+productionCoordinateBasisTransformationMatrix[[4 ;; 5, 4 ;; 5]] =
+  targetBasisTransformationMatrix;
+productionCoordinateBasisTransformationMatrix[[6, 6]] =
+  nonzeroTangentialPrefactor;
+productionNormalResidueEigenbasis = normalResidueEigenbasis .
+  productionCoordinateBasisTransformationMatrix;
 productionEigenbasisTransformation =
   TransformTangentialConnectionToNormalResidueEigenbasis[
     normalResidue, bParallel,
@@ -178,33 +189,36 @@ productionIncomingRecord[target_, sourceIndex_] := Module[{value},
 productionIncoming = Flatten[Table[
   productionIncomingRecord[target, sourceIndex],
   {target, 2}, {sourceIndex, Length[productionSourceIndices]}]];
-productionLayer = <|
+productionBlock = <|
   "Rows" -> {44, 45}, "PathVariable" -> p, "Regulator" -> eps,
-  "BasePoint" -> 4/11, "Endpoint" -> pFinal,
+  "BasePoint" -> 4/11, "PathEndpoint" -> pFinal,
   "Diagonal" -> productionTargetDiagonal,
   "Incoming" -> productionIncoming,
   "ZeroColumns" -> {4},
   "TargetBoundarySelectors" -> <|0 -> productionTargetSelectors|>,
   "SharedBoundaryCoordinates" -> True|>;
-productionPrepare = BuildRationalEpsilonLayerTransport[
-  productionSource, productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>,
+productionPrepare = SolveRationalEpsilonDependentBlockByVariationOfConstants[
+  productionSource, productionBlock,
+  <|"RequestedOutputPairs" -> {{0, 1}, {0, 2}}|>,
   "PrepareOnly" -> True];
-productionDemand = <|"Pairs" -> {{0, 1}, {0, 2}}|>;
-productionTransportTiming = AbsoluteTiming[
-  productionTransport = BuildRationalEpsilonLayerTransport[
-    productionSource, productionLayer, productionDemand,
-    "PrimeCount" -> 3, "WordRepresentation" -> "LazyOperator"]];
-productionTransportSeconds = First[productionTransportTiming];
-productionTransportPredicate = AcceptedRationalEpsilonLayerTransportQ[
-  productionTransport, productionSource, productionLayer, productionDemand];
+productionDemand = <|"RequestedOutputPairs" -> {{0, 1}, {0, 2}}|>;
+productionSolutionTiming = AbsoluteTiming[
+  productionSolution =
+    SolveRationalEpsilonDependentBlockByVariationOfConstants[
+      productionSource, productionBlock, productionDemand,
+      "PrimeCount" -> 3,
+      "IteratedIntegralCoefficientRepresentation" ->
+        "LazyCoefficientOperator"]];
+productionSolutionSeconds = First[productionSolutionTiming];
 productionOperatorTiming = AbsoluteTiming[
-  productionOperator = BuildRationalEpsilonLayerOperator[
-    productionSource, productionLayer, productionTransport]];
+  productionOperator =
+    ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientOperator[
+      productionSource, productionBlock, productionSolution]];
 productionOperatorSeconds = First[productionOperatorTiming];
-productionCertificate = Lookup[productionTransport, "Certificate", <||>];
-productionOffDiagonalBasisTransformationBlockCoefficients = Lookup[productionTransport,
+productionCertificate = Lookup[productionSolution, "Certificate", <||>];
+productionOffDiagonalBasisTransformationBlockCoefficients = Lookup[productionSolution,
   "OffDiagonalBasisTransformationBlockCoefficients", <||>];
-productionGaugeNonzeros = Total[
+productionOffDiagonalBasisTransformationNonzeros = Total[
   Length[SparseArray[#]["NonzeroPositions"]] & /@
     Values[productionOffDiagonalBasisTransformationBlockCoefficients]];
 
@@ -296,8 +310,8 @@ validation = <|
         {{1, 2, 3, 4, 5}, {6}} &&
       zeroMatrixQ[crossToNonzero] && zeroMatrixQ[crossFromNonzero],
   "KernelRecompositionExact" -> zeroMatrixQ[decompositionResidual],
-  "AcceptedTargetGaugeInvertible" ->
-    Cancel[Together[Det[targetGauge]]] =!= 0,
+  "AcceptedTargetBasisTransformationInvertible" ->
+    Cancel[Together[Det[targetBasisTransformationMatrix]]] =!= 0,
   "AcceptedFrameCrossEigenspaceBlocksVanish" ->
     ! TrueQ[acceptedEigenbasisTransformation["UnequalExponentCoupling"]] &&
       zeroMatrixQ[acceptedCrossToNonzero] &&
@@ -313,15 +327,17 @@ validation = <|
   "NonzeroModeEpsilonNormalized" ->
     Expand[shiftedNormalExponent + 4*eps] === 0 &&
       nonzeroNormalizationResidual === 0,
-  "Block24GaugeIsAcceptedAndEpsilonNormalized" ->
+  "Block24BasisTransformationIsAcceptedAndEpsilonNormalized" ->
     FreeQ[block24AcceptedBinding, p] &&
       zeroMatrixQ[Map[Cancel[Together[#]] &,
-        block24SourceGauge . block24AcceptedBinding -
-          acceptedBlock24Gauge, {2}]] &&
+        block24SourceBasisTransformationMatrix . block24AcceptedBinding -
+          acceptedBlock24BasisTransformationMatrix, {2}]] &&
       zeroMatrixQ[Map[Cancel[Together[#]] &,
-        Inverse[block24SourceGauge] . gamma[[1 ;; 2, 1 ;; 2]] .
-          block24SourceGauge -
-          Inverse[block24SourceGauge] . D[block24SourceGauge, p] -
+        Inverse[block24SourceBasisTransformationMatrix] .
+          gamma[[1 ;; 2, 1 ;; 2]] .
+          block24SourceBasisTransformationMatrix -
+          Inverse[block24SourceBasisTransformationMatrix] .
+            D[block24SourceBasisTransformationMatrix, p] -
           (-2*eps/p)*IdentityMatrix[2], {2}]],
   "ProductionDiagonalBlocksAreEpsilonForm" ->
     zeroMatrixQ[Map[Cancel[Together[#]] &,
@@ -342,18 +358,16 @@ validation = <|
       Cancel[Together[block23NonzeroBaseNormalization*
         block23NonzeroExtensionInBaseFrame -
           block23NonzeroAcceptedExtension]] === 0,
-  "RationalLayerProductionInputPrepared" ->
-    Lookup[productionPrepare, "Status", "Failure"] === "Prepared" &&
+  "RationalEpsilonDependentBlockProblemPrepared" ->
+    Lookup[productionPrepare, "Status", "Failure"] ===
+      "RationalEpsilonDependentBlockVariationOfConstantsProblemPrepared" &&
       Lookup[productionPrepare, "Dimensions", Missing[]] === {2, 4} &&
       TrueQ[Lookup[productionPrepare,
         "SharedBoundaryCoordinates", False]],
-  "FullProductionTransportAccepted" ->
-    Lookup[productionTransport, "Status", "Failure"] ===
-      "RationalEpsilonLayerTransportAccepted" &&
-      TrueQ[productionTransportPredicate] &&
-      Lookup[productionOperator, "Status", "Failure"] ===
-        "RationalEpsilonLayerOperatorAccepted" &&
-      TrueQ[AcceptedRationalEpsilonLayerOperatorQ[productionOperator]],
+  "ProductionSolutionAndCoefficientOperatorValidated" ->
+    TrueQ[
+      RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[
+        productionOperator]],
   "AcceptedJunctionModeMapExact" ->
     Dimensions[acceptedJunctionSourceMap] === {43, 6} &&
       Dimensions[independentTargetF25Map] === {2, 6} &&
@@ -365,7 +379,8 @@ validation = <|
         {40, 41, 42, 43}|>;
 If[! And @@ Values[validation],
   Print["FAIL validation ", InputForm[validation]];
-  If[! TrueQ[validation["RationalLayerProductionInputPrepared"]],
+  If[! TrueQ[
+      validation["RationalEpsilonDependentBlockProblemPrepared"]],
     Print["FAIL production prepare ", InputForm[productionPrepare]]];
   If[! TrueQ[validation["AcceptedJunctionModeMapExact"]],
     Print["FAIL junction map dims=",
@@ -378,7 +393,7 @@ If[! And @@ Values[validation],
   Quit[3]];
 
 result = <|
-  "Status" -> "CF303SixModeEndpointFrameAcceptedV1",
+  "Status" -> "CF303SixModePathEndpointBasisValidatedV2",
   "Family" -> "CF303", "Basis" -> source["Basis"],
   "PhysicalRows" -> source["PhysicalRows"],
   "StateCanonicalRowOrder" -> source["StateCanonicalRowOrder"],
@@ -403,11 +418,13 @@ result = <|
     "NonzeroEigenspaceBlock" -> gamma[[{6}, {6}]],
     "CrossToNonzero" -> crossToNonzero,
     "CrossFromNonzero" -> crossFromNonzero|>,
-  "AcceptedTargetGauge" -> <|
+  "AcceptedTargetBasisTransformation" -> <|
     "Convention" -> "I25=T25.F25",
-    "Provenance" -> "accepted CF303 PhysicalGaugeByOrderPairs at rho=0",
-    "Matrix" -> targetGauge, "Inverse" -> targetGaugeInverse,
-    "Determinant" -> Cancel[Together[Det[targetGauge]]],
+    "Origin" -> "accepted CF303 physical-to-canonical map at rho=0",
+    "Matrix" -> targetBasisTransformationMatrix,
+    "Inverse" -> inverseTargetBasisTransformationMatrix,
+    "Determinant" ->
+      Cancel[Together[Det[targetBasisTransformationMatrix]]],
     "AcceptedNormalResidueEigenbasis" -> acceptedNormalResidueEigenbasis,
     "TangentialConnectionSparseEntries" -> matrixEntries[acceptedGamma],
     "TargetEpsilonConnection" -> targetEpsilonConnection,
@@ -422,7 +439,8 @@ result = <|
     "TangentialConnectionAfter" -> epsilonNormalizedNonzeroConnection,
     "GPLAlphabet" -> {0, 1/Sqrt[2], -1/Sqrt[2]}|>,
   "ProductionInput" -> <|
-    "Status" -> "CF303SixModeRationalLayerInputAcceptedV1",
+    "Status" ->
+      "CF303SixModeRationalEpsilonDependentBlockInputValidatedV2",
     "FrameColumnOrder" -> {"Block24Mode1", "Block24Mode2",
       "Block23Zero", "TargetMode1", "TargetMode2", "Block23Nonzero"},
     "SourceModeOrder" -> {"Block24Mode1", "Block24Mode2",
@@ -430,16 +448,16 @@ result = <|
     "PhysicalNormalResidueEigenbasis" -> productionNormalResidueEigenbasis,
     "TangentialConnectionSparseEntries" -> matrixEntries[productionGamma],
     "Source" -> productionSource,
-    "Layer" -> productionLayer,
+    "Layer" -> productionBlock,
     "BoundaryCoordinateOrder" -> {
       "Block24Mode1", "Block24Mode2", "Block23Zero",
       "Block23Nonzero",
       "IndependentTargetMode1", "IndependentTargetMode2"},
-    "CompactPhysicalGauges" -> <|
-      "Block24" -> block24SourceGauge,
-      "Block23Zero" -> block23ZeroGauge,
+    "CompactBasisTransformationsAndNormalizations" -> <|
+      "Block24" -> block24SourceBasisTransformationMatrix,
+      "Block23Zero" -> block23ZeroBasisNormalizationFactor,
       "Block23Nonzero" -> nonzeroTangentialPrefactor,
-      "TargetBlock25" -> targetGauge|>,
+      "TargetBlock25" -> targetBasisTransformationMatrix|>,
     "AcceptedCoordinateBinding" -> <|
       "Block24CanonicalToProduction" -> block24AcceptedBinding,
       "Block23ZeroCanonicalToProduction" ->
@@ -457,27 +475,31 @@ result = <|
       {"Status", "Orders", "Factors", "Dimensions",
         "SharedBoundaryCoordinates"}],
     "FullRunEvidence" -> <|
-      "DemandPairs" -> productionDemand["Pairs"],
-      "TransportStatus" -> Lookup[productionTransport, "Status", None],
-      "Route" -> Lookup[productionCertificate, "IncomingRoute", None],
-      "OffDiagonalTransformationBlockStatus" -> Lookup[productionTransport, "OffDiagonalTransformationBlockStatus", None],
+      "RequestedOutputPairs" ->
+        productionDemand["RequestedOutputPairs"],
+      "SolutionStatus" -> Lookup[productionSolution, "Status", None],
+      "VariationOfConstantsMethod" ->
+        Lookup[productionCertificate, "VariationOfConstantsMethod", None],
+      "OffDiagonalTransformationBlockStatus" -> Lookup[productionSolution, "OffDiagonalTransformationBlockStatus", None],
       "OffDiagonalTransformationBlockRepresentation" -> Lookup[productionCertificate,
         "OffDiagonalTransformationBlockRepresentation", None],
-      "Window" -> Lookup[productionTransport, "Window", None],
+      "Window" -> Lookup[productionSolution, "Window", None],
       "Primes" -> Lookup[productionCertificate, "Primes", {}],
       "FreshValidationPrime" -> Lookup[productionCertificate,
         "FreshValidationPrime", None],
       "OffDiagonalTransformationOrders" -> Keys[productionOffDiagonalBasisTransformationBlockCoefficients],
-      "GaugeNonzeroEntries" -> productionGaugeNonzeros,
-      "GaugeByteCount" -> ByteCount[productionOffDiagonalBasisTransformationBlockCoefficients],
-      "TransportByteCount" -> ByteCount[productionTransport],
-      "FourArgumentPredicate" -> productionTransportPredicate,
+      "OffDiagonalBasisTransformationBlockNonzeroEntries" ->
+        productionOffDiagonalBasisTransformationNonzeros,
+      "OffDiagonalBasisTransformationBlockByteCount" ->
+        ByteCount[productionOffDiagonalBasisTransformationBlockCoefficients],
+      "SolutionByteCount" -> ByteCount[productionSolution],
       "OperatorStatus" -> Lookup[productionOperator, "Status", None],
-      "OperatorPredicate" ->
-        AcceptedRationalEpsilonLayerOperatorQ[productionOperator],
+      "CoefficientOperatorStructuralPredicate" ->
+        RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[
+          productionOperator],
       "OperatorByteCount" -> ByteCount[productionOperator],
       "TimingsSeconds" -> <|
-        "Transport" -> productionTransportSeconds,
+        "Solution" -> productionSolutionSeconds,
         "Operator" -> productionOperatorSeconds|>|>,
     "AcceptedZPathJunction" -> <|
       "Status" -> "CF303AcceptedZPathJunctionModeMapV1",

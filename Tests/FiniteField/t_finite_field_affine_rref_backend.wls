@@ -35,21 +35,21 @@ writeBytes[file_, bytes_] := Module[{stream},
   BinaryWrite[stream, bytes, "UnsignedInteger8"];
   Close[stream]; file];
 
-binary = FeynFacet`Private`finiteFieldStripCFFRBinary[];
+binary = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRBinary[];
 check["adapter binary is available", StringQ[binary] && FileExistsQ[binary]];
 check["the option surface accepts exactly Wolfram and FLINTAffineRREF",
-  FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision[
+  FeynFacet`Private`finiteFieldOffDiagonalBlockPlanDiscoveryBackendDecision[
       "FLINTAffineRREF"] ===
     <|"Status" -> "OK",
       "PlanDiscoveryBackendRequested" -> "FLINTAffineRREF",
       "PlanDiscoveryBackendUsed" -> "FLINTAffineRREF"|> &&
-  Lookup[FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision[
+  Lookup[FeynFacet`Private`finiteFieldOffDiagonalBlockPlanDiscoveryBackendDecision[
     Automatic], "Status", None] === "InvalidPlanDiscoveryBackendOption"];
 check["direct eight-worker sampling divides a 16-core native quota",
-  FeynFacet`Private`finiteFieldStripParallelBackendThreads[8, 8, 16] === 2 &&
-  FeynFacet`Private`finiteFieldStripParallelBackendThreads[8, 4, 16] === 4 &&
-  FeynFacet`Private`finiteFieldStripParallelBackendThreads[8, 1, 16] === 8];
-nonces = Table[FeynFacet`Private`finiteFieldStripCFFRNonce[], 32];
+  FeynFacet`Private`finiteFieldOffDiagonalBlockParallelBackendThreads[8, 8, 16] === 2 &&
+  FeynFacet`Private`finiteFieldOffDiagonalBlockParallelBackendThreads[8, 4, 16] === 4 &&
+  FeynFacet`Private`finiteFieldOffDiagonalBlockParallelBackendThreads[8, 1, 16] === 8];
+nonces = Table[FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRNonce[], 32];
 check["the 128-bit nonce is nonzero and not repeated",
   AllTrue[nonces, IntegerQ[#] && 0 < # < 2^128 &] &&
     Length[DeleteDuplicates[nonces]] === 32];
@@ -81,12 +81,12 @@ check["fixture has the designed rank 4, nullity 2 and pivots {1,3,5,6}",
     MatrixRank[matrix[[Range[rank]]], Modulus -> prime] =!= rank];
 
 (* (a) agreement of the native plan with the Wolfram plan *)
-nativeRun = FeynFacet`Private`finiteFieldStripCFFRRun[matrix,
+nativeRun = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRRun[matrix,
   rightHandSide, prime, preference, 2, scratch];
-nativePlan = FeynFacet`Private`finiteFieldStripCFFRDiscoverPlan[matrix,
+nativePlan = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRDiscoverPlan[matrix,
   rightHandSide, gaugeCount, residueCount, {1, 1}, {0, 0}, prime, 2,
   scratch, rank];
-wolframPlan = FeynFacet`Private`finiteFieldStripDiscoverPlan[matrix,
+wolframPlan = FeynFacet`Private`finiteFieldOffDiagonalBlockDiscoverPlan[matrix,
   rank, nullspace, gaugeCount, residueCount, {1, 1}, {0, 0}, prime];
 check["(a) one adapter call verified in Wolfram",
   Lookup[nativeRun, "Status", None] === "OK" &&
@@ -104,7 +104,7 @@ check["(a) normalization columns agree (residue-first, gauge fallback)",
   nativePlan["NormalizationColumns"] === wolframPlan["NormalizationColumns"] &&
     Length[nativePlan["NormalizationColumns"]] === 2 &&
     nativePlan["NormalizationColumns"] ===
-      FeynFacet`Private`finiteFieldStripNormalizationColumns[
+      FeynFacet`Private`finiteFieldOffDiagonalBlockNormalizationColumns[
         nullspace, gaugeCount, residueCount, prime] &&
     MatrixRank[nullspace[[All, nativePlan["NormalizationColumns"]]],
       Modulus -> prime] === 2 &&
@@ -124,9 +124,9 @@ check["(a) request and response files are removed on success",
 missingBinary = FileNameJoin[{scratch, "absent_flint_affine_rref"}];
 Clear[xCFFR, yCFFR, epsCFFR];
 syntheticRecord = <|"Variables" -> {xCFFR, yCFFR}, "Regulator" -> epsCFFR,
-  "Strip" -> {{{{1}}, {{0}}}, {{{0}}, {{0}}},
+  "OffDiagonalBlockEquation" -> {{{{1}}, {{0}}}, {{{0}}, {{0}}},
     {{{1 - epsCFFR xCFFR}}, {{0}}}}|>;
-preparation = FeynFacet`PrepareEpsFormStripSampling[syntheticRecord];
+preparation = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[syntheticRecord];
 solveOptions = {"Primes" -> {1000003},
   "EpsilonSamples" -> ((#/(# + 20)) & /@ Range[12]),
   "NumeratorDegreeOffsets" -> {{0, 0}, {1, 0}}, "PointCount" -> 8,
@@ -135,18 +135,18 @@ solveOptions = {"Primes" -> {1000003},
   "ArtifactDirectory" -> FileNameJoin[{scratch, "solve"}],
   "Verbose" -> False};
 {decisionAbsent, runAbsent, solveAbsent, solveNoLocator} =
-  Block[{FeynFacet`Private`finiteFieldStripCFFRBinary},
-    FeynFacet`Private`finiteFieldStripCFFRBinary[] := missingBinary;
-    {FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision[
+  Block[{FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRBinary},
+    FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRBinary[] := missingBinary;
+    {FeynFacet`Private`finiteFieldOffDiagonalBlockPlanDiscoveryBackendDecision[
        "FLINTAffineRREF"],
-     FeynFacet`Private`finiteFieldStripCFFRRun[matrix, rightHandSide,
+     FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRRun[matrix, rightHandSide,
        prime, preference, 1, scratch],
-     FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+     FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
        "PlanDiscoveryBackend" -> "FLINTAffineRREF",
        Sequence @@ solveOptions],
-     Block[{FeynFacet`Private`finiteFieldStripCFFRBinary},
-       FeynFacet`Private`finiteFieldStripCFFRBinary[] := None;
-       FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+     Block[{FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRBinary},
+       FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRBinary[] := None;
+       FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
          "PlanDiscoveryBackend" -> "FLINTAffineRREF",
          Sequence @@ solveOptions]]}];
 check["(b) a nonexistent adapter path is a typed failure",
@@ -154,9 +154,9 @@ check["(b) a nonexistent adapter path is a typed failure",
       "CFFRAdapterBinaryUnavailable" &&
     Lookup[decisionAbsent, "Status", None] === "OK"];
 check["(b) an absent adapter makes the decision unavailable",
-  Lookup[Block[{FeynFacet`Private`finiteFieldStripCFFRBinary},
-    FeynFacet`Private`finiteFieldStripCFFRBinary[] := None;
-    FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision[
+  Lookup[Block[{FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRBinary},
+    FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRBinary[] := None;
+    FeynFacet`Private`finiteFieldOffDiagonalBlockPlanDiscoveryBackendDecision[
       "FLINTAffineRREF"]], "Status", None] ===
     "PlanDiscoveryBackendUnavailable"];
 check["(b) the solve propagates the typed failure and never falls back",
@@ -171,16 +171,16 @@ check["(b) the solve propagates the typed failure and never falls back",
       "PlanDiscoveryBackendUnavailable" &&
     Lookup[solveNoLocator, "PlanDiscoveryBackendUsed", None] === None];
 (* (c) and (d): a captured response, corrupted on disk and re-parsed *)
-captureNonce = FeynFacet`Private`finiteFieldStripCFFRNonce[];
-captureRequest = FeynFacet`Private`finiteFieldStripCFFRRequest[matrix,
+captureNonce = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRNonce[];
+captureRequest = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRRequest[matrix,
   rightHandSide, prime, preference, captureNonce];
 captureRequestFile = FileNameJoin[{scratch, "capture_request.bin"}];
 captureResponseFile = FileNameJoin[{scratch, "capture_response.bin"}];
-captureWritten = FeynFacet`Private`finiteFieldStripCFFRWriteRequest[
+captureWritten = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRWriteRequest[
   captureRequest, captureRequestFile];
 captureProcess = RunProcess[{binary, captureRequestFile,
   captureResponseFile, "1"}];
-captureParsed = FeynFacet`Private`finiteFieldStripCFFRResponse[
+captureParsed = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRResponse[
   captureResponseFile, captureRequest];
 captureBytes = BinaryReadList[captureResponseFile, "Byte"];
 check["captured response parses and echoes the nonce",
@@ -188,10 +188,10 @@ check["captured response parses and echoes the nonce",
     captureProcess["ExitCode"] === 0 &&
     Lookup[captureParsed, "Status", None] === "OK" &&
     captureParsed["Nonce"] === captureNonce];
-truncatedPayload = FeynFacet`Private`finiteFieldStripCFFRResponse[
+truncatedPayload = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRResponse[
   writeBytes[FileNameJoin[{scratch, "truncated_payload.bin"}],
     captureBytes[[1 ;; -9]]], captureRequest];
-truncatedHeader = FeynFacet`Private`finiteFieldStripCFFRResponse[
+truncatedHeader = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRResponse[
   writeBytes[FileNameJoin[{scratch, "truncated_header.bin"}],
     captureBytes[[1 ;; 40]]], captureRequest];
 check["(c) a truncated payload is typed and names the field",
@@ -203,11 +203,11 @@ check["(c) a truncated header is typed and names the field",
     truncatedHeader["DivergentField"] === "Header"];
 (* the echoed nonce_hi occupies bytes 73..80: 8 magic bytes plus the
    first eight header words *)
-nonceCorrupted = FeynFacet`Private`finiteFieldStripCFFRResponse[
+nonceCorrupted = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRResponse[
   writeBytes[FileNameJoin[{scratch, "nonce_corrupted.bin"}],
     ReplacePart[captureBytes, 73 -> BitXor[captureBytes[[73]], 1]]],
   captureRequest];
-nonceLowCorrupted = FeynFacet`Private`finiteFieldStripCFFRResponse[
+nonceLowCorrupted = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRResponse[
   writeBytes[FileNameJoin[{scratch, "nonce_low_corrupted.bin"}],
     ReplacePart[captureBytes, 81 -> BitXor[captureBytes[[81]], 128]]],
   captureRequest];
@@ -218,16 +218,16 @@ check["(d) a flipped echoed-nonce byte is refused (high and low word)",
     Lookup[nonceLowCorrupted, "Status", None] ===
       "CFFRResponseNonceMismatch"];
 check["(d) a response written for another request is refused",
-  Lookup[FeynFacet`Private`finiteFieldStripCFFRResponse[
+  Lookup[FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRResponse[
     captureResponseFile,
-    FeynFacet`Private`finiteFieldStripCFFRRequest[matrix, rightHandSide,
+    FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRRequest[matrix, rightHandSide,
       prime, preference,
-      FeynFacet`Private`finiteFieldStripCFFRNonce[]]], "Status", None] ===
+      FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRNonce[]]], "Status", None] ===
     "CFFRResponseNonceMismatch"];
 
 (* (e) an inconsistent system: rows 1 and 2 are equal, the right-hand
    side is not *)
-inconsistentRun = FeynFacet`Private`finiteFieldStripCFFRRun[matrix,
+inconsistentRun = FeynFacet`Private`finiteFieldOffDiagonalBlockCFFRRun[matrix,
   Mod[rightHandSide + UnitVector[Length[rightHandSide], 2], prime],
   prime, preference, 1, scratch];
 check["(e) exit 5 surfaces as InconsistentModularSystem",
@@ -251,29 +251,29 @@ gaugeDiagonal = Table[
   Sum[{{{1}}, {{-1}}, {{2}}}[[a]] gaugeDLog[gaugeLetters[[a]]][[mu]],
     {a, Length[gaugeLetters]}], {mu, 2}];
 gaugeRecord = <|"Variables" -> {xGauge, yGauge}, "Regulator" -> epsGauge,
-  "Strip" -> {gaugeDiagonal, gaugeDiagonal, Table[Together[
+  "OffDiagonalBlockEquation" -> {gaugeDiagonal, gaugeDiagonal, Table[Together[
     epsGauge Sum[{{{1}}, {{2}}, {{-3}}}[[a]] *
         gaugeDLog[gaugeLetters[[a]]][[mu]], {a, Length[gaugeLetters]}] +
       D[{{xGauge + yGauge}}, {xGauge, yGauge}[[mu]]]], {mu, 2}]}|>;
-gaugePreparation = FeynFacet`PrepareEpsFormStripSampling[gaugeRecord];
+gaugePreparation = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[gaugeRecord];
 sampleCommon = {"PointCount" -> 10, "NumeratorDegreeOffset" -> {0, 0},
   "SolveAffineSystem" -> True, "Preparation" -> gaugePreparation};
 syntheticCommon = {"PointCount" -> 8,
   "NumeratorDegreeOffset" -> {1, 0}, "SolveAffineSystem" -> True,
   "Preparation" -> preparation};
-nativePilot = FeynFacet`SampleEpsFormStripAffine[gaugeRecord, 1/21,
+nativePilot = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[gaugeRecord, 1/21,
   prime, Sequence @@ sampleCommon, "DiscoverPlan" -> True,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF",
   "ArtifactDirectory" -> scratch];
-wolframPilot = FeynFacet`SampleEpsFormStripAffine[gaugeRecord, 1/21,
+wolframPilot = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[gaugeRecord, 1/21,
   prime, Sequence @@ sampleCommon, "DiscoverPlan" -> True,
   "PlanDiscoveryBackend" -> "Wolfram"];
-syntheticNativePilot = FeynFacet`SampleEpsFormStripAffine[
+syntheticNativePilot = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[
   syntheticRecord, 1/21, prime, Sequence @@ syntheticCommon,
   "DiscoverPlan" -> True,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF",
   "ArtifactDirectory" -> scratch];
-syntheticWolframPilot = FeynFacet`SampleEpsFormStripAffine[
+syntheticWolframPilot = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[
   syntheticRecord, 1/21, prime, Sequence @@ syntheticCommon,
   "DiscoverPlan" -> True, "PlanDiscoveryBackend" -> "Wolfram"];
 sealed = Lookup[nativePilot, "EliminationPlan", <||>];
@@ -298,12 +298,12 @@ check["(a) the two discoverers agree on a strip pilot with nullity 1",
     sealed["Nullity"] === sealedWolfram["Nullity"] === 1 &&
     sealed["NormalizationColumns"] ===
       sealedWolfram["NormalizationColumns"] &&
-    First[sealed["NormalizationColumns"]] <= sealed["GaugeUnknownCount"]];
+    First[sealed["NormalizationColumns"]] <= sealed["OffDiagonalBasisTransformationUnknownCount"]];
 validate[plan_, sample_] :=
-  FeynFacet`Private`finiteFieldStripValidateEliminationPlan[plan,
-    sample["MatrixDimensions"], sample["GaugeUnknownCount"],
-    sample["FreeResidueCount"], sample["GaugeNumeratorDegrees"],
-    sample["GaugeDenominatorDegrees"], sample["GaugeSupport"],
+  FeynFacet`Private`finiteFieldOffDiagonalBlockValidateEliminationPlan[plan,
+    sample["MatrixDimensions"], sample["OffDiagonalBasisTransformationUnknownCount"],
+    sample["FreeResidueCount"], sample["OffDiagonalBasisTransformationNumeratorDegrees"],
+    sample["OffDiagonalBasisTransformationDenominatorDegrees"], sample["OffDiagonalBasisTransformationNumeratorSupport"],
     gaugePreparation["DefiningInput"]];
 check["(f) the native pilot completed a plan and named the backend",
   Lookup[sealed, "Status", None] === "OK" &&
@@ -315,39 +315,39 @@ check["(f) both plans store the defining mathematical input",
   sealed["DefiningInput"] === gaugePreparation["DefiningInput"] &&
     sealedWolfram["DefiningInput"] === gaugePreparation["DefiningInput"]];
 planArtifactIdentity =
-  FeynFacet`Private`finiteFieldStripEliminationPlanArtifactIdentity[
+  FeynFacet`Private`finiteFieldOffDiagonalBlockEliminationPlanArtifactIdentity[
     sealed];
 artifact = <|
   "DefiningInput" -> gaugePreparation["DefiningInput"],
   "SelectedNumeratorDegreeOffset" -> {0, 0},
   "SelectedSupportShell" -> 0,
-  "GaugeSupport" -> sealed["GaugeSupport"],
+  "OffDiagonalBasisTransformationNumeratorSupport" -> sealed["OffDiagonalBasisTransformationNumeratorSupport"],
   "EliminationPlanIdentity" -> planArtifactIdentity|>;
 check["resumable prime identity ignores every execution detail",
   planArtifactIdentity ===
       KeyTake[sealed, {"GenericRank", "NormalizationColumns"}] &&
     planArtifactIdentity ===
-      FeynFacet`Private`finiteFieldStripEliminationPlanArtifactIdentity[
+      FeynFacet`Private`finiteFieldOffDiagonalBlockEliminationPlanArtifactIdentity[
         Join[sealed, <|"PlanDiscoveryBackendUsed" -> "Wolfram",
           "IndependentEquationRows" ->
             Reverse[sealed["IndependentEquationRows"]]|>]] &&
-    FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
+    FeynFacet`Private`finiteFieldOffDiagonalBlockModularArtifactValidQ[
       Join[artifact, <|
         "BackendConfiguration" -> <|"BackendThreads" -> 7|>,
         "PlanDiscoveryBackend" -> "Wolfram"|>],
       gaugePreparation["DefiningInput"], {0, 0}, 0,
-      sealed["GaugeSupport"],
+      sealed["OffDiagonalBasisTransformationNumeratorSupport"],
       planArtifactIdentity] &&
-    ! FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
+    ! FeynFacet`Private`finiteFieldOffDiagonalBlockModularArtifactValidQ[
       Join[artifact, <|"EliminationPlanIdentity" ->
         <|"GenericRank" -> sealed["GenericRank"],
           "NormalizationColumns" -> {}|>|>],
       gaugePreparation["DefiningInput"], {0, 0}, 0,
-      sealed["GaugeSupport"],
+      sealed["OffDiagonalBasisTransformationNumeratorSupport"],
       planArtifactIdentity] &&
-    ! FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
+    ! FeynFacet`Private`finiteFieldOffDiagonalBlockModularArtifactValidQ[
       artifact, gaugePreparation["DefiningInput"], {0, 0}, 0,
-      Reverse[sealed["GaugeSupport"]], planArtifactIdentity]];
+      Reverse[sealed["OffDiagonalBasisTransformationNumeratorSupport"]], planArtifactIdentity]];
 changedInputPlan = Join[sealed, <|"DefiningInput" ->
   preparation["DefiningInput"]|>];
 check["(f) plans validate against their mathematical input and layout",
@@ -356,7 +356,7 @@ check["(f) plans validate against their mathematical input and layout",
       "OK" &&
     Lookup[validate[changedInputPlan, nativePilot], "Status", None] ===
       "PlanDefiningInputMismatch" &&
-    Lookup[validate[Join[sealed, <|"GaugeUnknownCount" -> 1|>],
+    Lookup[validate[Join[sealed, <|"OffDiagonalBasisTransformationUnknownCount" -> 1|>],
       nativePilot], "Status", None] === "PlanUnknownLayoutMismatch"];
 
 (* (g) follower solves on the CFFR-discovered plan reproduce the
@@ -366,11 +366,11 @@ followerAgreement[record_, options_, nativePlan_, wolframPlan_,
     followerPrime_] :=
   Module[{native, wolfram, columns, normalizedNative, normalizedWolfram},
     columns = wolframPlan["NormalizationColumns"];
-    native = FeynFacet`SampleEpsFormStripAffine[record, 1/21,
+    native = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 1/21,
       followerPrime, Sequence @@ options,
       "PlanDiscoveryBackend" -> "FLINTAffineRREF",
       "EliminationPlan" -> nativePlan];
-    wolfram = FeynFacet`SampleEpsFormStripAffine[record, 1/21,
+    wolfram = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[record, 1/21,
       followerPrime, Sequence @@ options,
       "PlanDiscoveryBackend" -> "Wolfram",
       "EliminationPlan" -> wolframPlan];
@@ -403,7 +403,7 @@ check["(g) follower solves agree where the row bases differ",
       syntheticSealed, syntheticSealedWolfram, followerPrime],
       {followerPrime, followerPrimes}] === {True, True}];
 
-nativeSolution = FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+nativeSolution = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF", Sequence @@ solveOptions];
 check["(g) a whole block solves through the native plan discovery",
   AssociationQ[nativeSolution] &&
@@ -411,29 +411,29 @@ check["(g) a whole block solves through the native plan discovery",
     TrueQ[nativeSolution["DLogFormCertified"]] &&
     Lookup[nativeSolution, "PlanDiscoveryBackendUsed", None] ===
       "FLINTAffineRREF"];
-artifactResume = FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+artifactResume = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF", "BackendThreads" -> 7,
   Sequence @@ solveOptions];
 check["completed primes resume across an execution-thread change",
   AssociationQ[artifactResume] && artifactResume["PrimeWallSeconds"] === {} &&
-    artifactResume["Gauge"] === nativeSolution["Gauge"] &&
+    artifactResume["OffDiagonalBasisTransformationBlock"] === nativeSolution["OffDiagonalBasisTransformationBlock"] &&
     artifactResume["ResidueMatrices"] === nativeSolution["ResidueMatrices"]];
 changedRecord = ReplacePart[syntheticRecord,
-  {"Strip", 3, 1, 1, 1} -> 2 (1 - epsCFFR xCFFR)];
-changedInputSolution = FeynFacet`SolveEpsFormStripFiniteField[changedRecord,
+  {"OffDiagonalBlockEquation", 3, 1, 1, 1} -> 2 (1 - epsCFFR xCFFR)];
+changedInputSolution = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[changedRecord,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF", Sequence @@ solveOptions];
 check["a changed connection does not reuse the completed prime",
   AssociationQ[changedInputSolution] &&
     Length[changedInputSolution["PrimeWallSeconds"]] === 1 &&
-    changedInputSolution["Gauge"] === {{2 xCFFR}}];
+    changedInputSolution["OffDiagonalBasisTransformationBlock"] === {{2 xCFFR}}];
 
 resumeOptions = DeleteCases[solveOptions,
   HoldPattern[("NumeratorDegreeOffsets" | "ArtifactDirectory") -> _]];
-resumedSolution = FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+resumedSolution = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF",
   "Preparation" -> preparation,
   "EliminationPlan" -> syntheticSealed,
-  "Support" -> syntheticNativePilot["GaugeSupport"],
+  "Support" -> syntheticNativePilot["OffDiagonalBasisTransformationNumeratorSupport"],
   "SupportLearning" -> False,
   "NumeratorDegreeOffsets" -> {{1, 0}},
   "ArtifactDirectory" -> FileNameJoin[{scratch, "resume"}],

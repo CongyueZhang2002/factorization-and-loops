@@ -3,16 +3,16 @@
    An upstream path ends in a finite set of local modes.  A downstream path
    starts from its own regular base, so a regularized local inverse solve is
    needed between them.  This module consumes that solve order by order and
-   composes only demanded sparse word maps,
+   composes only requested sparse iterated-integral coefficient maps,
 
-       Z[downstream word] . J . P[upstream word].
+       Z[downstream letter sequence] . J . P[upstream letter sequence].
 
-   The two words remain an ordered pair; no shuffle expansion or dense
-   transport matrix is constructed here. *)
+   The two letter sequences remain an ordered pair on distinct path segments;
+   no shuffle expansion or dense evolution operator is constructed here. *)
 
 Clear[BuildTangentialJunctionBinding,
   AcceptedTangentialJunctionBindingQ,
-  ComposeTangentialJunctionWordMaps];
+  ComposeTangentialJunctionIteratedIntegralCoefficientMaps];
 
 ClearAll[tangentialJunctionSparseDeck,
   tangentialJunctionNonzeroQ,
@@ -143,10 +143,12 @@ BuildTangentialJunctionBinding[spec_Association] := Catch@Module[
       "LocalState" -> localDimension,
       "JunctionModes" -> modeCount,
       "DownstreamBoundary" -> downstreamBoundaryDimension,
-      "Stage3Boundary" -> Length[coordinateKeys]|>,
-    "SegmentedWordConvention" -> <|
-      "KeyOrder" -> {"UpstreamWord", "DownstreamWord"},
-      "WordOrientation" -> "OutermostFirst",
+      "UpstreamBoundaryData" -> Length[coordinateKeys]|>,
+    "SegmentedIteratedIntegralConvention" -> <|
+      "KeyOrder" -> {
+        "UpstreamPathIteratedIntegralLetterSequence",
+        "DownstreamPathIteratedIntegralLetterSequence"},
+      "LetterSequenceOrientation" -> "OutermostFirst",
       "NoShuffleExpansion" -> True|>|>
 ];
 
@@ -163,12 +165,14 @@ AcceptedTangentialJunctionBindingQ[binding_] :=
   AssociationQ[Lookup[binding, "Dimensions", None]] &&
   ListQ[Lookup[binding, "BoundaryCoordinateKeys", None]] &&
   Length[binding["BoundaryCoordinateKeys"]] ===
-    Lookup[binding["Dimensions"], "Stage3Boundary", None] &&
+    Lookup[binding["Dimensions"], "UpstreamBoundaryData", None] &&
   Length[Lookup[binding, "ModeExponents", {}]] ===
     Lookup[binding["Dimensions"], "JunctionModes", None] &&
-  Lookup[binding, "SegmentedWordConvention", <||>] === <|
-    "KeyOrder" -> {"UpstreamWord", "DownstreamWord"},
-    "WordOrientation" -> "OutermostFirst",
+  Lookup[binding, "SegmentedIteratedIntegralConvention", <||>] === <|
+    "KeyOrder" -> {
+      "UpstreamPathIteratedIntegralLetterSequence",
+      "DownstreamPathIteratedIntegralLetterSequence"},
+    "LetterSequenceOrientation" -> "OutermostFirst",
     "NoShuffleExpansion" -> True|>;
 
 AcceptedTangentialJunctionBindingQ[___] := False;
@@ -177,17 +181,21 @@ tangentialJunctionTermQ[term_, rowDimension_, columnDimension_] :=
   AssociationQ[term] &&
   IntegerQ[Lookup[term, "BoundaryOrder", None]] &&
   IntegerQ[Lookup[term, "OutputOrder", None]] &&
-  ListQ[Lookup[term, "Word", None]] &&
-  MatrixQ[Lookup[term, "Map", None]] &&
-  Dimensions[term["Map"]] === {rowDimension, columnDimension};
+  ListQ[Lookup[term, "IteratedIntegralLetterSequence", None]] &&
+  MatrixQ[Lookup[term, "IteratedIntegralCoefficientMatrix", None]] &&
+  Dimensions[term["IteratedIntegralCoefficientMatrix"]] ===
+    {rowDimension, columnDimension};
 
 (* Upstream maps have shape junctionModes x Stage3Boundary.  Downstream maps
    have shape outputRows x DownstreamBoundary.  Only order-compatible pairs
-   are multiplied, and exact duplicate segmented words are merged. *)
-ComposeTangentialJunctionWordMaps[binding_Association,
+   are multiplied, and exact duplicate segmented letter-sequence pairs are
+   merged. *)
+ComposeTangentialJunctionIteratedIntegralCoefficientMaps[
+    binding_Association,
     upstreamTerms_List, downstreamTerms_List,
     outputOrder_Integer] := Catch@Module[
-  {fail, dimensions, modeCount, stage3Count, downstreamBoundaryCount,
+  {fail, dimensions, modeCount, upstreamBoundaryDataCount,
+   downstreamBoundaryCount,
    outputRowCounts, outputRows, selectedDownstream, combinedDeck,
    selectorIndex, junctionMap, raw, harvested, groups, merged,
    activeColumns},
@@ -201,17 +209,18 @@ ComposeTangentialJunctionWordMaps[binding_Association,
   If[! AcceptedTangentialJunctionBindingQ[binding],
     fail["TangentialJunctionBindingRequired"]];
   If[upstreamTerms === {} || downstreamTerms === {},
-    fail["TangentialJunctionWordTermsRequired"]];
+    fail["TangentialJunctionIteratedIntegralCoefficientMapTermsRequired"]];
 
   dimensions = binding["Dimensions"];
   modeCount = dimensions["JunctionModes"];
-  stage3Count = dimensions["Stage3Boundary"];
+  upstreamBoundaryDataCount = dimensions["UpstreamBoundaryData"];
   downstreamBoundaryCount = dimensions["DownstreamBoundary"];
   If[! AllTrue[upstreamTerms,
-      tangentialJunctionTermQ[#, modeCount, stage3Count] &],
+      tangentialJunctionTermQ[#, modeCount, upstreamBoundaryDataCount] &],
     fail["TangentialJunctionUpstreamTermsInvalid"]];
   outputRowCounts = DeleteDuplicates[
-    First[Dimensions[#1["Map"]]] & /@ downstreamTerms];
+    First[Dimensions[
+        #1["IteratedIntegralCoefficientMatrix"]]] & /@ downstreamTerms];
   If[Length[outputRowCounts] =!= 1 || First[outputRowCounts] < 1,
     fail["TangentialJunctionDownstreamTermsInvalid"]];
   outputRows = First[outputRowCounts];
@@ -243,37 +252,48 @@ ComposeTangentialJunctionWordMaps[binding_Association,
     Do[With[{junction = junctionMap[
           downstream["BoundaryOrder"], upstream["OutputOrder"]]},
       If[tangentialJunctionNonzeroQ[junction],
-        With[{map = SparseArray[(downstream["Map"] . junction) .
-              upstream["Map"]]},
+        With[{map = SparseArray[(
+              downstream["IteratedIntegralCoefficientMatrix"] . junction) .
+              upstream["IteratedIntegralCoefficientMatrix"]]},
           If[tangentialJunctionNonzeroQ[map], Sow[<|
             "BoundaryOrder" -> upstream["BoundaryOrder"],
             "OutputOrder" -> outputOrder,
-            "UpstreamWord" -> upstream["Word"],
-            "DownstreamWord" -> downstream["Word"],
-            "Map" -> map|>]]]]],
+            "UpstreamPathIteratedIntegralLetterSequence" ->
+              upstream["IteratedIntegralLetterSequence"],
+            "DownstreamPathIteratedIntegralLetterSequence" ->
+              downstream["IteratedIntegralLetterSequence"],
+            "IteratedIntegralCoefficientMatrix" -> map|>]]]]],
       {downstream, selectedDownstream}, {upstream, upstreamTerms}]
   ][[2]];
   raw = If[harvested === {}, {}, First[harvested]];
-  groups = GatherBy[raw, {#["BoundaryOrder"], #["UpstreamWord"],
-        #["DownstreamWord"]} &];
+  groups = GatherBy[raw, {#["BoundaryOrder"],
+        #["UpstreamPathIteratedIntegralLetterSequence"],
+        #["DownstreamPathIteratedIntegralLetterSequence"]} &];
   merged = Select[Map[Function[group, With[
-        {map = SparseArray[Total[Lookup[group, "Map"]]]},
-        Join[KeyDrop[First[group], "Map"], <|"Map" -> map|>]]], groups],
-    tangentialJunctionNonzeroQ[#1["Map"]] &];
+        {map = SparseArray[Total[
+            Lookup[group, "IteratedIntegralCoefficientMatrix"]]]},
+        Join[KeyDrop[First[group], "IteratedIntegralCoefficientMatrix"],
+          <|"IteratedIntegralCoefficientMatrix" -> map|>]]], groups],
+    tangentialJunctionNonzeroQ[
+      #1["IteratedIntegralCoefficientMatrix"]] &];
   activeColumns = If[merged === {}, {},
     Sort@DeleteDuplicates@Flatten[
-      SparseArray[#1["Map"]]["NonzeroPositions"][[All, 2]] & /@ merged]];
+      SparseArray[#1["IteratedIntegralCoefficientMatrix"]][
+        "NonzeroPositions"][[All, 2]] & /@ merged]];
 
-  <|"Status" -> "TangentialJunctionWordsComposed",
+  <|"Status" ->
+      "TangentialJunctionIteratedIntegralCoefficientMapsComposed",
     "OutputOrder" -> outputOrder,
     "Scope" -> binding["Scope"],
     "ModeExponents" -> binding["ModeExponents"],
     "BoundaryCoordinateKeys" -> binding["BoundaryCoordinateKeys"],
     "ActiveBoundaryColumns" -> activeColumns,
-    "SegmentedWordConvention" -> binding["SegmentedWordConvention"],
-    "TermCount" -> Length[merged],
-    "Terms" -> merged|>
+    "SegmentedIteratedIntegralConvention" ->
+      binding["SegmentedIteratedIntegralConvention"],
+    "IteratedIntegralCoefficientMapTermCount" -> Length[merged],
+    "IteratedIntegralCoefficientMapTerms" -> merged|>
 ];
 
-ComposeTangentialJunctionWordMaps[___] :=
-  <|"Status" -> "TangentialJunctionWordInputsNotWellFormed"|>;
+ComposeTangentialJunctionIteratedIntegralCoefficientMaps[___] :=
+  <|"Status" ->
+    "TangentialJunctionIteratedIntegralCoefficientMapInputsNotWellFormed"|>;

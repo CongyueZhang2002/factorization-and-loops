@@ -24,7 +24,7 @@
      3. The y-direction is then determined exactly:  T^-1 A_y T -
         T^-1 d_y T minus the known letters must equal eps times constant
         residues of the pure-y letters plus a scalar dlog with integer
-        residues (the rational scalar gauge c).  Both are read off from
+        residues (the rational scalar basisTransformationBlock c).  Both are read off from
         one exact partial-fraction decomposition.
 
    The only acceptance is the two-variable gate: the ORIGINAL system
@@ -51,7 +51,7 @@
    the usage messages FeynFacet.m defines before loading this file
    (found 2026-08-21). Clear still drops their definitions, so re-Get of
    this file stays clean. *)
-Clear[DiagonalBlockLetters, DiagonalBlockSliceEpsForm, SolveDiagonalBlockGaugeFiniteField, CompleteDiagonalBlockEpsForm, CertifyDiagonalBlockEpsForm, DiagonalBlockEpsForm];
+Clear[DiagonalBlockLetters, DiagonalBlockSliceEpsForm, SolveDiagonalBlockBasisTransformationFiniteField, CompleteDiagonalBlockEpsForm, CertifyDiagonalBlockEpsForm, DiagonalBlockEpsForm];
 ClearAll[
   diagonalBlockTogether,
   diagonalBlockZeroQ,
@@ -103,7 +103,7 @@ ClearAll[
 
 DiagonalBlockSliceEpsForm::system =
   "The input must be a pair of equally sized square connection matrices.";
-SolveDiagonalBlockGaugeFiniteField::input =
+SolveDiagonalBlockBasisTransformationFiniteField::input =
   "The residue data, letters, or options are inconsistent.";
 
 diagonalBlockTogether[m_] := Map[Cancel[Together[#]] &, m, {2}];
@@ -303,7 +303,7 @@ diagonalBlockFactorOut[residues_List, eps_, mu0_] := Module[
     Length[nullspace] > 1 &&
       AllTrue[residues, FreeQ[diagonalBlockTogether[#/eps], eps] &],
       (* the residues are already eps times constants: the identity is
-         a valid factor-out gauge *)
+         a valid factor-out basisTransformationBlock *)
       u = IdentityMatrix[n],
     True,
       Return[<|"Status" -> "FactorOutNullity", "Nullity" -> Length[nullspace]|>]];
@@ -329,7 +329,7 @@ diagonalBlockFactorOut[residues_List, eps_, mu0_] := Module[
 (* The slice's only downstream output is the residue tuple up to one
    common constant conjugation.  Two normalized Fuchsian forms of the
    same one-variable system at a fixed generic regulator value e differ
-   by a rational gauge with no integer exponent shifts, i.e. a CONSTANT
+   by a rational basisTransformationBlock with no integer exponent shifts, i.e. a CONSTANT
    matrix; hence the residues M_a(e)/e of a Lee chain run entirely at
    eps = e are a constant conjugate of the true residues.  So the whole
    search runs in Q(x) with e = 1/101 (integer parts read off as
@@ -932,7 +932,7 @@ diagonalBlockSample[preparation_Association, yValue_Integer, epsilonValue_,
       "Prime" -> prime, "YValue" -> yValue, "EpsilonValue" -> epsilonValue,
       "Nullity" -> Length[nullspace], "UnknownCount" -> unknownCount|>]];
   selected = If[column === Automatic,
-    First[finiteFieldStripIndependentColumns[nullspace, prime]], column];
+    First[finiteFieldOffDiagonalBlockIndependentColumns[nullspace, prime]], column];
   If[nullspace[[1, selected]] === 0,
     Return[<|"Status" -> "DiscardNormalizationSingular", "Prime" -> prime,
       "YValue" -> yValue, "EpsilonValue" -> epsilonValue|>]];
@@ -1000,7 +1000,7 @@ diagonalBlockLift[modularData_List, preparation_Association, {x_, y_}, eps_,
     "CombinedModulus" -> Times @@ primes, "Primes" -> primes|>
  ], "lift"];
 
-Options[SolveDiagonalBlockGaugeFiniteField] = {
+Options[SolveDiagonalBlockBasisTransformationFiniteField] = {
   "Primes" -> {2147483647, 2147483629, 2147483587, 2147483579,
     2147483563, 2147483549, 2147483543, 2147483497, 2147483489,
     2147483477, 2147483423, 2147483399, 2147483353, 2147483323,
@@ -1013,13 +1013,14 @@ Options[SolveDiagonalBlockGaugeFiniteField] = {
   "MultiplicitySlack" -> {0, 1, 2},
   "NumeratorDegreeOffsets" -> {{0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 2}, {3, 3}, {4, 4}, {6, 6}},
   "RandomSeed" -> 20260821,
+  "ReturnCandidateBeforeExactEquationCheck" -> False,
   "Verbose" -> False
 };
 
 (* rational interpolation at KNOWN degrees {dn, dd}: one nullspace, no
    degree ladder; validated on every point; $Failed when the data do not
    fit those degrees (the caller then falls back to the ladder).  Same
-   result shape as finiteFieldStripInterpolateCoordinate. *)
+   result shape as finiteFieldOffDiagonalBlockInterpolateCoordinate. *)
 diagonalBlockInterpolateHinted[data_List, prime_Integer, {dn_, dd_}] := Module[
   {matrix, nullspace, vector, pair, degrees, requirement},
   If[dn === -Infinity,
@@ -1037,9 +1038,9 @@ diagonalBlockInterpolateHinted[data_List, prime_Integer, {dn_, dd_}] := Module[
   If[Length[nullspace] =!= 1, Return[$Failed]];
   vector = First[nullspace];
   If[AllTrue[vector[[dn + 2 ;;]], # === 0 &], Return[$Failed]];
-  pair = finiteFieldStripReduceRationalPair[vector[[1 ;; dn + 1]], vector[[dn + 2 ;;]], prime];
+  pair = finiteFieldOffDiagonalBlockReduceRationalPair[vector[[1 ;; dn + 1]], vector[[dn + 2 ;;]], prime];
   degrees = Length[#] - 1 & /@ pair;
-  If[degrees =!= {dn, dd} || ! finiteFieldStripInterpolationQ[pair, data, prime],
+  If[degrees =!= {dn, dd} || ! finiteFieldOffDiagonalBlockInterpolationQ[pair, data, prime],
     Return[$Failed]];
   <|"Numerator" -> pair[[1]], "Denominator" -> pair[[2]], "Degrees" -> degrees,
     "ConstructionNullity" -> 1, "ValidatedPointCount" -> Length[data],
@@ -1050,7 +1051,7 @@ diagonalBlockInterpolate[data_List, prime_Integer, hint_, construction_Integer,
     maximumDegree_Integer] := Module[{result = $Failed},
   If[ListQ[hint], result = diagonalBlockInterpolateHinted[data, prime, hint]];
   If[result === $Failed,
-    result = finiteFieldStripInterpolateCoordinate[data, prime, construction, maximumDegree]];
+    result = finiteFieldOffDiagonalBlockInterpolateCoordinate[data, prime, construction, maximumDegree]];
   result
 ];
 
@@ -1135,7 +1136,7 @@ diagonalBlockNestedInterpolate[samples_List, prime_Integer, coordinateCount_Inte
    rational T with letter denominators.  sliceData is the output of
    DiagonalBlockSliceEpsForm (or any association with Letters,
    SliceLetters, SliceResidues). *)
-SolveDiagonalBlockGaugeFiniteField[{ax_, ay_}, {x_, y_}, eps_,
+SolveDiagonalBlockBasisTransformationFiniteField[{ax_, ay_}, {x_, y_}, eps_,
     sliceData_Association, OptionsPattern[]] := Module[
   {verbose, log, letters, xLetters, residues, n, primes, sampleCount,
    maximumSampleCount, spectatorCount, baseMultiplicities, slacks, offsets,
@@ -1143,8 +1144,11 @@ SolveDiagonalBlockGaugeFiniteField[{ax_, ay_}, {x_, y_}, eps_,
    column, epsilonValues, spectatorValues, samples, data, nested, hints = None,
    modularData = {}, lift, transformation, bx, residual, ladder, degreeBase,
    status, growth, sampleSeconds = 0, interpolationSeconds = 0,
-   liftSeconds = 0, checkSeconds = 0, seconds},
+   liftSeconds = 0, checkSeconds = 0, seconds, candidateOnly,
+   previousCandidateTransformation = None, canonicalTransformation},
   verbose = TrueQ[OptionValue["Verbose"]];
+  candidateOnly = TrueQ[
+    OptionValue["ReturnCandidateBeforeExactEquationCheck"]];
   log[args___] := If[verbose, Print["[dblock-ff] ", args]];
   letters = sliceData["Letters"];
   xLetters = sliceData["SliceLetters"];
@@ -1154,7 +1158,7 @@ SolveDiagonalBlockGaugeFiniteField[{ax_, ay_}, {x_, y_}, eps_,
       Length[xLetters] =!= Length[residues] ||
       ! AllTrue[residues, MatrixQ[#] && Dimensions[#] === {n, n} &] ||
       ! AllTrue[Flatten[residues], MatchQ[#, _Integer | _Rational] &],
-    Message[SolveDiagonalBlockGaugeFiniteField::input];
+    Message[SolveDiagonalBlockBasisTransformationFiniteField::input];
     Return[<|"Status" -> "InputInvalid"|>]];
   primes = DeleteDuplicates[OptionValue["Primes"]];
   sampleCount = OptionValue["EpsilonSampleCount"];
@@ -1252,6 +1256,16 @@ SolveDiagonalBlockGaugeFiniteField[{ax_, ay_}, {x_, y_}, eps_,
       liftSeconds += seconds;
       If[lift["Status"] =!= "OK", log["  lift: ", lift["Status"]]; Continue[]];
       transformation = lift["Transformation"];
+      If[candidateOnly,
+        canonicalTransformation = Map[Cancel[Together[#]] &,
+          transformation, {2}];
+        If[previousCandidateTransformation =!= None &&
+            SameQ[canonicalTransformation,
+              previousCandidateTransformation],
+          transformation = canonicalTransformation;
+          status = "CandidateConstructed"; Break[]];
+        previousCandidateTransformation = canonicalTransformation;
+        Continue[]];
       bx = eps Sum[residues[[i]] D[xLetters[[i]], x]/xLetters[[i]], {i, Length[xLetters]}];
       {seconds, residual} = AbsoluteTiming[
         diagonalBlockZeroQ[D[transformation, x] - ax . transformation + transformation . bx]];
@@ -1260,10 +1274,12 @@ SolveDiagonalBlockGaugeFiniteField[{ax_, ay_}, {x_, y_}, eps_,
       If[TrueQ[residual] && ! TrueQ[Together[Det[transformation]] === 0],
         status = "Solved"; Break[]]],
     {prime, primes}];
-  If[status =!= "Solved",
-    Return[<|"Status" -> If[status === "Unsolved", "NotReconstructed", status],
+  If[! MemberQ[{"Solved", "CandidateConstructed"}, status],
+    Return[<|"Status" -> If[status === "Unsolved",
+        If[candidateOnly, "ReconstructionNotStabilized",
+          "NotReconstructed"], status],
       "PrimeCount" -> Length[modularData], "Seconds" -> AbsoluteTime[] - t0|>]];
-  <|"Status" -> "Solved",
+  Join[<|"Status" -> status,
     "Transformation" -> transformation,
     "Letters" -> letters, "SliceLetters" -> xLetters, "SliceResidues" -> residues,
     "Multiplicities" -> preparation["Multiplicities"],
@@ -1273,10 +1289,11 @@ SolveDiagonalBlockGaugeFiniteField[{ax_, ay_}, {x_, y_}, eps_,
     "SpectatorSampleCount" -> spectatorCount,
     "Primes" -> lift["Primes"], "PrimeCount" -> Length[modularData],
     "SpectatorDegrees" -> Last[modularData]["YDegrees"],
-    "ExactXEquation" -> True,
     "SampleSeconds" -> sampleSeconds, "InterpolationSeconds" -> interpolationSeconds,
     "LiftSeconds" -> liftSeconds, "CheckSeconds" -> checkSeconds,
-    "Seconds" -> AbsoluteTime[] - t0|>
+    "Seconds" -> AbsoluteTime[] - t0|>,
+    If[status === "Solved", <|"ExactXEquation" -> True|>,
+      <|"ReconstructionStabilizedAcrossSuccessivePrimes" -> True|>]]
 ];
 
 (* ---------------------------------------------------------------- *)
@@ -1287,17 +1304,17 @@ diagonalBlockDLogForm[letters_List, residues_List, v_, eps_] :=
   eps Sum[residues[[i]] D[letters[[i]], v]/letters[[i]], {i, Length[letters]}];
 
 (* Given T solving the x-equation, read off the pure-y residues and the
-   rational scalar gauge from  T^-1 A_y T - T^-1 d_y T  exactly.  The
+   rational scalar basisTransformationBlock from  T^-1 A_y T - T^-1 d_y T  exactly.  The
    remainder after the known letters is x-free and decomposes as
        eps Sum_b R_b dlog phi_b  +  (Sum_q k_q dlog q) 1,
    with phi_b the pure-y letters (linear in y) and q the factors of the
-   scalar gauge (any degree in y, possibly regulator dependent), k_q
+   scalar basisTransformationBlock (any degree in y, possibly regulator dependent), k_q
    integers.  Trace and traceless parts are treated separately so that a
    non-linear scalar factor never requires a residue computation. *)
 CompleteDiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, solve_Association] :=
  Catch[Module[
   {t, letters, xLetters, xResidues, yLetters, n, inverse, formY, remainder,
-   scalarPart, traceless, tracelessFactors, terms, grouped, scalarGauge = 1,
+   scalarPart, traceless, tracelessFactors, terms, grouped, scalarBasisTransformationFactor = 1,
    traceParts = <||>, residues = <||>, yResidues, finalLetters,
    finalResidues, tFinal, details = {}, letterOf},
   t = solve["Transformation"];
@@ -1361,7 +1378,7 @@ CompleteDiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, solve_Association] :=
       If[! IntegerQ[k] || ! FreeQ[tau, eps] || (index === $Failed && tau =!= 0),
         Throw[<|"Status" -> "SpectatorScalarTermInvalid", "Factor" -> q,
           "Ratio" -> ratio|>, "dblock"]];
-      scalarGauge = scalarGauge q^k;
+      scalarBasisTransformationFactor = scalarBasisTransformationFactor q^k;
       If[index =!= $Failed, traceParts[yLetters[[index]]] = tau];
       AppendTo[details, <|"Factor" -> q, "IntegerPart" -> k,
         "Letter" -> index =!= $Failed|>]],
@@ -1370,13 +1387,13 @@ CompleteDiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, solve_Association] :=
     Lookup[residues, l, ConstantArray[0, {n, n}]] +
       Lookup[traceParts, l, 0] IdentityMatrix[n],
     {l, yLetters}];
-  tFinal = diagonalBlockTogether[t scalarGauge];
+  tFinal = diagonalBlockTogether[t scalarBasisTransformationFactor];
   finalLetters = Join[xLetters, yLetters];
   finalResidues = Join[xResidues, yResidues];
   With[{keep = Select[Range[Length[finalLetters]],
       ! diagonalBlockZeroQ[finalResidues[[#]]] &]},
     finalLetters = finalLetters[[keep]]; finalResidues = finalResidues[[keep]]];
-  <|"Status" -> "OK", "Transformation" -> tFinal, "ScalarGauge" -> scalarGauge,
+  <|"Status" -> "OK", "Transformation" -> tFinal, "ScalarBasisTransformationFactor" -> scalarBasisTransformationFactor,
     "Letters" -> finalLetters, "Residues" -> finalResidues,
     "SpectatorPoles" -> details|>
  ], "dblock"];
@@ -1477,9 +1494,10 @@ diagonalBlockScalarEpsForm[{ax_, ay_}, {x_, y_}, eps_] := Catch[Module[
 
 Options[DiagonalBlockEpsForm] = Join[
   Options[DiagonalBlockSliceEpsForm],
-  FilterRules[Options[SolveDiagonalBlockGaugeFiniteField], Except["Verbose"]],
+  FilterRules[Options[SolveDiagonalBlockBasisTransformationFiniteField], Except["Verbose"]],
   {"Shears" -> {1, -1, 2, -2, 3}, "ChartRetry" -> True,
-   "ChartParameter" -> Automatic}];
+   "ChartParameter" -> Automatic,
+   "ReturnCandidateBeforeCertification" -> False}];
 
 (* The chart parameter of the conic retry.  Automatic keeps this
    project's Global`t -- every stored class record with a conic chart
@@ -1503,7 +1521,7 @@ diagonalBlockChartParameter[parameter_Symbol, {ax_, ay_}, {x_, y_}, eps_] :=
    {v, w} -> {x, y}, {p, s}, {p, u}, so a block in x and y would
    otherwise be handed a chart in x and y). *)
 diagonalBlockChartVariables[chart_Association, {x_, y_}] := Module[{cv},
-  cv = Lookup[chart, "Variables", {}];
+  cv = Lookup[chart, "ParametrizingVariables", {}];
   If[MatchQ[cv, {_Symbol, _Symbol}] &&
       Length[DeleteDuplicates[SymbolName /@ Join[{x, y}, cv]]] === 4,
     cv,
@@ -1524,9 +1542,10 @@ diagonalBlockCatalogCandidate[{ax_, ay_}, {x_, y_}, eps_, quadratic_] :=
     If[! AssociationQ[chart], Return[None]];
     chartVariables = diagonalBlockChartVariables[chart, {x, y}];
     rekeyed = rekeyCoefficientPresentation[chart, {x, y}, chartVariables];
-    If[! AssociationQ[rekeyed] || ! MatchQ[Lookup[rekeyed, "Subst", None],
+    If[! AssociationQ[rekeyed] ||
+        ! MatchQ[Lookup[rekeyed, "SourceVariableSubstitution", None],
         {_Rule, _Rule}], Return[None]];
-    sub = rekeyed["Subst"];
+    sub = rekeyed["SourceVariableSubstitution"];
     sv = x /. sub; sw = y /. sub;
     sys = diagonalBlockTogether /@ {
       (ax /. sub) D[sv, chartVariables[[1]]] +
@@ -1544,7 +1563,11 @@ diagonalBlockCatalogCandidate[{ax_, ay_}, {x_, y_}, eps_, quadratic_] :=
    rational parametrization; the block is then solved in the chart
    variables and the record carries the chart, as the class ledger does. *)
 diagonalBlockChartRetry[{ax_, ay_}, {x_, y_}, eps_, opts_List] := Catch[Module[
-  {quadratics, parameter, chart, candidates, variables, result},
+  {quadratics, parameter, chart, candidates, variables, result,
+   expectedStatus},
+  expectedStatus = If[TrueQ[OptionValue[DiagonalBlockEpsForm, opts,
+      "ReturnCandidateBeforeCertification"]],
+    "CandidateConstructed", "Certified"];
   quadratics = Select[canonicalBlocksQuadraticFactors[{ax, ay}, {x, y}], FreeQ[#, eps] &];
   If[Length[quadratics] =!= 1, Return[<|"Status" -> "ChartNotSingleQuadratic",
     "Quadratics" -> quadratics|>]];
@@ -1583,7 +1606,7 @@ diagonalBlockChartRetry[{ax_, ay_}, {x_, y_}, eps_, opts_List] := Catch[Module[
     result = DiagonalBlockEpsForm[candidate["System"], candidate["Variables"], eps,
       "ChartRetry" -> False, Sequence @@ FilterRules[opts, Except["ChartRetry"]]];
     chart = candidate["Chart"]; variables = candidate["Variables"];
-    If[result["Status"] === "Certified", Break[]],
+    If[result["Status"] === expectedStatus, Break[]],
     {candidate, candidates}];
   Join[result, <|"Chart" -> chart, "ChartVariables" -> variables,
     "SourceVariables" -> {x, y}|>]
@@ -1618,15 +1641,23 @@ diagonalBlockFrames[{ax_, ay_}, {x_, y_}, eps_, letters_List, shears_List] := Mo
 
 DiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, opts : OptionsPattern[]] :=
  Module[{n, letters, frames, attempts = {}, t0 = AbsoluteTime[], verbose,
-   log, scalar, gate, result = None},
+   log, scalar, gate, result = None, candidateOnly},
   verbose = TrueQ[OptionValue["Verbose"]];
+  candidateOnly = TrueQ[
+    OptionValue["ReturnCandidateBeforeCertification"]];
   log[args___] := If[verbose, Print["[dblock] ", args]];
   n = Length[ax];
   (* zero block *)
   If[diagonalBlockZeroQ[ax] && diagonalBlockZeroQ[ay],
+    If[candidateOnly,
+      Return[<|"Status" -> "CandidateConstructed",
+        "Transformation" -> IdentityMatrix[n], "Letters" -> {},
+        "Residues" -> {}, "ScalarBasisTransformationFactor" -> 1,
+        "Variables" -> {x, y}, "Regulator" -> eps,
+        "Method" -> "ZeroBlock", "Frame" -> "Identity"|>]];
     Return[<|"Status" -> "Certified", "Transformation" -> IdentityMatrix[n],
       "Letters" -> {}, "Residues" -> {}, "EpsForm" -> {ConstantArray[0, {n, n}], ConstantArray[0, {n, n}]},
-      "ScalarGauge" -> 1, "Variables" -> {x, y}, "Regulator" -> eps,
+      "ScalarBasisTransformationFactor" -> 1, "Variables" -> {x, y}, "Regulator" -> eps,
       "Method" -> "ZeroBlock", "Frame" -> "Identity",
       "Gate" -> <|"Status" -> "Certified", "GateX" -> True, "GateY" -> True,
         "ConstantResidues" -> True, "LettersEpsFree" -> True,
@@ -1637,12 +1668,21 @@ DiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, opts : OptionsPattern[]] :=
     scalar = diagonalBlockScalarEpsForm[{ax, ay}, {x, y}, eps];
     If[scalar["Status"] =!= "OK",
       Return[<|"Status" -> "ScalarFailed", "Scalar" -> scalar|>]];
+    If[candidateOnly,
+      Return[<|"Status" -> "CandidateConstructed",
+        "Transformation" -> scalar["Transformation"],
+        "Letters" -> scalar["Letters"],
+        "Residues" -> scalar["Residues"],
+        "ScalarBasisTransformationFactor" ->
+          scalar["Transformation"][[1, 1]],
+        "Variables" -> {x, y}, "Regulator" -> eps,
+        "Method" -> "ScalarDLog", "Frame" -> "Identity"|>]];
     gate = CertifyDiagonalBlockEpsForm[{ax, ay}, {x, y}, eps,
       scalar["Transformation"], scalar["Letters"], scalar["Residues"]];
     Return[<|"Status" -> If[gate["Status"] === "Certified", "Certified", "GateFailed"],
       "Transformation" -> scalar["Transformation"],
       "Letters" -> scalar["Letters"], "Residues" -> scalar["Residues"],
-      "EpsForm" -> Lookup[gate, "EpsForm", Missing[]], "ScalarGauge" -> scalar["Transformation"][[1, 1]],
+      "EpsForm" -> Lookup[gate, "EpsForm", Missing[]], "ScalarBasisTransformationFactor" -> scalar["Transformation"][[1, 1]],
       "Variables" -> {x, y}, "Regulator" -> eps, "Method" -> "ScalarDLog", "Frame" -> "Identity",
       "Gate" -> KeyDrop[gate, "EpsForm"],
       "Timing" -> <|"TotalSeconds" -> AbsoluteTime[] - t0|>|>]];
@@ -1661,9 +1701,15 @@ DiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, opts : OptionsPattern[]] :=
         AppendTo[attempts, <|"Frame" -> frame["Name"], "Stage" -> "Slice",
           "Status" -> slice["Status"], "Seconds" -> AbsoluteTime[] - ts|>];
         log["  slice: ", slice["Status"]]; Continue[]];
-      solve = SolveDiagonalBlockGaugeFiniteField[fs, fv, eps, slice,
-        Sequence @@ FilterRules[{opts}, Options[SolveDiagonalBlockGaugeFiniteField]]];
-      If[solve["Status"] =!= "Solved",
+      solve = SolveDiagonalBlockBasisTransformationFiniteField[fs, fv, eps, slice,
+        Sequence @@ FilterRules[
+          DeleteCases[{opts},
+            HoldPattern[("ReturnCandidateBeforeExactEquationCheck" -> _) |
+              ("ReturnCandidateBeforeExactEquationCheck" :> _)]],
+          Options[SolveDiagonalBlockBasisTransformationFiniteField]],
+        "ReturnCandidateBeforeExactEquationCheck" -> candidateOnly];
+      If[solve["Status"] =!=
+          If[candidateOnly, "CandidateConstructed", "Solved"],
         AppendTo[attempts, <|"Frame" -> frame["Name"], "Stage" -> "Solve",
           "Status" -> solve["Status"], "Seconds" -> AbsoluteTime[] - ts|>];
         log["  solve: ", solve["Status"]]; Continue[]];
@@ -1674,6 +1720,22 @@ DiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, opts : OptionsPattern[]] :=
         log["  completion: ", completion["Status"]]; Continue[]];
       tBack = diagonalBlockTogether[completion["Transformation"] /. frame["Back"]];
       lettersBack = Cancel[Together[#]] & /@ (completion["Letters"] /. frame["Back"]);
+      If[candidateOnly,
+        result = <|"Status" -> "CandidateConstructed",
+          "Transformation" -> tBack, "Letters" -> lettersBack,
+          "Residues" -> completion["Residues"],
+          "ScalarBasisTransformationFactor" ->
+            completion["ScalarBasisTransformationFactor"] /. frame["Back"],
+          "Variables" -> {x, y}, "Regulator" -> eps,
+          "Method" -> "SliceResiduesFiniteFieldAffine",
+          "Frame" -> frame["Name"], "FrameVariables" -> fv,
+          "Slice" -> KeyDrop[slice, "SliceTransformation"],
+          "Solve" -> KeyDrop[solve, {"Transformation", "SliceResidues"}],
+          "Attempts" -> attempts,
+          "Timing" -> <|"SliceSeconds" -> slice["Seconds"],
+            "SolveSeconds" -> solve["Seconds"],
+            "TotalSeconds" -> AbsoluteTime[] - t0|>|>;
+        Break[]];
       gate = CertifyDiagonalBlockEpsForm[{ax, ay}, {x, y}, eps, tBack, lettersBack,
         completion["Residues"]];
       AppendTo[attempts, <|"Frame" -> frame["Name"], "Stage" -> "Gate",
@@ -1683,7 +1745,7 @@ DiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, opts : OptionsPattern[]] :=
         result = <|"Status" -> "Certified",
           "Transformation" -> tBack, "Letters" -> lettersBack,
           "Residues" -> completion["Residues"], "EpsForm" -> gate["EpsForm"],
-          "ScalarGauge" -> completion["ScalarGauge"] /. frame["Back"],
+          "ScalarBasisTransformationFactor" -> completion["ScalarBasisTransformationFactor"] /. frame["Back"],
           "Variables" -> {x, y}, "Regulator" -> eps,
           "Method" -> "SliceResiduesFiniteFieldAffine", "Frame" -> frame["Name"],
           "FrameVariables" -> fv,
@@ -1699,7 +1761,8 @@ DiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, opts : OptionsPattern[]] :=
   If[result =!= None, Return[result]];
   If[TrueQ[OptionValue["ChartRetry"]],
     Module[{retry = diagonalBlockChartRetry[{ax, ay}, {x, y}, eps, {opts}]},
-      If[retry["Status"] === "Certified",
+      If[retry["Status"] ===
+          If[candidateOnly, "CandidateConstructed", "Certified"],
         Return[Join[retry, <|"Attempts" -> Join[attempts, Lookup[retry, "Attempts", {}]],
           "Frame" -> "Chart:" <> ToString[Lookup[retry, "Frame", ""]]|>]]];
       AppendTo[attempts, <|"Frame" -> "Chart", "Stage" -> "Chart",

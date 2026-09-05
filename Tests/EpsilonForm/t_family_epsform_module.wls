@@ -40,8 +40,15 @@ tests = <|
   "NormalizerPlainBlocks" ->
     normalized["Blocks"] === {{1}, {2}},
   "AnnotatedBlocksValidated" ->
-    FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[validated] &&
+    validated["DataType"] ===
+        "FamilyDLogEpsilonFormValidationResult" &&
+      validated["Status"] ===
+        "FamilyDLogEpsilonFormValidationPassed" &&
+      TrueQ[validated["Validation", "Exact"]] &&
+      ! TrueQ[validated["Validation", "Probabilistic"]] &&
       validated["IrreducibleDiagonalBlocks"] === {{1}, {2}},
+  "ValidationResultIsNotAPersistedFamilyRecord" ->
+    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[validated],
   "TypedMissingKeys" -> typedFailure,
   "TypedBadPermutation" -> badPermutation
 |>;

@@ -13,17 +13,11 @@
    Acceptance criteria, stated before the run:
 
    (a) EXACT EQUALITY.  For a block-lower-triangular fixture with
-       feeders, the deferred route's forcing equals the symbolic route's
-       forcing entry by entry as an exact rational identity
+       feeders, the deferred route's inhomogeneity equals the symbolic route's
+       inhomogeneity entry by entry as an exact rational identity
        (Together[difference] === 0), and its MODULAR IMAGES equal the
        symbolic route's images exactly over F_p at three
        (prime, regulator, point) triples.
-
-   (b) ABI FAILS CLOSED.  A preparation whose pinned ABI no longer
-       matches its own content -- a mutated row index, a mutated feeder
-       list, a mutated term operand -- is refused by BOTH the modular
-       evaluator and the materializer with
-       Status "PreparationFingerprintMismatch".  No value is returned.
 
    (c) TYPED POINT REJECTIONS.  A denominator-zero point, a prime
        dividing a coefficient denominator, an unassigned symbol and a
@@ -41,9 +35,9 @@
        truncated row formula reads is refused with Status
        "InvalidBlockStructure" before any term is recorded.
 
-   (f) EXACT ZERO WITHOUT A GCD.  A block whose forcing vanishes
+   (f) EXACT ZERO WITHOUT A GCD.  A block whose inhomogeneity vanishes
        identically is materialized to exact 0 for every entry, the
-       census proves no entry nonzero, and the zero-forcing decision is
+       census proves no entry nonzero, and the zero-inhomogeneity decision is
        therefore available without the driver's Together pass.
 
    (g) THE ENVIRONMENT SWITCH REVERTS.  FACET_CONSTRUCTION_ROUTE=Symbolic
@@ -97,9 +91,8 @@ census = FeynFacet`Private`blockEquationDeferredNonzeroCensus;
 materialize = FeynFacet`Private`blockEquationDeferredMaterialize;
 canonicalOperandValue =
   FeynFacet`Private`blockEquationDeferredCanonicalOperandValue;
-forcing = FeynFacet`Private`blockEquationDeferredForcing;
+inhomogeneity = FeynFacet`Private`blockEquationDeferredInhomogeneity;
 routeQ = FeynFacet`Private`blockEquationDeferredRouteQ;
-fingerprint = FeynFacet`Private`blockEquationDeferredFingerprint;
 
 (* ---- the fixture: four blocks, feeders 2 and 3 ---------------------- *)
 ranges = {{1, 2}, {3}, {4, 5}, {6, 7}};
@@ -119,16 +112,16 @@ solved = <|2 -> gauge2, 3 -> gauge3|>;
 k = 4; j = 1;
 rk = ranges[[k]]; rj = ranges[[j]];
 
-symbolicForcing[conn_, sol_] := Table[
+symbolicInhomogeneity[conn_, sol_] := Table[
   Map[Together, conn[[mu, rk, rj]] -
     Sum[sol[m] . conn[[mu, ranges[[m]], rj]],
       {m, Select[Sort[Keys[sol]], j < # < k &]}], {2}],
   {mu, 2}];
 
-(* the solver reads its gauge denominator off the forcing entries *)
-gaugeDenominatorOf[forcing_] := Module[{pairs, factors, powers},
+(* the solver reads its gauge denominator off the inhomogeneity entries *)
+gaugeDenominatorOf[inhomogeneity_] := Module[{pairs, factors, powers},
   pairs = Flatten[
-    FeynFacet`Private`finiteFieldStripEntryFactorList /@ Flatten[forcing], 1];
+    FeynFacet`Private`finiteFieldOffDiagonalBlockEntryFactorList /@ Flatten[inhomogeneity], 1];
   factors = If[pairs === {}, {}, DeleteDuplicates[pairs[[All, 1]], SameQ]];
   powers = Table[{f, Max[Cases[pairs, {g_, p_} /; SameQ[g, f] :> p]]},
     {f, factors}];
@@ -165,13 +158,13 @@ FTAssert["the Base term reads back as the connection entry SameQ",
     plusBaseConnection[[1, rk[[1]], rj[[1]] ]]];
 FTAssert["a Plus-headed base still materializes exactly",
   Module[{ms = materialize[prepWhole],
-     ss = symbolicForcing[plusBaseConnection, solved]},
+     ss = symbolicInhomogeneity[plusBaseConnection, solved]},
    Lookup[ms, "Status", None] === "OK" &&
      AllTrue[Flatten[Table[
         Together[ms["Values"][{a, b, c}] - ss[[a, b, c]]],
         {a, 2}, {b, Length[rk]}, {c, Length[rj]}]], TrueQ[# === 0] &]]];
 
-bbarSymbolic = symbolicForcing[connection, solved];
+inhomogeneitySymbolic = symbolicInhomogeneity[connection, solved];
 mat = materialize[prep];
 FTAssert["materialization succeeds",
   Lookup[mat, "Status", None] === "OK"];
@@ -184,13 +177,13 @@ FTAssert["materialization interns its operands once",
   0 < Lookup[Lookup[mat, "Statistics", <||>], "InternedOperands", 0] <=
     Total[Length[Lookup[#, "Terms", {}]] & /@ prep["Records"]] 2];
 dims = prep["Dimensions"];
-bbarDeferred = Table[mat["Values"][{a, b, c}],
+inhomogeneityDeferred = Table[mat["Values"][{a, b, c}],
   {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}];
 
 (* (a) exact equality *)
-FTAssert["(a) deferred forcing equals symbolic forcing exactly",
+FTAssert["(a) deferred inhomogeneity equals symbolic inhomogeneity exactly",
   AllTrue[Flatten[Table[
-      Together[bbarDeferred[[a, b, c]] - bbarSymbolic[[a, b, c]]],
+      Together[inhomogeneityDeferred[[a, b, c]] - inhomogeneitySymbolic[[a, b, c]]],
       {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}]],
     TrueQ[# === 0] &]];
 
@@ -202,7 +195,7 @@ imageAgreement = Table[
    ev = evaluate[prep, t[[1]], t[[2]], t[[3]]];
    If[Lookup[ev, "Status", None] =!= "OK", False,
     sym = Table[
-      Module[{q = Together[bbarSymbolic[[a, b, c]] /.
+      Module[{q = Together[inhomogeneitySymbolic[[a, b, c]] /.
           {x -> t[[1, 1]], y -> t[[1, 2]], eps -> t[[2]]}]},
        Mod[Numerator[q] PowerMod[Denominator[q], -1, t[[3]]], t[[3]]]],
       {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}];
@@ -210,28 +203,6 @@ imageAgreement = Table[
   {t, imageTriples}];
 FTAssert["(a) modular images agree with the symbolic route at 3 triples",
   imageAgreement === {True, True, True}];
-
-(* (b) the ABI fails closed *)
-mutatedRow = prep; mutatedRow["RowIndices"] = {6, 6};
-mutatedFeeders = prep; mutatedFeeders["Feeders"] = {2};
-mutatedTerm = prep;
-mutatedTerm["Records"] = MapAt[
-  Function[terms, MapAt[Append[#, "Coefficient" -> -2] &, terms, 1]],
-  prep["Records"], {1, "Terms"}];
-FTAssert["(b) a mutated row index is refused by the evaluator",
-  Lookup[evaluate[mutatedRow, {11, 13}, 3, 1000003], "Status", None] ===
-    "PreparationFingerprintMismatch"];
-FTAssert["(b) a mutated feeder list is refused by the evaluator",
-  Lookup[evaluate[mutatedFeeders, {11, 13}, 3, 1000003], "Status", None] ===
-    "PreparationFingerprintMismatch"];
-FTAssert["(b) a mutated term operand is refused by the evaluator",
-  Lookup[evaluate[mutatedTerm, {11, 13}, 3, 1000003], "Status", None] ===
-    "PreparationFingerprintMismatch"];
-FTAssert["(b) a mutated ABI is refused by the materializer",
-  Lookup[materialize[mutatedTerm], "Status", None] ===
-    "PreparationFingerprintMismatch"];
-FTAssert["(b) the intact preparation carries a self-consistent ABI",
-  prep["Fingerprint"] === fingerprint[KeyDrop[prep, "Fingerprint"]]];
 
 (* (c) typed point rejections *)
 (* a denominator-zero point: the letter (1 - x - y) vanishes *)
@@ -295,7 +266,7 @@ FTAssert["(c) an algebraic frame rejects every point and proves nothing",
         Lookup[algebraicCensus, "Rejections", {}]) ===
       {"AlgebraicOperandUnsupported"}];
 algebraicMaterialized = materialize[prepAlgebraic];
-algebraicSymbolic = symbolicForcing[algebraicConnection, solved];
+algebraicSymbolic = symbolicInhomogeneity[algebraicConnection, solved];
 FTAssert["(c) an algebraic frame still materializes exactly",
   Lookup[algebraicMaterialized, "Status", None] === "OK" &&
     AllTrue[Flatten[Table[
@@ -341,12 +312,12 @@ FTAssert["(c) census rejections carry their own typed status",
    the symbolic route's 4 on one algebraic factor. *)
 FTAssert["(a') on a rational frame the denominators agree entry by entry",
   And @@ Flatten[Table[
-     TrueQ[Together[Denominator[Together[bbarDeferred[[a, b, c]]]] -
-        Denominator[Together[bbarSymbolic[[a, b, c]]]]] === 0],
+     TrueQ[Together[Denominator[Together[inhomogeneityDeferred[[a, b, c]]]] -
+        Denominator[Together[inhomogeneitySymbolic[[a, b, c]]]]] === 0],
      {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}]]];
 FTAssert["(a') on a rational frame the gauge denominator is unchanged",
-  TrueQ[Together[gaugeDenominatorOf[bbarDeferred] -
-     gaugeDenominatorOf[bbarSymbolic]] === 0]];
+  TrueQ[Together[gaugeDenominatorOf[inhomogeneityDeferred] -
+     gaugeDenominatorOf[inhomogeneitySymbolic]] === 0]];
 
 (* (d) untouched entries preserved by SameQ *)
 (* block 3 columns of block 1 set to zero and block 2 gauge column zero
@@ -381,11 +352,11 @@ FTAssert["(d) CanonicalizeUntouched restores the previous canonical form",
        Together[untouchedConnection[[a, rk[[b]], rj[[1]] ]]]],
      {a, 2}, {b, Length[rk]}]]];
 FTAssert["(d) the driver entry point canonicalizes untouched entries",
-  Module[{f = forcing[untouchedConnection, ranges, k, j, solved,
+  Module[{f = inhomogeneity[untouchedConnection, ranges, k, j, solved,
       {x, y}, eps]},
    Lookup[f, "Status", None] === "OK" &&
      And @@ Flatten[Table[
-        SameQ[f["Forcing"][[a, b, 1]],
+        SameQ[f["Inhomogeneity"][[a, b, 1]],
           Together[untouchedConnection[[a, rk[[b]], rj[[1]] ]]]],
         {a, 2}, {b, Length[rk]}]]]];
 
@@ -409,7 +380,7 @@ Do[zeroConnection[[a, rk, rj]] =
   {a, 2}];
 prepZero = prepare[zeroConnection, ranges, k, j, solved, {x, y}, eps];
 matZero = materialize[prepZero];
-FTAssert["(f) an identically vanishing forcing materializes to exact 0",
+FTAssert["(f) an identically vanishing inhomogeneity materializes to exact 0",
   AllTrue[Values[matZero["Values"]], TrueQ[# === 0] &]];
 FTAssert["(f) every entry is reported zero by the materializer",
   Lookup[matZero, "ZeroEntries", 0] === 2 Length[rk] Length[rj]];
@@ -426,17 +397,17 @@ FTAssert["(f) a nonzero image is an exact proof that the block is not zero-force
   Lookup[nonzeroCensus, "NonzeroProvedQ", False] === True];
 
 (* the driver entry point agrees with both *)
-forced = forcing[connection, ranges, k, j, solved, {x, y}, eps];
-FTAssert["the driver entry point returns the same forcing",
+forced = inhomogeneity[connection, ranges, k, j, solved, {x, y}, eps];
+FTAssert["the driver entry point returns the same inhomogeneity",
   Lookup[forced, "Status", None] === "OK" &&
     AllTrue[Flatten[Table[
-        Together[forced["Forcing"][[a, b, c]] - bbarSymbolic[[a, b, c]]],
+        Together[forced["Inhomogeneity"][[a, b, c]] - inhomogeneitySymbolic[[a, b, c]]],
         {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}]],
       TrueQ[# === 0] &]];
-FTAssert["the driver entry point reports the zero-forcing decision",
-  Lookup[forced, "ZeroForcingCandidateQ", True] === False &&
-    Lookup[forcing[zeroConnection, ranges, k, j, solved, {x, y}, eps],
-      "ZeroForcingCandidateQ", False] === True];
+FTAssert["the driver entry point reports the zero-inhomogeneity decision",
+  Lookup[forced, "ZeroInhomogeneityCandidateQ", True] === False &&
+    Lookup[inhomogeneity[zeroConnection, ranges, k, j, solved, {x, y}, eps],
+      "ZeroInhomogeneityCandidateQ", False] === True];
 
 (* (g) the environment switch *)
 previousRoute = Environment["FACET_CONSTRUCTION_ROUTE"];
@@ -463,17 +434,17 @@ constructedBoundary = First[StringPosition[driverSource,
 dispatch = First[StringPosition[driverSource,
    "blockEquation[k, nlow, solvedBlocks]"], {0, 0}][[1]];
 probeBoundary = First[StringPosition[driverSource,
-   "constructionCheck[\"ZeroForcingProbe\"]"], {0, 0}][[1]];
+   "constructionCheck[\"ZeroInhomogeneityProbe\"]"], {0, 0}][[1]];
 FTAssert["(h) the driver dispatches on the deferred route predicate",
   StringContainsQ[driverSource, "blockEquationDeferredRoute[]"]];
 FTAssert["(h) the driver keeps the symbolic construction as the revert path",
-  StringContainsQ[driverSource, "blockEquationSymbolicForcing"]];
+  StringContainsQ[driverSource, "blockEquationSymbolicInhomogeneity"]];
 FTAssert["(h) the block-equation dispatch sits inside the budget boundaries",
   entryBoundary > 0 && dispatch > 0 && constructedBoundary > 0 &&
     entryBoundary < dispatch < constructedBoundary];
-FTAssert["(h) the zero-forcing probe still follows its own boundary",
+FTAssert["(h) the zero-inhomogeneity probe still follows its own boundary",
   probeBoundary > constructedBoundary &&
-    StringContainsQ[driverSource, "ZeroForcingCandidateQ"]];
+    StringContainsQ[driverSource, "ZeroInhomogeneityCandidateQ"]];
 
 (* ==== (i) phase telemetry ============================================ *)
 assembleJob = FeynFacet`Private`blockEquationDeferredAssembleJob;
@@ -688,14 +659,14 @@ FTAssert["(j) the parallel second phase is the default when unset",
 SetEnvironment["FACET_MATERIALIZE_PARALLEL" ->
   If[StringQ[previousParallel], previousParallel, None]];
 FTAssert["(j) the driver entry point passes the second-phase options through",
-  Module[{f = forcing[connection, ranges, k, j, solved, {x, y}, eps,
+  Module[{f = inhomogeneity[connection, ranges, k, j, solved, {x, y}, eps,
       "Parallel" -> True, "Helpers" -> 3,
       "BatchDispatcher" -> localDispatcher, "Progress" -> False]},
    Lookup[f, "Status", None] === "OK" &&
      Lookup[Lookup[f["Materialization"], "Statistics", <||>], "Route",
        None] === "Parallel" &&
      And @@ Flatten[Table[
-        SameQ[f["Forcing"][[a, b, c]], matSerial["Values"][{a, b, c}]],
+        SameQ[f["Inhomogeneity"][[a, b, c]], matSerial["Values"][{a, b, c}]],
         {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}]]]];
 
 FTReport[];

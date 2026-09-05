@@ -18,8 +18,8 @@
 /*
  * Prototype finite-field rational interpolation backend.
  *
- * Discovery reproduces finiteFieldStripFitCandidates and the synchronized
- * adaptive held-out loop in finiteFieldStripHeldOutInterpolate: minimal total
+ * Discovery reproduces finiteFieldOffDiagonalBlockFitCandidates and the synchronized
+ * adaptive held-out loop in finiteFieldOffDiagonalBlockHeldOutInterpolate: minimal total
  * degree, every numerator/denominator split, reduced-pair deduplication, and
  * exact held-out checks.  Held-outs are consumed sequentially: only a point
  * which empties a candidate set is promoted into construction, avoiding the

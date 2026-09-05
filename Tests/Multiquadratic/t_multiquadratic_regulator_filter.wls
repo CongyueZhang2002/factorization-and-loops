@@ -2,7 +2,7 @@
 (* The regulator-free filter of the multiquadratic candidate alphabet
    (round-2 wave item 1; Codex review 2026-08-25 section 1.6).
 
-   THE DEFECT.  multiquadraticStripCandidateLetters admitted a one-form
+   THE DEFECT.  multiquadraticOffDiagonalBlockCandidateLetters admitted a one-form
    into the "regulator-free" basis by testing the SPELLING of the symbols
    it contains -- FreeQ[form, _Symbol?(StringStartsQ[SymbolName[#], "eps"]&)]
    -- instead of the regulator argument the function already receives.
@@ -52,11 +52,11 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 report[label_, value_] := Print["     ", label, ": ", Short[value, 6]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
-candidateLetters = mq["multiquadraticStripCandidateLetters"];
+candidateLetters = mq["multiquadraticOffDiagonalBlockCandidateLetters"];
 
 Clear[qx, qy, ee, eps, epsMass];
 
-(* A rank-0 strip: no roots, flat diagonal, a forcing that is a plain
+(* A rank-0 strip: no roots, flat diagonal, a inhomogeneity that is a plain
    rational function of the two chart variables and the regulator.  The
    alphabet layer under test does not care about the block's size, and a
    1x1 block keeps the criteria readable. *)
@@ -64,7 +64,7 @@ stripFor[regulator_] := {{{{0}}, {{0}}}, {{{0}}, {{0}}},
   {{{regulator/(1 + qx)}}, {{regulator/(1 + qy)}}}};
 recordFor[regulator_] := <|"Family" -> "REGULATOR_FILTER", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {qx, qy}, "Regulator" -> regulator,
-  "Strip" -> stripFor[regulator]|>;
+  "OffDiagonalBlockEquation" -> stripFor[regulator]|>;
 
 lettersFor[regulator_, supplied_List] := Module[{result},
   result = candidateLetters[stripFor[regulator], {}, {qx, qy}, regulator,
@@ -124,7 +124,7 @@ symbol is replaced by an ordinary one",
 
 source = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
   Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &]];  (* all eight solver files *)
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &]];  (* all eight solver files *)
 (* comments are stripped so the note ABOUT the defect does not count *)
 executable = FTTest`FTStripComments[source];
 check["R5 no symbol-NAME regulator test survives in the executable source",

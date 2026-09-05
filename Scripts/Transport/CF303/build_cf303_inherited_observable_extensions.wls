@@ -42,8 +42,8 @@ specifications = {
 exactZeroQ[value_] := TrueQ[value === 0] || TrueQ[PossibleZeroQ[value]];
 exactZeroArrayQ[array_] := And @@ (exactZeroQ /@ Flatten[array]);
 
-demandRow[gauge_, regulator_, slots_, pair_] := Table[
-  SeriesCoefficient[gauge[[Last[pair], Last[slot]]],
+demandRow[basisTransformation_, regulator_, slots_, pair_] := Table[
+  SeriesCoefficient[basisTransformation[[Last[pair], Last[slot]]],
     {regulator, 0, First[pair] - First[slot]}],
   {slot, slots}];
 
@@ -101,7 +101,9 @@ completedEndpointMode[transport_, specification_] := Module[
   boundaryDataID =
     {specification["Family"], specification["BoundaryIntegralID"]};
   <|"ModeMap" -> <|
-      "Status" -> "BoundaryAsymptoticModeMatching",
+      "DataType" -> "BoundaryAsymptoticModeMatching",
+      "SchemaVersion" -> 2,
+      "Status" -> "BoundaryAsymptoticsMatchedToFrobeniusModes",
       "Family" -> specification["Family"],
       "BoundaryDataType" -> boundaryDataType,
       "BoundaryDomain" -> boundaryDomain,
@@ -134,7 +136,8 @@ completedEndpointMode[transport_, specification_] := Module[
 ];
 
 familyRecords = Table[Module[
-  {family, transportFile, formFile, transport, form, regulator, gauge,
+  {family, transportFile, formFile, transport, form, regulator,
+   basisTransformation,
    slots, existingRows,
    existingDemand, replay, missingTriples, missingPairs, missingRows,
    derivedTransport, modeResult, adapterTiming, adapter, compositionTiming,
@@ -152,13 +155,15 @@ familyRecords = Table[Module[
   transport = Get[transportFile];
   form = Get[formFile];
   regulator = form["Regulator"];
-  gauge = form["TTotal"] /. Lookup[transport, "GaugeConstantRules", {}];
+  basisTransformation = form["TTotal"] /. Lookup[transport,
+    "BasisNormalizationParameterRules", {}];
   slots = transport["BoundaryAmbientSlots"];
   existingRows = transport["PhysicalRows"];
   existingDemand = Normal[
     transport["ExactOperatorAutomaton"]["InitialDemandMap"]];
   replay = MapThread[
-    exactZeroArrayQ[demandRow[gauge, regulator, slots, #1] - #2] &,
+    exactZeroArrayQ[
+      demandRow[basisTransformation, regulator, slots, #1] - #2] &,
     {existingRows, existingDemand}];
   If[!And @@ replay,
     Throw@Failure["ExistingObservableDemandReplayMismatch", <|
@@ -166,7 +171,8 @@ familyRecords = Table[Module[
       "Total" -> Length[replay]|>]];
   missingTriples = specification["Missing"];
   missingPairs = ({First[#], Last[#]} &) /@ missingTriples;
-  missingRows = demandRow[gauge, regulator, slots, #] & /@ missingPairs;
+  missingRows = demandRow[basisTransformation, regulator, slots, #] & /@
+    missingPairs;
   derivedTransport = Join[transport, <|
     "PhysicalRows" -> missingPairs,
     "PhysicalDemandPairs" -> missingPairs,

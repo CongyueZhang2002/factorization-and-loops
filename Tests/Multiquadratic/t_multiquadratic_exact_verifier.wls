@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The exact per-regulator-value channel verifier
-   multiquadraticStripExactChannelResidual (round-2 wave item 2; Codex
+   multiquadraticOffDiagonalBlockExactChannelResidual (round-2 wave item 2; Codex
    review 2026-08-25 section 1.3).
 
    THE DEFECT.  The verifier substituted the regulator VALUE into the
@@ -9,9 +9,9 @@
    SYMBOLIC in them, mixing symbolic eps with the numeric image.  The
    gauge can carry the regulator two ways the ansatz explicitly permits:
 
-     - the gauge DENOMINATOR is derived from the forcing, and the
-       forcing's poles routinely carry eps
-       (multiquadraticStripUnpackVector divides the numerator by it);
+     - the gauge DENOMINATOR is derived from the inhomogeneity, and the
+       inhomogeneity's poles routinely carry eps
+       (multiquadraticOffDiagonalBlockUnpackVector divides the numerator by it);
      - after the rational-in-eps reconstruction the gauge and residue
        COORDINATES are themselves rational functions of eps.
 
@@ -27,7 +27,7 @@
      G   = 1/(1 + eps x),        Bbar_x = -eps/(1 + eps x)^2, Bbar_y = 0.
 
    The engine's own gauge-denominator rule (one power below the worst
-   forcing pole) then produces exactly 1 + eps x, and the two-monomial
+   inhomogeneity pole) then produces exactly 1 + eps x, and the two-monomial
    support {{0,0},{1,0}} makes the coefficient vector {1, 0} the exact
    solution.
 
@@ -60,7 +60,7 @@
        letter carrying an eps-dependent residue K(eps) = eps/(1 + eps),
        the exactly-solved system verifies zero at a numeric image.
    V9  A gauge that is SINGULAR at the requested image is refused typed
-       ("ExactChannelGaugeSingularAtRegulator"), not silently divided
+       ("ExactChannelOffDiagonalBasisTransformationSystemSingularAtRegulator"), not silently divided
        by zero. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
@@ -72,9 +72,9 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 report[label_, value_] := Print["     ", label, ": ", Short[value, 6]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
-{prepare, residual, unpack} = mq /@ {"multiquadraticStripPrepare",
-  "multiquadraticStripExactChannelResidual",
-  "multiquadraticStripUnpackVector"};
+{prepare, residual, unpack} = mq /@ {"multiquadraticOffDiagonalBlockPrepare",
+  "multiquadraticOffDiagonalBlockExactChannelResidual",
+  "multiquadraticOffDiagonalBlockUnpackVector"};
 
 Clear[vx, vy, ve];
 frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
@@ -84,12 +84,12 @@ frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
 
 zero11 = {{{0}}, {{0}}};
 
-(* a record whose forcing is EXACTLY the left-hand side of the equation
+(* a record whose inhomogeneity is EXACTLY the left-hand side of the equation
    for the given gauge, diagonal blocks and residues: the identity then
    holds by construction at every eps, which is what makes a nonzero
    residual a defect of the verifier and nothing else *)
-recordFor[gauge_, e_, c_, oneForms_List, residues_List] := Module[{bbar},
-  bbar = Table[Map[Together,
+recordFor[gauge_, e_, c_, oneForms_List, residues_List] := Module[{inhomogeneity},
+  inhomogeneity = Table[Map[Together,
       D[gauge, {vx, vy}[[mu]]] -
         ve (e[[mu]] . gauge - gauge . c[[mu]]) +
         ve Sum[residues[[a]] oneForms[[a, mu]], {a, Length[oneForms]}],
@@ -97,7 +97,7 @@ recordFor[gauge_, e_, c_, oneForms_List, residues_List] := Module[{bbar},
     {mu, 2}];
   <|"Family" -> "EXACT_VERIFIER", "Sector" -> 2, "LowerSector" -> 1,
     "Variables" -> {vx, vy}, "Regulator" -> ve,
-    "Strip" -> {e, c, bbar}|>];
+    "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>];
 
 (* ------------------------------------------------------------------ *)
 (* V1 / V2: the intended ansatz                                         *)
@@ -105,21 +105,21 @@ recordFor[gauge_, e_, c_, oneForms_List, residues_List] := Module[{bbar},
 
 gaugeA = {{1/(1 + ve vx)}};
 recordA = recordFor[gaugeA, zero11, zero11, {}, {}];
-report["V1 forcing", recordA["Strip"][[3]]];
+report["V1 inhomogeneity", recordA["OffDiagonalBlockEquation"][[3]]];
 prepA = prepare[recordA, frame, "OneForms" -> {}];
 check["V1 the preparation is the intended ansatz",
-  Lookup[prepA, "Status", None] === "PreparedMultiquadraticStripV1" &&
-    TrueQ[Together[prepA["GaugeDenominator"] - (1 + ve vx)] === 0] &&
-    prepA["GaugeSupport"] === {{0, 0}, {1, 0}} &&
+  Lookup[prepA, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
+    TrueQ[Together[prepA["OffDiagonalBasisTransformationDenominator"] - (1 + ve vx)] === 0] &&
+    prepA["OffDiagonalBasisTransformationNumeratorSupport"] === {{0, 0}, {1, 0}} &&
     prepA["UnknownCount"] === 2 && prepA["ResidueUnknownCount"] === 0 &&
     prepA["RootCount"] === 0];
 report["V1 denominator / support / unknowns",
-  {prepA["GaugeDenominator"], prepA["GaugeSupport"], prepA["UnknownCount"]}];
+  {prepA["OffDiagonalBasisTransformationDenominator"], prepA["OffDiagonalBasisTransformationNumeratorSupport"], prepA["UnknownCount"]}];
 
 unpackedA = unpack[prepA, {1, 0}];
 check["V2 the vector {1,0} unpacks to exactly 1/(1 + eps x)",
   Lookup[unpackedA, "Status", None] === "UnpackedMultiquadraticSolution" &&
-    TrueQ[Together[unpackedA["Gauge"][[1, 1]] - 1/(1 + ve vx)] === 0]];
+    TrueQ[Together[unpackedA["OffDiagonalBasisTransformationBlock"][[1, 1]] - 1/(1 + ve vx)] === 0]];
 
 (* ------------------------------------------------------------------ *)
 (* V3 - V6: the counterexample and its controls                         *)
@@ -163,12 +163,12 @@ prepB = prepare[recordB, frame, "OneForms" -> {}];
 vectorB = {1/(1 + ve), 0};
 check["V7 the second ansatz is prepared and its exact vector is \
 rational in the regulator",
-  Lookup[prepB, "Status", None] === "PreparedMultiquadraticStripV1" &&
-    TrueQ[Together[unpack[prepB, vectorB]["Gauge"][[1, 1]] -
+  Lookup[prepB, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
+    TrueQ[Together[unpack[prepB, vectorB]["OffDiagonalBasisTransformationBlock"][[1, 1]] -
       gaugeB[[1, 1]]] === 0] &&
     ! FreeQ[vectorB, ve]];
-report["V7 denominator / support", {prepB["GaugeDenominator"],
-  prepB["GaugeSupport"]}];
+report["V7 denominator / support", {prepB["OffDiagonalBasisTransformationDenominator"],
+  prepB["OffDiagonalBasisTransformationNumeratorSupport"]}];
 check["V7 the rational-in-eps vector verifies at eps = 2, eps = 5 and \
 generically",
   Lookup[residual[prepB, vectorB], "Status", None] ===
@@ -190,7 +190,7 @@ prepC = prepare[recordC, frame, "OneForms" -> {formC}];
 (* the unknown order is gauge coefficients first, then residues *)
 vectorC = {1, 0, residueC};
 check["V8 the one-form ansatz is prepared with one residue unknown",
-  Lookup[prepC, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[prepC, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     prepC["ResidueUnknownCount"] === 1 && prepC["UnknownCount"] === 3];
 check["V8 an eps-dependent RESIDUE verifies at a numeric image",
   Lookup[residual[prepC, vectorC], "Status", None] ===
@@ -200,7 +200,7 @@ check["V8 an eps-dependent RESIDUE verifies at a numeric image",
     Lookup[residual[prepC, vectorC, 7], "Status", None] ===
       "ExactChannelResidualZero"];
 report["V8 residue-carrying record",
-  KeyTake[prepC, {"UnknownCount", "ResidueUnknownCount", "GaugeDenominator"}]];
+  KeyTake[prepC, {"UnknownCount", "ResidueUnknownCount", "OffDiagonalBasisTransformationDenominator"}]];
 
 (* ------------------------------------------------------------------ *)
 (* V9: a gauge singular at the image is refused typed                   *)
@@ -209,7 +209,7 @@ report["V8 residue-carrying record",
 check["V9 a coefficient vector singular at the requested image is refused \
 typed, not divided by zero",
   Lookup[residual[prepB, {1/(1 + ve), 0}, -1], "Status", None] ===
-    "ExactChannelGaugeSingularAtRegulator"];
+    "ExactChannelOffDiagonalBasisTransformationSystemSingularAtRegulator"];
 report["V9 singular-image verdict",
   Lookup[residual[prepB, {1/(1 + ve), 0}, -1], "Status", None]];
 

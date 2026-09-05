@@ -1,8 +1,5 @@
-(* Overhaul 2026-09-02: AcceptedObservableTransportQ (branch tip fc6792f7, 02:43)
-   requires the certificate key FamilyInputAccepted, which BuildObservableTransport
-   writes; the synthetic records of this test predate that key and were
-   refused wholesale (ObservableTransportNotAccepted).  The key is added
-   to every synthetic certificate; nothing else changes. *)
+(* The public schema names the two path-segment letter-index sequences
+   explicitly and records validation strength separately from status. *)
 #!/usr/bin/env wolframscript
 
 $HistoryLength = 0;
@@ -20,39 +17,63 @@ certificate = <|"Status" -> "FreshModularIdentityAccepted",
   "Accepted" -> True, "Probabilistic" -> True, "Exact" -> False,
   "FreshTrials" -> {<|"Prime" -> 2147483629, "Point" -> {17, 19}|>},
   "AllComplementaryRowsChecked" -> True|>;
+valuationCertificate = <|
+  "Status" -> "ExactBasisTransformationEpsilonValuationScan",
+  "Accepted" -> True, "Probabilistic" -> False, "Exact" -> True,
+  "TMin" -> 0, "BlockLower" -> {0}|>;
 automaton = <|
-  "Status" -> "ModularCompactAutomatonAccepted",
-  "Orientation" -> "DualObservableRows",
-  "RequestedMaximumWeight" -> 2,
-  "ObservableRankByExactWeight" -> {2, 2, 2},
-  "FirstAlphabetIndices" -> {17},
-  "SecondAlphabetIndices" -> {29},
+  "Status" -> "CompressedIteratedIntegralCoefficientOperatorValidated",
+  "Orientation" -> "RequestedOutputDualRows",
+  "MaximumIteratedIntegralWeight" -> 2,
+  "RequestedOutputDualRowRankByIteratedIntegralWeight" -> {2, 2, 2},
+  "FirstPathSegmentAlphabetLetterIndices" -> {17},
+  "SecondPathSegmentAlphabetLetterIndices" -> {29},
   "InitialCoordinates" -> initial,
-  "ObservableTransitionsByWeight" -> {{transition}, {IdentityMatrix[2]}},
+  "RequestedOutputDualTransitionMatricesByIteratedIntegralWeight" ->
+    {{transition}, {IdentityMatrix[2]}},
   "TerminalContractionsByExactWeight" ->
     {terminal0, terminal1, terminal1},
   "CoordinateCertificates" -> {certificate},
-  "SecondKernelMatrices" -> {second},
-  "FinalBoundaryEmbedding" -> final|>;
+  "SecondPathSegmentOperatorMatrices" -> {second},
+  "FinalBoundaryEmbedding" -> final,
+  "Validation" -> <|"Method" -> "ProbabilisticFiniteFieldSampling",
+    "Passed" -> True, "Exact" -> False,
+    "Probabilistic" -> True|>|>;
 result = <|
-  "Status" -> "ModularlyVerifiedObservableTransport",
-  "WordRepresentation" -> "CompactAutomaton",
-  "BoundaryEvolutionMethod" -> "MovingKernel",
+  "DataType" -> "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+  "SchemaVersion" -> 2,
+  "Status" ->
+    "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated",
+  "IteratedIntegralCoefficientRepresentation" ->
+    "CompressedIteratedIntegralCoefficientOperator",
+  "BoundaryConstraintSubspaceRepresentation" -> "MovingNullspaceBasis",
   "ConstraintRank" -> 1,
   "DualClosureInitialSpanMethod" -> "NoConstraints",
   "DualClosureStabilizationMethod" -> "NoConstraints",
   "SecondBoundaryClosureInitialSpanMethod" -> "NotRequired",
   "SecondBoundaryClosureStabilizationMethod" -> "NotRequired",
-  "CompactTransportAutomaton" -> automaton,
+  "TransportEpsilonValuationSource" ->
+    "ComputedFromBasisTransformationMatrix",
+  "TransportEpsilonValuationCertificate" -> valuationCertificate,
+  "TransportEpsilonValuations" -> <|"TMin" -> 0, "BlockLower" -> {0}|>,
+  "CompressedIteratedIntegralCoefficientOperator" -> automaton,
   "Certificates" -> <|
-    "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True, "BoundaryBaseKernel" -> True,
-    "FirstKernelIdentity" -> True, "BoundaryEvolution" -> True,
+    "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True,
+    "TransportEpsilonValuationsBound" -> True,
+    "BoundaryBaseKernel" -> True,
+    "FirstKernelIdentity" -> True,
+    "BoundaryConstraintSubspaceValidated" -> True,
     "SecondKernelIdentity" -> True|>,
   "ProbabilisticCertificates" -> <|
     "CoordinateReconstructionFreshModular" -> True,
-    "CoordinateSystems" -> {certificate}|>|>;
+    "CoordinateSystems" -> {certificate}|>,
+  "Validation" -> <|"Method" -> "ProbabilisticFiniteFieldSampling",
+    "Passed" -> True, "Exact" -> False,
+    "Probabilistic" -> True|>|>;
 
-word = FeynFacet`ObservableTransportWordMap[result, {17}, {29}];
+coefficientMatrix =
+  FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+    result, {17}, {29}];
 expected = initial . transition . terminal1 . second . final;
 operatorInitial = {{2, 1}};
 firstOperator = {{1, 3}, {0, 2}};
@@ -60,63 +81,94 @@ firstBoundary = {{1, 0, 2}, {0, 1, 1}};
 operatorSecond = {{1, 2, 0}, {0, 1, 3}, {4, 0, 1}};
 operatorFinal = {{1}, {2}, {3}};
 operatorResult = <|
-  "Status" -> "ExactObservableTransport",
-  "WordRepresentation" -> "OperatorAutomaton",
-  "BoundaryEvolutionMethod" -> "MovingKernel",
+  "DataType" -> "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+  "SchemaVersion" -> 2,
+  "Status" ->
+    "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated",
+  "IteratedIntegralCoefficientRepresentation" ->
+    "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+  "BoundaryConstraintSubspaceRepresentation" -> "MovingNullspaceBasis",
   "ConstraintRank" -> 1,
   "DualClosureInitialSpanMethod" -> "NoConstraints",
   "DualClosureStabilizationMethod" -> "NoConstraints",
   "SecondBoundaryClosureInitialSpanMethod" -> "NotRequired",
   "SecondBoundaryClosureStabilizationMethod" -> "NotRequired",
-  "ExactOperatorAutomaton" -> <|
-    "Status" -> "ExactOperatorAutomaton",
-    "RequestedMaximumWeight" -> 2,
-    "InitialDemandMap" -> operatorInitial,
-    "FirstAlphabetIndices" -> {17},
-    "FirstOperatorMatrices" -> {firstOperator},
-    "FirstBoundaryOperator" -> firstBoundary,
-    "SecondAlphabetIndices" -> {29},
-    "SecondOperatorMatrices" -> {operatorSecond},
+  "TransportEpsilonValuationSource" ->
+    "ComputedFromBasisTransformationMatrix",
+  "TransportEpsilonValuationCertificate" -> valuationCertificate,
+  "TransportEpsilonValuations" -> <|"TMin" -> 0, "BlockLower" -> {0}|>,
+  "ExactIteratedIntegralCoefficientOperator" -> <|
+    "Status" -> "IteratedIntegralCoefficientOperatorConstructed",
+    "MaximumIteratedIntegralWeight" -> 2,
+    "InitialRequestedOutputMap" -> operatorInitial,
+    "FirstPathSegmentAlphabetLetterIndices" -> {17},
+    "FirstPathSegmentOperatorMatrices" -> {firstOperator},
+    "FirstPathSegmentBoundaryMap" -> firstBoundary,
+    "SecondPathSegmentAlphabetLetterIndices" -> {29},
+    "SecondPathSegmentOperatorMatrices" -> {operatorSecond},
     "FinalBoundaryEmbedding" -> operatorFinal|>,
   "Certificates" -> <|
-    "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True, "BoundaryBaseKernel" -> True,
-    "FirstKernelIdentity" -> True, "BoundaryEvolution" -> True,
-    "SecondKernelIdentity" -> True|>|>;
-operatorWord = FeynFacet`ObservableTransportWordMap[
-  operatorResult, {17}, {29}];
+    "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True,
+    "TransportEpsilonValuationsBound" -> True,
+    "BoundaryBaseKernel" -> True,
+    "FirstKernelIdentity" -> True,
+    "BoundaryConstraintSubspaceValidated" -> True,
+    "SecondKernelIdentity" -> True|>,
+  "ProbabilisticCertificates" -> <||>,
+  "Validation" -> <|"Method" -> "DeterministicSymbolic",
+    "Passed" -> True, "Exact" -> True,
+    "Probabilistic" -> False|>|>;
+operatorCoefficientMatrix =
+  FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+    operatorResult, {17}, {29}];
 operatorExpected = operatorInitial . firstOperator . firstBoundary .
   operatorSecond . operatorFinal;
 malformedResult = Join[operatorResult, <|
-  "WordRepresentation" -> "UnknownRepresentation"|>];
+  "IteratedIntegralCoefficientRepresentation" ->
+    "UnknownRepresentation"|>];
 strippedOperatorResult = Join[operatorResult, <|
-  "ExactOperatorAutomaton" -> <|
-    "Status" -> "ExactOperatorAutomaton"|>|>];
+  "ExactIteratedIntegralCoefficientOperator" -> <|
+    "Status" -> "IteratedIntegralCoefficientOperatorConstructed"|>|>];
 strippedCompactResult = Join[result, <|
-  "CompactTransportAutomaton" -> <|
-    "Status" -> "ModularCompactAutomatonAccepted"|>|>];
+  "CompressedIteratedIntegralCoefficientOperator" -> <|
+    "Status" ->
+      "CompressedIteratedIntegralCoefficientOperatorValidated"|>|>];
 checks = <|
-  "CompactAccepted" -> FeynFacet`AcceptedObservableTransportQ[result],
-  "WordStatus" ->
-    Lookup[word, "Status", None] === "ModularlyVerifiedWordMap",
-  "AmbientOrdering" -> Lookup[word, "Map", Missing[]] === expected,
+  "CompactAccepted" ->
+    FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      result],
+  "CoefficientMatrixStatus" ->
+    Lookup[coefficientMatrix, "Status", None] ===
+      "IteratedIntegralCoefficientMatrixComputed",
+  "AmbientOrdering" -> Lookup[coefficientMatrix,
+    "IteratedIntegralCoefficientMatrix", Missing[]] === expected,
   "OperatorAcceptedExactly" ->
-    FeynFacet`AcceptedObservableTransportQ[operatorResult],
-  "OperatorWordStatus" ->
-    Lookup[operatorWord, "Status", None] === "ExactWordMap",
-  "OperatorOrdering" ->
-    Lookup[operatorWord, "Map", Missing[]] === operatorExpected,
+    FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      operatorResult],
+  "OperatorCoefficientMatrixStatus" ->
+    Lookup[operatorCoefficientMatrix, "Status", None] ===
+      "IteratedIntegralCoefficientMatrixComputed",
+  "OperatorOrdering" -> Lookup[operatorCoefficientMatrix,
+    "IteratedIntegralCoefficientMatrix", Missing[]] === operatorExpected,
   "MalformedRecordRejected" ->
-    ! FeynFacet`AcceptedObservableTransportQ[malformedResult],
+    ! FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      malformedResult],
   "StrippedOperatorRejected" ->
-    ! FeynFacet`AcceptedObservableTransportQ[strippedOperatorResult],
+    ! FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      strippedOperatorResult],
   "StrippedCompactRejected" ->
-    ! FeynFacet`AcceptedObservableTransportQ[strippedCompactResult],
+    ! FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      strippedCompactResult],
   "UnknownFirstLetterRejected" ->
-    Lookup[FeynFacet`ObservableTransportWordMap[result, {18}, {}],
-      "Status", None] === "WordUsesUnknownKernel",
+    Lookup[
+      FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+        result, {18}, {}], "Status", None] ===
+      "IteratedIntegralIndexSequenceContainsUnknownLetterIndex",
   "WeightBoundEnforced" ->
-    Lookup[FeynFacet`ObservableTransportWordMap[result, {17, 17, 17}, {}],
-      "Status", None] === "WordExceedsRequestedWeight"
+    Lookup[
+      FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+        result, {17, 17, 17}, {}], "Status", None] ===
+      "LetterIndexSequencesExceedRequestedWeight"
 |>;
 
 Print[InputForm[checks]];

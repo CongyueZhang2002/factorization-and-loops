@@ -24,6 +24,21 @@ If[AssociationQ[r] && r["Status"] === "OK",
   check["transformation constant in the variables", FreeQ[r["Transformation"], x | y]];
   check["gauge identity", And @@ Flatten[Table[PossibleZeroQ[Together[(r["Inverse"] . connection[[mu]] . r["Transformation"])[[i, j]] - newA[[mu, i, j]]]], {mu, 2}, {i, 3}, {j, 3}]]];
   check["inverse exact", And @@ Flatten[Map[PossibleZeroQ, Together[r["Transformation"] . r["Inverse"] - IdentityMatrix[3]], {2}]]]];
+rProduction = FeynFacet`FactorFamilyRegulatorDependence[
+  connection, {x, y}, eps,
+  "ValidationMode" -> "DeferredToFamilyCertificate",
+  "PointLadder" -> {2}, "GatePoints" -> 2,
+  "UseFermat" -> False];
+Print["production result: ", InputForm[If[AssociationQ[rProduction],
+  KeyTake[rProduction, {"Status", "Method", "SamplingRoute",
+    "TrainingPointCount", "GatePointCount", "Attempts"}], rProduction]]];
+check["production samples only the demanded point ladder",
+  AssociationQ[rProduction] && rProduction["Status"] === "OK" &&
+    rProduction["SamplingRoute"] === "LazyPointEvaluation" &&
+    rProduction["TrainingPointCount"] === 2 &&
+    rProduction["GatePointCount"] === 2 &&
+    rProduction["ExactEpsFactorization"] ===
+      Missing["DeferredToFamilyCertificate"]];
 r2 = FeynFacet`FactorFamilyRegulatorDependence[canonical, {x, y}, eps];
 check["eps-factored input recognized", AssociationQ[r2] && r2["Status"] === "AlreadyEpsFactored"];
 Print["t_family_regulator_factor: ", pass, " OK, ", fail, " FAIL"];

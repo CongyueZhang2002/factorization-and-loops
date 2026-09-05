@@ -36,7 +36,7 @@ Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
    names them in load order *)
 Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
   Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -105,7 +105,7 @@ Do[
    rational-to-field map, which is what every modular consumer applies
    before entering the algebra. *)
 reduce[values_, prime_] :=
-  FeynFacet`Private`multiquadraticStripModRational[#, prime] & /@ Flatten[{values}];
+  FeynFacet`Private`multiquadraticOffDiagonalBlockModRational[#, prime] & /@ Flatten[{values}];
 Do[
   Module[{deltas, a, b, exact, image, values, rootValues},
     deltas = Take[{3, 5, 7}, rank];

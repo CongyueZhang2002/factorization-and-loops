@@ -3,10 +3,16 @@ scriptDirectory = DirectoryName[ExpandFileName[$InputFileName]];
 repository = DirectoryName[scriptDirectory, 3];
 Get[FileNameJoin[{repository, "FeynFacet", "Private", "Transport",
   "Boundary", "PhysicalBoundary.wl"}]];
-inputDirectory = FileNameJoin[{repository, "ppHX_NNLO_DoubleReal",
-  "Results", "UU_08_10_canonical", "FamilyEpsFormsCertified"}];
-outputPath = FileNameJoin[{scriptDirectory, "Artifacts",
-  "CF303InheritedLowerSoftJets.wl"}];
+arguments = Rest[$ScriptCommandLine];
+If[Length[arguments] < 1,
+  Print["Usage: build_cf303_inherited_lower_soft_jets.wls " <>
+    "<CertifiedFamilyRecordDirectory> [output.wl]"];
+  Quit[64]];
+inputDirectory = ExpandFileName[arguments[[1]]];
+outputPath = If[Length[arguments] >= 2,
+  ExpandFileName[arguments[[2]]],
+  FileNameJoin[{scriptDirectory, "Artifacts",
+    "CF303InheritedLowerSoftJets.wl"}]];
 
 specifications = {
   <|"Family" -> "CF1", "ConnectionKey" -> "EpsFormY",
@@ -44,6 +50,18 @@ specifications = {
     "ColumnRoles" -> {1 -> "Class1Volume", 10 -> "Class17PID6",
       11 -> "Class44Component1", 12 -> "Class44Component2"}|>
   };
+sourceRecordPaths = Association@Table[
+  specification["Family"] -> FileNameJoin[{inputDirectory,
+    "family_epsform_" <> specification["Family"] <> ".wl"}],
+  {specification, specifications}];
+If[! DirectoryQ[inputDirectory] ||
+    ! AllTrue[Values[sourceRecordPaths], FileExistsQ],
+  Print["FAIL certified input directory is incomplete: ",
+    inputDirectory];
+  Quit[2]];
+If[! DirectoryQ[DirectoryName[outputPath]],
+  CreateDirectory[DirectoryName[outputPath],
+    CreateIntermediateDirectories -> True]];
 
 exactZeroQ[value_] := And @@ Flatten[Map[PossibleZeroQ, value, {2}]];
 matrixEntries[matrix_] := Replace[
@@ -63,8 +81,7 @@ residueClosure[residue_, seeds_] := FixedPoint[
 
 familyRecords = Table[
   family = specification["Family"];
-  form = Get[FileNameJoin[{inputDirectory,
-    "family_epsform_" <> family <> ".wl"}]];
+  form = Get[sourceRecordPaths[family]];
   timing = AbsoluteTiming[frobenius = TimeConstrained[
     ComputeTruncatedLocalFrobeniusExpansion[
       form[specification["ConnectionKey"]],
@@ -134,6 +151,11 @@ result = <|
       "Rho" -> {0, specification["MaximumSeriesOrder"]},
       "Epsilon" -> {0, specification["MaximumEpsilonOrder"]}|>,
     {specification, specifications}],
+  "ConstructionInputProvenance" -> <|
+    "CertifiedFamilyRecordDirectory" -> inputDirectory,
+    "CertifiedFamilyRecordPaths" -> sourceRecordPaths,
+    "InputGeneration" ->
+      "ExplicitCallerSuppliedCertifiedFamilyRecords"|>,
   "Families" -> familyRecords,
   "TotalBuildSeconds" -> Total[Lookup[familyRecords, "BuildSeconds"]],
   "Use" ->

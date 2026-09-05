@@ -22,7 +22,9 @@ If[Length[$ScriptCommandLine] < 6,
 
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 loader = FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}];
+builder = FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}];
 Get[loader];
+Get[builder];
 
 {outputDirectory, differentialDirectory} =
   ExpandFileName /@ $ScriptCommandLine[[2 ;; 3]];
@@ -51,12 +53,14 @@ launched = If[kernelTarget > 1,
   Quiet[LaunchKernels[kernelTarget]], {}];
 Print["CERTIFY-PARALLEL launched ", Length[launched], " subkernels"];
 If[launched =!= {},
-  With[{file = loader},
-    ParallelEvaluate[(Quiet[Get[file]];), launched]]];
+  With[{packageFile = loader, builderFile = builder},
+    ParallelEvaluate[
+      (Quiet[Get[packageFile]]; Quiet[Get[builderFile]];), launched]]];
 
 certifyOne[systemFile_String] := Module[
-  {family, outputFile, existing, candidates, system, accepted = False,
-   acceptedStatus, diagnostics = {}, familyStart, record, certified, elapsed},
+  {family, outputFile, existing, candidates, system, systemReference,
+   accepted = False, acceptedStatus, diagnostics = {}, familyStart, record,
+   certified, elapsed},
   family = familyName[systemFile];
   outputFile = FileNameJoin[{outputDirectory,
     "family_epsform_" <> family <> ".wl"}];
@@ -77,6 +81,11 @@ certifyOne[systemFile_String] := Module[
   system = FeynFacet`FamilyArtifactRead[systemFile];
   If[! AssociationQ[system],
     Return[<|"Family" -> family, "Status" -> "SystemUnreadable"|>]];
+  systemReference = <|
+    "RelativePath" -> FileNameJoin[
+      {FileNameTake[DirectoryName[systemFile]], FileNameTake[systemFile]}],
+    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+    "Family" -> family|>;
   familyStart = AbsoluteTime[];
   Do[
     record = FeynFacet`FamilyArtifactRead[candidate];
@@ -84,7 +93,9 @@ certifyOne[systemFile_String] := Module[
       AppendTo[diagnostics, <|"Source" -> candidate,
         "Status" -> "Unreadable"|>];
       Continue[]];
-    certified = FeynFacet`ValidateFamilyDLogEpsilonForm[record, system];
+    certified =
+      FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+        record, system, systemReference];
     If[AssociationQ[certified] &&
         Lookup[certified, "Status", None] ===
           "FamilyDLogEpsilonFormValidated" &&

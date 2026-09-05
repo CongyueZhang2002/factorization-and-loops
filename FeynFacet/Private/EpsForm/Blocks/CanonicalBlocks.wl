@@ -158,8 +158,7 @@ $canonicalBlocksArtifactFormat = "FeynFacet-CanonicalBlocks";
 $canonicalBlocksArtifactVersion = 1;
 
 (* Symbols accepted as the dimensional regulator when a system does not
-   name it.  Our NNLO family artifacts write eps, the NLO master
-   artifact writes Epsilon. *)
+   name it.  Existing artifacts use both eps and Epsilon. *)
 $canonicalBlocksRegulatorNames = {"eps", "Eps", "epsilon", "Epsilon", "ep"};
 
 $canonicalBlocksCanonicaLoaded = False;

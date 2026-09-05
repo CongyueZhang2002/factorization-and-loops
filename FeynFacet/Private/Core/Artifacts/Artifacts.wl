@@ -22,7 +22,7 @@ ClearAll[
    path, a bare Get parses eps/x/y into CANONICA` and every later
    symbolic comparison silently fails (measured 2026-08-20: in one
    kernel the first family certified and every later one failed its
-   gauge identity). All campaign and worker reads of .wl artifacts go
+   connection-transformation equation). All campaign and worker reads of .wl artifacts go
    through this function.
 
    FamilyArtifactRead[file] keeps the historical default context exactly:
@@ -30,7 +30,7 @@ ClearAll[
    $ContextPath = {"System`", "Global`"}.  FamilyArtifactRead[file,
    context] parses it into an explicit context instead, so a caller can
    isolate an artifact's symbols from Global` (the pattern of
-   MultiquadraticStripSolve.wl's hydration).
+   MultiquadraticOffDiagonalBlockSolve.wl's hydration).
 
    Failure discrimination, rebased 2026-08-23 (port-agent defect J).
    The old body was Quiet[Check[Get[file], $Failed]], which treats ANY

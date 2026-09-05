@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 HARDENING WAVE provenance work in
-   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl.  Every section here is
+   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockSolve.wl.  Every section here is
    one of Codex's P1 merge blockers from
    Exchange/Codex/2026-08-25/07_optimization_review_1430.md, and every one
    of them is ADVERSARIAL: it presents
@@ -18,7 +18,7 @@
        about behaviour, not about the source.
 
    A2  FORCING-CHANNEL CONTENT.  A seal must authenticate the channels
-       it carries, not only the forcing they were derived from.  A
+       it carries, not only the inhomogeneity they were derived from.  A
        same-shape mutation of one channel entry must be refused with a
        CONTENT-specific status; a mutation that also refreshes the
        content hash must still fail the seal fingerprint; and a V1
@@ -35,7 +35,7 @@
        dlog check.
 
    A4  BEHAVIOURAL TWO-CONSUMER REFUSAL.  A bare shape-compatible array
-       supplied as "ForcingChannels" must be refused typed by BOTH
+       supplied as "InhomogeneityChannels" must be refused typed by BOTH
        prepare and compile, established by calling them, not by counting
        occurrences of a helper name in the source.
 
@@ -63,7 +63,7 @@ Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
    names them in load order *)
 Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
   Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -84,28 +84,28 @@ dlogKernels = If[StringQ[dlogKernelText] &&
   fieldDecompose, fieldCompose, fieldInverse, inverseTower,
   inverseLinearSolve, multiply, letterOneForm, candidateLetters,
   canonicalRules, canonicalText, internValidQ} =
- mq /@ {"multiquadraticStripPrepare", "multiquadraticStripCompile",
-   "multiquadraticStripRootOrder", "multiquadraticStripCoreCanonicalData",
-   "multiquadraticStripCompileCoreKeyFromParts",
-   "multiquadraticStripCompileCoreRecord", "multiquadraticStripIntern",
-   "multiquadraticStripInternProbe", "multiquadraticStripInternStatistics",
-   "multiquadraticStripInternReset", "multiquadraticStripCompileCacheClear",
-   "multiquadraticStripForcingChannelRecord",
-   "multiquadraticStripForcingChannelsAccept",
-   "multiquadraticStripForcingChannelContentHash",
-   "multiquadraticStripLetterDLogCertificate",
-   "multiquadraticStripLetterDLogCertificateValidQ",
-   "multiquadraticStripCompactDLogAdmission",
-   "multiquadraticStripChannelGradeSupport",
-   "multiquadraticStripCompileOneFormEntry",
-   "multiquadraticStripCompileOneFormKey",
-   "multiquadraticStripLetterProvenanceHash",
+ mq /@ {"multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+   "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticOffDiagonalBlockCoreCanonicalData",
+   "multiquadraticOffDiagonalBlockCompileCoreKeyFromParts",
+   "multiquadraticOffDiagonalBlockCompileCoreRecord", "multiquadraticOffDiagonalBlockIntern",
+   "multiquadraticOffDiagonalBlockInternProbe", "multiquadraticOffDiagonalBlockInternStatistics",
+   "multiquadraticOffDiagonalBlockInternReset", "multiquadraticOffDiagonalBlockCompileCacheClear",
+   "multiquadraticOffDiagonalBlockInhomogeneityChannelRecord",
+   "multiquadraticOffDiagonalBlockInhomogeneityChannelsAccept",
+   "multiquadraticOffDiagonalBlockInhomogeneityChannelContentHash",
+   "multiquadraticOffDiagonalBlockLetterDLogCertificate",
+   "multiquadraticOffDiagonalBlockLetterDLogCertificateValidQ",
+   "multiquadraticOffDiagonalBlockCompactDLogAdmission",
+   "multiquadraticOffDiagonalBlockChannelGradeSupport",
+   "multiquadraticOffDiagonalBlockCompileOneFormEntry",
+   "multiquadraticOffDiagonalBlockCompileOneFormKey",
+   "multiquadraticOffDiagonalBlockLetterProvenanceHash",
    "multiquadraticFieldDecompose", "multiquadraticFieldCompose",
    "multiquadraticFieldInverse", "multiquadraticFieldInverseTower",
    "multiquadraticFieldInverseLinearSolve", "multiquadraticMultiply",
-   "multiquadraticStripLetterOneForm", "multiquadraticStripCandidateLetters",
-   "multiquadraticStripCanonicalRules", "multiquadraticStripCanonicalText",
-   "multiquadraticStripInternValidQ"};
+   "multiquadraticOffDiagonalBlockLetterOneForm", "multiquadraticOffDiagonalBlockCandidateLetters",
+   "multiquadraticOffDiagonalBlockCanonicalRules", "multiquadraticOffDiagonalBlockCanonicalText",
+   "multiquadraticOffDiagonalBlockInternValidQ"};
 
 algebraFingerprint = mq["multiquadraticAlgebraABIFingerprint"];
 
@@ -136,20 +136,20 @@ canonicalRootRecords[indices_] := Module[
 gradeFactor[grade_, roots_] :=
   Product[If[BitGet[grade, k - 1] === 1, roots[[k]], 1], {k, Length[roots]}];
 
-buildGauge[coefficients_, dimensions_, roots_] := Table[
+buildOffDiagonalBasisTransformationBlock[coefficients_, dimensions_, roots_] := Table[
   Sum[coefficients[[i, j, grade + 1, monomial]]
       x^support[[monomial, 1]] y^support[[monomial, 2]] gradeFactor[grade, roots]/
       denominator,
     {grade, 0, 2^Length[roots] - 1}, {monomial, Length[support]}],
   {i, dimensions[[1]]}, {j, dimensions[[2]]}];
 
-buildForcing[e_, c_, gauge_, residues_] := Table[
+buildInhomogeneity[e_, c_, gauge_, residues_] := Table[
   Map[Together, Sum[residues[[a]] eps oneForms[[a, mu]], {a, Length[letters]}] +
     D[gauge, {x, y}[[mu]]] - eps (e[[mu]] . gauge - gauge . c[[mu]]), {2}],
   {mu, 2}];
 
 buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
-  {rootRecords, roots, gradeCount, coefficients, residues, gauge, e, c, bbar},
+  {rootRecords, roots, gradeCount, coefficients, residues, gauge, e, c, inhomogeneity},
   rootRecords = canonicalRootRecords[indices];
   roots = Lookup[rootRecords, "Root", {}];
   gradeCount = 2^Length[indices];
@@ -159,26 +159,26 @@ buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
   residues = BlockRandom[SeedRandom[seed + 1];
     Table[RandomInteger[{-4, 4}] + RandomChoice[{0, 1/4, -1/7}],
       {Length[letters]}, {dimensions[[1]]}, {dimensions[[2]]}]];
-  gauge = buildGauge[coefficients, dimensions, roots];
+  gauge = buildOffDiagonalBasisTransformationBlock[coefficients, dimensions, roots];
   e = BlockRandom[SeedRandom[seed + 2];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[1]],
       dimensions[[1]]}], {Length[letters]}]]];
   c = BlockRandom[SeedRandom[seed + 3];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[2]],
       dimensions[[2]]}], {Length[letters]}]]];
-  bbar = buildForcing[e, c, gauge, residues];
+  inhomogeneity = buildInhomogeneity[e, c, gauge, residues];
   <|"Family" -> "TPROV", "Sector" -> 4, "LowerSector" -> 2,
     "Variables" -> {x, y}, "Regulator" -> eps,
-    "Strip" -> {e, c, bbar}|>];
+    "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>];
 
 record = buildRecord[{1, 2}, {2, 2}, 20260825];
 rootRecords = canonicalRootRecords[{1, 2}];
 check["the fixture record and its canonical root order are well formed",
-  MatchQ[Lookup[record, "Strip", None], {_List, _List, _List}] &&
+  MatchQ[Lookup[record, "OffDiagonalBlockEquation", None], {_List, _List, _List}] &&
     MatchQ[rootRecords, {__Association}] &&
     AllTrue[rootRecords, KeyExistsQ[#, "Root"] && KeyExistsQ[#, "RootSquare"] &]];
 
-prepareArgs = {"OneForms" -> oneForms, "GaugeDenominator" -> denominator,
+prepareArgs = {"OneForms" -> oneForms, "OffDiagonalBasisTransformationDenominator" -> denominator,
   "Support" -> support, "RootIndices" -> {1, 2}};
 
 (* ================================================================== *)
@@ -217,7 +217,7 @@ SQUARES agree",
     canonicalPlain["RootCanonicalExpressions"] =!=
       canonicalMutant["RootCanonicalExpressions"]];
 
-dimensionsOf = Dimensions[record["Strip"][[3, 1]]];
+dimensionsOf = Dimensions[record["OffDiagonalBlockEquation"][[3, 1]]];
 currentKey[canonical_] := coreKeyFromParts[algebraFingerprint[],
   Hash[canonical["EquationCanonical"], "SHA256", "HexString"],
   Hash[canonical["RootCanonicalSquares"], "SHA256", "HexString"],
@@ -229,7 +229,7 @@ currentKey[canonical_] := coreKeyFromParts[algebraFingerprint[],
    fingerprint, root-ordering fingerprint, root squares, dimensions,
    variables, regulator -- and no root expressions *)
 preFixKey[canonical_] := {
-  Symbol["FeynFacet`Private`$multiquadraticStripABIVersion"],
+  Symbol["FeynFacet`Private`$multiquadraticOffDiagonalBlockABIVersion"],
   algebraFingerprint[],
   Hash[canonical["EquationCanonical"], "SHA256", "HexString"],
   Hash[canonical["RootCanonicalSquares"], "SHA256", "HexString"],
@@ -245,7 +245,7 @@ check["A1 the current key tuple SEPARATES the sign mutant",
 (* BEHAVIOURAL: build the core for the fixture, then probe the pool with
    the mutant's key.  The pool is the object under test, not the key. *)
 clearCaches[];
-coreBuilt = coreRecord[record["Strip"], rootRecords, {x, y}, eps,
+coreBuilt = coreRecord[record["OffDiagonalBlockEquation"], rootRecords, {x, y}, eps,
   Missing["NotSupplied"], currentKey[canonicalPlain], True];
 check["A1 the fixture core builds and is interned",
   AssociationQ[coreBuilt] &&
@@ -266,34 +266,34 @@ clearCaches[];
 (* ================================================================== *)
 
 Clear[fx, fy, fe];
-sealForcing = {{{fx/(1 - fy), fx}}, {{fe fy, 1}}};
+sealInhomogeneity = {{{fx/(1 - fy), fx}}, {{fe fy, 1}}};
 sealChannels = {{{{fx/(1 - fy)}, {fx}}}, {{{fe fy}, {1}}}};
 sealRoots = {};
-sealed = channelRecord[sealChannels, sealForcing, sealRoots, {fx, fy}, fe];
+sealed = channelRecord[sealChannels, sealInhomogeneity, sealRoots, {fx, fy}, fe];
 
 check["A2 the seal is schema V2 and carries an explicit ChannelsSHA256",
   AssociationQ[sealed] &&
-    sealed["Schema"] === "MultiquadraticForcingChannelsV2" &&
+    sealed["Schema"] === "MultiquadraticInhomogeneityChannelsV2" &&
     sealed["SchemaVersion"] === 2 &&
     StringQ[sealed["ChannelsSHA256"]] &&
     StringLength[sealed["ChannelsSHA256"]] === 64 &&
     StringQ[sealed["Fingerprint"]] &&
     StringLength[sealed["Fingerprint"]] === 64];
 
-check["A2 its own forcing and its own channels accept it",
-  Lookup[channelAccept[sealed, sealForcing, sealRoots, {fx, fy}, fe],
+check["A2 its own inhomogeneity and its own channels accept it",
+  Lookup[channelAccept[sealed, sealInhomogeneity, sealRoots, {fx, fy}, fe],
     "Status", None] === "Accepted"];
 
 (* THE MUTANT: the same shape, one channel entry changed, every other
    field of the seal untouched.  The pre-fix V1 seal fingerprinted the
-   forcing and the root squares only, so it accepted exactly this. *)
+   inhomogeneity and the root squares only, so it accepted exactly this. *)
 mutantChannels = ReplacePart[sealChannels, {1, 1, 1, 1} -> fx/(1 + fy)];
 mutantSeal = Append[sealed, "Channels" -> mutantChannels];
 check["A2 a same-shape CHANNEL-CONTENT mutant under an otherwise valid \
 seal is refused, and the refusal names the content",
-  Module[{verdict = channelAccept[mutantSeal, sealForcing, sealRoots,
+  Module[{verdict = channelAccept[mutantSeal, sealInhomogeneity, sealRoots,
       {fx, fy}, fe]},
-    Lookup[verdict, "Status", None] === "ForcingChannelContentMismatch" &&
+    Lookup[verdict, "Status", None] === "InhomogeneityChannelContentMismatch" &&
       StringQ[verdict["ExpectedChannelsSHA256"]] &&
       verdict["ExpectedChannelsSHA256"] =!=
         verdict["SuppliedChannelsSHA256"]]];
@@ -304,21 +304,21 @@ refreshedSeal = Join[mutantSeal,
   <|"ChannelsSHA256" -> contentHash[mutantChannels, {fx, fy}, fe]|>];
 check["A2 a mutant that also refreshes ChannelsSHA256 still fails the \
 seal fingerprint",
-  Lookup[channelAccept[refreshedSeal, sealForcing, sealRoots, {fx, fy}, fe],
-    "Status", None] === "ForcingChannelProvenanceMismatch"];
+  Lookup[channelAccept[refreshedSeal, sealInhomogeneity, sealRoots, {fx, fy}, fe],
+    "Status", None] === "InhomogeneityChannelProvenanceMismatch"];
 
 check["A2 a V1 record is refused-typed and never silently upgraded",
   Module[{legacy = Join[KeyDrop[sealed, "ChannelsSHA256"],
-      <|"Schema" -> "MultiquadraticForcingChannelsV1",
+      <|"Schema" -> "MultiquadraticInhomogeneityChannelsV1",
         "SchemaVersion" -> 1|>], verdict},
-    verdict = channelAccept[legacy, sealForcing, sealRoots, {fx, fy}, fe];
-    Lookup[verdict, "Status", None] === "ForcingChannelSealSuperseded" &&
-      verdict["ExpectedSchema"] === "MultiquadraticForcingChannelsV2"]];
+    verdict = channelAccept[legacy, sealInhomogeneity, sealRoots, {fx, fy}, fe];
+    Lookup[verdict, "Status", None] === "InhomogeneityChannelSealSuperseded" &&
+      verdict["ExpectedSchema"] === "MultiquadraticInhomogeneityChannelsV2"]];
 
-check["A2 a DIFFERENT forcing under a valid seal is still refused on \
+check["A2 a DIFFERENT inhomogeneity under a valid seal is still refused on \
 provenance",
   Lookup[channelAccept[sealed, {{{fx/(1 + fy), fx}}, {{fe fy, 1}}}, sealRoots,
-    {fx, fy}, fe], "Status", None] === "ForcingChannelProvenanceMismatch"];
+    {fx, fy}, fe], "Status", None] === "InhomogeneityChannelProvenanceMismatch"];
 
 check["A2 neither the seal fingerprint nor the content hash depends on \
 the context the variables arrived in",
@@ -340,35 +340,33 @@ the context the variables arrived in",
 (* A4  BEHAVIOURAL TWO-CONSUMER REFUSAL (replaces the S12 source grep)  *)
 (* ================================================================== *)
 
-bareArray = Map[Function[entry, {entry, 0, 0, 0}], record["Strip"][[3]], {3}];
+bareArray = Map[Function[entry, {entry, 0, 0, 0}], record["OffDiagonalBlockEquation"][[3]], {3}];
 check["A4 the bare array IS shape compatible (so shape alone would have \
 accepted it)",
   ArrayQ[bareArray, 4] &&
-    Dimensions[bareArray] === Append[Dimensions[record["Strip"][[3]]], 4]];
+    Dimensions[bareArray] === Append[Dimensions[record["OffDiagonalBlockEquation"][[3]]], 4]];
 
 barePrepare = prepare[record, frame, Sequence @@ prepareArgs,
-  "ForcingChannels" -> bareArray];
+  "InhomogeneityChannels" -> bareArray];
 check["A4 PREPARE refuses a bare shape-compatible array, typed",
   AssociationQ[barePrepare] &&
-    Lookup[barePrepare, "Status", None] === "ForcingChannelsUnsealed"];
+    Lookup[barePrepare, "Status", None] === "InhomogeneityChannelsUnsealed"];
 
 goodPreparation = prepare[record, frame, Sequence @@ prepareArgs];
 check["A4 the reference preparation succeeds",
-  Lookup[goodPreparation, "Status", None] === "PreparedMultiquadraticStripV1"];
+  Lookup[goodPreparation, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1"];
 
-bareCompile = compile[goodPreparation, "PreparationValidated" -> True,
-  "ForcingChannels" -> bareArray];
+bareCompile = compile[goodPreparation,   "InhomogeneityChannels" -> bareArray];
 check["A4 COMPILE refuses the same bare array, typed",
   AssociationQ[bareCompile] &&
-    Lookup[bareCompile, "Status", None] === "ForcingChannelsUnsealed"];
+    Lookup[bareCompile, "Status", None] === "InhomogeneityChannelsUnsealed"];
 
 check["A4 compile refuses a CONTENT mutant of the preparation's own seal",
-  Module[{seal = goodPreparation["ForcingChannels"], mutated},
+  Module[{seal = goodPreparation["InhomogeneityChannels"], mutated},
     mutated = Append[seal, "Channels" ->
       ReplacePart[seal["Channels"], {1, 1, 1, 1} -> 12345]];
-    Lookup[compile[goodPreparation, "PreparationValidated" -> True,
-      "ForcingChannels" -> mutated], "Status", None] ===
-      "ForcingChannelContentMismatch"]];
+    Lookup[compile[goodPreparation,       "InhomogeneityChannels" -> mutated], "Status", None] ===
+      "InhomogeneityChannelContentMismatch"]];
 
 (* ================================================================== *)
 (* A3  COMPACT-DLOG ADMISSION  (Codex P1, merge blocker)                *)
@@ -441,7 +439,7 @@ wrongEntry = oneFormEntry[wrongForm, wrongRecord, rootRecords, {x, y}, eps,
 rightEntry = oneFormEntry[goodForm, goodRecordWithTag, rootRecords, {x, y},
   eps, True];
 decomposedWrong = fieldDecompose[#, rootRecords] & /@ wrongForm;
-compactGood = mq["multiquadraticStripLetterChannelPair"][goodLetter,
+compactGood = mq["multiquadraticOffDiagonalBlockLetterChannelPair"][goodLetter,
   rootRecords, {x, y}];
 check["A3 the refused record compiles the form it was ASKED for, by \
 decomposition",
@@ -457,7 +455,7 @@ check["A3 exact retained dlog channels bypass duplicate construction",
   Module[{retainedRecord = Append[goodRecordWithTag,
        "DLogChannels" -> compactGood], entry},
     entry = Block[{
-        FeynFacet`Private`multiquadraticStripLetterChannelPair =
+        FeynFacet`Private`multiquadraticOffDiagonalBlockLetterChannelPair =
           Function[Null, $Failed, HoldAll]},
       oneFormEntry[goodForm, retainedRecord, rootRecords, {x, y}, eps,
         True]];
@@ -475,7 +473,7 @@ mutant (the substitution the gate prevents)",
 
 (* the letters this package builds all carry the certificate *)
 kernelsBeforeCandidate = Kernels[];
-letterData = candidateLetters[record["Strip"], rootRecords, {x, y}, eps,
+letterData = candidateLetters[record["OffDiagonalBlockEquation"], rootRecords, {x, y}, eps,
   record, "RegulatorSampleCount" -> 2, "DLogKernels" -> dlogKernels];
 kernelsAfterCandidate = Kernels[];
 v2LetterRecords = Select[letterData["LetterRecords"],
@@ -520,14 +518,14 @@ route",
         SameQ[entry["Channels"], rec["DLogChannels"]]]]]];
 check["A3 the dlog batch closes only the helper kernels it launched",
   SameQ[kernelsAfterCandidate, kernelsBeforeCandidate]];
-letterDataSerial = candidateLetters[record["Strip"], rootRecords, {x, y}, eps,
+letterDataSerial = candidateLetters[record["OffDiagonalBlockEquation"], rootRecords, {x, y}, eps,
   record, "RegulatorSampleCount" -> 2, "DLogKernels" -> 1];
 check["A3 serial and selected dlog construction are byte-identical",
   SameQ[letterDataSerial, letterData]];
 check["A3 invalid dlog kernel counts are refused before construction, typed",
-  Lookup[candidateLetters[record["Strip"], rootRecords, {x, y}, eps, record,
+  Lookup[candidateLetters[record["OffDiagonalBlockEquation"], rootRecords, {x, y}, eps, record,
       "DLogKernels" -> 0], "Status", None] === "InvalidDLogKernelCount" &&
-    Lookup[candidateLetters[record["Strip"], rootRecords, {x, y}, eps, record,
+    Lookup[candidateLetters[record["OffDiagonalBlockEquation"], rootRecords, {x, y}, eps, record,
       "DLogKernels" -> 9], "Status", None] === "InvalidDLogKernelCount"];
 check["A3 a diagonal record carries no certificate (it is not a dlog)",
   AllTrue[Select[letterData["LetterRecords"],
@@ -538,7 +536,7 @@ check["A3 a diagonal record carries no certificate (it is not a dlog)",
 (* K  THE ONE-FORM POOL KEY: ROUTE AND LETTER PROVENANCE                *)
 (* ================================================================== *)
 
-keyPrefix = {Symbol["FeynFacet`Private`$multiquadraticStripABIVersion"],
+keyPrefix = {Symbol["FeynFacet`Private`$multiquadraticOffDiagonalBlockABIVersion"],
   {x, y}, eps, Lookup[rootRecords, "Root", {}],
   Lookup[rootRecords, "RootSquare", {}]};
 compactKey = oneFormKeyOf[keyPrefix, goodForm, goodRecordWithTag, True,
@@ -589,7 +587,7 @@ gradeForm = letterOneForm[gradeLetter, {x, y}];
 gradeRecord = <|"Kind" -> "Algebraic", "Letter" -> gradeLetter,
   "OneForm" -> gradeForm,
   "DLogCertificate" -> dlogCertificate[gradeLetter, gradeForm, {x, y}, eps]|>;
-gradeChannels = mq["multiquadraticStripLetterChannelPair"][gradeLetter,
+gradeChannels = mq["multiquadraticOffDiagonalBlockLetterChannelPair"][gradeLetter,
   rootRecords, {x, y}];
 gradeOccupied = If[MatchQ[gradeChannels, {_List, _List}],
   gradeSupportOf[gradeChannels], $Failed];
@@ -613,23 +611,20 @@ check["G with a RESTRICTED grade set the compact route refuses typed",
 check["G the refusal reaches the compiler as a typed failure naming the \
 letter",
   Module[{preparation = prepare[record, frame, "OneForms" -> {gradeForm},
-      "LetterRecords" -> {gradeRecord}, "GaugeDenominator" -> denominator,
+      "LetterRecords" -> {gradeRecord}, "OffDiagonalBasisTransformationDenominator" -> denominator,
       "Support" -> support, "RootIndices" -> {1, 2}], assembly},
     If[Lookup[preparation, "Status", None] =!=
-        "PreparedMultiquadraticStripV1", False,
-      assembly = compile[preparation, "PreparationValidated" -> True,
-        "LetterGradeSupport" -> {0, 1}];
+        "PreparedMultiquadraticOffDiagonalBlockV1", False,
+      assembly = compile[preparation,         "LetterGradeSupport" -> {0, 1}];
       Lookup[assembly, "Status", None] ===
           "CompactLetterGradeSupportExceeded" &&
         assembly["LetterIndex"] === 1]]];
 
 check["G an out-of-range grade set is a caller error, not a refusal",
-  Lookup[compile[goodPreparation, "PreparationValidated" -> True,
-    "LetterGradeSupport" -> {0, 99}], "Status", None] ===
+  Lookup[compile[goodPreparation,     "LetterGradeSupport" -> {0, 99}], "Status", None] ===
     "InvalidLetterGradeSupport"];
 check["G an unknown admission mode is a caller error",
-  Lookup[compile[goodPreparation, "PreparationValidated" -> True,
-    "CompactDLogAdmission" -> "Guess"], "Status", None] ===
+  Lookup[compile[goodPreparation,     "CompactDLogAdmission" -> "Guess"], "Status", None] ===
     "InvalidCompactDLogAdmission"];
 clearCaches[];
 
@@ -701,7 +696,7 @@ check["B the pool reports measured Bytes alongside its entry count",
 bigValue = <|"Channels" -> Table[k, {k, 20000}], "Compiled" -> {},
   "Path" -> "DecomposedForm"|>;
 oversizeResult = Block[
-  {FeynFacet`Private`$multiquadraticStripPoolOversizeBytes =
+  {FeynFacet`Private`$multiquadraticOffDiagonalBlockPoolOversizeBytes =
     <|"OneForm" -> 1000.|>},
   intern["OneForm", {"probe", 2}, Function[bigValue]]];
 check["B an OVERSIZE value bypasses the pool: it is returned, not stored",
@@ -717,9 +712,9 @@ check["B the oversize bypass leaves the entry the pool already holds",
    cannot fit whatever its own byte count turns out to be *)
 byteCeiling = internStatistics[]["OneForm"]["Bytes"] + 1;
 byteResetResult = Block[
-  {FeynFacet`Private`$multiquadraticStripPoolByteLimit =
+  {FeynFacet`Private`$multiquadraticOffDiagonalBlockPoolByteLimit =
      <|"OneForm" -> byteCeiling|>,
-   FeynFacet`Private`$multiquadraticStripPoolOversizeBytes =
+   FeynFacet`Private`$multiquadraticOffDiagonalBlockPoolOversizeBytes =
      <|"OneForm" -> 10.^9|>},
   intern["OneForm", {"probe", 3},
     Function[<|"Channels" -> Table[k, {k, 40}], "Compiled" -> {},

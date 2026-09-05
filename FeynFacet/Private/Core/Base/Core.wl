@@ -617,13 +617,13 @@ linearComposeReduction[
 (*      length-prefixed binary record files, used by the Process        *)
 (*      family registry (CanonicalFamilies.wl) and the store;           *)
 (*    masterTransport* (regulator/variable resolution, the radical      *)
-(*      zero tests, check level, exact-point zero test, chart-record    *)
-(*      data and the chain-rule pullbacks) <- Transport/               *)
-(*      MasterTransport.wl: called by EpsForm (FamilyEpsForm.wl,        *)
+(*      zero tests, check level, exact-point zero test, coefficient-     *)
+(*      presentation data and chain-rule pullbacks) <- the former       *)
+(*      transport assembly module: called by EpsForm (FamilyEpsForm.wl, *)
 (*      FamilyRegulatorFactor.wl) and Geometry (TransportCharts.wl),    *)
 (*      both of which load before Transport.  masterTransportZeroQ     *)
-(*      keeps its word-aware branch; TransportWord is the public,       *)
-(*      retired word head and is only matched as a pattern here.        *)
+(*      keeps its dormant private word-aware branch for compatibility   *)
+(*      with archived records.                                          *)
 (* ================================================================== *)
 
 (* public symbols: Clear, not ClearAll (FeynFacet.m defines their usage
@@ -809,8 +809,8 @@ observableTransportBlockLowerQ[matrices : {_, _}, ranges_List] := Module[
    form -- are evaluated EXACTLY AT RANDOM RATIONAL POINTS instead of as
    rational-function identities (a wrong matrix passes with probability
    ~ degree / 10^6 per point; two points are used), and the single exact
-   statement is the family certificate made afterwards.  Measured on
-   CF254 (dim 23, 2026-08-22): the exact identities were 446 s of a 626 s
+   statement is the family certificate made afterwards.  Measured on a
+   dimension-23 production system (2026-08-22): the exact identities were 446 s of a 626 s
    assembly; the conjugation itself 49 s. *)
 masterTransportCheckLevel[requested_: Automatic] := Which[
   MemberQ[{"Production", "Development"}, requested], requested,
@@ -828,7 +828,7 @@ masterTransportPointZeroQ[expr_, symbols_List, count_Integer: 2] := Module[
       RandomInteger[{10^6, 10^7}, Length[symbols]]];
     (* Substitute first, then normalize the now-small exact numbers.
        Plain ==0 does not reduce relations among square roots and gave a
-       false SourceSystemNotFlat on the multiquadratic CF303 subsystem. *)
+       false SourceSystemNotFlat on a production multiquadratic subsystem. *)
     values = Quiet[Check[Together /@ (flat /. point), $Failed]];
     If[values === $Failed || ! FreeQ[values, ComplexInfinity | Indeterminate | DirectedInfinity],
       Continue[]];

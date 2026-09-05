@@ -145,12 +145,15 @@ tests = <|
   "AllFourRootCountsValidate" ->
     AllTrue[results,
       Lookup[#, "Status", None] === "FamilyDLogEpsilonFormValidated" &&
+        FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[#] &&
         TrueQ[Lookup[Lookup[#, "Validation", <||>], "Exact", False]] &&
         ! TrueQ[Lookup[Lookup[#, "Validation", <||>],
           "Probabilistic", True]] &],
   "RootCountsPreserved" -> rootCounts === Range[0, 3],
   "ProductionFiniteFieldStatusIsProbabilistic" ->
     modularResult["Status"] === "FamilyDLogEpsilonFormValidated" &&
+      FeynFacet`ValidatedFamilyDLogEpsilonFormQ[modularResult] &&
+      ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[modularResult] &&
       modularResult["Validation"]["Method"] ===
         "ProbabilisticFiniteFieldSampling" &&
       TrueQ[modularResult["Validation"]["Probabilistic"]] &&

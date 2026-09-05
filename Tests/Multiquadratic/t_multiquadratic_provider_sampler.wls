@@ -13,52 +13,52 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {prepare, compile, layoutBuilder, layoutValid, compiledProvider,
   directProvider, providerChannels, preflight, assembleSample, affineSolve,
-  pointRows, reconstruct} = mq /@ {"multiquadraticStripPrepare",
-  "multiquadraticStripCompile", "multiquadraticStripAssemblyLayout",
-  "multiquadraticStripAssemblyLayoutValidQ",
-  "multiquadraticStripCompiledProvider",
-  "multiquadraticStripDirectProvider",
-  "multiquadraticStripProviderChannels",
-  "multiquadraticStripProviderPreflight",
-  "multiquadraticStripAssembleSample", "multiquadraticStripAffineSolve",
-  "multiquadraticStripAssemblePointRows",
-  "multiquadraticStripReconstructRegulator"};
+  pointRows, reconstruct} = mq /@ {"multiquadraticOffDiagonalBlockPrepare",
+  "multiquadraticOffDiagonalBlockCompile", "multiquadraticOffDiagonalBlockAssemblyLayout",
+  "multiquadraticOffDiagonalBlockAssemblyLayoutValidQ",
+  "multiquadraticOffDiagonalBlockCompiledProvider",
+  "multiquadraticOffDiagonalBlockDirectProvider",
+  "multiquadraticOffDiagonalBlockProviderChannels",
+  "multiquadraticOffDiagonalBlockProviderPreflight",
+  "multiquadraticOffDiagonalBlockAssembleSample", "multiquadraticOffDiagonalBlockAffineSolve",
+  "multiquadraticOffDiagonalBlockAssemblePointRows",
+  "multiquadraticOffDiagonalBlockReconstructRegulator"};
 
 Clear[px, py, pe, psx, psy, pcx, pcy];
 delta = 1 + px;
 coefficientPresentation = BuildSquareRootGeneratorsAndQuadraticRelations[
   {1 + psx}, {psx, psy}, {pcx, pcy}];
 zero11 = {{{0}}, {{0}}};
-knownGauge = {{Together[pe Sqrt[delta]/(1 - py)]}};
-forcing = Table[{{Together[D[knownGauge[[1, 1]], {px, py}[[mu]]]]}},
+knownOffDiagonalBasisTransformationBlock = {{Together[pe Sqrt[delta]/(1 - py)]}};
+inhomogeneity = Table[{{Together[D[knownOffDiagonalBasisTransformationBlock[[1, 1]], {px, py}[[mu]]]]}},
   {mu, 2}];
 record = <|"Family" -> "PROVIDER_SAMPLER", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {px, py}, "Regulator" -> pe,
-  "Strip" -> {zero11, zero11, forcing}|>;
+  "OffDiagonalBlockEquation" -> {zero11, zero11, inhomogeneity}|>;
 
 prepared = prepare[record, coefficientPresentation, "RootIndices" -> {1}, "OneForms" -> {},
-  "GaugeDenominator" -> 1 - py, "Support" -> {{0, 0}}];
-assembly = compile[prepared, "PreparationValidated" -> True];
+  "OffDiagonalBasisTransformationDenominator" -> 1 - py, "Support" -> {{0, 0}}];
+assembly = compile[prepared];
 directPrepared = prepare[record, coefficientPresentation, "RootIndices" -> {1},
-  "OneForms" -> {}, "GaugeDenominator" -> 1 - py,
+  "OneForms" -> {}, "OffDiagonalBasisTransformationDenominator" -> 1 - py,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
 layout = layoutBuilder[directPrepared];
 compiled = compiledProvider[assembly];
 split = directProvider[directPrepared["Record"], directPrepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> directPrepared["OneForms"],
-  "GaugeDenominator" -> directPrepared["GaugeDenominator"]];
+  "OffDiagonalBasisTransformationDenominator" -> directPrepared["OffDiagonalBasisTransformationDenominator"]];
 quotient = directProvider[directPrepared["Record"], directPrepared["Roots"],
   "Kind" -> "QuotientGrade", "OneForms" -> directPrepared["OneForms"],
-  "GaugeDenominator" -> directPrepared["GaugeDenominator"]];
+  "OffDiagonalBasisTransformationDenominator" -> directPrepared["OffDiagonalBasisTransformationDenominator"]];
 
 check["B1 preparation, compiled oracle and layout are valid",
-  Lookup[prepared, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[prepared, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
   Lookup[directPrepared, "Status", None] ===
-      "PreparedMultiquadraticStripV1" &&
-  Lookup[assembly, "Status", None] === "CompiledMultiquadraticStripV1" &&
+      "PreparedMultiquadraticOffDiagonalBlockV1" &&
+  Lookup[assembly, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
   TrueQ[layoutValid[layout]]];
-check["B1 direct preparation deliberately carries no forcing channels",
-  MissingQ[directPrepared["ForcingChannels"]] &&
+check["B1 direct preparation deliberately carries no inhomogeneity channels",
+  MissingQ[directPrepared["InhomogeneityChannels"]] &&
     directPrepared["CoefficientProvider"] === "SplitBranch"];
 check["B1 all three providers carry the layout's exact coefficient data",
   SameQ @@ Prepend[Lookup[{compiled, split, quotient},
@@ -124,8 +124,8 @@ check["B1 regulator reconstruction consumes the provider-backed sampler",
     reconstruction["CoefficientData"] === layout["CoefficientData"] ===
       split["CoefficientData"]];
 check["B1 the generic provider reconstruction is the known gauge",
-  TrueQ[Together[reconstruction["Gauge"][[1, 1]] -
-      knownGauge[[1, 1]]] === 0] &&
+  TrueQ[Together[reconstruction["OffDiagonalBasisTransformationBlock"][[1, 1]] -
+      knownOffDiagonalBasisTransformationBlock[[1, 1]]] === 0] &&
     Lookup[reconstruction["ExactGenericResidual"], "Status", None] ===
       "ExactChannelResidualZero"];
 check["B1 reconstruction records its sole training image store",
@@ -148,7 +148,7 @@ check["B1 the sampler preserves the zero-large-evaluation rejection",
       "PointNotSplitOverPrime"];
 
 otherPrepared = prepare[record, coefficientPresentation, "RootIndices" -> {1},
-  "OneForms" -> {}, "GaugeDenominator" -> 1 + py,
+  "OneForms" -> {}, "OffDiagonalBasisTransformationDenominator" -> 1 + py,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
 otherLayout = layoutBuilder[otherPrepared];
 mismatch = assembleSample[otherLayout, split, 5, prime,

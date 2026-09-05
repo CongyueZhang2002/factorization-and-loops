@@ -3,13 +3,13 @@
    MOVED OUT OF PRODUCTION 2026-08-26 (round-2 wave, Codex review 4.2).
 
    Witness-guided mixed-grade letter discovery.  It has NO production
-   caller: `multiquadraticStripCandidateLetters` builds single-root
+   caller: `multiquadraticOffDiagonalBlockCandidateLetters` builds single-root
    principal letters only.  Codex 4.2 asked that 200 lines of apparently
    available but unused capability stop living in a loaded file, and
    Codex 3.2 describes the generalization (quotient-ring reduction
    modulo (f, r_i^2 - delta_i), divisor-guided candidate selection) that
    must replace it before it is integrated.  Until then it is a
-   prototype: exercised by Tests/Multiquadratic/t_multiquadratic_gauge_screen.wls,
+   prototype: exercised by Tests/Multiquadratic/t_multiquadratic_off_diagonal_basis_transformation_screen.wls,
    which Gets this file explicitly, and by nothing else.
 
    Load it INSIDE the FeynFacet`Private` context, after FeynFacet:
@@ -18,17 +18,20 @@
      Get[".../Prototypes/MultiquadraticMixedGradeLetters.wl"];
      End[];
 
-   It uses multiquadraticStripPolynomialSquareRoot,
-   multiquadraticStripRationalSquareQ, multiquadraticStripNormInAlphabetQ,
-   multiquadraticStripProductionOptionGate and multiquadraticStripFailure
+   It uses multiquadraticOffDiagonalBlockPolynomialSquareRoot,
+   multiquadraticOffDiagonalBlockRationalSquareQ,
+   multiquadraticOffDiagonalBlockNormInAlphabetQ,
+   multiquadraticOffDiagonalBlockProductionOptionGate and
+   multiquadraticOffDiagonalBlockFailure
    from the package, which is why it is not standalone. *)
 
 Begin["FeynFacet`Private`"];
 
-ClearAll[multiquadraticStripCurveParameterization,
-  multiquadraticStripRationalFunctionSquareRoot,
-  multiquadraticStripGradeSquare, multiquadraticStripGradeNorm,
-  multiquadraticStripMixedGradeLetters];
+ClearAll[multiquadraticOffDiagonalBlockCurveParameterization,
+  multiquadraticOffDiagonalBlockRationalFunctionSquareRoot,
+  multiquadraticOffDiagonalBlockGradeSquare,
+  multiquadraticOffDiagonalBlockGradeNorm,
+  multiquadraticOffDiagonalBlockMixedGradeLetters];
 
 (* ------------------------------------------------------------------ *)
 (* Witness-guided MIXED-GRADE letter discovery (2026-08-25, Codex Q3)   *)
@@ -75,7 +78,7 @@ ClearAll[multiquadraticStripCurveParameterization,
    rather than approximated. *)
 (* Catch/Throw, NOT Return inside Do: this package has paid for that trap
    (Return inside Do discards the result and the Module falls through). *)
-multiquadraticStripCurveParameterization[factor_, variables : {x_, y_}] :=
+multiquadraticOffDiagonalBlockCurveParameterization[factor_, variables : {x_, y_}] :=
   Catch[Module[{expanded, other, coefficients},
   expanded = Quiet[Expand[Together[factor]]];
   If[! PolynomialQ[expanded, variables],
@@ -96,46 +99,45 @@ multiquadraticStripCurveParameterization[factor_, variables : {x_, y_}] :=
 (* An exact square root of a rational function of ONE variable, or
    $Failed.  q = n/d is a square exactly when n d is a square polynomial;
    then Sqrt[q] = Sqrt[n d]/d. *)
-multiquadraticStripRationalFunctionSquareRoot[value_, variable_Symbol] :=
+multiquadraticOffDiagonalBlockRationalFunctionSquareRoot[value_, variable_Symbol] :=
   Module[{rational, numerator, denominator, product, squareRoot, constant},
   rational = Quiet[Together[value]];
   If[! FreeQ[rational, DirectedInfinity | Indeterminate], Return[$Failed]];
   If[TrueQ[rational === 0], Return[0]];
   numerator = Numerator[rational]; denominator = Denominator[rational];
   If[FreeQ[rational, variable],
-    Return[If[multiquadraticStripRationalSquareQ[rational], Sqrt[rational],
+    Return[If[multiquadraticOffDiagonalBlockRationalSquareQ[rational], Sqrt[rational],
       $Failed]]];
   product = Quiet[Expand[numerator denominator]];
   If[! PolynomialQ[product, variable], Return[$Failed]];
   constant = Quiet[Cancel[product/Expand[product/Coefficient[product,
     variable, Exponent[product, variable]]]]];
-  squareRoot = multiquadraticStripPolynomialSquareRoot[product, {variable}];
+  squareRoot = multiquadraticOffDiagonalBlockPolynomialSquareRoot[product, {variable}];
   If[squareRoot === $Failed, Return[$Failed]];
   Together[squareRoot/denominator]
 ];
 
 (* grade bitmask -> the product of its root squares *)
-multiquadraticStripGradeSquare[roots_List, grade_Integer] :=
+multiquadraticOffDiagonalBlockGradeSquare[roots_List, grade_Integer] :=
   Expand[Together[Product[
-    If[BitGet[grade, a - 1] === 1, Lookup[roots[[a]], "RootSquare", 1], 1],
+    If[BitGet[grade, a - 1] === 1,
+      squareRootRecordRadicand[roots[[a]]], 1],
     {a, Length[roots]}]]];
 
-(* The Galois norm of P = Sum_g c_g r_g: the product over its DISTINCT
-   conjugates, reduced by r_a^2 = delta_a.  Distinct, not all 2^r sign
-   branches: a P that happens to lie in a proper subfield has repeated
-   branches, and multiplying them all would return the true norm raised
-   to the index -- which doubles every exponent in the polar divisor and
-   in any gauge denominator built from it.  For a P with full grade
-   support the two definitions agree.  Exact and rational either way. *)
-multiquadraticStripGradeNorm[coefficients_List, roots_List] := Module[
+(* The product over the DISTINCT formal square-root sign-change images of
+   P = Sum_g c_g r_g, reduced by r_a^2 = delta_a.  This prototype does not
+   prove square-class independence, so it does not call those images Galois
+   conjugates or the product a field norm.  Removing repeated images avoids
+   multiplying a proper-subalgebra result to an artificial power. *)
+multiquadraticOffDiagonalBlockGradeNorm[coefficients_List, roots_List] := Module[
   {rank = Length[roots], gradeCount, branch, branches = {}, product,
    rootOne, rootTwo, rootThree, symbols, squares, reduce},
   gradeCount = 2^rank;
   If[Length[coefficients] =!= gradeCount, Return[$Failed]];
   symbols = Take[{rootOne, rootTwo, rootThree}, rank];
-  squares = Table[Together[Lookup[roots[[a]], "RootSquare", 1]], {a, rank}];
-  (* the reduction r_a^2 -> delta_a, applied to exhaustion; the norm is
-     Galois invariant, so nothing symbolic may survive *)
+  squares = Table[Together[squareRootRecordRadicand[roots[[a]]]], {a, rank}];
+  (* the reduction r_a^2 -> delta_a, applied to exhaustion; the complete
+     sign-change orbit product is invariant, so nothing symbolic may survive *)
   reduce[value_] := Module[{current = Expand[value], guardCount = 0},
     While[guardCount < 32 && ! FreeQ[current,
         Power[Alternatives @@ symbols, p_Integer /; p >= 2]],
@@ -162,7 +164,7 @@ multiquadraticStripGradeNorm[coefficients_List, roots_List] := Module[
   Quiet[Expand[Together[product]]]
 ];
 
-Options[multiquadraticStripMixedGradeLetters] = {
+Options[multiquadraticOffDiagonalBlockMixedGradeLetters] = {
   "MaximumDegree" -> 2,
   "Factors" -> Automatic,
   "Alphabet" -> {},
@@ -172,14 +174,14 @@ Options[multiquadraticStripMixedGradeLetters] = {
   "CombinationOrder" -> 2,
   "CombinationBasisLimit" -> 24,
   (* a letter of grade support {0, g} lies in a quadratic subfield and is
-     already produced by multiquadraticStripAlgebraicLetters; one of
+     already produced by multiquadraticOffDiagonalBlockAlgebraicLetters; one of
      support {g, h} is r_g times such a letter, so its dlog is spanned by
      the alphabet plus dlog r_g.  True emits only supports of size >= 3,
      which is where the genuinely mixed-grade content is. *)
   "MinimumGradeSupport" -> 1
 };
 
-multiquadraticStripMixedGradeLetters[roots_List, censusFactors_List,
+multiquadraticOffDiagonalBlockMixedGradeLetters[roots_List, censusFactors_List,
     variables : {x_, y_}, opts : OptionsPattern[]] := Module[
   {gate, rank, gradeCount, alphabet, factors, maximumDegree, maximumSolutions,
    records = {}, diagnostics = {}, parameterization, freeVariable, rule,
@@ -190,12 +192,12 @@ multiquadraticStripMixedGradeLetters[roots_List, censusFactors_List,
    numerators, gradeSquareOnCurve, solutionCount, expression,
    ramifiedGrades, trivialCount = 0, combinationOrder, combinationLimit,
    minimumSupport, combinationCount = 0, gradeSupport},
-  gate = multiquadraticStripProductionOptionGate[{opts},
-    Keys[Association[Options[multiquadraticStripMixedGradeLetters]]]];
+  gate = multiquadraticOffDiagonalBlockProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticOffDiagonalBlockMixedGradeLetters]]]];
   If[AssociationQ[gate], Return[gate]];
   rank = Length[roots];
-  If[rank < 1 || rank > $multiquadraticStripMaximumRootCount,
-    Return[multiquadraticStripFailure["UnsupportedRootRank",
+  If[rank < 1 || rank > $multiquadraticOffDiagonalBlockMaximumRootCount,
+    Return[multiquadraticOffDiagonalBlockFailure["UnsupportedRootRank",
       <|"ActualRank" -> rank|>]]];
   gradeCount = 2^rank;
   alphabet = Replace[OptionValue["Alphabet"], Automatic :> censusFactors];
@@ -210,15 +212,15 @@ multiquadraticStripMixedGradeLetters[roots_List, censusFactors_List,
       ! IntegerQ[combinationOrder] || combinationOrder < 0 ||
       ! IntegerQ[combinationLimit] || combinationLimit < 1 ||
       ! IntegerQ[minimumSupport] || minimumSupport < 1,
-    Return[multiquadraticStripFailure["InvalidMixedGradeRequest",
+    Return[multiquadraticOffDiagonalBlockFailure["InvalidMixedGradeRequest",
       <|"MaximumDegree" -> maximumDegree,
         "CombinationOrder" -> combinationOrder,
         "MinimumGradeSupport" -> minimumSupport|>]]];
   rootSymbols = Take[{rootOne, rootTwo, rootThree}, rank];
-  gradeSquares = Table[multiquadraticStripGradeSquare[roots, grade],
+  gradeSquares = Table[multiquadraticOffDiagonalBlockGradeSquare[roots, grade],
     {grade, 0, gradeCount - 1}];
   Do[
-    parameterization = multiquadraticStripCurveParameterization[factor,
+    parameterization = multiquadraticOffDiagonalBlockCurveParameterization[factor,
       variables];
     If[parameterization === $Failed,
       AppendTo[diagnostics, <|"Factor" -> factor,
@@ -229,7 +231,7 @@ multiquadraticStripMixedGradeLetters[roots_List, censusFactors_List,
     (* (2) the decomposition data: which grades are squares on the curve *)
     curveSquares = Quiet[Together[gradeSquares /. rule]];
     squareRoots = Table[
-      multiquadraticStripRationalFunctionSquareRoot[curveSquares[[grade + 1]],
+      multiquadraticOffDiagonalBlockRationalFunctionSquareRoot[curveSquares[[grade + 1]],
         freeVariable], {grade, 0, gradeCount - 1}];
     splitGrades = Select[Range[0, gradeCount - 1],
       squareRoots[[#1 + 1]] =!= $Failed &];
@@ -324,18 +326,18 @@ multiquadraticStripMixedGradeLetters[roots_List, censusFactors_List,
           ! TrueQ[Together[candidate[[#1 + 1]]] === 0] &];
         If[Length[gradeSupport] < minimumSupport, trivialCount++; Continue[]];
         If[Length[gradeSupport] === 1 &&
-            multiquadraticStripNormInAlphabetQ[
+            multiquadraticOffDiagonalBlockNormInAlphabetQ[
               First[Select[candidate, ! TrueQ[Together[#1] === 0] &]],
               alphabet, variables],
           trivialCount++; Continue[]];
-        norm = multiquadraticStripGradeNorm[candidate, roots];
+        norm = multiquadraticOffDiagonalBlockGradeNorm[candidate, roots];
         If[norm === $Failed || TrueQ[Together[norm] === 0], Continue[]];
-        If[! multiquadraticStripNormInAlphabetQ[norm, alphabet, variables],
+        If[! multiquadraticOffDiagonalBlockNormInAlphabetQ[norm, alphabet, variables],
           Continue[]];
         letter = Together[Sum[
           candidate[[grade + 1]] Product[
             If[BitGet[grade, a - 1] === 1,
-              Sqrt[Lookup[roots[[a]], "RootSquare", 1]], 1], {a, rank}],
+              squareRootRecordExpression[roots[[a]]], 1], {a, rank}],
           {grade, 0, gradeCount - 1}]];
         If[TrueQ[Together[letter] === 0], Continue[]];
         canonical = ToString[InputForm[Together[
@@ -365,7 +367,7 @@ multiquadraticStripMixedGradeLetters[roots_List, censusFactors_List,
     "UnparameterizedFactors" -> Select[diagnostics,
       Lookup[#1, "Status", None] === "NotRationallyParameterized" &]|>
 ];
-multiquadraticStripMixedGradeLetters[___] :=
-  multiquadraticStripFailure["InvalidMixedGradeArguments"];
+multiquadraticOffDiagonalBlockMixedGradeLetters[___] :=
+  multiquadraticOffDiagonalBlockFailure["InvalidMixedGradeArguments"];
 
 End[];

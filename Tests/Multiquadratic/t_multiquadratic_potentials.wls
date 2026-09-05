@@ -40,7 +40,7 @@
        candidate alphabet is certified.
 
    The preparation and the terminal contract.
-   P9  multiquadraticStripPrepare records the per-letter potentials, the
+   P9  multiquadraticOffDiagonalBlockPrepare records the per-letter potentials, the
        certification verdict and its reason.
    P10 A caller that supplies bare one-forms has no letters to verify:
        the verdict is False with reason "OneFormsSuppliedWithoutLetters".
@@ -58,13 +58,13 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {verify, statistics, reset, pairKey, certifiedQ, candidateLetters, prepare,
   letterOneForm} =
- mq /@ {"multiquadraticStripVerifyPotential",
-   "multiquadraticStripPotentialStatistics",
-   "multiquadraticStripPotentialCacheReset",
-   "multiquadraticStripPotentialPairKey",
-   "multiquadraticStripPotentialsCertifiedQ",
-   "multiquadraticStripCandidateLetters", "multiquadraticStripPrepare",
-   "multiquadraticStripLetterOneForm"};
+ mq /@ {"multiquadraticOffDiagonalBlockVerifyPotential",
+   "multiquadraticOffDiagonalBlockPotentialStatistics",
+   "multiquadraticOffDiagonalBlockPotentialCacheReset",
+   "multiquadraticOffDiagonalBlockPotentialPairKey",
+   "multiquadraticOffDiagonalBlockPotentialsCertifiedQ",
+   "multiquadraticOffDiagonalBlockCandidateLetters", "multiquadraticOffDiagonalBlockPrepare",
+   "multiquadraticOffDiagonalBlockLetterOneForm"};
 
 Clear[px, py, pe];
 dlogOf[letter_] := {Together[D[letter, px]/letter],
@@ -132,11 +132,11 @@ check["P6 and verifying it is a cache HIT, not a second computation",
 (* ---- P7 / P8: the alphabet ---- *)
 zero11 = {{{0}}, {{0}}};
 diagonalE = {{{1/px}}, {{1/py}}};
-forcing = {{{pe/(1 + px)}}, {{pe/(1 + py)}}};
+inhomogeneity = {{{pe/(1 + px)}}, {{pe/(1 + py)}}};
 record = <|"Family" -> "POTENTIALS", "Sector" -> 2, "LowerSector" -> 1,
   "Variables" -> {px, py}, "Regulator" -> pe,
-  "Strip" -> {diagonalE, zero11, forcing}|>;
-letters = candidateLetters[record["Strip"], {}, {px, py}, pe, record,
+  "OffDiagonalBlockEquation" -> {diagonalE, zero11, inhomogeneity}|>;
+letters = candidateLetters[record["OffDiagonalBlockEquation"], {}, {px, py}, pe, record,
   "RegulatorSampleCount" -> 2];
 check["the candidate letter set is built",
   Lookup[letters, "Status", None] === "MultiquadraticCandidateLettersV1"];
@@ -172,7 +172,7 @@ frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
   "Roots" -> {}|>;
 prepared = prepare[record, frame, "RegulatorSampleCount" -> 2];
 check["P9 the preparation records the per-letter potentials and the verdict",
-  Lookup[prepared, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[prepared, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     MatchQ[Lookup[prepared, "Potentials", None], {___Association}] &&
     BooleanQ[Lookup[prepared, "PotentialsCertified", None]] &&
     StringQ[Lookup[prepared, "PotentialsCertifiedReason", None]]];
@@ -184,7 +184,7 @@ suppliedForms = letterOneForm[#1, {px, py}] & /@ {1 + px, 1 + py};
 preparedBare = prepare[record, frame, "OneForms" -> suppliedForms];
 check["P10 bare one-forms have no letters to verify: NOT certified, with \
 the reason recorded",
-  Lookup[preparedBare, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[preparedBare, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Lookup[preparedBare, "PotentialsCertified", None] === False &&
     Lookup[preparedBare, "PotentialsCertifiedReason", None] ===
       "OneFormsSuppliedWithoutLetters"];

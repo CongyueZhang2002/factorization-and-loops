@@ -59,8 +59,8 @@ familyRegulatorDeadlineStop[stage_String, deadline_, start_,
 
 (* products with a constant (variable-free) matrix, entry by entry over
    its nonzero pattern, Together applied as each entry is formed: the
-   plain Dot builds all n^3 symbolic terms at once (44 masters: ~30 GB on
-   CF385, 2026-08-22) *)
+   plain Dot builds all n^3 symbolic terms at once (measured for 44
+   masters: about 30 GB). *)
 familyRegulatorSparseDot[left_List, right_List, leftConstantQ_] := Module[{n = Length[left], m = Length[First[right]], pattern},
   If[leftConstantQ,
     pattern = Table[Flatten[Position[left[[i]], Except[0], {1}, Heads -> False]], {i, n}];
@@ -106,7 +106,7 @@ familyRegulatorPropagateTruncation[
     connection : {_List, _List}, transformedPrefix : {_List, _List},
     inverse_List, transformation_List, prefix_Integer?Positive,
     variables : {_Symbol, _Symbol},
-    futureMode_: "Together", validateInverse_: True] := Module[
+    futureMode_: "Deferred", validateInverse_: True] := Module[
   {n, futureRows, upperRightZeroQ, newConnection = connection,
    transformationColumnSupport, left, leftRowSupport, support, terms,
    value, products = 0, touched = 0, deferred = 0, singleTerm = 0,
@@ -208,7 +208,7 @@ FactorFamilyRegulatorDependence::input =
 Options[FactorFamilyRegulatorDependence] = {
   "TimeLimit" -> 900,
   "Deadline" -> Infinity,
-  (* False means the caller already has the strip solver's residue
+  (* False means the caller already has the offDiagonalBlockEquation solver's residue
      metadata proving that regulator factorization is needed.  It skips
      only the redundant whole-connection precheck. *)
   "InputResiduesEpsFree" -> Automatic,
@@ -219,8 +219,8 @@ Options[FactorFamilyRegulatorDependence] = {
   "Verbose" -> False
 };
 
-(* Cheap gate before the symbolic acceptance test (profiled on the 41x41
-   CF408 connection, 2026-08-22): a candidate from too few sampled points
+(* Cheap gate before the symbolic acceptance test (profiled on a 41x41
+   production connection): a candidate from too few sampled points
    is a dense wrong T whose symbolic conjugation costs ~90 s, against ~4 s
    for the true sparse one.  Conjugating the connection evaluated at a
    few random rational chart points (rational functions of the regulator
@@ -398,20 +398,45 @@ familyRegulatorFactorFromPointEvaluator[___] := $Failed;
    combined with the numeric Jacobian. *)
 familyRegulatorChartPointConnection[connection : {_List, _List},
     rootTags_List, data_Association, rootImages_List, rule_List] := Module[
-  {sourceRules, pointRootImages, jacobian, components},
+  {sourceRules, pointRootImages, jacobian, substitutionRules, dimensions,
+   positions, entries, evaluated, parallelResult, components},
   sourceRules = Map[Function[item,
       First[item] -> Together[Last[item] /. rule]], data["Subst"]];
   pointRootImages = Together /@ (rootImages /. rule);
   jacobian = Map[Together, data["Jacobian"] /. rule, {2}];
-  components = Map[Function[matrix,
-      Map[Together, matrix /. sourceRules /.
-        Thread[rootTags -> pointRootImages], {2}]],
-    connection];
-  If[! MatchQ[components, {{__List}, {__List}}] ||
-      ! MatrixQ[jacobian] || Dimensions[jacobian] =!= {2, 2},
+  If[! MatrixQ[jacobian] || Dimensions[jacobian] =!= {2, 2},
     Return[$Failed]];
-  masterTransportPullBackOneForm[
-    components[[1]], components[[2]], jacobian]
+  substitutionRules = Join[sourceRules,
+    Thread[rootTags -> pointRootImages]];
+  (* Specialize the independent source entries before the chain-rule
+     contraction.  Contracting the unspecialized matrices can itself trigger
+     minutes of characteristic-zero algebra.  Do not hash/deduplicate the
+     large expressions here: on serialized production connections that scan
+     cost more than the arithmetic it was meant to save.  Submit the literal
+     nonzero entries to the existing byte-balanced TaskBroker operation;
+     after specialization the Jacobian contraction is only a small rational
+     operation in the regulator. *)
+  dimensions = Dimensions[connection];
+  positions = Position[connection, entry_ /; ! TrueQ[entry === 0],
+    {Length[dimensions]}, Heads -> False];
+  entries = Extract[connection, positions];
+  evaluated = If[entries === {}, {},
+    If[Length[entries] > 1 &&
+        TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]],
+      parallelResult = taskBrokerParallelTogether[
+        entries, substitutionRules, "regulatorChartPoint", Infinity];
+      If[AssociationQ[parallelResult] &&
+          Lookup[parallelResult, "Status", None] === "OK",
+        parallelResult["Result"],
+        Together[# /. substitutionRules] & /@ entries],
+      Together[# /. substitutionRules] & /@ entries]];
+  components = ConstantArray[0, dimensions];
+  MapThread[(components[[Sequence @@ #1]] = #2) &,
+    {positions, evaluated}];
+  If[! MatchQ[components, {{__List}, {__List}}], Return[$Failed]];
+  components = masterTransportPullBackOneForm[
+    components[[1]], components[[2]], jacobian];
+  components
 ];
 familyRegulatorChartPointConnection[___] := $Failed;
 
@@ -437,7 +462,8 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
   {n, start = AbsoluteTime[], verbose, log, backend, reference, rules, valid,
    transformation = $Failed, inverse, raw, attempts = {}, newAx, newAy,
    pointsUsed = 0, fermatRequested, deadline, expired = False, ladderLimit,
-   validationMode, deferAcceptanceQ},
+   validationMode, deferAcceptanceQ, evaluated, timeLimit, pointLadder,
+   gatePoints},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependence::input]; Return[$Failed]];
@@ -446,6 +472,10 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
   log[args___] := If[verbose, Print["[regulator-factor] ", args]];
   deadline = OptionValue["Deadline"];
   validationMode = OptionValue["ValidationMode"];
+  timeLimit = OptionValue["TimeLimit"];
+  pointLadder = OptionValue["PointLadder"];
+  gatePoints = OptionValue["GatePoints"];
+  fermatRequested = OptionValue["UseFermat"];
   deferAcceptanceQ = validationMode === "DeferredToFamilyCertificate";
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["Entry", deadline, start]]];
@@ -455,6 +485,41 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
     log["the connection is already eps-factored"];
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "Seconds" -> 0.|>]];
+  (* In Production, construct only the training and disjoint gate images
+     actually requested by the point ladder.  The former eager Select
+     simplified all 24 candidate points before a two-point ladder, then
+     recomputed the selected points; this alone cost about 221 s on a
+     measured one-root family.
+     Development retains the characteristic-zero path below. *)
+  If[deferAcceptanceQ,
+    evaluated = familyRegulatorFactorFromPointEvaluator[
+      With[{connection = {ax, ay}}, Function[pointRules,
+        Map[Together, connection /. pointRules, {3}]]],
+      n, {x, y}, epsilon,
+      "TimeLimit" -> timeLimit,
+      "Deadline" -> deadline,
+      "ValidationMode" -> validationMode,
+      "UseFermat" -> fermatRequested,
+      "PointLadder" -> pointLadder,
+      "GatePoints" -> gatePoints,
+      "Verbose" -> verbose];
+    If[! AssociationQ[evaluated] ||
+        Lookup[evaluated, "Status", None] =!= "OK",
+      Return[evaluated]];
+    transformation = evaluated["Transformation"];
+    inverse = evaluated["Inverse"];
+    newAx = familyRegulatorConjugateDeferred[
+      inverse, ax, transformation];
+    newAy = familyRegulatorConjugateDeferred[
+      inverse, ay, transformation];
+    Return[Join[evaluated, <|
+      "Method" -> "ExactRationalSamples",
+      "SamplingRoute" -> "LazyPointEvaluation",
+      "Connection" -> {newAx, newAy},
+      "ValidationMode" -> validationMode,
+      "ExactEpsFactorization" ->
+        Missing["DeferredToFamilyCertificate"],
+      "Seconds" -> AbsoluteTime[] - start|>]]];
   (* Fermat's algebra engine is a RATIONAL function engine.  Since
      2026-08-24 the connection may legitimately carry numeric radical
      constants (Sqrt[2] and the like: the square-class constants of the
@@ -462,7 +527,6 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
      not Fermat input.  The existing compatibility predicate decides;
      an explicit "UseFermat" -> True is a request, not a licence to feed
      Fermat an algebraic number. *)
-  fermatRequested = OptionValue["UseFermat"];
   If[! libraEpsFormFermatCompatibleQ[{ax, ay}],
     log["the connection is not Fermat compatible (algebraic constants); \
 using the Wolfram backend"];
@@ -536,9 +600,9 @@ using the Wolfram backend"];
 ];
 
 (* ------------------------------------------------------------------ *)
-(*  Multiquadratic regulator factorization (2026-08-25, CF259)          *)
+(*  Multiquadratic regulator factorization (2026-08-25)                 *)
 (* ------------------------------------------------------------------ *)
-(* WHY.  CF259 stopped typed at rows 1..23 (2026-08-25 07:50): the three
+(* WHY.  A production system stopped typed at rows 1..23: the three
    declared roots of the completed 41x41 truncation have NO joint
    rational chart (LookupCataloguedRationalizingParametrizationForRoots is Missing["NoRationalChart"];
    the triple cover is a K3 surface, not a rational one), so the chart
@@ -570,8 +634,8 @@ using the Wolfram backend"];
    T^-1 A_mu T is eps-factored identically in (x, y) (Together on a
    rational function is canonical), T T^-1 = 1 exactly, and the composed
    algebraic connection is spot-checked against the direct triple product
-   with transportChartAlgebraicZeroQ (the r-symbol reduction of commit
-   5a8cf88).  A modular corroboration at fresh primes evaluates the SAME
+   with transportChartAlgebraicZeroQ (the displayed quadratic-relation
+   reduction).  A modular corroboration at fresh primes evaluates the SAME
    conjugated object on all 2^k sign sheets of a split point and checks
    that each sheet is eps-independent; it is recorded as corroboration,
    never as the proof. *)
@@ -591,10 +655,10 @@ ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedCorroborate, familyRegulatorGradedSpotCheck,
   $familyRegulatorMaximumGradedRank];
 
-(* rank 3 declared roots + the square classes of the numeric constants a
-   denesting can introduce (CF259 carries Sqrt[2]); the neutral algebra
-   is rank-agnostic, the strip module's own ceiling of 3 is an ABI of the
-   strip solver and is deliberately not touched here *)
+(* rank 3 declared roots + the square classes of numeric constants that
+   denesting can introduce (a measured system carries Sqrt[2]); the neutral algebra
+   is rank-agnostic, the offDiagonalBlockEquation module's own ceiling of 3 is an data-layout contract of the
+   offDiagonalBlockEquation solver and is deliberately not touched here *)
 $familyRegulatorMaximumGradedRank = 5;
 
 familyRegulatorNonSquareRationalQ[value_] :=
@@ -604,7 +668,7 @@ familyRegulatorNonSquareRationalQ[value_] :=
 (* The graded algebra has one sign bit per independent square class.
    Distinct root squares are not sufficient: {q1,q2,q1 q2} would create
    a fake third generator.  Use the same exact square-class predicate as
-   the deferred-bundle and strip root-frame validators, while preserving
+   the deferred-bundle and offDiagonalBlockEquation root-frame validators, while preserving
    the caller's established root order. *)
 familyRegulatorGradedRootFrame[roots_List] := Module[
   {squares, duplicates, dependent},
@@ -623,7 +687,7 @@ familyRegulatorGradedRootFrame[roots_List] := Module[
     Return[<|"Status" -> "DuplicateRootSquares",
       "DuplicatePairs" -> duplicates|>]];
   dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
-    subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+    subset_ /; TrueQ[multiquadraticOffDiagonalBlockSquareClassSquareQ[
       Times @@ squares[[subset]]]] :> subset, None];
   If[dependent =!= None,
     Return[<|"Status" -> "DependentRootSquares",
@@ -685,7 +749,7 @@ familyRegulatorGradedRoots[usedRoots_List, numericClasses_List] := Module[
     frame["Roots"]]
 ];
 
-(* multiquadraticFieldDecompose with the strip module's rank-3 ABI
+(* multiquadraticFieldDecompose with the offDiagonalBlockEquation module's rank-3 data-layout contract
    ceiling lifted (see above).  The exact compose replay is retained for
    audit mode and skipped in Production.  Root symbols are Module locals:
    nothing is interned, nothing survives the call (pool defect 8). *)
@@ -795,7 +859,7 @@ familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
       ! TrueQ[validateRoundTrip],
     (* Deferred row assembly deliberately preserves sums.  Projection is
        linear: reduce each summand in its actual local root subfield, lift
-       its masks into the global ABI, and combine only the resulting
+       its masks into the global data-layout contract, and combine only the resulting
        univariate-in-eps channels. *)
     termChannels = Table[
       active = Pick[Range[rank], Not[FreeQ[term, #1]] & /@ rootImages];
@@ -861,7 +925,7 @@ familyRegulatorGradedPointSample[connection : {_List, _List}, tags_List,
     Return[$Failed]];
   If[MemberQ[deltas, 0] || AnyTrue[
       Rest[Subsets[Range[rank]]],
-      multiquadraticStripSquareClassSquareQ[
+      multiquadraticOffDiagonalBlockSquareClassSquareQ[
         Times @@ deltas[[#1]]] &],
     Return[$Failed]];
   (* Keep the sampled roots as independent inert generators.  Substituting
@@ -976,8 +1040,8 @@ familyRegulatorGradedDecomposeTask[dataFile_String, indices_List] :=
    its zero channels without a decomposition call; a failure is reported
    with the offending positions, never absorbed.
 
-   INTERNING (2026-08-25, Codex's 08:30 performance item 1; the stage was
-   measured at 134.1 of the 153.9 s the whole CF259 rows-1..23
+   INTERNING (2026-08-25, performance item 1; the stage was
+   measured at 134.1 of the 153.9 s the whole production truncation
    factorization took, against 3.1 s for Libra and 0.9 s for the exact
    grade check).  Structurally identical nonzero entries are interned in
    an Association keyed by the expression -- a hash map with SameQ
@@ -1152,7 +1216,7 @@ familyRegulatorModularImage[expression_, rules_List, prime_Integer] := Module[
   If[! (IntegerQ[value] || Head[value] === Rational),
     value = Quiet[Together[value]]];
   If[! (IntegerQ[value] || Head[value] === Rational), Return[$Failed]];
-  multiquadraticStripModRational[value, prime]
+  multiquadraticOffDiagonalBlockModRational[value, prime]
 ];
 
 (* Sign-sheet corroboration at FRESH primes.  At a split point every
@@ -1161,7 +1225,7 @@ familyRegulatorModularImage[expression_, rules_List, prime_Integer] := Module[
    ordinary matrix over F_p.  Conjugating that matrix by T at two
    regulator values and comparing is a necessary condition for the
    eps-factorization, on every sheet at once; it corroborates the exact
-   grade-wise statement and independently exercises the algebra ABI
+   grade-wise statement and independently exercises the algebra data-layout contract
    (decompose/compose, the Hadamard character table).  It is never the
    proof: the exact statement is the grade-wise Together identity. *)
 familyRegulatorGradedCorroborate[gradeMatrices_List, roots_List,
@@ -1178,7 +1242,7 @@ familyRegulatorGradedCorroborate[gradeMatrices_List, roots_List,
   masks = multiquadraticBasisMasks[rank];
   hadamard = multiquadraticHadamardMatrix[rank];
   (* fresh primes: p = 3 (mod 4) so that multiquadraticSquareRoots
-     applies, taken from a window the strip solver's own schedules do not
+     applies, taken from a window the offDiagonalBlockEquation solver's own schedules do not
      use, and DISTINCT -- NextPrime over a coarse grid returns the same
      prime twice and two identical primes are one corroboration, not two *)
   (* the local must NOT be named after a pattern variable of this
@@ -1202,7 +1266,7 @@ familyRegulatorGradedCorroborate[gradeMatrices_List, roots_List,
       x0 = RandomInteger[{2, prime - 2}]; y0 = RandomInteger[{2, prime - 2}];
       (* Codex 0830 P2: a root SQUARE need not be a polynomial.  Raw Mod
          leaves a rational value a Rational, so VectorQ[..., IntegerQ]
-         rejected every otherwise valid split point of a strip whose
+         rejected every otherwise valid split point of a offDiagonalBlockEquation whose
          q_i is e.g. (1 + x)/(1 - y).  The modular-rational image
          utility is the same one the rest of the module uses: it turns
          numerator/denominator into numerator times the inverse
@@ -1459,8 +1523,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
 
   log["grade decomposition of a ", n, "x", n, " connection at rank ", rank,
     " (", gradeCount, " grades)"];
-  (* the decomposition is the measured 87% of this stage (CF259 rows
-     1..23: 134.1 s of 153.9 s), so it is the one subcall that MUST be
+  (* the decomposition is the measured 87% of this stage (134.1 s of
+     153.9 s), so it is the one subcall that MUST be
      capped by the remaining time rather than run to completion *)
   {decompositionSeconds, decomposition} = AbsoluteTiming[
     TimeConstrained[familyRegulatorGradedMatrices[{ax, ay}, roots,
@@ -1714,7 +1778,7 @@ carries numeric square classes in which a valid constant T may live",
 FactorFamilyRegulatorDependenceMultiquadratic[___] :=
   <|"Status" -> "InvalidArguments"|>;
 
-(* A connection assembled from already-canonical strip records normally
+(* A connection assembled from already-canonical offDiagonalBlockEquation records normally
    carries the declared radicands literally.  In that common case an exact
    denesting census over every large matrix entry computes a known answer.
    Recognize only structural declared roots and numeric square classes here;
@@ -1761,8 +1825,8 @@ familyRegulatorLiteralRootClassification[expression_, roots_List] := Module[
 familyRegulatorLiteralRootClassification[___] :=
   <|"Status" -> "LiteralRootFrameInvalid"|>;
 
-(* Frame-aware dispatcher (Codex package bug report 2026-08-22, CF300
-   (8,5)): for a family whose global coefficient frame is multiquadratic
+(* Frame-aware dispatcher (production bug report, 2026-08-22): for a
+   family whose global coefficient presentation is multiquadratic
    the completed truncation 1..m may still be rational in a catalogued
    subchart -- its roots are a subset of the family's.  The constant
    T(eps) found there is independent of the chart variables, hence of
@@ -1834,7 +1898,7 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
       "RadicalBases" -> classification["UnclassifiedRadicalBases"]|>]];
   rootIndices = classification["RootIndices"];
   numericClasses = Lookup[classification, "NumericRadicalClasses", {}];
-  (* Radical canonicalization (2026-08-24, CF303).  A radicand that is
+  (* Radical canonicalization (2026-08-24).  A radicand that is
      not itself a declared square -- a nested one such as
      q2 (u + v Sqrt[q1]), or a bare numeric one -- is now classified by
      exact denesting instead of refused, and the chart pullback below
@@ -1887,7 +1951,7 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
   rootSquares = squareRootRecordRadicand /@ usedRoots;
   chart = LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables];
   If[! AssociationQ[chart],
-    (* No joint rational chart (CF259 rows 1..23, 2026-08-25: the triple
+    (* No joint rationalizing parametrization (measured 2026-08-25: the triple
        cover of {q1, q2, q3} is a K3 surface).  The constant T(eps) is
        sought in the graded algebra itself; the typed stop is what
        remains if THAT route refuses, and it then carries the graded
@@ -1959,7 +2023,7 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     <|"QuadraticRadicand" -> Together[
       squareRootRecordRadicand[#] /.
         data["SourceVariableSubstitution"]]|> &, usedRoots];
-  (* Order matters (measured 2026-08-24 on the 27x27 CF303 truncation:
+  (* Order matters (measured 2026-08-24 on a 27x27 production truncation:
      the old order did not finish this pullback in 50 minutes).  Together
      applied while the entries still carry radicals RATIONALIZES radical
      denominators by conjugation -- the trap this repository has paid for

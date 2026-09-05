@@ -1,142 +1,101 @@
 #!/usr/bin/env wolframscript
 
-(* Round 4 (2026-09-02), Codex review points 3 and 4 on the observable
-   transport.
-   (3) When the fraction grid cannot supply the requested number of
-       admissible rank or residue samples for an algebraic record, the
-       transport must stop with a typed exhaustion status (sample kind,
-       requested and available counts); the former code kept the
-       original samples, some of them proved inadmissible.
-   (4) The coefficient field: a transport-ready record must declare it
-       (typed refusal otherwise), and the legacy inference for older
-       records inspects every computational field, not only Letters and
-       TTotal; FindObservableTransportPath refuses instead of assuming
-       "Rational". *)
+(* V2 coefficient presentations are explicit.  Zero-residue letters do not
+   constrain finite-field samples, and no coefficient-field inference from
+   legacy ChartRecord data remains. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
 x = Symbol["Global`sampleX"];
 y = Symbol["Global`sampleY"];
 eps = Symbol["Global`eps"];
 grid = FeynFacet`Private`$observableTransportSampleFractions;
+family = "SampleExhaustionToy";
 
-(* the 1x1 algebraic fixture of t_algebraic_observable_transport with one
-   extra letter of zero residue, which leaves the connection unchanged but
-   enters the admissibility test of the samples *)
-toy[extraLetter_] := <|
-  "Status" -> "ExactEpsilonForm",
-  "Family" -> "SampleExhaustionToy",
-  "Variables" -> {x, y},
-  "Regulator" -> eps,
-  "Dim" -> 1,
-  "Ranges" -> {{1}},
-  "TTotal" -> {{eps}},
-  "TTotalInverse" -> {{1/eps}},
-  "EpsFormX" -> eps {{-1/(2 Sqrt[1 - x] (1 + Sqrt[1 - x]))}},
-  "EpsFormY" -> eps {{0}},
-  "Letters" -> {1 + Sqrt[1 - x], extraLetter},
-  "DLog" -> <|
-    "Valid" -> True,
-    "Dimension" -> 1,
-    "Variables" -> {x, y},
-    "Regulator" -> eps,
-    "Letters" -> {1 + Sqrt[1 - x], extraLetter},
-    "Residues" -> {{{1}}, {{0}}},
-    "ConstantResidues" -> True|>,
-  "ChartRecord" -> <|"CoefficientField" -> "Multiquadratic",
-    "Variables" -> {x, y}, "Subst" -> {x -> x, y -> y},
-    "Roots" -> {<|"Root" -> Sqrt[1 - x], "RootSquare" -> 1 - x|>}|>,
-  "GateVerdict" -> True,
-  "GaugeIdentity" -> True,
-  "Flatness" -> True,
-  "TTotalInvertible" -> True
-|>;
-(* the base point y = 1/4 is not on the grid; x = 1/4 -> 2/7 *)
+familySystem = <|
+  "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+  "Family" -> family, "KinematicVariables" -> {x, y},
+  "DimensionalRegulator" -> eps,
+  "OriginalMasterIntegralBasis" -> {sampleMaster[family, {1}]},
+  "ConnectionMatrices" -> {{{eps/x}}, {{0}}}|>;
+candidate = <|
+  "Family" -> family, "Variables" -> {x, y}, "Regulator" -> eps,
+  "Ranges" -> {{1}}, "Blocks" -> {{1}},
+  "TTotal" -> {{eps}}, "TTotalInverse" -> {{1/eps}},
+  "EpsFormX" -> {{eps/x}}, "EpsFormY" -> {{0}}|>;
+baseRecord = FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+  candidate, familySystem, <|
+    "RelativePath" -> "sample_exhaustion_toy.wl",
+    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+    "Family" -> family|>, "IdentityMethod" -> "Symbolic"];
+
+(* A zero-residue letter leaves the differential equation unchanged, but it
+   remains a declared divisor that admissible finite-field samples avoid. *)
+toy[extraLetter_] := Join[baseRecord, <|
+  "Letters" -> Append[baseRecord["Letters"], extraLetter],
+  "ConstantResidueMatrices" ->
+    Append[baseRecord["ConstantResidueMatrices"], {{0}}]|>];
 path = <|"FirstVariable" -> x, "SecondVariable" -> y,
-  "FirstBase" -> 1/4, "SecondBase" -> 1/4, "FirstTargetSample" -> 2/7|>;
-demand = <|"PhysicalRows" -> {1}, "PhysicalOrders" -> {2, 3},
-  "PhysicalValuation" -> 2, "Path" -> path|>;
+  "FirstBase" -> 1/4, "SecondBase" -> 1/4,
+  "FirstPathParameterScale" -> 1/28|>;
+demand = <|
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> {{2, 1}, {3, 1}},
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 2,
+  "RegularBasePointAndFirstPathParameterScale" -> path|>;
+build[record_, options___] :=
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    record, demand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints", options];
+
+regularResult = build[toy[1 + y]];
 killY = Times @@ ((y - #) & /@ grid);
 killX = Times @@ ((x - #) & /@ grid);
-FTAssert["the fixture with an innocuous extra letter is an exact record and transports",
-  ExactFamilyEpsilonFormQ[toy[1 + y]] &&
-    BuildObservableTransport[toy[1 + y], demand,
-      "BoundaryEvolution" -> "AmbientBasePoint"]["Status"] ===
-      "ModularlyVerifiedObservableTransport"];
-rankExhausted = BuildObservableTransport[toy[killY], demand,
-  "BoundaryEvolution" -> "AmbientBasePoint"];
-FTAssert["a letter vanishing at every grid value of the second variable exhausts the rank samples (typed)",
-  Lookup[rankExhausted, "Status", None] === "AdmissibleSamplesExhausted" &&
-    rankExhausted["SampleKind"] === "Rank" &&
-    rankExhausted["Requested"] === 3 && rankExhausted["Available"] === 0 &&
-    rankExhausted["Candidates"] === Length[grid]^2 &&
-    rankExhausted["Family"] === "SampleExhaustionToy"];
-residueExhausted = BuildObservableTransport[toy[killX], demand,
-  "BoundaryEvolution" -> "AmbientBasePoint"];
-FTAssert["a letter vanishing at every grid value of the first variable exhausts the residue samples (typed)",
-  Lookup[residueExhausted, "Status", None] === "AdmissibleSamplesExhausted" &&
-    residueExhausted["SampleKind"] === "Residue" &&
-    residueExhausted["Requested"] === 7 &&
-    residueExhausted["Available"] < 7 &&
-    residueExhausted["Candidates"] === Length[grid]^2];
-FTAssert["explicit rank samples bypass the automatic grid, so the exhaustion is not reached",
-  Lookup[BuildObservableTransport[toy[killY], demand,
-    "BoundaryEvolution" -> "AmbientBasePoint",
-    "RankSamples" -> {{Symbol["Global`t"] -> 1/4, y -> 1/4}}],
-    "Status", None] =!= "AdmissibleSamplesExhausted"];
+rankExhausted = build[toy[killY]];
+residueExhausted = build[toy[killX]];
+explicitRankSample = build[toy[killY],
+  "RankSamples" -> {{Symbol["Global`t"] -> 1/4, y -> 1/4}}];
 
-(* ---- coefficient field ---- *)
-field = FeynFacet`Private`observableTransportCoefficientField;
-legacy = <|"Status" -> "ExactEpsilonForm", "Family" -> "LegacyToy",
-  "Variables" -> {x, y}, "Regulator" -> eps,
-  "Letters" -> {x, 1 - y}, "TTotal" -> {{1}}, "TTotalInverse" -> {{1}},
-  "EpsFormX" -> eps {{1/x}}, "EpsFormY" -> eps {{-1/(1 - y)}}|>;
-FTAssert["a radical-free legacy record infers Rational and gets a path",
-  field[legacy] === "Rational" &&
-    FindObservableTransportPath[legacy]["Status"] === "ExactPathData"];
-FTAssert["a radical in TTotalInverse alone refuses the inference (Codex: was Rational)",
-  field[Join[legacy, <|"TTotalInverse" -> {{Sqrt[1 - x]}}|>]] ===
-    Missing["CoefficientFieldRequired", {"TTotalInverse"}]];
-FTAssert["a radical in an epsilon-form matrix alone refuses the inference",
-  field[Join[legacy, <|"EpsFormY" -> eps {{1/Sqrt[1 - y]}}|>]] ===
-    Missing["CoefficientFieldRequired", {"EpsFormY"}]];
-FTAssert["a radical in the dlog letters or residues alone refuses the inference",
-  field[Join[legacy, <|"DLog" -> <|"Letters" -> {1 + Sqrt[1 - x]},
-      "Residues" -> {{{1}}}|>|>]] ===
-    Missing["CoefficientFieldRequired", {"DLog/Letters"}] &&
-  field[Join[legacy, <|"DLog" -> <|"Letters" -> {x},
-      "Residues" -> {{{Sqrt[2]}}}|>|>]] ===
-    Missing["CoefficientFieldRequired", {"DLog/Residues"}]];
-FTAssert["a chart root with a radical refuses the inference; a rationalizing chart does not",
-  field[Join[legacy, <|"ChartRecord" -> <|"Variables" -> {x, y},
-      "Subst" -> {x -> x, y -> y},
-      "Roots" -> {<|"Root" -> Sqrt[1 - x], "RootSquare" -> 1 - x|>}|>|>]] ===
-    Missing["CoefficientFieldRequired", {"ChartRecord/Roots"}] &&
-  field[Join[legacy, <|"ChartRecord" -> <|"Variables" -> {x, y},
-      "Subst" -> {x -> x, y -> y},
-      "Roots" -> {<|"Root" -> x - y, "RootSquare" -> (x - y)^2|>}|>|>]] ===
-    "Rational"];
-FTAssert["an explicit declaration wins over the inference (record, chart record, certificate)",
-  field[Join[legacy, <|"TTotalInverse" -> {{Sqrt[1 - x]}},
-      "CoefficientField" -> "Multiquadratic"|>]] === "Multiquadratic" &&
-  field[Join[legacy, <|"ChartRecord" -> <|"CoefficientField" -> "Rational"|>|>]] ===
-    "Rational" &&
-  field[Join[legacy, <|"EpsilonFormCertificate" ->
-      <|"CoefficientField" -> "Multiquadratic"|>|>]] === "Multiquadratic"];
-FTAssert["FindObservableTransportPath refuses a record whose field cannot be resolved",
-  With[{result = FindObservableTransportPath[
-      Join[legacy, <|"TTotalInverse" -> {{Sqrt[1 - x]}}|>]]},
-    result["Status"] === "CoefficientFieldRequired" &&
-      MissingQ[result["CoefficientField"]]]];
-transportReady = <|"Status" -> "TransportReadyEpsilonConnection",
-  "Family" -> "TransportReadyToy", "Variables" -> {x, y}, "Regulator" -> eps,
-  "Letters" -> {x, 1 - y}, "TTotal" -> {{1}}, "TTotalInverse" -> {{1}},
-  "EpsFormRepresentation" -> "ConstantResidueDLog"|>;
-FTAssert["a transport-ready record without a declared field is refused, even when radical-free",
-  field[transportReady] === Missing["CoefficientFieldDeclarationRequired"] &&
-    With[{result = BuildObservableTransport[transportReady, demand]},
-      result["Status"] === "ObservableTransportCoefficientFieldMissingOrInvalid" &&
-        result["CoefficientField"] === Missing["CoefficientFieldDeclarationRequired"]] &&
-    field[Join[transportReady, <|"CoefficientField" -> "Rational"|>]] === "Rational"];
+missingPresentation = KeyDrop[baseRecord, "CoefficientPresentation"];
+legacyChartOnly = Join[missingPresentation, <|
+  "ChartRecord" -> <|"CoefficientField" -> "Rational"|>|>];
+missingPath = ChooseRegularBasePointAndFirstPathParameterScale[
+  missingPresentation];
+legacyChartPath = ChooseRegularBasePointAndFirstPathParameterScale[
+  legacyChartOnly];
+missingBuild = build[missingPresentation];
+
+Print["sample-selection statuses: ",
+  KeyTake[rankExhausted,
+    {"Status", "SampleKind", "Requested", "Available", "Candidates"}],
+  " / ",
+  KeyTake[residueExhausted,
+    {"Status", "SampleKind", "Requested", "Available", "Candidates"}]];
+
+FTAssert["the explicit V2 source-variable presentation is accepted",
+  ExactlyValidatedFamilyDLogEpsilonFormQ[baseRecord] &&
+    regularResult["Status"] ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[regularResult]];
+FTAssert["zero-residue letters do not constrain rank samples",
+  rankExhausted["Status"] ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[rankExhausted]];
+FTAssert["zero-residue letters do not constrain residue samples",
+  residueExhausted["Status"] ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      residueExhausted]];
+FTAssert["an explicit rank sample bypasses automatic rank-grid exhaustion",
+  explicitRankSample["Status"] =!= "AdmissibleSamplesExhausted" ||
+    Lookup[explicitRankSample, "SampleKind", None] =!= "Rank"];
+FTAssert["missing coefficient presentation is refused typed",
+  missingPath["Status"] === "CoefficientPresentationRequired" &&
+    missingBuild["Status"] ===
+      "RequestedOutputCoefficientOperatorPresentationMissingOrInvalid"];
+FTAssert["a legacy ChartRecord does not restore coefficient-field inference",
+  legacyChartPath["Status"] === "CoefficientPresentationRequired"];
+
 FTReport[];

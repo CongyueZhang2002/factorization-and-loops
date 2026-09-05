@@ -15,16 +15,16 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, layoutBuilder, directProvider, reconstruct, residualImage,
   assembleSample, discoverySolve, pilotRecord, wideScheduleQ, splitEntry,
   presentationRoots} =
-  mq /@ {"multiquadraticStripPrepare",
-    "multiquadraticStripAssemblyLayout",
-    "multiquadraticStripDirectProvider",
-    "multiquadraticStripReconstructRegulator",
-    "multiquadraticStripProviderResidualImage",
-    "multiquadraticStripAssembleSample",
-    "multiquadraticStripPlanDiscoverySolve",
-    "multiquadraticStripPilotImageRecord",
-    "multiquadraticStripWidePrimeScheduleQ",
-    "multiquadraticStripSplitBranchEntry",
+  mq /@ {"multiquadraticOffDiagonalBlockPrepare",
+    "multiquadraticOffDiagonalBlockAssemblyLayout",
+    "multiquadraticOffDiagonalBlockDirectProvider",
+    "multiquadraticOffDiagonalBlockReconstructRegulator",
+    "multiquadraticOffDiagonalBlockProviderResidualImage",
+    "multiquadraticOffDiagonalBlockAssembleSample",
+    "multiquadraticOffDiagonalBlockPlanDiscoverySolve",
+    "multiquadraticOffDiagonalBlockPilotImageRecord",
+    "multiquadraticOffDiagonalBlockWidePrimeScheduleQ",
+    "multiquadraticOffDiagonalBlockSplitBranchEntry",
     "coefficientPresentationSquareRootsInVariables"};
 
 Clear[bx, by, be, bcx, bcy];
@@ -36,20 +36,20 @@ frame = BuildSquareRootGeneratorsAndQuadraticRelations[
   {delta}, {bx, by}, {bcx, bcy}];
 rootRecord = First[presentationRoots[frame, {bx, by}]];
 zero11 = {{{0}}, {{0}}};
-knownGauge = {{Together[height be Sqrt[delta]/((be - 1) (1 - by))]}};
-forcing = Table[{{Together[D[knownGauge[[1, 1]], {bx, by}[[mu]]]]}},
+knownOffDiagonalBasisTransformationBlock = {{Together[height be Sqrt[delta]/((be - 1) (1 - by))]}};
+inhomogeneity = Table[{{Together[D[knownOffDiagonalBasisTransformationBlock[[1, 1]], {bx, by}[[mu]]]]}},
   {mu, 2}];
 record = <|"Family" -> "ADAPTIVE_RECONSTRUCTION", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {bx, by}, "Regulator" -> be,
-  "Strip" -> {zero11, zero11, forcing}|>;
+  "OffDiagonalBlockEquation" -> {zero11, zero11, inhomogeneity}|>;
 
 prepared = prepare[record, frame, "RootIndices" -> {1}, "OneForms" -> {},
-  "GaugeDenominator" -> 1 - by, "Support" -> {{0, 0}},
+  "OffDiagonalBasisTransformationDenominator" -> 1 - by, "Support" -> {{0, 0}},
   "CoefficientProvider" -> "SplitBranch"];
 layout = layoutBuilder[prepared];
 provider = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"]];
+  "OffDiagonalBasisTransformationDenominator" -> prepared["OffDiagonalBasisTransformationDenominator"]];
 
 check["B2 provider and row layout use the same coefficient data",
   provider["CoefficientData"] === layout["CoefficientData"]];
@@ -82,7 +82,7 @@ check["B2 singular regulator images are replaced",
     Lookup[#1, "RegulatorValue", None] === 1 &] &&
     FreeQ[result["RegulatorValues"], 1]];
 check["B2 the high rational coefficient is reconstructed exactly",
-  TrueQ[Together[result["Gauge"][[1, 1]] - knownGauge[[1, 1]]] === 0]];
+  TrueQ[Together[result["OffDiagonalBasisTransformationBlock"][[1, 1]] - knownOffDiagonalBasisTransformationBlock[[1, 1]]] === 0]];
 (* At two good primes the symmetric routine admits the small congruent alias
    -354482253/1212112003.  It is not a $Failed height reconstruction: the
    disjoint provider image rejects it, and the third prime resolves the true
@@ -126,7 +126,7 @@ check["B2 validation image keys are disjoint from training keys",
    FLINT nmod arithmetic and a 64-bit word protocol.  Its Automatic schedule
    therefore uses 61-bit reconstruction primes, while the fresh final replay
    deliberately remains on the disjoint historical 31-bit validation pool. *)
-widePool = FeynFacet`Private`$multiquadraticStripWidePrimePool;
+widePool = FeynFacet`Private`$multiquadraticOffDiagonalBlockWidePrimePool;
 check["the native SplitBranch prime pool is a full valid 61-bit schedule",
   Length[widePool] === 32 && DuplicateFreeQ[widePool] &&
     AllTrue[widePool, PrimeQ[#1] && Mod[#1, 4] === 3 &&
@@ -134,12 +134,12 @@ check["the native SplitBranch prime pool is a full valid 61-bit schedule",
 check["Automatic wide primes require a completely native split plan",
   TrueQ[wideScheduleQ[provider]] &&
     Internal`InheritedBlock[{
-      FeynFacet`Private`$multiquadraticStripSplitSparseCompilation,
-      FeynFacet`Private`$multiquadraticStripSplitSparsePlanCache,
-      FeynFacet`Private`$multiquadraticStripSplitSparseExactPlanCache},
-      FeynFacet`Private`$multiquadraticStripSplitSparseCompilation = False;
-      FeynFacet`Private`$multiquadraticStripSplitSparsePlanCache = <||>;
-      FeynFacet`Private`$multiquadraticStripSplitSparseExactPlanCache = <||>;
+      FeynFacet`Private`$multiquadraticOffDiagonalBlockSplitSparseCompilation,
+      FeynFacet`Private`$multiquadraticOffDiagonalBlockSplitSparsePlanCache,
+      FeynFacet`Private`$multiquadraticOffDiagonalBlockSplitSparseExactPlanCache},
+      FeynFacet`Private`$multiquadraticOffDiagonalBlockSplitSparseCompilation = False;
+      FeynFacet`Private`$multiquadraticOffDiagonalBlockSplitSparsePlanCache = <||>;
+      FeynFacet`Private`$multiquadraticOffDiagonalBlockSplitSparseExactPlanCache = <||>;
       ! TrueQ[wideScheduleQ[provider]]]];
 wideFallback = splitEntry[bx + Sqrt[delta], {rootRecord}, {1},
   <|bx -> 3, by -> 5, be -> 7|>, {4}, {2}, First[widePool]];
@@ -153,7 +153,7 @@ discoveryPilots = Table[Module[{sample, solution},
       "PointCount" -> 2, "MaximumAttempts" -> 80,
       "RandomSeed" -> 2026083100 + Mod[p, 997]];
     solution = discoverySolve[sample["Matrix"], sample["RightHandSide"], p,
-      prepared["GaugeUnknownCount"], prepared["ResidueUnknownCount"],
+      prepared["OffDiagonalBasisTransformationUnknownCount"], prepared["ResidueUnknownCount"],
       Automatic, 2, Automatic];
     pilotRecord[p, 2, sample, solution]],
   {p, discoveryPilotPrimes}];
@@ -171,8 +171,8 @@ check["31-bit discovery pilots do not enter the wide CRT schedule",
     Intersection[wideDefault["GoodPrimes"], discoveryPilotPrimes] === {} &&
     AllTrue[wideDefault["GoodPrimes"], 2^60 < #1 < 2^61 &] &&
     AllTrue[wideDefault["UnseenPrimes"], #1 < 2^31 &] &&
-    TrueQ[Together[wideDefault["Gauge"][[1, 1]] -
-      knownGauge[[1, 1]]] === 0]];
+    TrueQ[Together[wideDefault["OffDiagonalBasisTransformationBlock"][[1, 1]] -
+      knownOffDiagonalBasisTransformationBlock[[1, 1]]] === 0]];
 
 corrupted = ReplacePart[result["Vector"], 1 -> result["Vector"][[1]] + 1];
 corruptCheck = residualImage[layout, provider, corrupted, be, 37,

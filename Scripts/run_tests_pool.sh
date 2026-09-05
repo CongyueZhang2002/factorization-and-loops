@@ -17,7 +17,7 @@
 # no longer reproduces on 14.2 (pre-existing red).
 set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-pool="$1"; nk="$2"; shift 2
+pool="$(realpath -m -- "$1")"; nk="$2"; shift 2
 wolframscript_cmd="${FACET_WOLFRAMSCRIPT:-wolframscript}"
 kpsubmit_cmd="${FACET_KPSUBMIT:-$root/Scripts/kpsubmit.sh}"
 kpwait_cmd="${FACET_KPWAIT:-$root/Scripts/kpwait.sh}"
@@ -59,7 +59,7 @@ standalone_only() {
     t_family_regulator_factor_in_frame|t_radical_denesting|\
     t_canonical_pipeline|t_pair_queue_schedule|\
     t_kernelpool_return_marker|t_kernelpool_resource_policy|\
-    t_multiquadratic_gauge_ladder|t_multiquadratic_gauge_screen|\
+    t_multiquadratic_off_diagonal_basis_transformation_ladder|t_multiquadratic_off_diagonal_basis_transformation_screen|\
     t_multiquadratic_letters) return 0 ;;
     *) return 1 ;;
   esac

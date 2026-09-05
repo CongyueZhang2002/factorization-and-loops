@@ -11,17 +11,17 @@
         and requires the strip census to select exactly the stated two roots
         in the frame's canonical order;
      2. prepares only the provider-independent coefficient/layout ABI, with
-        no compiled or globally materialized forcing channels;
+        no compiled or globally materialized inhomogeneity channels;
      3. finds one deterministic split point and checks that SplitBranch and
         the independent QuotientGrade evaluator return exactly the same
-        complete coefficient payload {E,C,BBar,OneForms,...};
+        complete coefficient payload {E,C,Inhomogeneity,OneForms,...};
      4. finds a deterministic nonsplit point and requires SplitBranch
         preflight to reject it by name before any large entry is evaluated.
 
    OneForms is deliberately empty and the gauge ansatz is the one-column
    constant placeholder: this is a coefficient-provider promotion test, not
    a claim that these three physical strips solve in that ansatz.  The real
-   E, C and BBar expressions are nevertheless evaluated in full at the
+   E, C and Inhomogeneity expressions are nevertheless evaluated in full at the
    accepted point.  Each case is bounded independently. *)
 
 (* These symbols are the project chart ABI.  Clear them before loading the
@@ -39,13 +39,13 @@ report[label_, value_] := Print["     ", label, ": ", InputForm[value]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {prepare, layoutBuilder, layoutValidQ, directProvider, providerValidQ,
-  preflight, channels} = mq /@ {"multiquadraticStripPrepare",
-  "multiquadraticStripAssemblyLayout",
-  "multiquadraticStripAssemblyLayoutValidQ",
-  "multiquadraticStripDirectProvider",
-  "multiquadraticStripProviderValidQ",
-  "multiquadraticStripProviderPreflight",
-  "multiquadraticStripProviderChannels"};
+  preflight, channels} = mq /@ {"multiquadraticOffDiagonalBlockPrepare",
+  "multiquadraticOffDiagonalBlockAssemblyLayout",
+  "multiquadraticOffDiagonalBlockAssemblyLayoutValidQ",
+  "multiquadraticOffDiagonalBlockDirectProvider",
+  "multiquadraticOffDiagonalBlockProviderValidQ",
+  "multiquadraticOffDiagonalBlockProviderPreflight",
+  "multiquadraticOffDiagonalBlockProviderChannels"};
 
 dataDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
@@ -82,9 +82,10 @@ prime = 2147483423;
 epsilonValue = 5;
 caseBudgetSeconds = 180;
 coefficientKeys = {"Prime", "Point", "RegulatorValue", "EpsilonMod",
-  "RootSquares", "RootValues", "SplitPointQ", "GaugeDenominator",
-  "GaugeLogDerivatives", "RootLogDerivatives", "E", "C", "BBar",
-  "OneForms", "CoefficientABIFingerprint"};
+  "QuadraticRadicands", "SquareRootGeneratorValues", "SplitPointQ",
+  "OffDiagonalBasisTransformationDenominator",
+  "OffDiagonalBasisTransformationDenominatorLogDerivatives", "RootLogDerivatives", "E", "C", "Inhomogeneity",
+  "OneForms", "CoefficientData"};
 coefficientPayload[value_Association] := KeyTake[value, coefficientKeys];
 
 runCase[case_Association] := Module[
@@ -100,12 +101,12 @@ runCase[case_Association] := Module[
     Return[<|"Status" -> "InputUnreadable"|>]];
   variables = Lookup[record, "Variables", $Failed];
   epsilon = Lookup[record, "Regulator", $Failed];
-  sourceShape = Quiet[Check[Dimensions /@ record["Strip"], $Failed]];
+  sourceShape = Quiet[Check[Dimensions /@ record["OffDiagonalBlockEquation"], $Failed]];
   If[Lookup[record, "Family", None] =!= "CF259" ||
       Lookup[record, "Sector", None] =!= case["Sector"] ||
       Lookup[record, "LowerSector", None] =!= case["LowerSector"] ||
       ! MatchQ[variables, {_Symbol, _Symbol}] || ! SymbolQ[epsilon] ||
-      ! MatchQ[Lookup[record, "Strip", None], {_List, _List, _List}],
+      ! MatchQ[Lookup[record, "OffDiagonalBlockEquation", None], {_List, _List, _List}],
     Return[<|"Status" -> "InputABIInvalid", "Shape" -> sourceShape|>]];
 
   (* The saved inputs are already written in the registered frame's target
@@ -123,17 +124,18 @@ runCase[case_Association] := Module[
   expectedRoots = allRoots[[expectedIndices]];
 
   prepared = prepare[record, frame, "RootIndices" -> Automatic,
-    "OneForms" -> {}, "GaugeDenominator" -> 1,
+    "OneForms" -> {}, "OffDiagonalBasisTransformationDenominator" -> 1,
     "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch",
     "CompileCore" -> False];
   If[Lookup[prepared, "Status", None] =!=
-      "PreparedMultiquadraticStripV1",
+      "PreparedMultiquadraticOffDiagonalBlockV1",
     Return[<|"Status" -> "PreparationFailed",
       "DetailStatus" -> Lookup[prepared, "Status", None]|>]];
   frameExactQ = prepared["RootSourceIndices"] === expectedIndices &&
     Length[prepared["Roots"]] === 2 && And @@ MapThread[
-      TrueQ[Together[#1["RootSquare"] - #2["RootSquare"]] === 0] &&
-        TrueQ[Together[#1["Root"] - #2["Root"]] === 0] &,
+      TrueQ[Together[#1["QuadraticRadicand"] -
+          #2["QuadraticRadicand"]] === 0] &&
+        TrueQ[Together[#1["Generator"] - #2["Generator"]] === 0] &,
       {prepared["Roots"], expectedRoots}];
   If[! frameExactQ,
     Return[<|"Status" -> "PairwiseRootFrameMismatch",
@@ -143,14 +145,12 @@ runCase[case_Association] := Module[
   layout = layoutBuilder[prepared];
   splitProvider = directProvider[prepared["Record"], prepared["Roots"],
     "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
-    "GaugeDenominator" -> prepared["GaugeDenominator"],
-    "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-    "SourceFingerprint" -> prepared["ABIFingerprint"]];
+    "OffDiagonalBasisTransformationDenominator" ->
+      prepared["OffDiagonalBasisTransformationDenominator"]];
   quotientProvider = directProvider[prepared["Record"], prepared["Roots"],
     "Kind" -> "QuotientGrade", "OneForms" -> prepared["OneForms"],
-    "GaugeDenominator" -> prepared["GaugeDenominator"],
-    "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-    "SourceFingerprint" -> prepared["ABIFingerprint"]];
+    "OffDiagonalBasisTransformationDenominator" ->
+      prepared["OffDiagonalBasisTransformationDenominator"]];
   If[! (TrueQ[layoutValidQ[layout]] &&
       TrueQ[providerValidQ[splitProvider]] &&
       TrueQ[providerValidQ[quotientProvider]]),
@@ -159,7 +159,8 @@ runCase[case_Association] := Module[
       "QuotientStatus" -> Lookup[quotientProvider, "Status", None]|>]];
 
   squareValues[point_] := Mod[
-    prepared["RootSquares"] /. Thread[variables -> point], prime];
+    Lookup[prepared["Roots"], "QuadraticRadicand", {}] /.
+      Thread[variables -> point], prime];
   splitPointQ[point_] := Module[{values = squareValues[point]},
     VectorQ[values, IntegerQ] && FreeQ[values, 0] &&
       AllTrue[values, JacobiSymbol[#1, prime] === 1 &]];
@@ -213,7 +214,7 @@ runCase[case_Association] := Module[
     "RootCount" -> prepared["RootCount"],
     "GradeCount" -> prepared["GradeCount"],
     "LayoutValid" -> True,
-    "NoGlobalForcingChannels" -> MissingQ[prepared["ForcingChannels"]],
+    "NoGlobalInhomogeneityChannels" -> MissingQ[prepared["InhomogeneityChannels"]],
     "ProviderKinds" -> Lookup[{splitProvider, quotientProvider}, "Kind"],
     "SplitPoint" -> splitPoint, "NonsplitPoint" -> nonsplitPoint,
     "NonsplitStatus" -> nonsplitPreflight["Status"],
@@ -231,9 +232,9 @@ Do[
     Lookup[outcome, "RootIndices", None] === case["RootIndices"] &&
       Lookup[outcome, "RootCount", None] === 2 &&
       Lookup[outcome, "GradeCount", None] === 4];
-  check[case["Name"] <> " uses direct providers and no global forcing channels",
+  check[case["Name"] <> " uses direct providers and no global inhomogeneity channels",
     TrueQ[Lookup[outcome, "LayoutValid", False]] &&
-      TrueQ[Lookup[outcome, "NoGlobalForcingChannels", False]] &&
+      TrueQ[Lookup[outcome, "NoGlobalInhomogeneityChannels", False]] &&
       Lookup[outcome, "ProviderKinds", None] ===
         {"SplitBranch", "QuotientGrade"}];
   check[case["Name"] <> " rejects a nonsplit point before entry evaluation",

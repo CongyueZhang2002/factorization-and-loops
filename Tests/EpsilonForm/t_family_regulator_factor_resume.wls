@@ -235,7 +235,7 @@ check["the record says no stale stop was resolved",
 
 (* ---- (d) Production consumes residue metadata, not epsFormQ ---------- *)
 freshState[99];
-Global`state["StripSolvers"] = {
+Global`state["OffDiagonalBlockSolutions"] = {
   <|"Sector" -> 1, "LowerSector" -> 0,
     "ResiduesEpsFree" -> False|>};
 Global`productionQ = True;

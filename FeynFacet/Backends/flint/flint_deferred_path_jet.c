@@ -6,10 +6,10 @@
 
    This deliberately includes the point evaluator above in the same
    translation unit.  The record loader, expression interning, fail-closed
-   InputForm grammar helpers, modular arithmetic, primality test, status ABI,
+   InputForm grammar helpers, modular arithmetic, primality test, status data-layout contract,
    and OpenMP policy therefore have one implementation.  Renaming its main
    keeps DAGO1V1/DAGO2V1 byte-for-byte untouched while this executable exposes
-   a separate request and output ABI.
+   a separate request and output data-layout contract.
 
    CLI:
      flint_deferred_path_jet INPUT.wl REQUEST.txt OUTPUT.bin [--threads N]

@@ -10,9 +10,9 @@
        run solo, ascending by size.  A shared trace pays the maximum
        probe count times the total evaluation cost, so a fat column
        bundled with small ones charges its probe count to all of them
-       (measured 18 h vs 8 h on the NNLO set);
+       (measured 18 h vs 8 h on a large production set);
      - optional eps-truncated reconstruction through ratracer
-       "to-series", which cut the fat NNLO column from 3.9 M probes /
+       "to-series", which cut a large column from 3.9 M probes /
        ~6 h to 297 k probes / 15.5 min (measured 2026-08-13) and was
        verified exact to the truncation;
      - a streaming, subset-safe result parser that resolves markers by
@@ -262,7 +262,7 @@ reconstructionSeriesAlias[traceData_Association, variable_] := Module[
 
 (* One pass over the file.  The payload is handed to the caller block by
    block and never accumulated, because a single block reaches 17 MB and
-   a result file 262 MB (measured on the NNLO set). *)
+   a result file 262 MB (measured on a large production set). *)
 reconstructionStreamBlocks[file_String, handler_] := Module[
   {stream, line, marker, current = None, lines = {}, position = 0,
    lastPosition = -1, terminated = False, regressed = False},
@@ -683,7 +683,7 @@ reconstructionJobDoneQ[file_String] := Module[{stream, size, text},
 
 (* The job runs as a shell script for three reasons: RunProcess cannot
    launch a command with thousands of arguments (measured: 100 fine,
-   4400 returns no result at all) and one NNLO trace names 2203
+   4400 returns no result at all) and one large trace names 2203
    expression files; the FireFly log has to be written incrementally so
    a status command can read it; and the progress sampler has to run
    while ratracer runs, which the calling kernel cannot do because it is
@@ -1287,8 +1287,8 @@ reconstructionOrderExpressions[
    (verified: the list keeps a literal Return[Nothing]).  Nothing ever
    vanished, so the entry survives as Return[Nothing] and poisons both
    the assembled Expression and the momentum, fraction and cut checks
-   that read the master list.  A full rational run never noticed - no
-   NLO or ghost column is exactly zero - but in series mode whole orders
+   that read the master list.  A full rational run never noticed because
+   none of its retained columns is exactly zero, but in series mode whole orders
    of a column vanish routinely.
 
    The repair is done here rather than in Simplification.wl: the leaked
@@ -1803,7 +1803,7 @@ reconstructionVerifySlice[
              one on the reconstruction side, and every master whose
              outputs do not all share one signature then "fails" by the
              leftover factor (2^(2 Epsilon) Pi^(3 + Epsilon) - its own
-             value); measured on NLO master 1. *)
+             value); measured on a representative master integral. *)
           Total[(weights /. expressionRules) parsed]
         ]
       ],
@@ -1923,7 +1923,7 @@ reconstructionVerifySlices[
      functions whenever the signatures of a master differ by a rational
      factor - which is the usual case, because the canonicalizer keeps
      the declared scale and the coupling out of the coefficient and so
-     splits one analytic class into several buckets (the NLO columns
+     splits one analytic class into several buckets (representative columns
      differ by -1 and by s^2).  That is what makes the exact Together
      comparison meaningful even for an Epsilon slice, where the
      signature itself (2^(4 Epsilon) ...) is not rational. *)

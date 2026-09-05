@@ -21,11 +21,11 @@
    The physical frozen CF300 (12,9) promotion is intentionally opt-in.  It
    builds the production 2120-column ansatz, evaluates the complete
    SplitBranch coefficient ABI against an independent QuotientGrade provider
-   whose BBar field is replaced by the frozen characteristic-zero channel
+   whose Inhomogeneity field is replaced by the frozen characteristic-zero channel
    oracle, assembles the full physical affine system, and validates its
    canonical modular section at a held-out kinematic point.  This is stronger
    and much cheaper than rebuilding a transient CompiledChannel artifact:
-   the fixture freezes the exact BBar channels, while the two direct providers
+   the fixture freezes the exact Inhomogeneity channels, while the two direct providers
    independently cover every other coefficient field. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
@@ -43,51 +43,46 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   planDiscoverySolve, decompose, quotientGradeEntry,
   gaugeIndex, residueIndex, currentRoots, rootCensus, rootOrder,
   candidateLetters, normFactor, mergeDenominator,
-  rationalGaugeDenominator, compileRational, reduceRational,
+  rationalOffDiagonalBasisTransformationDenominator, compileRational, reduceRational,
   collapseRational, maximumExponents, evaluateForms, modRational} =
- mq /@ {"multiquadraticStripPrepare", "multiquadraticStripCompile",
-   "multiquadraticStripAssemblyLayout",
-   "multiquadraticStripAssemblyLayoutValidQ",
-   "multiquadraticStripCompiledProvider",
-   "multiquadraticStripDirectProvider",
-   "multiquadraticStripProviderValidQ",
-   "multiquadraticStripProviderPreflight",
-   "multiquadraticStripProviderChannels",
-   "multiquadraticStripAssembleSample",
-   "multiquadraticStripAssemblePointRows",
-   "multiquadraticStripNormalizationRows",
-   "multiquadraticStripAffineSolve",
-   "multiquadraticStripPlanDiscoverySolve",
+ mq /@ {"multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+   "multiquadraticOffDiagonalBlockAssemblyLayout",
+   "multiquadraticOffDiagonalBlockAssemblyLayoutValidQ",
+   "multiquadraticOffDiagonalBlockCompiledProvider",
+   "multiquadraticOffDiagonalBlockDirectProvider",
+   "multiquadraticOffDiagonalBlockProviderValidQ",
+   "multiquadraticOffDiagonalBlockProviderPreflight",
+   "multiquadraticOffDiagonalBlockProviderChannels",
+   "multiquadraticOffDiagonalBlockAssembleSample",
+   "multiquadraticOffDiagonalBlockAssemblePointRows",
+   "multiquadraticOffDiagonalBlockNormalizationRows",
+   "multiquadraticOffDiagonalBlockAffineSolve",
+   "multiquadraticOffDiagonalBlockPlanDiscoverySolve",
    "multiquadraticFieldDecompose",
-   "multiquadraticStripQuotientGradeEntry",
-   "multiquadraticStripGaugeIndex", "multiquadraticStripResidueIndex",
-   "transportChartCurrentRoots", "multiquadraticStripRootCensus",
-   "multiquadraticStripRootOrder", "multiquadraticStripCandidateLetters",
-   "multiquadraticStripNormDenominatorFactor",
-   "multiquadraticStripMergeGaugeDenominator",
-   "multiquadraticRationalGaugeDenominator",
-   "multiquadraticStripCompileRationalCanonical",
-   "multiquadraticStripReduceRational",
-   "multiquadraticStripCollapseRational",
-   "multiquadraticStripMaximumExponents",
-   "multiquadraticStripEvaluateForms",
-   "multiquadraticStripModRational"};
+   "multiquadraticOffDiagonalBlockQuotientGradeEntry",
+   "multiquadraticOffDiagonalBasisTransformationBlockIndex", "multiquadraticOffDiagonalBlockResidueIndex",
+   "transportChartCurrentRoots", "multiquadraticOffDiagonalBlockRootCensus",
+   "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticOffDiagonalBlockCandidateLetters",
+   "multiquadraticOffDiagonalBlockNormDenominatorFactor",
+   "multiquadraticOffDiagonalBlockMergeOffDiagonalBasisTransformationDenominator",
+   "multiquadraticRationalOffDiagonalBasisTransformationDenominator",
+   "multiquadraticOffDiagonalBlockCompileRationalCanonical",
+   "multiquadraticOffDiagonalBlockReduceRational",
+   "multiquadraticOffDiagonalBlockCollapseRational",
+   "multiquadraticOffDiagonalBlockMaximumExponents",
+   "multiquadraticOffDiagonalBlockEvaluateForms",
+   "multiquadraticOffDiagonalBlockModRational"};
 
-Clear[bx, by, be];
+Clear[bx, by, be, sourceX, sourceY];
 variables = {bx, by};
 epsilon = be;
 delta1 = 1 + bx;
 delta2 = 1 + by;
 delta3 = 1 + bx + by;
-declaredRoots = {Sqrt[delta1], Sqrt[delta2], Sqrt[delta3]};
-rootRecords = MapThread[<|"Root" -> #1, "RootSquare" -> #2|> &,
-  {declaredRoots, {delta1, delta2, delta3}}];
-frame = <|"Name" -> "RoundBConstructedRank3", "Kind" -> "TwoVariable",
-  "FieldKind" -> "Multiquadratic",
-  "CoefficientField" -> "Multiquadratic", "Variables" -> variables,
-  "Subst" -> Thread[variables -> variables],
-  "Root" -> First[declaredRoots], "RootSquare" -> delta1,
-  "Roots" -> rootRecords|>;
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {1 + sourceX, 1 + sourceY, 1 + sourceX + sourceY},
+  {sourceX, sourceY}, variables];
+declaredRoots = Lookup[frame["SquareRootGenerators"], "Generator", {}];
 
 support = {{0, 0}, {0, 1}, {1, 0}};
 gaugeDenominator = 1 + bx + by;
@@ -102,7 +97,7 @@ gauge = {{Together[Sum[
 
 (* The coefficient sources below cover all eight active-root subsets.
    They need not be a separately certified alphabet: this suite tests the
-   coefficient ABI and affine equation, and bbar is constructed from the
+   coefficient ABI and affine equation, and inhomogeneity is constructed from the
    same exact equation. *)
 e = {{{declaredRoots[[1]]/(2 + bx)}},
   {{declaredRoots[[2]] declaredRoots[[3]]/(3 + by)}}};
@@ -119,45 +114,44 @@ oneForms = {
     (7 + bx + by), 0}
 };
 residues = Table[{{(-1)^a (a + 1)}}, {a, Length[oneForms]}];
-bbar = Table[Map[Together,
+inhomogeneity = Table[Map[Together,
     D[gauge, variables[[mu]]] -
       epsilon (e[[mu]] . gauge - gauge . c[[mu]]) +
       epsilon Sum[residues[[a]] oneForms[[a, mu]],
         {a, Length[oneForms]}], {2}], {mu, 2}];
 record = <|"Family" -> "ROUND_B_PROVIDER_PROMOTION",
   "Sector" -> 8, "LowerSector" -> 3, "Variables" -> variables,
-  "Regulator" -> epsilon, "Strip" -> {e, c, bbar}|>;
-normalizations = {<|"Kind" -> "GaugeCoefficient", "Upper" -> 1,
+  "Regulator" -> epsilon, "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>;
+normalizations = {<|"Kind" -> "OffDiagonalBasisTransformationCoefficient", "Upper" -> 1,
   "Lower" -> 1, "Grade" -> 0, "Monomial" -> {0, 0},
   "Value" -> 2|>};
 
 prepared = prepare[record, frame, "OneForms" -> oneForms,
-  "GaugeDenominator" -> gaugeDenominator, "Support" -> support,
+  "OffDiagonalBasisTransformationDenominator" -> gaugeDenominator, "Support" -> support,
   "NormalizationEquations" -> normalizations, "CompileCore" -> False];
 check["B0 the constructed rank-3 fixture prepares",
-  Lookup[prepared, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[prepared, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     prepared["RootCount"] === 3 && prepared["GradeCount"] === 8];
-If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticStripV1",
+If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticOffDiagonalBlockV1",
   Print["     ", Short[prepared, 8]];
   Print["t_multiquadratic_provider_promotion: ", pass, " OK, ", fail,
     " FAIL"];
   Exit[1]];
 
-assembly = compile[prepared, "PreparationValidated" -> True,
-  "ForcingChannels" -> prepared["ForcingChannels"],
+assembly = compile[prepared,   "InhomogeneityChannels" -> prepared["InhomogeneityChannels"],
   "CompileCore" -> False];
 layout = layoutBuild[prepared];
 compiledProvider = compiledProviderBuild[assembly];
 splitProvider = directProviderBuild[prepared["Record"], prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"]];
+  "OffDiagonalBasisTransformationDenominator" ->
+    prepared["OffDiagonalBasisTransformationDenominator"]];
 quotientProvider = directProviderBuild[prepared["Record"], prepared["Roots"],
   "Kind" -> "QuotientGrade", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"]];
+  "OffDiagonalBasisTransformationDenominator" ->
+    prepared["OffDiagonalBasisTransformationDenominator"]];
 check["B0 the layout and all three providers validate",
-  Lookup[assembly, "Status", None] === "CompiledMultiquadraticStripV1" &&
+  Lookup[assembly, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
     TrueQ[layoutValidQ[layout]] &&
     AllTrue[{compiledProvider, splitProvider, quotientProvider},
       TrueQ[providerValidQ[#]] &]];
@@ -174,18 +168,18 @@ report["active-root subsets", activeSets];
 check["B0 the fixture exercises empty, singleton, pair and triple subsets",
   AllTrue[requiredActiveSets, MemberQ[activeSets, #] &]];
 
-(* The exact forcing itself occupies all eight canonical grades. *)
-forcingChannels = Map[decompose[#, prepared["Roots"]] &, bbar, {3}];
+(* The exact inhomogeneity itself occupies all eight canonical grades. *)
+inhomogeneityChannels = Map[decompose[#, prepared["Roots"]] &, inhomogeneity, {3}];
 gradeCoverage = Table[
-  ! AllTrue[Flatten[forcingChannels[[All, All, All, grade]]],
+  ! AllTrue[Flatten[inhomogeneityChannels[[All, All, All, grade]]],
     TrueQ[Together[#] === 0] &], {grade, 8}];
-report["forcing grade coverage", gradeCoverage];
-check["B0 all eight forcing grades are nonzero",
+report["inhomogeneity grade coverage", gradeCoverage];
+check["B0 all eight inhomogeneity grades are nonzero",
   gradeCoverage === ConstantArray[True, 8]];
 
 prime = 2147483423;
 epsilonValue = 5;
-deltas = prepared["RootSquares"];
+deltas = Lookup[prepared["Roots"], "QuadraticRadicand", {}];
 splitPointQ[point_] := Module[{values = Mod[
     deltas /. Thread[variables -> point], prime]},
   FreeQ[values, 0] && AllTrue[values, JacobiSymbol[#, prime] === 1 &]];
@@ -201,9 +195,10 @@ check["B0 three split points and one nonsplit point exist",
 report["split / nonsplit points", {splitPoints, nonsplitPoint}];
 
 coefficientKeys = {"Prime", "Point", "RegulatorValue", "EpsilonMod",
-  "RootSquares", "RootValues", "SplitPointQ", "GaugeDenominator",
-  "GaugeLogDerivatives", "RootLogDerivatives", "E", "C", "BBar",
-  "OneForms", "CoefficientABIFingerprint"};
+  "QuadraticRadicands", "SquareRootGeneratorValues", "SplitPointQ",
+  "OffDiagonalBasisTransformationDenominator",
+  "OffDiagonalBasisTransformationDenominatorLogDerivatives", "RootLogDerivatives", "E", "C", "Inhomogeneity",
+  "OneForms", "CoefficientData"};
 coefficientPayload[value_Association] := KeyTake[value, coefficientKeys];
 coefficientTriples = Table[
   providerChannels[#, epsilonValue, prime, point] & /@
@@ -220,7 +215,7 @@ check["B1 SplitBranch == QuotientGrade == CompiledChannel at every split point",
   providerChannels[splitProvider, epsilonValue, prime, point],
   {point, splitPoints}]];
 {fallbackSplitSeconds, fallbackSplitCoefficients} = AbsoluteTiming[Table[
-  Block[{FeynFacet`Private`$multiquadraticStripSplitSparseCompilation = False},
+  Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockSplitSparseCompilation = False},
     providerChannels[splitProvider, epsilonValue, prime, point]],
   {point, splitPoints}]];
 check["B1 sparse SplitBranch agrees exactly with the substitution fallback on active ranks 0 through 3",
@@ -297,24 +292,24 @@ check["B3 every reported particular solution has zero solved residual",
 (* Pack the fixture's known generic solution in the preparation's canonical
    root and support order, then check it independently of the affine solver's
    choice of section. *)
-canonicalGaugeChannels = decompose[First[First[gauge]], prepared["Roots"]];
+canonicalOffDiagonalBasisTransformationBlockComponents = decompose[First[First[gauge]], prepared["Roots"]];
 gaugeCoefficients = Table[
   Coefficient[Coefficient[Expand[Together[
-      canonicalGaugeChannels[[grade + 1]] prepared["GaugeDenominator"]]],
-    variables[[1]], prepared["GaugeSupport"][[monomial, 1]]],
-    variables[[2]], prepared["GaugeSupport"][[monomial, 2]]],
+      canonicalOffDiagonalBasisTransformationBlockComponents[[grade + 1]] prepared["OffDiagonalBasisTransformationDenominator"]]],
+    variables[[1]], prepared["OffDiagonalBasisTransformationNumeratorSupport"][[monomial, 1]]],
+    variables[[2]], prepared["OffDiagonalBasisTransformationNumeratorSupport"][[monomial, 2]]],
   {grade, 0, prepared["GradeCount"] - 1},
-  {monomial, Length[prepared["GaugeSupport"]]}];
+  {monomial, Length[prepared["OffDiagonalBasisTransformationNumeratorSupport"]]}];
 knownVector = ConstantArray[0, prepared["UnknownCount"]];
 Do[knownVector[[gaugeIndex[1, 1, prepared["GradeCount"],
-    Length[prepared["GaugeSupport"]], 1, 1, grade, monomial]]] =
+    Length[prepared["OffDiagonalBasisTransformationNumeratorSupport"]], 1, 1, grade, monomial]]] =
     gaugeCoefficients[[grade + 1, monomial]],
   {grade, 0, prepared["GradeCount"] - 1},
-  {monomial, Length[prepared["GaugeSupport"]]}];
-Do[knownVector[[residueIndex[prepared["GaugeUnknownCount"], 1, 1,
+  {monomial, Length[prepared["OffDiagonalBasisTransformationNumeratorSupport"]]}];
+Do[knownVector[[residueIndex[prepared["OffDiagonalBasisTransformationUnknownCount"], 1, 1,
     letter, 1, 1]]] = residues[[letter, 1, 1]],
   {letter, Length[residues]}];
-knownImage = mq["multiquadraticStripModRational"][#, prime] & /@ knownVector;
+knownImage = mq["multiquadraticOffDiagonalBlockModRational"][#, prime] & /@ knownVector;
 check["B3 the independently packed known vector satisfies every provider sample",
   VectorQ[knownImage, IntegerQ] && And @@ (AllTrue[
     Mod[#1["Matrix"] . knownImage - #1["RightHandSide"], prime],
@@ -340,22 +335,23 @@ If[! MissingQ[nonsplitPoint],
 
 (* Optional physical full-block gate.  It is off by default because the
    production 2120-column RREF is deliberately a stress test.  No symbolic
-   forcing decomposition or compiled assembly is needed: frozenChannels is
-   the exact characteristic-zero BBar oracle, QuotientGrade independently
+   inhomogeneity decomposition or compiled assembly is needed: frozenChannels is
+   the exact characteristic-zero Inhomogeneity oracle, QuotientGrade independently
    supplies the remaining coefficient fields, and SplitBranch is the route
    being promoted. *)
 cf300Directory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "FrozenTestFixtures_2026-08-25"}];
 cf300Paths = <|
-  "Strip" -> FileNameJoin[{cf300Directory,
+  "OffDiagonalBlockEquation" -> FileNameJoin[{cf300Directory,
     "cf300_frozen_strip_12_9_input.wl"}],
   "ExactChannels" -> FileNameJoin[{cf300Directory,
-    "cf300_frozen_channel_forcing.wl"}],
-  "StripSolvers" -> FileNameJoin[{cf300Directory,
+    "cf300_frozen_channel_inhomogeneity.wl"}],
+  "OffDiagonalBlockSolutions" -> FileNameJoin[{cf300Directory,
     "cf300_frozen_stripsolvers.wl"}]|>;
-check["CF300 (12,9) frozen promotion inputs are documented and present",
-  AllTrue[Values[cf300Paths], FileExistsQ]];
+check["CF300 (12,9) frozen inputs are required only for the opt-in physical gate",
+  Environment["FACET_RUN_MQ_CF300_PROMOTION"] =!= "1" ||
+    AllTrue[Values[cf300Paths], FileExistsQ]];
 If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
   cf300Outcome = TimeConstrained[
   Module[{cfChart, cfRecord, cfState, cfFrozenChannels, cfVariables,
@@ -373,25 +369,24 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
     cfHeldOutCoefficients, cfHeldOutRows, cfHeldOutResidual,
     cfPreparationSeconds, cfFrozenCompileSeconds, cfImageSeconds,
     cfTrainingSeconds, cfSolveSeconds,
-    cfPointCount = 18,
-    cfOracleFingerprint = "FrozenExactBBarPlusQuotientGradeV1"},
+    cfPointCount = 18},
 
    FeynFacet`LoadFamilyRootData[FileNameJoin[{root,
      "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical",
      "TransportFamilyCharts.wl"}]];
    cfChart = FeynFacet`FamilyRootData["CF300"];
-   cfRecord = FeynFacet`FamilyArtifactRead[cf300Paths["Strip"], "Global`"];
-   cfState = FeynFacet`FamilyArtifactRead[cf300Paths["StripSolvers"],
+   cfRecord = FeynFacet`FamilyArtifactRead[cf300Paths["OffDiagonalBlockEquation"], "Global`"];
+   cfState = FeynFacet`FamilyArtifactRead[cf300Paths["OffDiagonalBlockSolutions"],
      "Global`"];
    cfFrozenChannels = FeynFacet`FamilyArtifactRead[
      cf300Paths["ExactChannels"], "Global`"];
    If[AssociationQ[cfRecord] && AssociationQ[cfState],
      cfRecord = Join[cfRecord,
-       <|"StripSolvers" -> Lookup[cfState, "StripSolvers", {}]|>]];
+       <|"OffDiagonalBlockSolutions" -> Lookup[cfState, "OffDiagonalBlockSolutions", {}]|>]];
    cfVariables = Lookup[cfRecord, "Variables", $Failed];
    cfEpsilon = Lookup[cfRecord, "Regulator", $Failed];
    cfAllRoots = currentRoots[cfChart, cfVariables];
-   cfCensus = rootCensus[Lookup[cfRecord, "Strip", $Failed], cfAllRoots];
+   cfCensus = rootCensus[Lookup[cfRecord, "OffDiagonalBlockEquation", $Failed], cfAllRoots];
    cfOrder = If[AssociationQ[cfCensus],
      rootOrder[cfChart, cfVariables, cfCensus["RootIndices"], cfEpsilon],
      $Failed];
@@ -402,28 +397,28 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
        Length[cfRoots] === 2 && ArrayQ[cfFrozenChannels, 4]];
 
    {cfPreparationSeconds, cfPrepared} = AbsoluteTiming[
-     cfLetterData = candidateLetters[cfRecord["Strip"], cfRoots,
+     cfLetterData = candidateLetters[cfRecord["OffDiagonalBlockEquation"], cfRoots,
        cfVariables, cfEpsilon, cfRecord, "RegulatorSampleCount" -> 2,
        "DLogKernels" -> 1];
      cfLetterRecords = Lookup[cfLetterData, "LetterRecords", $Failed];
      cfDenominator = mergeDenominator[
-       rationalGaugeDenominator[cfFrozenChannels, cfVariables],
+       rationalOffDiagonalBasisTransformationDenominator[cfFrozenChannels, cfVariables],
        normFactor[cfLetterRecords, cfVariables], cfVariables];
      cfSupport = Flatten[Table[{i, j},
        {i, 0, Exponent[cfDenominator, cfVariables[[1]]] + 3},
        {j, 0, Exponent[cfDenominator, cfVariables[[2]]] + 3}], 1];
      prepare[cfRecord, cfChart, "OneForms" -> cfLetterData,
        "LetterRecords" -> cfLetterRecords,
-       "GaugeDenominator" -> cfDenominator, "Support" -> cfSupport,
+       "OffDiagonalBasisTransformationDenominator" -> cfDenominator, "Support" -> cfSupport,
        "CoefficientProvider" -> "SplitBranch", "CompileCore" -> False]];
    check["CF300 production {3,3} descriptor prepares without exact-channel compilation",
      Lookup[cfPrepared, "Status", None] ===
-         "PreparedMultiquadraticStripV1" &&
+         "PreparedMultiquadraticOffDiagonalBlockV1" &&
        Lookup[cfPrepared, "RootCount", None] === 2 &&
        Length[Lookup[cfPrepared, "OneForms", {}]] === 46 &&
-       Length[Lookup[cfPrepared, "GaugeSupport", {}]] === 121 &&
+       Length[Lookup[cfPrepared, "OffDiagonalBasisTransformationNumeratorSupport", {}]] === 121 &&
        Lookup[cfPrepared, "UnknownCount", None] === 2120 &&
-       MissingQ[Lookup[cfPrepared, "ForcingChannels", None]]];
+       MissingQ[Lookup[cfPrepared, "InhomogeneityChannels", None]]];
    cfRetainedOneFormChannels = Lookup[
      Lookup[cfPrepared, "LetterRecords", {}], "OneFormChannels", $Failed];
    check["CF300 preparation retains exact grade channels for every installed one-form",
@@ -437,17 +432,13 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
    cfSplitProvider = directProviderBuild[cfPrepared["Record"],
      cfPrepared["Roots"], "Kind" -> "SplitBranch",
      "OneForms" -> cfPrepared["OneForms"],
-     "GaugeDenominator" -> cfPrepared["GaugeDenominator"],
-     "CoefficientABIFingerprint" ->
-       cfLayout["CoefficientABIFingerprint"],
-     "SourceFingerprint" -> cfPrepared["ABIFingerprint"]];
+     "OffDiagonalBasisTransformationDenominator" ->
+       cfPrepared["OffDiagonalBasisTransformationDenominator"]];
    cfQuotientProvider = directProviderBuild[cfPrepared["Record"],
      cfPrepared["Roots"], "Kind" -> "QuotientGrade",
      "OneForms" -> cfPrepared["OneForms"],
-     "GaugeDenominator" -> cfPrepared["GaugeDenominator"],
-     "CoefficientABIFingerprint" ->
-       cfLayout["CoefficientABIFingerprint"],
-     "SourceFingerprint" -> cfPrepared["ABIFingerprint"]];
+     "OffDiagonalBasisTransformationDenominator" ->
+       cfPrepared["OffDiagonalBasisTransformationDenominator"]];
    check["CF300 physical layout and both direct providers authenticate",
      TrueQ[layoutValidQ[cfLayout]] &&
        TrueQ[providerValidQ[cfSplitProvider]] &&
@@ -470,7 +461,7 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
    check["CF300 selects two nonsingular normalization images dynamically",
      Length[cfRegulatorValues] === 2];
 
-   cfDeltas = Lookup[cfRoots, "RootSquare", {}];
+   cfDeltas = Lookup[cfRoots, "QuadraticRadicand", {}];
    cfSplitPointQ[point_] := Module[{values = Mod[
        cfDeltas /. Thread[cfVariables -> point], prime]},
      FreeQ[values, 0] &&
@@ -518,13 +509,13 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
        PowerMod[Mod[point[[2]], prime], #, prime] & /@
          Range[0, maximum[[2]]]];
      Catch[evaluateForms[forms, xPowers, yPowers, prime],
-       "MultiquadraticStripBadPoint"]];
+       "MultiquadraticOffDiagonalBlockBadPoint"]];
    (* An independent full-ABI oracle without paying for the giant symbolic
-      BBar quotient decomposition.  E and C use the exact QuotientGrade entry
+      Inhomogeneity quotient decomposition.  E and C use the exact QuotientGrade entry
       evaluator.  One-forms use the exact grade channels retained and sealed
       when their dlogs were constructed; re-walking the materialized 46-form
       alphabet cost about 303 seconds per image despite proving the same
-      already-retained channel identity.  BBar comes from the frozen
+      already-retained channel identity.  Inhomogeneity comes from the frozen
       characteristic-zero channel fixture. *)
    cfSelectiveOracleCoefficients[epsilonValue_, point_] := Module[
      {preflight, evaluateEntry, evaluateRetained, eImage, cImage,
@@ -536,7 +527,7 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
          "MultiquadraticProviderPreflightV1", Return[preflight]];
      evaluateEntry[entry_, activeIndices_] := Module[{evaluated},
        evaluated = quotientGradeEntry[entry, cfRoots, activeIndices,
-         preflight["ScalarRules"], preflight["RootSquares"], prime];
+         preflight["ScalarRules"], preflight["QuadraticRadicands"], prime];
        If[Lookup[evaluated, "Status", None] =!= "OK",
          Throw[evaluated, failureTag]];
        evaluated["Channels"]];
@@ -557,29 +548,28 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
        If[! ArrayQ[frozen, 4] || ! FreeQ[frozen, $Failed],
          Throw[$Failed, failureTag]];
        <|"Status" -> "MultiquadraticPointCoefficientsV1",
-         "Provider" -> "FrozenBBarPlusSelectiveQuotientGrade",
+         "Provider" -> "FrozenInhomogeneityPlusSelectiveQuotientGrade",
          "Prime" -> prime, "Point" -> preflight["Point"],
          "RegulatorValue" -> epsilonValue,
          "EpsilonMod" -> preflight["EpsilonMod"],
-         "RootSquares" -> preflight["RootSquares"],
-         "RootValues" -> preflight["RootValues"],
+         "QuadraticRadicands" -> preflight["QuadraticRadicands"],
+         "SquareRootGeneratorValues" ->
+           preflight["SquareRootGeneratorValues"],
          "SplitPointQ" -> preflight["SplitPointQ"],
-         "GaugeDenominator" -> preflight["GaugeDenominator"],
-         "GaugeLogDerivatives" -> preflight["GaugeLogDerivatives"],
+         "OffDiagonalBasisTransformationDenominator" -> preflight["OffDiagonalBasisTransformationDenominator"],
+         "OffDiagonalBasisTransformationDenominatorLogDerivatives" -> preflight["OffDiagonalBasisTransformationDenominatorLogDerivatives"],
          "RootLogDerivatives" -> preflight["RootLogDerivatives"],
-         "E" -> eImage, "C" -> cImage, "BBar" -> frozen,
+         "E" -> eImage, "C" -> cImage, "Inhomogeneity" -> frozen,
          "OneForms" -> oneFormImage,
-         "CoefficientABIFingerprint" ->
-           cfQuotientProvider["CoefficientABIFingerprint"],
-         "ProviderFingerprint" -> cfOracleFingerprint|>,
+         "CoefficientData" -> cfQuotientProvider["CoefficientData"]|>,
        failureTag]
      ];
 
-   (* Two regulator/kinematic images anchor the hard forcing field against
+   (* Two regulator/kinematic images anchor the hard inhomogeneity field against
       the frozen exact channel functions.  The generic rank-three part of
       this suite already compares the complete SplitBranch, QuotientGrade
       and CompiledChannel ABIs at three independent points.  Re-evaluating
-      physical CF300 QuotientGrade here computed a large BBar only to throw
+      physical CF300 QuotientGrade here computed a large Inhomogeneity only to throw
       it away, and measured to consume the earlier 540-second gate. *)
    {cfImageSeconds, cfAnchorRecords} = AbsoluteTiming[Table[
      With[{epsilonValue = imageSpec[[1]], point = imageSpec[[2]]},
@@ -607,7 +597,7 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
          "MultiquadraticPointCoefficientsV1" &&
        coefficientPayload[#1["SplitCoefficients"]] ===
          coefficientPayload[#1["OracleCoefficients"]] &];
-   check["CF300 SplitBranch forcing equals the frozen exact-channel oracle at two images",
+   check["CF300 SplitBranch inhomogeneity equals the frozen exact-channel oracle at two images",
      TrueQ[cfCoefficientEqualQ]];
    cfRowsEqualQ = AllTrue[cfAnchorRecords,
      Lookup[#1["SplitRows"], "Status", None] ===
@@ -646,7 +636,7 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
          "SplitSubstitutionFallbackCount", {}]] === 0];
 
    (* Assemble the actual overdetermined 2120-column SplitBranch system.
-      The two frozen-forcing anchors above certify the physical hard field;
+      The two frozen-inhomogeneity anchors above certify the physical hard field;
       the complete provider ABI was independently checked by the generic
       rank-three fixture before entering this opt-in block. *)
    {cfTrainingSeconds, cfTrainingSample} = AbsoluteTiming[
@@ -691,7 +681,7 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
       threads are the explicit resource allowance for this opt-in gate. *)
    {cfSolveSeconds, cfSolution} = AbsoluteTiming[
      planDiscoverySolve[cfMatrix, cfRight, prime,
-       cfPrepared["GaugeUnknownCount"], cfPrepared["ResidueUnknownCount"],
+       cfPrepared["OffDiagonalBasisTransformationUnknownCount"], cfPrepared["ResidueUnknownCount"],
        Automatic, 8, Automatic]];
    check["CF300 full physical affine system is consistent and reports rank/nullity/pivots",
      Lookup[cfSolution, "Status", None] ===

@@ -74,6 +74,11 @@ selected object once under `CoefficientPresentation`; its `DataType` selects
 the case.  It does not repeat the same object under several case-specific
 keys.
 
+When a coefficient presentation is persisted as its own family input, it also
+carries `Family` and a human-readable `FamilyDifferentialSystemReference`.
+The project configuration must contain an explicit entry for every family;
+an absent entry is not interpreted as an unchanged-source-variable case.
+
 ### Unchanged source variables
 
 ```wl
@@ -345,12 +350,83 @@ Matching physical asymptotics to the local modes produces
 
 Point data use `BoundaryConstantID` and
 `BoundaryConstantEpsilonCoefficient[id,n]`.  Stratum data use
-`BoundaryFunctionID` and `BoundaryFunctionEpsilonCoefficient[id,n]`.
+`BoundaryFunctionID` and
+`BoundaryFunctionEpsilonCoefficient[id,n][t1,...]`; the tangential
+arguments are part of the mathematical object and must not be suppressed.
 `FrobeniusModeID`, `BoundaryIntegralID`, and `BoundaryRelation` remain separate
 objects.  Degeneracy of a residue eigenspace does not by itself create a
 relation among boundary constants or functions.
 
-A square path evolution object is stored only when it is actually constructed:
+On a positive-dimensional boundary stratum, the free local-mode coefficients
+obey their induced tangential differential system.  If `B` is the matrix of
+retained boundary-mode coefficient vectors in a normal-residue basis and
+`Gamma_i` is the induced tangential connection, then
+
+```text
+B Omega_i = Gamma_i B - partial_i B,
+partial_i c = Omega_i c.
+```
+
+The corresponding record is
+
+```wl
+<|
+  "DataType" -> "BoundaryFunctionDifferentialSystem",
+  "SchemaVersion" -> 2,
+  "BoundaryDomain" -> <|
+    "Type" -> "PhysicalBoundaryStratum",
+    "TangentialVariables" -> {...}
+  |>,
+  "DimensionalRegulator" -> eps,
+  "BoundaryFunctionIDs" -> {...},
+  "NormalResidueNormalForm" -> J,
+  "BoundaryModeCoefficientMatrixInNormalResidueBasis" -> B,
+  "InducedTangentialConnectionMatrices" -> <|t1 -> Gamma1, ...|>,
+  "BoundaryFunctionConnectionMatrices" -> <|t1 -> Omega1, ...|>,
+  "Status" -> "BoundaryFunctionDifferentialSystemValidated",
+  "Validation" -> <|...|>
+|>
+```
+
+Validation covers the mathematically necessary identities: horizontality of
+the normal residue, invariance of the retained boundary-mode subspace, and
+flatness of the induced boundary-function connection.  In a constant Jordan
+normal form, horizontality is `[J,Gamma_i]=0`; mixing within a generalized
+eigenspace remains part of the system.  Only after this system is evolved
+from a declared tangential base point may its initial values be called
+boundary constants.  This coefficient matrix is not the complete
+Frobenius/Levelt embedding: a solution with resonant logarithms must separately
+retain the required normal powers, logarithmic powers, and epsilon orders.
+
+The square tangential evolution is represented without duplicating expanded
+coefficient formulas:
+
+```wl
+<|
+  "DataType" -> "TangentialBoundaryEvolutionOperator",
+  "SchemaVersion" -> 2,
+  "BoundaryFunctionIDs" -> {...},
+  "BoundaryFunctionToTangentialBasePointBoundaryConstantIDs" -> {...},
+  "TangentialBasePoint" -> <|...|>,
+  "TangentialPath" -> <|...|>,
+  "EvolutionOperatorEpsilonValuation" -> emin,
+  "EpsilonOrderWindow" -> {emin, emax},
+  "EvolutionOperatorIteratedIntegralCoefficientMapsByEpsilonOrder" ->
+    <|n -> <|iteratedIntegralLetterSequence -> matrix, ...|>, ...|>,
+  "EvolutionConvention" -> "c(t,eps)=U(t,t0;eps).c(t0,eps)",
+  "Status" -> "TangentialBoundaryEvolutionOperatorValidated",
+  "Validation" -> <|...|>
+|>
+```
+
+Composing this operator with a requested-output solution map whose columns are
+boundary-function epsilon coefficients produces a
+`BoundaryConstantToMasterIntegralSolutionMap`. Its term records retain the
+tangential-boundary iterated-integral letter sequence as a separate path
+segment; no unresolved function of the tangential variables remains.
+
+A full regularized evolution from a singular boundary to an interior base
+point is stored only when it is actually constructed:
 
 ```wl
 <|
@@ -436,6 +512,9 @@ Pairs + KiraStream + CanonicalRegistry + master list
         -> MasterIntegralEpsilonOrderRequirements
         -> TruncatedLocalFrobeniusExpansion
         -> BoundaryAsymptoticModeMatching
+        -> BoundaryFunctionDifferentialSystem
+           (only for a positive-dimensional boundary stratum)
+        -> evolve boundary functions from a tangential base point
         -> RegularizedBoundaryToBasePointEvolutionOperator
            and/or private requested-output coefficient operator
         -> MasterIntegralSolution

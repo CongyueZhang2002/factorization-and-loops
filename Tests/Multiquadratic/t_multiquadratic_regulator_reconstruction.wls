@@ -69,11 +69,11 @@ report[label_, value_] := Print["     ", label, ": ", Short[value, 8]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {prepare, compile, reconstruct, unpack, residual, letterOneForm} =
- mq /@ {"multiquadraticStripPrepare", "multiquadraticStripCompile",
-   "multiquadraticStripReconstructRegulator",
-   "multiquadraticStripUnpackVector",
-   "multiquadraticStripExactChannelResidual",
-   "multiquadraticStripLetterOneForm"};
+ mq /@ {"multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+   "multiquadraticOffDiagonalBlockReconstructRegulator",
+   "multiquadraticOffDiagonalBlockUnpackVector",
+   "multiquadraticOffDiagonalBlockExactChannelResidual",
+   "multiquadraticOffDiagonalBlockLetterOneForm"};
 
 Clear[rx, ry, re];
 frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
@@ -87,35 +87,35 @@ forms = letterOneForm[#1, {rx, ry}] & /@ letters;
    scaled to a unit leading coefficient: 1 - rx - ry becomes
    -1 + rx + ry), so the known coefficients are read off in the engine's
    own form of the denominator *)
-denominator = FeynFacet`Private`multiquadraticStripMergeGaugeDenominator[
+denominator = FeynFacet`Private`multiquadraticOffDiagonalBlockMergeOffDiagonalBasisTransformationDenominator[
   1 - rx - ry, 1, {rx, ry}];
-knownGauge = {{Together[(1 + re rx - 2 ry/(1 + re))/denominator]}};
+knownOffDiagonalBasisTransformationBlock = {{Together[(1 + re rx - 2 ry/(1 + re))/denominator]}};
 knownResidues = {{{0}}, {{0}}, {{re/(1 + 2 re)}}, {{-3/(1 + re)}}};
-forcing = Table[Map[Together,
-    D[knownGauge, {rx, ry}[[mu]]] +
+inhomogeneity = Table[Map[Together,
+    D[knownOffDiagonalBasisTransformationBlock, {rx, ry}[[mu]]] +
       re Sum[knownResidues[[a]] forms[[a, mu]], {a, Length[letters]}], {2}],
   {mu, 2}];
 record = <|"Family" -> "REGULATOR_RECONSTRUCTION", "Sector" -> 3,
   "LowerSector" -> 1, "Variables" -> {rx, ry}, "Regulator" -> re,
-  "Strip" -> {{{{0}}, {{0}}}, {{{0}}, {{0}}}, forcing}|>;
-report["forcing", forcing];
+  "OffDiagonalBlockEquation" -> {{{{0}}, {{0}}}, {{{0}}, {{0}}}, inhomogeneity}|>;
+report["inhomogeneity", inhomogeneity];
 
 (* the ansatz is PINNED: the same denominator and the support {1, x, y},
    so the exact coefficient vector is known *)
 support = {{0, 0}, {1, 0}, {0, 1}};
 prepared = prepare[record, frame, "OneForms" -> forms,
-  "GaugeDenominator" -> denominator, "Support" -> support];
+  "OffDiagonalBasisTransformationDenominator" -> denominator, "Support" -> support];
 (* the engine owns the support ORDER (it canonicalizes it); the test
    asserts the support SET and reads the order back below *)
 check["the ansatz is prepared as pinned",
-  Lookup[prepared, "Status", None] === "PreparedMultiquadraticStripV1" &&
-    Sort[prepared["GaugeSupport"]] === Sort[support] &&
-    TrueQ[Together[prepared["GaugeDenominator"] - denominator] === 0] &&
+  Lookup[prepared, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
+    Sort[prepared["OffDiagonalBasisTransformationNumeratorSupport"]] === Sort[support] &&
+    TrueQ[Together[prepared["OffDiagonalBasisTransformationDenominator"] - denominator] === 0] &&
     prepared["ResidueUnknownCount"] === 4 &&
     prepared["UnknownCount"] === 7];
 report["ansatz", KeyTake[prepared,
-  {"UnknownCount", "GaugeUnknownCount", "ResidueUnknownCount",
-   "GaugeSupport", "GaugeDenominator"}]];
+  {"UnknownCount", "OffDiagonalBasisTransformationUnknownCount", "ResidueUnknownCount",
+   "OffDiagonalBasisTransformationNumeratorSupport", "OffDiagonalBasisTransformationDenominator"}]];
 
 (* THE KNOWN EXACT VECTOR, read off in the module's OWN column order --
    the support order is the engine's, not the test's, and hard-coding it
@@ -125,14 +125,14 @@ report["ansatz", KeyTake[prepared,
 coefficientIn[expression_, monomial_] := Coefficient[
   Coefficient[Expand[Together[expression]], rx, monomial[[1]]], ry,
   monomial[[2]]];
-knownNumerator = Together[knownGauge[[1, 1]] denominator];
+knownNumerator = Together[knownOffDiagonalBasisTransformationBlock[[1, 1]] denominator];
 knownVector = Join[
-  coefficientIn[knownNumerator, #1] & /@ prepared["GaugeSupport"],
+  coefficientIn[knownNumerator, #1] & /@ prepared["OffDiagonalBasisTransformationNumeratorSupport"],
   Flatten[knownResidues]];
 report["known vector in the engine's column order", knownVector];
 check["the known vector unpacks to the known gauge and residues",
-  TrueQ[Together[unpack[prepared, knownVector]["Gauge"][[1, 1]] -
-      knownGauge[[1, 1]]] === 0] &&
+  TrueQ[Together[unpack[prepared, knownVector]["OffDiagonalBasisTransformationBlock"][[1, 1]] -
+      knownOffDiagonalBasisTransformationBlock[[1, 1]]] === 0] &&
     TrueQ[Together[Flatten[unpack[prepared, knownVector]["Residues"]] -
       Flatten[knownResidues]] === {0, 0, 0, 0}]];
 check["and it satisfies the differential equation at generic eps",
@@ -149,7 +149,7 @@ check["and it satisfies the differential equation at generic eps",
    the known solution, projected onto the SAME section, is the
    reconstructed vector coordinate by coordinate. *)
 nullDirection = Join[
-  coefficientIn[denominator, #1] & /@ prepared["GaugeSupport"],
+  coefficientIn[denominator, #1] & /@ prepared["OffDiagonalBasisTransformationNumeratorSupport"],
   {0, 0, 0, 0}];
 check["the homogeneous direction is a genuine nullspace element",
   Lookup[residual[prepared, knownVector + 3 nullDirection], "Status",
@@ -160,9 +160,9 @@ projectToSection[vector_, columns_] := Module[{scale},
     nullDirection[[First[columns]]]];
   Together[vector - scale nullDirection]];
 
-assembly = compile[prepared, "PreparationValidated" -> True];
+assembly = compile[prepared];
 check["the ansatz compiles",
-  Lookup[assembly, "Status", None] === "CompiledMultiquadraticStripV1"];
+  Lookup[assembly, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1"];
 
 (* ------------------------------------------------------------------ *)
 (* R1 - R6: the reconstruction                                          *)
@@ -182,7 +182,7 @@ check["R1 the reconstruction succeeds",
 
 sectionKnown = projectToSection[knownVector,
   Lookup[reconstruction, "NormalizationColumns", {}]];
-report["R2 reconstructed gauge", Lookup[reconstruction, "Gauge", None]];
+report["R2 reconstructed gauge", Lookup[reconstruction, "OffDiagonalBasisTransformationBlock", None]];
 report["R2 known solution projected onto the same section", sectionKnown];
 check["R2 the affine family is one-dimensional and the section pins one \
 coordinate",
@@ -196,13 +196,13 @@ the same canonical section, coordinate by coordinate",
       ConstantArray[0, Length[sectionKnown]]]];
 check["R2 and the reconstructed GAUGE therefore differs from the known \
 one only by a homogeneous (kinematics-constant) direction",
-  ListQ[Lookup[reconstruction, "Gauge", None]] &&
-    TrueQ[Together[D[reconstruction["Gauge"][[1, 1]] - knownGauge[[1, 1]],
+  ListQ[Lookup[reconstruction, "OffDiagonalBasisTransformationBlock", None]] &&
+    TrueQ[Together[D[reconstruction["OffDiagonalBasisTransformationBlock"][[1, 1]] - knownOffDiagonalBasisTransformationBlock[[1, 1]],
       rx]] === 0] &&
-    TrueQ[Together[D[reconstruction["Gauge"][[1, 1]] - knownGauge[[1, 1]],
+    TrueQ[Together[D[reconstruction["OffDiagonalBasisTransformationBlock"][[1, 1]] - knownOffDiagonalBasisTransformationBlock[[1, 1]],
       ry]] === 0] &&
-    ! TrueQ[Together[reconstruction["Gauge"][[1, 1]] -
-      knownGauge[[1, 1]]] === 0]];
+    ! TrueQ[Together[reconstruction["OffDiagonalBasisTransformationBlock"][[1, 1]] -
+      knownOffDiagonalBasisTransformationBlock[[1, 1]]] === 0]];
 
 check["R3 the reconstructed residues equal the known K_a(eps) exactly",
   ListQ[Lookup[reconstruction, "Residues", None]] &&

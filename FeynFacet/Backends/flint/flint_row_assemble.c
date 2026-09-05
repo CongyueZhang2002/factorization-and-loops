@@ -13,7 +13,7 @@
 #include <flint/nmod.h>
 #include <flint/ulong_extras.h>
 
-/* Native row assembly for the multiquadratic strip ABI. */
+/* Native row assembly for the multiquadratic strip data-layout contract. */
 
 #define MQRA_MAX_ROOT_COUNT 3U
 
@@ -29,16 +29,16 @@ typedef struct
     size_t one_form_count;
     size_t point_count;
     size_t row_count;
-    size_t gauge_unknown_count;
+    size_t basis_transformation_unknown_count;
     size_t residue_unknown_count;
     size_t unknown_count;
     size_t point_stride;
     size_t root_square_offset;
-    size_t gauge_log_offset;
+    size_t basis_transformation_denominator_log_offset;
     size_t root_log_offset;
     size_t e_offset;
     size_t c_offset;
-    size_t bbar_offset;
+    size_t inhomogeneity_offset;
     size_t one_form_offset;
     uint64_t * support;
     mp_limb_t * points;
@@ -139,11 +139,11 @@ static int establish_layout(mqra_input_t * input)
     if (!checked_mul_size(input->upper, input->lower, &value)
         || !checked_mul_size(value, input->grade_count, &value)
         || !checked_mul_size(value, input->support_count,
-            &input->gauge_unknown_count)
+            &input->basis_transformation_unknown_count)
         || !checked_mul_size(input->one_form_count, input->upper, &value)
         || !checked_mul_size(value, input->lower,
             &input->residue_unknown_count)
-        || !checked_add_size(input->gauge_unknown_count,
+        || !checked_add_size(input->basis_transformation_unknown_count,
             input->residue_unknown_count, &input->unknown_count)
         || !checked_mul_size(input->grade_count, 2U, &value)
         || !checked_mul_size(value, input->upper, &value)
@@ -154,7 +154,7 @@ static int establish_layout(mqra_input_t * input)
     input->root_square_offset = stride;
     if (!checked_add_size(stride, input->root_count, &stride))
         return 0;
-    input->gauge_log_offset = stride;
+    input->basis_transformation_denominator_log_offset = stride;
     if (!checked_add_size(stride, 2U, &stride))
         return 0;
     input->root_log_offset = stride;
@@ -168,7 +168,7 @@ static int establish_layout(mqra_input_t * input)
     if (!add_product(&stride, 2U, input->lower, input->lower,
         input->grade_count))
         return 0;
-    input->bbar_offset = stride;
+    input->inhomogeneity_offset = stride;
     if (!add_product(&stride, 2U, input->upper, input->lower,
         input->grade_count))
         return 0;
@@ -255,7 +255,7 @@ static int read_input(const char * path, mqra_input_t * input)
             if (!read_u64_le(stream, &word) || word >= header[0]
                 || ((word_index < 4U
                     || (word_index >= input->root_square_offset
-                        && word_index < input->gauge_log_offset))
+                        && word_index < input->basis_transformation_denominator_log_offset))
                     && word == 0U)) {
                 fclose(stream);
                 clear_input(input);
@@ -271,7 +271,7 @@ static int read_input(const char * path, mqra_input_t * input)
     return 1;
 }
 
-static size_t gauge_index(const mqra_input_t * input, size_t upper_index,
+static size_t basis_transformation_index(const mqra_input_t * input, size_t upper_index,
     size_t lower_index, size_t grade, size_t monomial)
 {
     return (((upper_index * input->lower + lower_index) * input->grade_count
@@ -376,7 +376,7 @@ static void * assemble_points(void * argument)
                         direction == 0U ? x_inverse : y_inverse,
                         input->modulus);
                     log_value = nmod_sub(value,
-                        point[input->gauge_log_offset + direction],
+                        point[input->basis_transformation_denominator_log_offset + direction],
                         input->modulus);
                     for (root = 0U; root < input->root_count; ++root)
                         if ((source_grade & (((size_t) 1U) << root)) != 0U)
@@ -413,7 +413,7 @@ static void * assemble_points(void * argument)
                                 (direction * grade + target_grade) * support
                                     + monomial];
                             if (contribution != 0U) {
-                                column = gauge_index(input, upper_index,
+                                column = basis_transformation_index(input, upper_index,
                                     lower_index, target_grade, monomial);
                                 output_row[column] = nmod_add(output_row[column],
                                     contribution, input->modulus);
@@ -436,7 +436,7 @@ static void * assemble_points(void * argument)
                                     if (coefficient != 0U) {
                                         contribution = nmod_mul(weight,
                                             coefficient, input->modulus);
-                                        column = gauge_index(input,
+                                        column = basis_transformation_index(input,
                                             coupling_index, lower_index,
                                             source_grade, monomial);
                                         output_row[column] = nmod_sub(
@@ -453,7 +453,7 @@ static void * assemble_points(void * argument)
                                     if (coefficient != 0U) {
                                         contribution = nmod_mul(weight,
                                             coefficient, input->modulus);
-                                        column = gauge_index(input, upper_index,
+                                        column = basis_transformation_index(input, upper_index,
                                             coupling_index, source_grade,
                                             monomial);
                                         output_row[column] = nmod_add(
@@ -471,13 +471,13 @@ static void * assemble_points(void * argument)
                             contribution = nmod_mul(point[2], coefficient,
                                 input->modulus);
                             if (contribution != 0U) {
-                                column = input->gauge_unknown_count
+                                column = input->basis_transformation_unknown_count
                                     + (letter * input->upper + upper_index)
                                         * input->lower + lower_index;
                                 output_row[column] = contribution;
                             }
                         }
-                        point_right[row] = point[input->bbar_offset
+                        point_right[row] = point[input->inhomogeneity_offset
                             + ((direction * input->upper + upper_index)
                                 * input->lower + lower_index) * grade
                             + target_grade];

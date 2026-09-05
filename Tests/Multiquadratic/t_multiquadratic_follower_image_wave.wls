@@ -11,41 +11,39 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, compile, layoutBuilder, compiledProvider, assembleSample,
   discoverySolve, planDiscover, payloadRecord, payloadValidQ, followerSolve,
   followerAuthenticate, followerWave, kernelCount} = mq /@ {
-  "multiquadraticStripPrepare", "multiquadraticStripCompile",
-  "multiquadraticStripAssemblyLayout",
-  "multiquadraticStripCompiledProvider",
-  "multiquadraticStripAssembleSample",
-  "multiquadraticStripPlanDiscoverySolve",
-  "multiquadraticStripConstrainedPlanDiscover",
-  "multiquadraticStripFollowerImagePayload",
-  "multiquadraticStripFollowerImagePayloadValidQ",
-  "multiquadraticStripFollowerImageSolve",
-  "multiquadraticStripFollowerImageAuthenticate",
-  "multiquadraticStripFollowerImageWave",
-  "multiquadraticStripFollowerImageKernelCount"};
+  "multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+  "multiquadraticOffDiagonalBlockAssemblyLayout",
+  "multiquadraticOffDiagonalBlockCompiledProvider",
+  "multiquadraticOffDiagonalBlockAssembleSample",
+  "multiquadraticOffDiagonalBlockPlanDiscoverySolve",
+  "multiquadraticOffDiagonalBlockConstrainedPlanDiscover",
+  "multiquadraticOffDiagonalBlockFollowerImagePayload",
+  "multiquadraticOffDiagonalBlockFollowerImagePayloadValidQ",
+  "multiquadraticOffDiagonalBlockFollowerImageSolve",
+  "multiquadraticOffDiagonalBlockFollowerImageAuthenticate",
+  "multiquadraticOffDiagonalBlockFollowerImageWave",
+  "multiquadraticOffDiagonalBlockFollowerImageKernelCount"};
 
-Clear[px, py, pe];
-frame = <|"Name" -> "FollowerWave", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> {px, py},
-  "Subst" -> {px -> px, py -> py}, "Root" -> None,
-  "RootSquare" -> None, "Roots" -> {}|>;
+Clear[px, py, pe, psx, psy];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {}, {psx, psy}, {px, py}];
 record = <|"Family" -> "FOLLOWER_WAVE_TEST", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {px, py}, "Regulator" -> pe,
-  "Strip" -> {{{{0}}, {{0}}}, {{{1}}, {{0}}}, {{{0}}, {{0}}}}|>;
+  "OffDiagonalBlockEquation" -> {{{{0}}, {{0}}}, {{{1}}, {{0}}}, {{{0}}, {{0}}}}|>;
 preparation = prepare[record, frame, "OneForms" -> {},
-  "GaugeDenominator" -> 1, "Support" -> {{0, 0}}];
+  "OffDiagonalBasisTransformationDenominator" -> 1, "Support" -> {{0, 0}}];
 assembly = compile[preparation];
 layout = layoutBuilder[preparation];
 provider = compiledProvider[assembly];
-prime = First[FeynFacet`Private`$multiquadraticStripPrimePool];
+prime = First[FeynFacet`Private`$multiquadraticOffDiagonalBlockPrimePool];
 sample = assembleSample[layout, provider, 1, prime, "PointCount" -> 2,
   "MaximumAttempts" -> 40, "RandomSeed" -> 2026082711];
 solution = discoverySolve[sample["Matrix"], sample["RightHandSide"],
-  prime, preparation["GaugeUnknownCount"],
+  prime, preparation["OffDiagonalBasisTransformationUnknownCount"],
   preparation["ResidueUnknownCount"], "Wolfram", 1, Automatic];
 normalizationColumns = If[solution["Nullity"] === 0, {},
-  FeynFacet`Private`finiteFieldStripNormalizationColumns[
-    Normal[solution["NullspaceBasis"]], preparation["GaugeUnknownCount"],
+  FeynFacet`Private`finiteFieldOffDiagonalBlockNormalizationColumns[
+    Normal[solution["NullspaceBasis"]], preparation["OffDiagonalBasisTransformationUnknownCount"],
     preparation["ResidueUnknownCount"], prime]];
 plan = planDiscover[sample["Matrix"], sample["RightHandSide"], solution,
   normalizationColumns, prime, layout["CoefficientData"]];
@@ -53,6 +51,19 @@ payload = payloadRecord[layout, provider, plan, 2, 40, 2026082711];
 requests = {<|"Prime" -> prime, "RegulatorValue" -> 2|>,
   <|"Prime" -> prime, "RegulatorValue" -> 3|>};
 records = followerSolve[payload, #1] & /@ requests;
+
+If[! TrueQ[payloadValidQ[payload]] ||
+    ! AllTrue[records, AssociationQ],
+  Print["DIAGNOSTIC follower fixture: ", InputForm[<|
+    "Preparation" -> Lookup[preparation, "Status", Head[preparation]],
+    "Assembly" -> Lookup[assembly, "Status", Head[assembly]],
+    "Sample" -> Lookup[sample, "Status", Head[sample]],
+    "Solution" -> Lookup[solution, "Status", Head[solution]],
+    "Plan" -> Lookup[plan, "Status", Head[plan]],
+    "Payload" -> If[AssociationQ[payload],
+      KeyTake[payload, {"Status", "Schema", "Reason"}], Head[payload]],
+    "Records" -> If[AssociationQ[#],
+        KeyTake[#, {"Status", "Reason", "Detail"}], Head[#]] & /@ records|>]]];
 
 FTTest`FTAssert["the helper payload and both immutable records authenticate",
   payloadValidQ[payload] &&
@@ -88,14 +99,14 @@ wave = followerWave[payload, requests, 2, 60, Infinity, misroute];
 If[! TrueQ[wave["Status"] === "MultiquadraticFollowerImageWaveV1" &&
     wave["FallbackIndices"] === {1} &&
     wave["ResultRoutes"] ===
-      {"SerialFollowerFallback", "SerialFollower"}],
+      {"SerialFollowerFallback", "InjectedFollower"}],
   Print["DIAGNOSTIC misrouted wave: ", InputForm[KeyDrop[wave,
     {"Results"}]]]];
 FTTest`FTAssert["a misrouted helper result is recomputed in schedule order",
   wave["Status"] === "MultiquadraticFollowerImageWaveV1" &&
     wave["FallbackIndices"] === {1} &&
     wave["ResultRoutes"] ===
-      {"SerialFollowerFallback", "SerialFollower"} &&
+      {"SerialFollowerFallback", "InjectedFollower"} &&
     (Lookup[#1, {"Prime", "RegulatorValue"}] & /@ wave["Results"]) ===
       ({prime, #1} & /@ {2, 3}) &&
     AllTrue[MapThread[followerAuthenticate,
@@ -109,7 +120,7 @@ identityDispatcher[currentPayload_, request_] :=
   followerSolve[currentPayload, request];
 wideWave = followerWave[payload, wideRequests, 4, 60, Infinity,
   identityDispatcher];
-FTTest`FTAssert["four-wide waves preserve request order and use three helpers plus the mission kernel",
+FTTest`FTAssert["four-wide waves preserve request order and keep the coordinator out",
   wideWave["Status"] === "MultiquadraticFollowerImageWaveV1" &&
     wideWave["Route"] === "InjectedDispatcher" &&
     wideWave["Concurrency"] === 4 &&
@@ -117,8 +128,7 @@ FTTest`FTAssert["four-wide waves preserve request order and use three helpers pl
     wideWave["BatchSize"] === 4 &&
     wideWave["FallbackIndices"] === {} &&
     wideWave["ResultRoutes"] ===
-      {"InjectedFollower", "InjectedFollower", "InjectedFollower",
-       "SerialFollower"} &&
+      ConstantArray["InjectedFollower", 4] &&
     (Lookup[#1, {"Prime", "RegulatorValue"}] & /@
         wideWave["Results"]) === ({prime, #1} & /@ {8, 9, 10, 11})];
 
@@ -250,12 +260,12 @@ FTTest`FTAssert["Automatic is serial without a broker helper",
       Block[{$ProcessorCount = 16}, kernelCount[Automatic, 8]]] === 1];
 FTTest`FTAssert["multi-family operation suppresses nested image waves",
   multiFamilyResolution === 1];
-FTTest`FTAssert["an explicit request remains an upper bound on image concurrency",
-  parallelResolution === 2 && kernelCount[1, 8] === 1];
-FTTest`FTAssert["Automatic uses four two-core follower-image lanes for one family",
-  wideResolution === {4, 4, 2}];
+FTTest`FTAssert["an explicit request remains an upper bound on helper-image concurrency",
+  parallelResolution === 1 && kernelCount[1, 8] === 1];
+FTTest`FTAssert["Automatic uses every free one-core helper lane for one family",
+  wideResolution === {7, 7, 2}];
 FTTest`FTAssert["Automatic follower-image lanes respect smaller native grants",
-  limitedResolution === {2, 1}];
+  limitedResolution === {4, 1}];
 
 (* Normal suite runs have no broker and therefore prove the serial fallback.
    When this file is submitted as a KernelPool mission, the same fixture also
@@ -272,7 +282,7 @@ FTTest`FTAssert["an active TaskBroker returns the ordered two-wide result",
     brokerWave["Route"] === "TaskBroker" &&
     brokerWave["FallbackIndices"] === {} &&
     brokerWave["ResultRoutes"] ===
-      {"TaskBrokerFollower", "SerialFollower"} &&
+      {"TaskBrokerFollower", "TaskBrokerFollower"} &&
     (Lookup[#1, {"Prime", "RegulatorValue"}] & /@
         brokerWave["Results"]) === ({prime, #1} & /@ {2, 3}) &&
     AllTrue[MapThread[followerAuthenticate,

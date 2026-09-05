@@ -3,26 +3,29 @@
 BeginPackage["FeynFacetCampaign`PhysicalBoundary`"];
 
 BuildEndpointAutomatonBoundaryAdapter::usage =
-  "BuildEndpointAutomatonBoundaryAdapter[transport, modeMap, boundaryData] builds the " <>
+  "BuildEndpointAutomatonBoundaryAdapter[operator, modeMap, boundaryData] builds the " <>
   "finite endpoint-to-interior word map needed to feed singular zero modes into an " <>
-  "operator or materialized observable transport for explicitly requested words.  " <>
+  "exact requested-output iterated-integral coefficient operator for explicitly " <>
+  "requested first- and second-path-segment letter-index sequences.  " <>
   "The returned coordinate maps are rational; unevaluated boundary data are represented " <>
   "by BoundaryConstantEpsilonCoefficient[id, order] or " <>
   "BoundaryFunctionEpsilonCoefficient[id, order], according to the boundary domain.";
 
 ComposeEndpointAutomatonBoundaryCoefficientMaps::usage =
-  "ComposeEndpointAutomatonBoundaryCoefficientMaps[adapter, transport, wordPairs] composes endpoint " <>
-  "connection words with prepared OperatorAutomaton demand words and returns " <>
-  "maps to boundary-data coefficients.  Unprepared demand words fail typed.";
+  "ComposeEndpointAutomatonBoundaryCoefficientMaps[adapter, operator, sequencePairs] composes endpoint " <>
+  "connection words with prepared first- and second-path-segment letter-index " <>
+  "sequences and returns maps to boundary-data coefficients.  Unprepared " <>
+  "sequences fail typed.";
 
 BuildGradedPhysicalEndpointTransport::usage =
-  "BuildGradedPhysicalEndpointTransport[transport, modeMap, boundaryData] closes the " <>
-  "accepted observable transport under its current-path word operators grade by grade, " <>
+  "BuildGradedPhysicalEndpointTransport[operator, modeMap, boundaryData] closes the " <>
+  "validated requested-output coefficient operator under its current-path word " <>
+  "operators grade by grade, " <>
   "then attaches the endpoint Frobenius transport to a basis of each finite row space. " <>
   "It represents every requested-weight word without enumerating the alphabet product.";
 
 ComposeGradedPhysicalEndpointWords::usage =
-  "ComposeGradedPhysicalEndpointWords[binding, transport, wordPairs] materializes only " <>
+  "ComposeGradedPhysicalEndpointWords[binding, operator, sequencePairs] materializes only " <>
   "the requested current-path words from a graded physical endpoint binding and returns " <>
   "their four-segment GPL maps on one shared vector of boundary-data coefficients.";
 
@@ -39,7 +42,8 @@ ClearAll[exactZeroQ, failure, leadingEpsilonOrder,
   endpointDemandRowBasis, endpointDemandVisibilityRows,
   endpointDemandCoReachability, endpointModeOrderKey,
   endpointModeCoefficientData, endpointDemandOrderMatrices,
-  operatorAutomatonWordMap, transportObservableWordMap,
+  exactIteratedIntegralCoefficientMatrix,
+  requestedOutputIteratedIntegralCoefficientMatrix,
   boundaryDataRequirement, pruneBoundaryDataRequirements, endpointExactRowBasis,
   endpointSpecializeMatrix, endpointCurrentRowSpaces,
   endpointBasisProjectionData, endpointExpandTermColumns,
@@ -321,57 +325,66 @@ reachableWordPairs[firstIndices_List, secondIndices_List,
     "SecondChildrenPruned" -> secondPruned|>
 ];
 
-operatorAutomatonWordMap[automaton_Association, firstWord_List,
-    secondWord_List, includeFinalEmbedding_: True] := Module[
+exactIteratedIntegralCoefficientMatrix[automaton_Association,
+    firstPathSegmentLetterIndices_List,
+    secondPathSegmentLetterIndices_List,
+    includeFinalEmbedding_: True] := Module[
   {firstAlphabet, secondAlphabet, firstPositions, secondPositions, map},
-  If[Length[firstWord] + Length[secondWord] >
-      Lookup[automaton, "RequestedMaximumWeight", -1],
-    Return[failure["WordExceedsRequestedWeight", <|
-      "FirstWord" -> firstWord, "SecondWord" -> secondWord|>]]
+  If[Length[firstPathSegmentLetterIndices] +
+      Length[secondPathSegmentLetterIndices] >
+      Lookup[automaton, "MaximumIteratedIntegralWeight", -1],
+    Return[failure["LetterIndexSequencesExceedRequestedWeight", <|
+      "FirstPathSegmentLetterIndices" -> firstPathSegmentLetterIndices,
+      "SecondPathSegmentLetterIndices" ->
+        secondPathSegmentLetterIndices|>]]
   ];
-  firstAlphabet = Lookup[automaton, "FirstAlphabetIndices", {}];
-  secondAlphabet = Lookup[automaton, "SecondAlphabetIndices", {}];
-  firstPositions = FirstPosition[firstAlphabet, #, Missing["Unknown"]] & /@ firstWord;
-  secondPositions = FirstPosition[secondAlphabet, #, Missing["Unknown"]] & /@ secondWord;
+  firstAlphabet = Lookup[automaton,
+    "FirstPathSegmentAlphabetLetterIndices", {}];
+  secondAlphabet = Lookup[automaton,
+    "SecondPathSegmentAlphabetLetterIndices", {}];
+  firstPositions = FirstPosition[firstAlphabet, #, Missing["Unknown"]] & /@
+    firstPathSegmentLetterIndices;
+  secondPositions = FirstPosition[secondAlphabet, #, Missing["Unknown"]] & /@
+    secondPathSegmentLetterIndices;
   If[AnyTrue[Join[firstPositions, secondPositions], MissingQ],
-    Return[failure["WordUsesUnknownKernel", <|
-      "FirstWord" -> firstWord, "SecondWord" -> secondWord|>]]
+    Return[failure["IteratedIntegralIndexSequenceContainsUnknownLetterIndex", <|
+      "FirstPathSegmentLetterIndices" -> firstPathSegmentLetterIndices,
+      "SecondPathSegmentLetterIndices" ->
+        secondPathSegmentLetterIndices|>]]
   ];
-  map = Lookup[automaton, "InitialDemandMap", Missing["Absent"]];
-  If[!MatrixQ[Normal[map]], Return[failure["OperatorAutomatonIncomplete", <||>]]];
-  Do[map = map . Lookup[automaton, "FirstOperatorMatrices"][[First[position]]],
+  map = Lookup[automaton, "InitialRequestedOutputMap", Missing["Absent"]];
+  If[!MatrixQ[Normal[map]],
+    Return[failure["ExactIteratedIntegralCoefficientOperatorIncomplete", <||>]]];
+  Do[map = map . Lookup[automaton,
+      "FirstPathSegmentOperatorMatrices"][[First[position]]],
     {position, firstPositions}];
-  map = map . Lookup[automaton, "FirstBoundaryOperator"];
-  Do[map = map . Lookup[automaton, "SecondOperatorMatrices"][[First[position]]],
+  map = map . Lookup[automaton, "FirstPathSegmentBoundaryMap"];
+  Do[map = map . Lookup[automaton,
+      "SecondPathSegmentOperatorMatrices"][[First[position]]],
     {position, secondPositions}];
   If[TrueQ[includeFinalEmbedding],
     map . Lookup[automaton, "FinalBoundaryEmbedding"], map]
 ];
 
-transportObservableWordMap[transport_Association, firstWord_List,
-    secondWord_List] := Module[{representation, automaton, records, record},
-  representation = Lookup[transport, "WordRepresentation", Missing["Absent"]];
-  Switch[representation,
-    "OperatorAutomaton",
-      automaton = Lookup[transport, "ExactOperatorAutomaton",
-        Lookup[transport, "WordAutomaton", Missing["Absent"]]];
-      If[!AssociationQ[automaton],
-        failure["OperatorAutomatonRequired", <||>],
-        operatorAutomatonWordMap[automaton, firstWord, secondWord]],
-    "MaterializedWords",
-      records = Lookup[transport, "TwoSegmentWordMaps", Missing["Absent"]];
-      If[!ListQ[records],
-        Return@failure["MaterializedObservableWordsRequired", <||>]];
-      record = SelectFirst[records,
-        MatchQ[#, {_List, _List, _}] && First[#] === firstWord &&
-          #[[2]] === secondWord &, Missing["Unavailable"]];
-      If[MissingQ[record],
-        failure["MaterializedDemandWordUnavailable", <|
-          "CurrentFirstWord" -> firstWord,
-          "CurrentSecondWord" -> secondWord|>], record[[3]]],
-    _, failure["SupportedObservableWordRepresentationRequired", <|
-      "WordRepresentation" -> representation|>]
-  ]
+requestedOutputIteratedIntegralCoefficientMatrix[
+    operator_Association, firstPathSegmentLetterIndices_List,
+    secondPathSegmentLetterIndices_List] := Module[
+  {representation, automaton},
+  representation = Lookup[operator,
+    "IteratedIntegralCoefficientRepresentation", Missing["Absent"]];
+  If[representation =!=
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    Return@failure["ExactIteratedIntegralCoefficientOperatorRequired", <|
+      "IteratedIntegralCoefficientRepresentation" -> representation|>]
+  ];
+  automaton = Lookup[operator,
+    "ExactIteratedIntegralCoefficientOperator", Missing["Absent"]];
+  If[!AssociationQ[automaton] ||
+      Lookup[automaton, "Status", None] =!=
+        "IteratedIntegralCoefficientOperatorConstructed",
+    failure["ExactIteratedIntegralCoefficientOperatorRequired", <||>],
+    exactIteratedIntegralCoefficientMatrix[automaton,
+      firstPathSegmentLetterIndices, secondPathSegmentLetterIndices]]
 ];
 
 boundaryDataRequirement[family_, endpointSpec_, mode_, status_,
@@ -420,7 +433,8 @@ Options[BuildEndpointAutomatonBoundaryAdapter] = {
   "MaximumConnectorWeight" -> Automatic,
   "MaximumConnectorWords" -> 200000,
   "BoundaryDataEpsilonOrderWindow" -> Automatic,
-  "DemandWordPairs" -> {{{}, {}}}
+  "RequestedPathSegmentLetterIndexSequencePairs" -> {{{}, {}}},
+  "PreparedRequestedOutputCoefficientMatrices" -> Automatic
 };
 
 BuildEndpointAutomatonBoundaryAdapter[
@@ -449,27 +463,43 @@ BuildEndpointAutomatonBoundaryAdapter[
    currentMap, propagatedModes, demandOrderMatrices, demandOrders, modeLimit,
    coefficientOrders, coefficientData, coefficientPositions,
    coefficientPosition, contribution, outputColumn, boundaryDataType,
-   dataIDKey, coefficientRecordsKey, coefficientLabelsKey},
+   dataIDKey, coefficientRecordsKey, coefficientLabelsKey,
+   preparedRequestedOutputCoefficientMatrices},
 
-  automaton = Lookup[transport, "ExactOperatorAutomaton",
-    Lookup[transport, "WordAutomaton", Missing["Absent"]]];
-  wordRepresentation = Lookup[transport, "WordRepresentation", Missing["Absent"]];
-  If[!MemberQ[{"OperatorAutomaton", "MaterializedWords"}, wordRepresentation] ||
-      (wordRepresentation === "OperatorAutomaton" && !AssociationQ[automaton]) ||
-      (wordRepresentation === "MaterializedWords" &&
-        !ListQ[Lookup[transport, "TwoSegmentWordMaps", Missing["Absent"]]]),
-    Throw@failure["SupportedObservableWordRepresentationRequired", <|
-      "WordRepresentation" -> wordRepresentation|>]
+  If[! TrueQ[
+      FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+        transport]],
+    Throw@failure[
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsRequired",
+      <||>]
   ];
-  path = Lookup[transport, "Path", Missing["Absent"]];
+  wordRepresentation = Lookup[transport,
+    "IteratedIntegralCoefficientRepresentation", Missing["Absent"]];
+  If[wordRepresentation =!=
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    Throw@failure["ExactIteratedIntegralCoefficientOperatorRequired", <|
+      "IteratedIntegralCoefficientRepresentation" ->
+        wordRepresentation|>]
+  ];
+  automaton = Lookup[transport,
+    "ExactIteratedIntegralCoefficientOperator", Missing["Absent"]];
+  If[!AssociationQ[automaton] ||
+      Lookup[automaton, "Status", None] =!=
+        "IteratedIntegralCoefficientOperatorConstructed",
+    Throw@failure["ExactIteratedIntegralCoefficientOperatorRequired", <||>]
+  ];
+  path = Lookup[transport,
+    "RegularBasePointAndFirstPathParameterScale", Missing["Absent"]];
   If[!AssociationQ[path], Throw@failure["MissingTransportPath", <||>]];
-  variables = Lookup[transport, "Variables", Missing["Absent"]];
+  variables = Lookup[transport, "CoefficientVariables", Missing["Absent"]];
   If[!MatchQ[variables, {_Symbol, _Symbol}],
-    Throw@failure["UnsupportedTransportVariables", <|"Variables" -> variables|>]
+    Throw@failure["UnsupportedCoefficientVariables", <|
+      "CoefficientVariables" -> variables|>]
   ];
   {firstVariable, secondVariable} = variables;
-  regulator = Lookup[transport, "Regulator", Missing["Absent"]];
-  If[!MatchQ[regulator, _Symbol], Throw@failure["MissingTransportRegulator", <||>]];
+  regulator = Lookup[transport, "DimensionalRegulator", Missing["Absent"]];
+  If[!MatchQ[regulator, _Symbol],
+    Throw@failure["MissingDimensionalRegulator", <||>]];
   family = Lookup[transport, "Family", Lookup[modeMap, "Family", Missing["Absent"]]];
   firstBase = Lookup[path, "FirstBase", Missing["Absent"]];
   secondBase = Lookup[path, "SecondBase", Missing["Absent"]];
@@ -519,8 +549,8 @@ BuildEndpointAutomatonBoundaryAdapter[
       "FirstVariable" -> firstVariable, "FixedRules" -> fixedRules|>]
   ];
 
-  letters = Lookup[transport, "DLogLetters", Missing["Absent"]];
-  residues = Lookup[transport, "DLogResidues", Missing["Absent"]];
+  letters = Lookup[transport, "Letters", Missing["Absent"]];
+  residues = Lookup[transport, "ConstantResidueMatrices", Missing["Absent"]];
   If[!ListQ[letters] || !ListQ[residues] || Length[letters] =!= Length[residues] ||
       letters === {} || !And @@ (MatrixQ /@ residues),
     Throw@failure["MissingFirstSegmentMap", <|
@@ -528,7 +558,7 @@ BuildEndpointAutomatonBoundaryAdapter[
   ];
   dimension = First@Dimensions[First[residues]];
   If[!And @@ (Dimensions[#] === {dimension, dimension} & /@ residues),
-    Throw@failure["InvalidDLogResidues", <||>]
+    Throw@failure["InvalidConstantResidueMatrices", <||>]
   ];
   matrixAssociation = AssociationThread[Range[Length[residues]], residues];
   secondKernels = Association@Cases[
@@ -645,10 +675,10 @@ BuildEndpointAutomatonBoundaryAdapter[
 
   ambientSlots = Lookup[transport, "BoundaryAmbientSlots", Missing["Absent"]];
   (* Endpoint modes live in the ambient Laurent-slot space at the interior
-     base.  For MovingKernel transports the automaton's FinalBoundaryEmbedding
-     is only the later square boundary-coordinate map; the ambient-to-boundary
-     embedding is BoundaryBaseEmbedding.  In the AmbientBasePoint route these
-     two maps coincide in shape. *)
+     base.  With a MovingNullspaceBasis, FinalBoundaryEmbedding is only the
+     later square boundary-coordinate map; the ambient-to-boundary embedding
+     is BoundaryBaseEmbedding.  In the AmbientSpaceWithBasePointConstraints
+     route these two maps coincide in shape. *)
   embedding = Lookup[transport, "BoundaryBaseEmbedding", Missing["Absent"]];
   If[MissingQ[embedding] && AssociationQ[automaton],
     embedding = Lookup[automaton, "FinalBoundaryEmbedding", Missing["Absent"]]];
@@ -701,27 +731,48 @@ BuildEndpointAutomatonBoundaryAdapter[
     {id, Keys[modeVectors]}];
   formalModeIDs = Select[Keys[modeVectors],
     ! TrueQ@exactAssociationLookup[knownZeroByID, #] &];
-  demandWordPairs = OptionValue["DemandWordPairs"];
+  demandWordPairs =
+    OptionValue["RequestedPathSegmentLetterIndexSequencePairs"];
   If[!ListQ[demandWordPairs] || demandWordPairs === {} ||
       !AllTrue[demandWordPairs, MatchQ[#, {_List, _List}] &],
-    Throw@failure["InvalidEndpointDemandWordPairs", <|
-      "DemandWordPairs" -> demandWordPairs|>]
+    Throw@failure["InvalidRequestedPathSegmentLetterIndexSequencePairs", <|
+      "RequestedPathSegmentLetterIndexSequencePairs" ->
+        demandWordPairs|>]
   ];
   baseRules = Lookup[transport, "BoundaryBasePoint",
     {firstVariable -> firstBase, secondVariable -> secondBase}];
-  demandMaps = Table[
-    currentMap = Quiet@Check[
-      transportObservableWordMap[transport, First[pair], Last[pair]], $Failed];
-    If[currentMap === $Failed || FailureQ[currentMap] ||
-        !MatrixQ[Normal[currentMap]],
-      Throw@failure["ObservableWordMapUnavailable", <|
-        "CurrentFirstWord" -> First[pair],
-        "CurrentSecondWord" -> Last[pair],
-        "WordRepresentation" -> wordRepresentation,
-        "ProviderResult" -> currentMap|>]
+  preparedRequestedOutputCoefficientMatrices =
+    OptionValue["PreparedRequestedOutputCoefficientMatrices"];
+  demandMaps = If[
+    preparedRequestedOutputCoefficientMatrices === Automatic,
+    Table[
+      currentMap = Quiet@Check[
+        requestedOutputIteratedIntegralCoefficientMatrix[
+          transport, First[pair], Last[pair]], $Failed];
+      If[currentMap === $Failed || FailureQ[currentMap] ||
+          !MatrixQ[Normal[currentMap]],
+        Throw@failure["IteratedIntegralCoefficientMatrixUnavailable", <|
+          "CurrentPathFirstSegmentLetterIndices" -> First[pair],
+          "CurrentPathSecondSegmentLetterIndices" -> Last[pair],
+          "IteratedIntegralCoefficientRepresentation" ->
+            wordRepresentation,
+          "ProviderResult" -> currentMap|>]
+      ];
+      Together[Normal[currentMap] /. baseRules],
+      {pair, demandWordPairs}],
+    If[! ListQ[preparedRequestedOutputCoefficientMatrices] ||
+        Length[preparedRequestedOutputCoefficientMatrices] =!=
+          Length[demandWordPairs] ||
+        ! AllTrue[preparedRequestedOutputCoefficientMatrices,
+          MatrixQ[Normal[#]] &],
+      Throw@failure[
+        "PreparedRequestedOutputCoefficientMatricesNotWellFormed", <|
+          "RequestedPathSegmentLetterIndexSequencePairCount" ->
+            Length[demandWordPairs]|>]
     ];
-    Together[Normal[currentMap] /. baseRules],
-    {pair, demandWordPairs}];
+    Together[Normal[#] /. baseRules] & /@
+      preparedRequestedOutputCoefficientMatrices
+  ];
   If[Length[DeleteDuplicates[Last /@ (Dimensions /@ demandMaps)]] =!= 1 ||
       First[Last /@ (Dimensions /@ demandMaps)] =!= Length[pivotRows],
     Throw@failure["EndpointDemandMapDimensionMismatch", <|
@@ -733,8 +784,9 @@ BuildEndpointAutomatonBoundaryAdapter[
   demandWordRecords = MapThread[Function[{pair, map},
     With[{rows = rowOffset + Range[Length[map]]},
       rowOffset += Length[map];
-      <|"CurrentFirstWord" -> First[pair],
-        "CurrentSecondWord" -> Last[pair], "RowRange" -> rows|>]],
+      <|"CurrentPathFirstSegmentLetterIndices" -> First[pair],
+        "CurrentPathSecondSegmentLetterIndices" -> Last[pair],
+        "RowRange" -> rows|>]],
     {demandWordPairs, demandMaps}];
   pivotDemand = Together[demandMapStack . pivotInverse];
   demandedPivotColumns = Sort@DeleteDuplicates@Cases[
@@ -817,8 +869,9 @@ BuildEndpointAutomatonBoundaryAdapter[
         {coordinateColumn, Length[boundaryCoefficientRecords]}]];
       If[Length[boundaryCoefficientRecords] > 0 &&
           AnyTrue[Flatten[projectedMap], Not@*exactZeroQ],
-        Sow[<|"EndpointFirstWord" -> term[[1]],
-          "EndpointSecondWord" -> term[[2]],
+        Sow[<|
+          "BoundaryPathFirstSegmentLetterIndices" -> term[[1]],
+          "BoundaryPathSecondSegmentLetterIndices" -> term[[2]],
           "DemandProjectedMap" -> SparseArray[projectedMap]|>]
       ],
       {term, wordPairs}]
@@ -840,7 +893,8 @@ BuildEndpointAutomatonBoundaryAdapter[
       boundaryCoefficientRecords[[activeColumns]]]
   ];
 
-  demandedOutputs = Lookup[transport, "PhysicalDemandPairs", {}];
+  demandedOutputs = Lookup[transport,
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs", {}];
   boundaryDataRequirements = Table[
     id = endpointBoundaryDataID[mode];
     status = exactAssociationLookup[statusByID, id];
@@ -857,13 +911,16 @@ BuildEndpointAutomatonBoundaryAdapter[
       <|"Role" -> "EndpointSecond", "Variable" -> secondVariable,
         "Base" -> endpoint, "Target" -> secondBase,
         "FixedRules" -> {firstVariable -> fixedFirst},
-        "AlphabetIndices" -> secondIndices, "DLogKernels" -> secondKernels|>,
+        "BoundaryPathSecondSegmentAlphabetLetterIndices" ->
+          secondIndices, "DLogKernels" -> secondKernels|>,
       <|"Role" -> "EndpointFirst", "Variable" -> firstVariable,
         "Base" -> fixedFirst, "Target" -> firstBase,
         "FixedRules" -> {secondVariable -> secondBase},
-        "AlphabetIndices" -> firstIndices, "DLogKernels" -> firstKernels|>
+        "BoundaryPathFirstSegmentAlphabetLetterIndices" ->
+          firstIndices, "DLogKernels" -> firstKernels|>
     },
-    "MultiplicationOrder" -> "EndpointFirstWord.EndpointSecondWord",
+    "MultiplicationOrder" ->
+      "BoundaryPathFirstSegment.BoundaryPathSecondSegment",
     "BoundaryPrescription" -> "ZeroResidueModeTangential",
     "LocalCoordinateNormalization" -> <|
       "Power" -> localCoordinatePower,
@@ -880,8 +937,8 @@ BuildEndpointAutomatonBoundaryAdapter[
     "Status" -> "EndpointAutomatonBoundaryAdapterBuilt",
     "Family" -> family,
     "BoundaryDataType" -> boundaryDataType,
-    "ObservableWordMapProvider" -> wordRepresentation,
-    "Regulator" -> regulator,
+    "IteratedIntegralCoefficientMatrixProvider" -> wordRepresentation,
+    "DimensionalRegulator" -> regulator,
     "EndpointModeMapStatus" -> Lookup[modeMap, "Status", Missing["Absent"]],
     "Path" -> pathDescriptor,
     "AutomatonBoundaryDimension" -> Last[Dimensions[Normal[embedding]]],
@@ -889,24 +946,27 @@ BuildEndpointAutomatonBoundaryAdapter[
     "BoundaryCoordinateConvention" -> <|
       "EmbeddingPivotRows" -> pivotRows,
       "Definition" -> "LexicographicallyFirstExactLeftInverse",
-      "Projection" -> "OnlyPreparedDemandWordsAtInteriorBase"|>,
+      "Projection" ->
+        "OnlyPreparedPathSegmentLetterIndexSequencesAtInteriorBase"|>,
     "DemandVisibleAmbientSlotMaximum" -> demandedSlotMaximum,
-    "PreparedDemandWordPairs" -> demandWordPairs,
-    "PreparedDemandWordRecords" -> demandWordRecords,
+    "PreparedPathSegmentLetterIndexSequencePairs" -> demandWordPairs,
+    "PreparedPathSegmentLetterIndexSequenceRecords" -> demandWordRecords,
     coefficientRecordsKey -> boundaryCoefficientRecords,
     coefficientLabelsKey ->
       ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@
         boundaryCoefficientRecords),
-    "EndpointWordTerms" -> endpointTerms,
+    "BoundaryPathIteratedIntegralCoefficientMatrixTerms" -> endpointTerms,
     "FormalBoundaryConvention" ->
-      "Sum[EndpointConnectionWord[Path, firstWord, secondWord] Map . BoundaryDataEpsilonCoefficientVector]",
+      "Sum[EndpointConnectionWord[Path, firstSegment, secondSegment] CoefficientMatrix . BoundaryDataEpsilonCoefficientVector]",
     "MaximumConnectorWeight" -> maximumWeight,
     "RequiredConnectorWeight" -> requiredConnectorWeight,
     "ConnectorDepthComplete" -> True,
     "AggregateBoundaryImageCondition" ->
-      "AppliesAfterTheCompleteEndpointWordSumNotToIndividualWords",
-    "EnumeratedConnectorWordCount" -> requestedWordCount,
-    "RetainedConnectorWordCount" -> Length[endpointTerms],
+      "AppliesAfterTheCompleteBoundaryPathSumNotToIndividualSequences",
+    "EnumeratedBoundaryPathLetterIndexSequencePairCount" ->
+      requestedWordCount,
+    "RetainedBoundaryPathCoefficientMatrixTermCount" ->
+      Length[endpointTerms],
     "VisitedConnectorStateCount" -> wordRecord["VisitedStates"],
     "ConnectorEnumerationMethod" -> "DemandDualCoReachableSparseStates",
     "EndpointCoefficientAssemblyMethod" ->
@@ -928,14 +988,24 @@ ComposeEndpointAutomatonBoundaryCoefficientMaps[
       "EndpointAutomatonBoundaryAdapterBuilt",
     Throw@failure["EndpointBoundaryAdapterRequired", <||>]
   ];
-  wordRepresentation = Lookup[transport, "WordRepresentation", Missing["Absent"]];
-  If[!MemberQ[{"OperatorAutomaton", "MaterializedWords"}, wordRepresentation] ||
-      Lookup[adapter, "ObservableWordMapProvider", Missing["Absent"]] =!=
+  If[! TrueQ[
+      FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+        transport]],
+    Throw@failure[
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsRequired",
+      <||>]
+  ];
+  wordRepresentation = Lookup[transport,
+    "IteratedIntegralCoefficientRepresentation", Missing["Absent"]];
+  If[wordRepresentation =!=
+        "IteratedIntegralCoefficientOperatorForRequestedOutputs" ||
+      Lookup[adapter, "IteratedIntegralCoefficientMatrixProvider",
+          Missing["Absent"]] =!=
         wordRepresentation,
-    Throw@failure["ObservableWordMapProviderMismatch", <|
-      "AdapterProvider" -> Lookup[adapter, "ObservableWordMapProvider",
-        Missing["Absent"]],
-      "TransportProvider" -> wordRepresentation|>]
+    Throw@failure["IteratedIntegralCoefficientMatrixProviderMismatch", <|
+      "AdapterProvider" -> Lookup[adapter,
+        "IteratedIntegralCoefficientMatrixProvider", Missing["Absent"]],
+      "OperatorProvider" -> wordRepresentation|>]
   ];
   family = Lookup[transport, "Family", Missing["Absent"]];
   If[family =!= Lookup[adapter, "Family", Missing["Absent"]],
@@ -951,39 +1021,49 @@ ComposeEndpointAutomatonBoundaryCoefficientMaps[
     Throw@failure["BoundaryDataTypeRequired", <||>]];
   coefficientRecordsKey = endpointBoundaryCoefficientRecordsKey[boundaryDataType];
   coefficientLabelsKey = endpointBoundaryCoefficientLabelsKey[boundaryDataType];
-  endpointTerms = Lookup[adapter, "EndpointWordTerms", {}];
+  endpointTerms = Lookup[adapter,
+    "BoundaryPathIteratedIntegralCoefficientMatrixTerms", {}];
   boundaryCoefficientRecords = Lookup[adapter, coefficientRecordsKey, {}];
-  preparedRecords = Lookup[adapter, "PreparedDemandWordRecords", {}];
+  preparedRecords = Lookup[adapter,
+    "PreparedPathSegmentLetterIndexSequenceRecords", {}];
   outputTerms = Reap[
     Do[
       prepared = SelectFirst[preparedRecords,
-        Lookup[#, "CurrentFirstWord", Missing["Absent"]] === First[pair] &&
-          Lookup[#, "CurrentSecondWord", Missing["Absent"]] === Last[pair] &,
+        Lookup[#, "CurrentPathFirstSegmentLetterIndices",
+            Missing["Absent"]] === First[pair] &&
+          Lookup[#, "CurrentPathSecondSegmentLetterIndices",
+            Missing["Absent"]] === Last[pair] &,
         Missing["NotPrepared"]];
       If[MissingQ[prepared],
         Throw@failure["EndpointDemandWordNotPrepared", <|
-          "CurrentFirstWord" -> First[pair],
-          "CurrentSecondWord" -> Last[pair],
-          "PreparedDemandWordPairs" ->
-            Lookup[adapter, "PreparedDemandWordPairs", {}]|>]
+          "CurrentPathFirstSegmentLetterIndices" -> First[pair],
+          "CurrentPathSecondSegmentLetterIndices" -> Last[pair],
+          "PreparedPathSegmentLetterIndexSequencePairs" ->
+            Lookup[adapter,
+              "PreparedPathSegmentLetterIndexSequencePairs", {}]|>]
       ];
       rowRange = Lookup[prepared, "RowRange"];
       Do[
         map = Lookup[endpointTerm, "DemandProjectedMap"][[rowRange, All]];
         If[AnyTrue[Flatten[Normal[map]], Not@*exactZeroQ],
           Sow[<|
-            "CurrentFirstWord" -> First[pair],
-            "CurrentSecondWord" -> Last[pair],
-            "EndpointFirstWord" -> Lookup[endpointTerm, "EndpointFirstWord"],
-            "EndpointSecondWord" -> Lookup[endpointTerm, "EndpointSecondWord"],
-            "Map" -> SparseArray[map]|>]
+            "CurrentPathFirstSegmentLetterIndices" -> First[pair],
+            "CurrentPathSecondSegmentLetterIndices" -> Last[pair],
+            "BoundaryPathFirstSegmentLetterIndices" -> Lookup[
+              endpointTerm,
+              "BoundaryPathFirstSegmentLetterIndices"],
+            "BoundaryPathSecondSegmentLetterIndices" -> Lookup[
+              endpointTerm,
+              "BoundaryPathSecondSegmentLetterIndices"],
+            "IteratedIntegralCoefficientMatrix" -> SparseArray[map]|>]
         ],
         {endpointTerm, endpointTerms}],
       {pair, wordPairs}]
     ][[2]];
   outputTerms = If[outputTerms === {}, {}, First[outputTerms]];
   usedColumns = Sort@DeleteDuplicates@Flatten[
-    (Cases[First /@ ArrayRules[Lookup[#, "Map"]],
+    (Cases[First /@ ArrayRules[
+          Lookup[#, "IteratedIntegralCoefficientMatrix"]],
         {_, column_Integer} :> column]) & /@ outputTerms];
   usedColumns = Select[usedColumns,
     1 <= # <= Length[boundaryCoefficientRecords] &];
@@ -994,12 +1074,13 @@ ComposeEndpointAutomatonBoundaryCoefficientMaps[
     "Status" -> "EndpointAutomatonBoundaryCoefficientMapsBuilt",
     "Family" -> family,
     "BoundaryDataType" -> boundaryDataType,
-    "PhysicalDemandPairs" -> Lookup[transport, "PhysicalDemandPairs", {}],
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> Lookup[
+      transport, "RequestedMasterIntegralEpsilonOrderAndRowPairs", {}],
     coefficientRecordsKey -> boundaryCoefficientRecords,
     coefficientLabelsKey ->
       ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@
         boundaryCoefficientRecords),
-    "WordMaps" -> outputTerms,
+    "IteratedIntegralCoefficientMatrixRecords" -> outputTerms,
     "BoundaryDataRequirements" -> boundaryDataRequirements
   |>
 ];
@@ -1024,16 +1105,19 @@ endpointExactRowBasis[rows_] := Module[{dense, reduced},
 endpointSpecializeMatrix[matrix_, rules_List] := Quiet@Check[
   Together[Normal[matrix] /. rules], $Failed];
 
-endpointCurrentRowSpaces[transport_Association] := Catch@Module[
+endpointCurrentRowSpaces[transport_Association,
+    initialRequestedOutputRowSelectorMatrix_: Automatic] := Catch@Module[
   {representation, variables, path, baseRules, maximumWeight, automaton,
    initial, firstMatrices, firstBoundary, secondMatrices, finalEmbedding,
-   firstByWeight = <||>, spaces = <||>, records, selected, matrices, rows,
-   basis, firstState, secondState},
-  representation = Lookup[transport, "WordRepresentation", Missing[]];
-  variables = Lookup[transport, "Variables", Missing[]];
-  path = Lookup[transport, "Path", <||>];
+   firstByWeight = <||>, spaces = <||>, rows, basis, firstState,
+   secondState},
+  representation = Lookup[transport,
+    "IteratedIntegralCoefficientRepresentation", Missing[]];
+  variables = Lookup[transport, "CoefficientVariables", Missing[]];
+  path = Lookup[transport,
+    "RegularBasePointAndFirstPathParameterScale", <||>];
   If[! MatchQ[variables, {_Symbol, _Symbol}],
-    Throw@failure["UnsupportedTransportVariables", <||>]];
+    Throw@failure["UnsupportedCoefficientVariables", <||>]];
   baseRules = Lookup[transport, "BoundaryBasePoint", Thread[variables ->
     {Lookup[path, "FirstBase", Missing[]],
       Lookup[path, "SecondBase", Missing[]]}]];
@@ -1041,20 +1125,29 @@ endpointCurrentRowSpaces[transport_Association] := Catch@Module[
       ! FreeQ[Last /@ baseRules, _Missing],
     Throw@failure["MissingTransportBasePoint", <|"Path" -> path|>]];
 
-  Switch[representation,
-    "OperatorAutomaton",
-      automaton = Lookup[transport, "ExactOperatorAutomaton", Missing[]];
-      If[! AssociationQ[automaton],
-        Throw@failure["OperatorAutomatonRequired", <||>]];
-      maximumWeight = Lookup[automaton, "RequestedMaximumWeight", Missing[]];
+  If[representation =!=
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    Throw@failure["ExactIteratedIntegralCoefficientOperatorRequired", <|
+      "IteratedIntegralCoefficientRepresentation" -> representation|>]];
+  automaton = Lookup[transport,
+    "ExactIteratedIntegralCoefficientOperator", Missing[]];
+  If[! AssociationQ[automaton] ||
+      Lookup[automaton, "Status", None] =!=
+        "IteratedIntegralCoefficientOperatorConstructed",
+    Throw@failure["ExactIteratedIntegralCoefficientOperatorRequired", <||>]];
+      maximumWeight = Lookup[automaton,
+        "MaximumIteratedIntegralWeight", Missing[]];
       initial = endpointSpecializeMatrix[
-        Lookup[automaton, "InitialDemandMap", Missing[]], baseRules];
+        Replace[initialRequestedOutputRowSelectorMatrix,
+          Automatic :> Lookup[automaton,
+            "InitialRequestedOutputMap", Missing[]]], baseRules];
       firstMatrices = endpointSpecializeMatrix[#, baseRules] & /@
-        Lookup[automaton, "FirstOperatorMatrices", {}];
+        Lookup[automaton, "FirstPathSegmentOperatorMatrices", {}];
       firstBoundary = endpointSpecializeMatrix[
-        Lookup[automaton, "FirstBoundaryOperator", Missing[]], baseRules];
+        Lookup[automaton, "FirstPathSegmentBoundaryMap", Missing[]],
+        baseRules];
       secondMatrices = endpointSpecializeMatrix[#, baseRules] & /@
-        Lookup[automaton, "SecondOperatorMatrices", {}];
+        Lookup[automaton, "SecondPathSegmentOperatorMatrices", {}];
       finalEmbedding = endpointSpecializeMatrix[
         Lookup[automaton, "FinalBoundaryEmbedding", Missing[]], baseRules];
       If[! IntegerQ[maximumWeight] || maximumWeight < 0 ||
@@ -1062,7 +1155,8 @@ endpointCurrentRowSpaces[transport_Association] := Catch@Module[
             firstMatrices, secondMatrices], $Failed] ||
           ! AllTrue[Join[{initial, firstBoundary, finalEmbedding},
             firstMatrices, secondMatrices], MatrixQ],
-        Throw@failure["OperatorAutomatonIncomplete", <||>]];
+        Throw@failure[
+          "ExactIteratedIntegralCoefficientOperatorIncomplete", <||>]];
       basis = endpointExactRowBasis[initial];
       If[basis === $Failed,
         Throw@failure["CurrentPathRowSpaceFailed", <|"Weight" -> 0|>]];
@@ -1110,37 +1204,14 @@ endpointCurrentRowSpaces[transport_Association] := Catch@Module[
           Throw@failure["CurrentPathRowSpaceFailed", <|"Weight" -> weight,
             "Segment" -> "FinalEmbedding"|>]];
         If[basis =!= {}, AssociateTo[spaces, weight -> SparseArray[basis]]],
-        {weight, 0, maximumWeight}],
-
-    "MaterializedWords",
-      records = Lookup[transport, "TwoSegmentWordMaps", Missing[]];
-      If[! ListQ[records] ||
-          ! AllTrue[records, MatchQ[#, {_List, _List, _?MatrixQ}] &],
-        Throw@failure["MaterializedObservableWordsRequired", <||>]];
-      maximumWeight = Max[0, Sequence @@
-        ((Length[#[[1]]] + Length[#[[2]]]) & /@ records)];
-      Do[
-        selected = Select[records,
-          Length[#[[1]]] + Length[#[[2]]] === weight &];
-        matrices = endpointSpecializeMatrix[#[[3]], baseRules] & /@ selected;
-        If[MemberQ[matrices, $Failed],
-          Throw@failure["CurrentPathWordSpecializationFailed", <|
-            "Weight" -> weight|>]];
-        rows = If[matrices === {}, {}, Join @@ matrices];
-        basis = endpointExactRowBasis[rows];
-        If[basis === $Failed,
-          Throw@failure["CurrentPathRowSpaceFailed", <|"Weight" -> weight|>]];
-        If[basis =!= {}, AssociateTo[spaces, weight -> SparseArray[basis]]],
-        {weight, 0, maximumWeight}],
-
-    _, Throw@failure["SupportedObservableWordRepresentationRequired", <|
-      "WordRepresentation" -> representation|>]
-  ];
-  <|"Status" -> "CurrentObservableRowSpacesBuilt",
-    "WordRepresentation" -> representation,
-    "MaximumWeight" -> maximumWeight, "BaseRules" -> baseRules,
-    "SpacesByWeight" -> spaces,
-    "DimensionsByWeight" -> Association@KeyValueMap[
+        {weight, 0, maximumWeight}];
+  <|"Status" -> "CurrentRequestedOutputCoefficientRowSpacesBuilt",
+    "IteratedIntegralCoefficientRepresentation" -> representation,
+    "MaximumIteratedIntegralWeight" -> maximumWeight,
+    "BaseRules" -> baseRules,
+    "RowSpacesByIteratedIntegralWeight" -> spaces,
+    "RowSpaceDimensionsByIteratedIntegralWeight" ->
+      Association@KeyValueMap[
       #1 -> Dimensions[Normal[#2]] &, spaces]|>
 ];
 
@@ -1174,7 +1245,8 @@ endpointExpandTermColumns[term_Association, localCoordinates_List,
       ({row, Lookup[globalIndex,
           endpointCoordinateKey[localCoordinates[[column]]]]} -> value)];
   Join[KeyDrop[term, "DemandProjectedMap"], <|
-    "Map" -> SparseArray[rules, {First[dimensions], globalCount}]|>]
+    "IteratedIntegralCoefficientMatrix" ->
+      SparseArray[rules, {First[dimensions], globalCount}]|>]
 ];
 
 endpointMergeBoundaryDataRequirements[requirements_List] := Module[
@@ -1192,21 +1264,27 @@ endpointMergeBoundaryDataRequirements[requirements_List] := Module[
 
 Options[BuildGradedPhysicalEndpointTransport] = {
   "BoundaryDataEpsilonOrderWindow" -> Automatic,
-  "MaximumConnectorWords" -> 500000
+  "MaximumConnectorWords" -> 500000,
+  "InitialRequestedOutputRowSelectorMatrix" -> Automatic
 };
 
 BuildGradedPhysicalEndpointTransport[transport_Association,
     modeMap_Association, boundaryData_: <||>, OptionsPattern[]] := Catch@Module[
   {rowSpaces, maximumWeight, spaces, maximumWords,
-   boundaryDataEpsilonOrderWindow, gradeRecords, synthetic, basis,
+   boundaryDataEpsilonOrderWindow, gradeRecords, basis,
    projection, adapter, allCoefficientRecords, coordinateIndex, globalCount,
    grades, requirements, boundaryDataRequirements, firstGrade, family,
    boundaryDataType, coefficientRecordsKey, coefficientLabelsKey,
    localCoefficientRecordsKey},
-  If[! MemberQ[{"ExactObservableTransport",
-        "ModularlyVerifiedObservableTransport"},
-      Lookup[transport, "Status", None]],
-    Throw@failure["AcceptedObservableTransportRequired", <||>]];
+  If[! TrueQ[
+      FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+        transport]],
+    Throw@failure[
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsRequired",
+      <||>]];
+  If[Lookup[transport, "IteratedIntegralCoefficientRepresentation", None] =!=
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    Throw@failure["ExactIteratedIntegralCoefficientOperatorRequired", <||>]];
   family = Lookup[transport, "Family", Missing[]];
   If[Lookup[modeMap, "Family", family] =!= family,
     Throw@failure["EndpointModeFamilyMismatch", <|
@@ -1223,30 +1301,30 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
     OptionValue["BoundaryDataEpsilonOrderWindow"];
   If[! IntegerQ[maximumWords] || maximumWords < 1,
     Throw@failure["InvalidConnectorWordBudget", <||>]];
-  rowSpaces = endpointCurrentRowSpaces[transport];
+  rowSpaces = endpointCurrentRowSpaces[transport,
+    OptionValue["InitialRequestedOutputRowSelectorMatrix"]];
   If[FailureQ[rowSpaces], Throw[rowSpaces]];
   If[! AssociationQ[rowSpaces] ||
       Lookup[rowSpaces, "Status", None] =!=
-        "CurrentObservableRowSpacesBuilt",
-    Throw@failure["CurrentObservableRowSpacesRequired", <||>]];
-  maximumWeight = rowSpaces["MaximumWeight"];
-  spaces = rowSpaces["SpacesByWeight"];
+        "CurrentRequestedOutputCoefficientRowSpacesBuilt",
+    Throw@failure[
+      "CurrentRequestedOutputCoefficientRowSpacesRequired", <||>]];
+  maximumWeight = rowSpaces["MaximumIteratedIntegralWeight"];
+  spaces = rowSpaces["RowSpacesByIteratedIntegralWeight"];
   gradeRecords = Table[
     basis = Lookup[spaces, weight];
     projection = endpointBasisProjectionData[basis];
     If[projection === $Failed || projection["Inverse"] === $Failed,
       Throw@failure["CurrentPathBasisProjectionFailed", <|
         "Weight" -> weight|>]];
-    synthetic = Join[transport, <|
-      "WordRepresentation" -> "MaterializedWords",
-      "TwoSegmentWordMaps" -> {{{}, {}, basis}}|>];
     adapter = BuildEndpointAutomatonBoundaryAdapter[
-      synthetic, modeMap, boundaryData,
+      transport, modeMap, boundaryData,
       "MaximumConnectorWeight" -> maximumWeight - weight,
       "MaximumConnectorWords" -> maximumWords,
       "BoundaryDataEpsilonOrderWindow" ->
         boundaryDataEpsilonOrderWindow,
-      "DemandWordPairs" -> {{{}, {}}}];
+      "RequestedPathSegmentLetterIndexSequencePairs" -> {{{}, {}}},
+      "PreparedRequestedOutputCoefficientMatrices" -> {basis}];
     If[FailureQ[adapter] || Lookup[adapter, "Status", None] =!=
         "EndpointAutomatonBoundaryAdapterBuilt",
       Throw@failure["GradedEndpointAdapterFailed", <|
@@ -1255,10 +1333,11 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
       "ProjectionColumns" -> projection["Columns"],
       "ProjectionInverse" -> projection["Inverse"],
       localCoefficientRecordsKey -> adapter[coefficientRecordsKey],
-      "LocalEndpointWordTerms" -> adapter["EndpointWordTerms"],
+      "LocalBoundaryPathIteratedIntegralCoefficientMatrixTerms" ->
+        adapter["BoundaryPathIteratedIntegralCoefficientMatrixTerms"],
       "RequiredConnectorWeight" -> adapter["RequiredConnectorWeight"],
-      "RetainedConnectorWordCount" ->
-        adapter["RetainedConnectorWordCount"],
+      "RetainedBoundaryPathCoefficientMatrixTermCount" ->
+        adapter["RetainedBoundaryPathCoefficientMatrixTermCount"],
       "VisitedConnectorStateCount" ->
         adapter["VisitedConnectorStateCount"],
       "PrunedConnectorChildCount" -> adapter["PrunedConnectorChildCount"],
@@ -1266,7 +1345,7 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
       "EndpointPath" -> adapter["Path"]|>,
     {weight, Keys[spaces]}];
   If[gradeRecords === {},
-    Throw@failure["CurrentObservableRowSpacesEmpty", <||>]];
+    Throw@failure["CurrentRequestedOutputCoefficientRowSpacesEmpty", <||>]];
   allCoefficientRecords = DeleteDuplicatesBy[
     Flatten[Lookup[gradeRecords, localCoefficientRecordsKey, {}]],
     endpointCoordinateKey];
@@ -1276,11 +1355,13 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
   globalCount = Length[allCoefficientRecords];
   grades = Map[Function[grade, Join[
       KeyDrop[grade, {localCoefficientRecordsKey,
-        "LocalEndpointWordTerms"}],
-      <|"EndpointWordTerms" ->
+        "LocalBoundaryPathIteratedIntegralCoefficientMatrixTerms"}],
+      <|"BoundaryPathIteratedIntegralCoefficientMatrixTerms" ->
         (endpointExpandTermColumns[#,
             grade[localCoefficientRecordsKey], coordinateIndex,
-            globalCount] & /@ grade["LocalEndpointWordTerms"])|>]],
+            globalCount] & /@
+          grade[
+            "LocalBoundaryPathIteratedIntegralCoefficientMatrixTerms"])|>]],
     gradeRecords];
   requirements = Lookup[gradeRecords, "BoundaryDataRequirements", {}];
   boundaryDataRequirements =
@@ -1289,13 +1370,16 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
   <|"Status" -> "GradedPhysicalEndpointTransportBuilt",
     "Family" -> family,
     "BoundaryDataType" -> boundaryDataType,
-    "ObservableTransportStatus" -> Lookup[transport, "Status", Missing[]],
-    "ObservableWordRepresentation" ->
-      Lookup[transport, "WordRepresentation", Missing[]],
-    "PhysicalDemandPairs" -> Lookup[transport, "PhysicalDemandPairs", {}],
+    "IteratedIntegralCoefficientOperatorStatus" ->
+      Lookup[transport, "Status", Missing[]],
+    "IteratedIntegralCoefficientRepresentation" -> Lookup[transport,
+      "IteratedIntegralCoefficientRepresentation", Missing[]],
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> Lookup[
+      transport, "RequestedMasterIntegralEpsilonOrderAndRowPairs", {}],
     "MaximumCurrentWeight" -> maximumWeight,
     "CurrentBaseRules" -> rowSpaces["BaseRules"],
-    "CurrentPath" -> Lookup[transport, "Path", <||>],
+    "RegularBasePointAndFirstPathParameterScale" -> Lookup[transport,
+      "RegularBasePointAndFirstPathParameterScale", <||>],
     "EndpointPath" -> firstGrade["EndpointPath"],
     coefficientRecordsKey -> allCoefficientRecords,
     coefficientLabelsKey ->
@@ -1306,11 +1390,12 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
       Lookup[modeMap, "DegenerateResidueEigenspaceBases", {}],
     "GradesByWeight" -> AssociationThread[
       Lookup[grades, "CurrentWeight"], grades],
-    "CurrentRowSpaceDimensions" -> rowSpaces["DimensionsByWeight"],
+    "CurrentRowSpaceDimensions" ->
+      rowSpaces["RowSpaceDimensionsByIteratedIntegralWeight"],
     "FormalResultConvention" -> <|
       "Segments" -> {"CurrentFirst", "CurrentSecond",
         "EndpointFirst", "EndpointSecond"},
-      "WordOrientation" -> "OutermostFirst",
+      "IteratedIntegralSequenceOrientation" -> "OutermostFirst",
       "NoAlphabetCartesianEnumeration" -> True,
       "Coefficient" -> If[boundaryDataType === "BoundaryConstant",
         "Map . BoundaryConstantEpsilonCoefficient[BoundaryConstantID,EpsilonOrder]",
@@ -1329,6 +1414,13 @@ ComposeGradedPhysicalEndpointWords[binding_Association,
   If[Lookup[binding, "Status", None] =!=
       "GradedPhysicalEndpointTransportBuilt",
     Throw@failure["GradedPhysicalEndpointTransportRequired", <||>]];
+  If[! TrueQ[
+      FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+        transport]] ||
+      Lookup[transport, "IteratedIntegralCoefficientRepresentation", None] =!=
+        "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    Throw@failure[
+      "ExactIteratedIntegralCoefficientOperatorRequired", <||>]];
   family = Lookup[transport, "Family", Missing[]];
   If[family =!= Lookup[binding, "Family", Missing[]],
     Throw@failure["EndpointAdapterFamilyMismatch", <||>]];
@@ -1344,15 +1436,16 @@ ComposeGradedPhysicalEndpointWords[binding_Association,
   grades = binding["GradesByWeight"];
   baseRules = binding["CurrentBaseRules"];
   outputTerms = Reap[Do[
-      wordResult = transportObservableWordMap[
+      wordResult = requestedOutputIteratedIntegralCoefficientMatrix[
         transport, First[pair], Last[pair]];
       If[FailureQ[wordResult] || ! MatrixQ[Normal[wordResult]],
-        Throw@failure["ObservableWordMapUnavailable", <|
-          "WordPair" -> pair, "Result" -> wordResult|>]];
+        Throw@failure["IteratedIntegralCoefficientMatrixUnavailable", <|
+          "PathSegmentLetterIndexSequencePair" -> pair,
+          "Result" -> wordResult|>]];
       map = endpointSpecializeMatrix[wordResult, baseRules];
       If[map === $Failed,
         Throw@failure["CurrentPathWordSpecializationFailed", <|
-          "WordPair" -> pair|>]];
+          "PathSegmentLetterIndexSequencePair" -> pair|>]];
       (* An accepted automaton may have a requested maximum weight above
          its last nonzero row-space grade.  Such words are represented by
          the exact zero map, not by a missing grade. *)
@@ -1361,7 +1454,7 @@ ComposeGradedPhysicalEndpointWords[binding_Association,
         Missing["Weight"]];
       If[MissingQ[grade],
         Throw@failure["CurrentPathWeightUnavailable", <|
-          "WordPair" -> pair|>]];
+          "PathSegmentLetterIndexSequencePair" -> pair|>]];
       columns = grade["ProjectionColumns"];
       inverse = grade["ProjectionInverse"];
       basisCoordinates = map[[All, columns]] . inverse;
@@ -1369,22 +1462,27 @@ ComposeGradedPhysicalEndpointWords[binding_Association,
             basisCoordinates . Normal[grade["CurrentRowBasis"]] - map]],
           Not@*exactZeroQ],
         Throw@failure["CurrentPathRowSpaceMismatch", <|
-          "WordPair" -> pair,
+          "PathSegmentLetterIndexSequencePair" -> pair,
           "CurrentWeight" ->
             Length[First[pair]] + Length[Last[pair]]|>]];
       Do[
-        composed = SparseArray[basisCoordinates . term["Map"]];
+        composed = SparseArray[basisCoordinates .
+          term["IteratedIntegralCoefficientMatrix"]];
         If[AnyTrue[Flatten[Normal[composed]], Not@*exactZeroQ], Sow[<|
-          "CurrentFirstWord" -> First[pair],
-          "CurrentSecondWord" -> Last[pair],
-          "EndpointFirstWord" -> term["EndpointFirstWord"],
-          "EndpointSecondWord" -> term["EndpointSecondWord"],
-          "Map" -> composed|>]],
-        {term, grade["EndpointWordTerms"]}],
+          "CurrentPathFirstSegmentLetterIndices" -> First[pair],
+          "CurrentPathSecondSegmentLetterIndices" -> Last[pair],
+          "BoundaryPathFirstSegmentLetterIndices" ->
+            term["BoundaryPathFirstSegmentLetterIndices"],
+          "BoundaryPathSecondSegmentLetterIndices" ->
+            term["BoundaryPathSecondSegmentLetterIndices"],
+          "IteratedIntegralCoefficientMatrix" -> composed|>]],
+        {term,
+          grade["BoundaryPathIteratedIntegralCoefficientMatrixTerms"]}],
       {pair, wordPairs}]][[2]];
   outputTerms = If[outputTerms === {}, {}, First[outputTerms]];
   usedColumns = Sort@DeleteDuplicates@Flatten[
-    Cases[First /@ ArrayRules[Lookup[#, "Map"]],
+    Cases[First /@ ArrayRules[
+        Lookup[#, "IteratedIntegralCoefficientMatrix"]],
         {_, column_Integer} :> column] & /@ outputTerms];
   usedColumns = Select[usedColumns,
     1 <= # <= Length[boundaryCoefficientRecords] &];
@@ -1394,12 +1492,13 @@ ComposeGradedPhysicalEndpointWords[binding_Association,
   <|"Status" -> "GradedPhysicalEndpointWordsBuilt",
     "Family" -> family,
     "BoundaryDataType" -> boundaryDataType,
-    "PhysicalDemandPairs" -> binding["PhysicalDemandPairs"],
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs" ->
+      binding["RequestedMasterIntegralEpsilonOrderAndRowPairs"],
     coefficientRecordsKey -> boundaryCoefficientRecords,
     coefficientLabelsKey ->
       ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@
         boundaryCoefficientRecords),
-    "WordMaps" -> outputTerms,
+    "IteratedIntegralCoefficientMatrixRecords" -> outputTerms,
     "BoundaryDataRequirements" -> boundaryDataRequirements,
     "FormalResultConvention" -> binding["FormalResultConvention"]|>
 ];

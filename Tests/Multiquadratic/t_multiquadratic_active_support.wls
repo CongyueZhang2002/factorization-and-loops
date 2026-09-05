@@ -62,12 +62,12 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {activeCert, diagonalSpan, kinematicPart, transferResidues,
   candidateLetters, verifyPotential} =
- {mq["multiquadraticStripActivePotentialCertification"],
-  mq["multiquadraticStripDiagonalSpan"],
-  mq["multiquadraticStripLetterKinematicPart"],
-  mq["multiquadraticStripTransferDiagnosticResidues"],
-  mq["multiquadraticStripCandidateLetters"],
-  mq["multiquadraticStripVerifyPotential"]};
+ {mq["multiquadraticOffDiagonalBlockActivePotentialCertification"],
+  mq["multiquadraticOffDiagonalBlockDiagonalSpan"],
+  mq["multiquadraticOffDiagonalBlockLetterKinematicPart"],
+  mq["multiquadraticOffDiagonalBlockTransferDiagnosticResidues"],
+  mq["multiquadraticOffDiagonalBlockCandidateLetters"],
+  mq["multiquadraticOffDiagonalBlockVerifyPotential"]};
 
 Clear[ax, ay, ae];
 verifiedRecord = <|"Kind" -> "RationalFactor", "Letter" -> ax,
@@ -117,13 +117,13 @@ check["A5 without reconstruction the verdict is PendingReconstruction",
    later with a verified potential and the same one-form *)
 eBlock = {{{1/ax}}, {{0}}};   (* omega = dx/x + 0 dy = dlog x *)
 cBlock = {{{0}}, {{0}}};
-forcing = Table[{{Together[
+inhomogeneity = Table[{{Together[
   D[(ax + 2 ay)/(1 - ax - ay), {ax, ay}[[mu]]] +
     ae (5/2) D[Log[1 - ax - ay], {ax, ay}[[mu]]]]}}, {mu, 2}];
 record = <|"Family" -> "ACTIVE_SUPPORT", "Sector" -> 2, "LowerSector" -> 1,
   "Variables" -> {ax, ay}, "Regulator" -> ae,
-  "Strip" -> {eBlock, cBlock, forcing}|>;
-letters = candidateLetters[{eBlock, cBlock, forcing}, {}, {ax, ay}, ae,
+  "OffDiagonalBlockEquation" -> {eBlock, cBlock, inhomogeneity}|>;
+letters = candidateLetters[{eBlock, cBlock, inhomogeneity}, {}, {ax, ay}, ae,
   record, "AdditionalLetters" -> {ax, ay, 1 - ax - ay}];
 check["the candidate builder runs",
   Lookup[letters, "Status", None] === "MultiquadraticCandidateLettersV1"];
@@ -153,7 +153,7 @@ check["B3 a form needing kinematic coefficients is NOT spanned",
   MatchQ[spanB3, _Missing]];
 
 (* B4: regulator content *)
-lettersB4 = candidateLetters[{cBlock, cBlock, forcing}, {}, {ax, ay}, ae,
+lettersB4 = candidateLetters[{cBlock, cBlock, inhomogeneity}, {}, {ax, ay}, ae,
   record, "AdditionalLetters" -> {ae ax, ax + ae}];
 recordsB4 = lettersB4["LetterRecords"];
 strippedB4 = Select[recordsB4, Lookup[#1, "StrippedContent", False] === True &];

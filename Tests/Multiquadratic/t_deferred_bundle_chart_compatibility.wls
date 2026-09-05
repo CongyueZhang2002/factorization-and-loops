@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
-(* Active-subfield pruning can leave a deferred forcing rational or
+(* Active-subfield pruning can leave a deferred inhomogeneity rational or
    chartable even though its family frame is multiquadratic.  The bundle is
-   the real forcing while the Strip BBar slot is a zero shape placeholder.
+   the real inhomogeneity while the Strip Inhomogeneity slot is a zero shape placeholder.
    These cases must reconstruct/pull the bundle before the rational solver.
    A joint chart remains the primary route; the direct engine may be reused
    at rank zero only after that rational ansatz returns no gauge. *)
@@ -11,19 +11,20 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-{forcingOf, prepareDeferred, chartDecision, validateBundle, currentRoots,
+{inhomogeneityOf, prepareDeferred, chartDecision, validateBundle, currentRoots,
   pullBundle, pullPreparation, bundleEvaluate, directAlphabet, chartRekey,
-  chartData, rootExpression, rootRadicand} = mq /@ {
-  "blockEquationDeferredForcing", "blockEquationDeferredPrepare",
+  chartData, rootExpression, rootRadicand, pullEquation} = mq /@ {
+  "blockEquationDeferredInhomogeneity", "blockEquationDeferredPrepare",
   "blockEquationDeferredChartDecision",
   "blockEquationDeferredBundleValidate",
   "coefficientPresentationSquareRootsInVariables",
   "transportChartPullBackDeferredBundle",
   "transportChartPullBackDeferredPreparation",
   "blockEquationDeferredBundleEvaluate",
-  "familyRowGaugeDirectAlphabetOptions", "rekeyCoefficientPresentation",
+  "familyRowBasisTransformationDirectAlphabetOptions", "rekeyCoefficientPresentation",
   "masterTransportCoefficientPresentationData",
-  "squareRootRecordExpression", "squareRootRecordRadicand"};
+  "squareRootRecordExpression", "squareRootRecordRadicand",
+  "transportChartPullBackOffDiagonalBlockEquation"};
 
 Clear[cbx, cby, cbe, cbfx, cbfy, cbtx, cbty];
 variables = {cbx, cby};
@@ -32,7 +33,7 @@ zeroPair = {{{0}}, {{0}}};
 placeholderStrip = {zeroPair, zeroPair, zeroPair};
 ranges = {{1}, {2}};
 
-(* Root-free forcing inside a larger declared frame. *)
+(* Root-free inhomogeneity inside a larger declared frame. *)
 declaredSquares = {cbx, cby, 1 - cbx - cby};
 declaredFrame = BuildSquareRootGeneratorsAndQuadraticRelations[
   declaredSquares, variables, {cbfx, cbfy}];
@@ -41,10 +42,10 @@ rationalConnection = {
   {{0, 0}, {1, 0}},
   {{0, 0}, {0, 0}}
 };
-rationalBundle = forcingOf[rationalConnection, ranges, 2, 1, <||>,
+rationalBundle = inhomogeneityOf[rationalConnection, ranges, 2, 1, <||>,
   variables, epsilon, "Output" -> "Bundle",
   "BundleRoots" -> declaredRoots];
-FTAssert["C1 root-free forcing compiles to an authenticated empty frame",
+FTAssert["C1 root-free inhomogeneity compiles to an authenticated empty frame",
   Lookup[validateBundle[rationalBundle], "Status", None] === "BundleValid" &&
     rationalBundle["SquareRootGeneratorIndices"] === {} &&
     rationalBundle["Statistics", "PrunedRootCount"] === 3];
@@ -53,11 +54,11 @@ FTAssert["C2 an empty divisor census yields the neutral direct alphabet payload"
     "AdditionalLetters" -> {}, "AlgebraicLetters" -> Automatic|>];
 identityData = chartData[None, variables];
 rationalPull = pullBundle[rationalBundle, identityData, {}, {}];
-FTAssert["C3 the root-free deferred forcing is reconstructed, not the placeholder",
+FTAssert["C3 the root-free deferred inhomogeneity is reconstructed, not the placeholder",
   Lookup[rationalPull, "Status", None] === "OK" &&
     rationalPull["OneForm"] === {{{1}}, {{0}}}];
 
-(* A one-root forcing whose exact Kallen chart is in the catalog. *)
+(* A one-root inhomogeneity whose exact Kallen chart is in the catalog. *)
 lambda = (1 - cbx - cby)^2 - 4 cbx cby;
 oneFrame = BuildSquareRootGeneratorsAndQuadraticRelations[{lambda}, variables, {cbfx, cbfy}];
 oneRoots = currentRoots[oneFrame, variables];
@@ -66,9 +67,9 @@ oneConnection = {
   {{0, 0}, {D[oneRoot, cbx], 0}},
   {{0, 0}, {D[oneRoot, cby], 0}}
 };
-oneBundle = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
+oneBundle = inhomogeneityOf[oneConnection, ranges, 2, 1, <||>, variables,
   epsilon, "Output" -> "Bundle", "BundleRoots" -> oneRoots];
-FTAssert["C4 one-root forcing retains exactly one active generator",
+FTAssert["C4 one-root inhomogeneity retains exactly one active generator",
   Lookup[validateBundle[oneBundle], "Status", None] === "BundleValid" &&
     oneBundle["SquareRootGeneratorIndices"] === {1}];
 chart = LookupCataloguedRationalizingParametrizationForRoots[{lambda}, variables];
@@ -88,7 +89,7 @@ branchRoots = {<|"Generator" -> Sqrt[Together[
 rootImages = {rootExpression[chartRoot]};
 onePull = pullBundle[oneBundle, data, branchRoots, rootImages];
 materialized = bundleEvaluate[oneBundle, {}];
-referencePull = mq["transportChartPullBackStrip"][
+referencePull = pullEquation[
   {zeroPair, zeroPair, materialized["Image"]}, data,
   branchRoots, rootImages][[3]];
 FTAssert["C6 operandwise bundle pullback equals materialize-then-pullback exactly",
@@ -105,25 +106,23 @@ commonFiniteOptions[prefix_String] := {
   "Backend" -> "Wolfram", "BackendThreads" -> 1,
   "PlanDiscoveryBackend" -> "Wolfram",
   "FinalCheck" -> "Exact", "Verbose" -> False};
-rationalSolution = SolveEpsFormStripInFrame[
+rationalSolution = SolveOffDiagonalBasisTransformationBlock[
   placeholderStrip, variables, epsilon, declaredFrame,
-  "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["root_free"],
   "MultiquadraticOptions" -> {"DeferredBundle" -> rationalBundle},
   "Verbose" -> False];
-FTAssert["C7 root-free bundle dispatch solves the reconstructed rational forcing",
+FTAssert["C7 root-free bundle dispatch solves the reconstructed rational inhomogeneity",
   Lookup[rationalSolution, "Status", None] === "Solved" &&
     StringStartsQ[rationalSolution["Method"],
       "SourceVariableRepresentation/"] &&
     rationalSolution["SquareRootGeneratorIndices"] === {} &&
     TrueQ[rationalSolution["ExactDLog"]]];
-oneSolution = SolveEpsFormStripInFrame[
+oneSolution = SolveOffDiagonalBasisTransformationBlock[
   placeholderStrip, variables, epsilon, oneFrame,
-  "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["one_root"],
   "MultiquadraticOptions" -> {"DeferredBundle" -> oneBundle},
   "Verbose" -> False];
-FTAssert["C8 chartable deferred forcing uses the rational chart and solves exactly",
+FTAssert["C8 chartable deferred inhomogeneity uses the rational chart and solves exactly",
   Lookup[oneSolution, "Status", None] === "Solved" &&
     StringStartsQ[oneSolution["Method"],
       "RationalizingParametrization/Kallen1/"] &&
@@ -131,7 +130,7 @@ FTAssert["C8 chartable deferred forcing uses the rational chart and solves exact
     TrueQ[oneSolution["ExactDLog"]] &&
     TrueQ[oneSolution["Validation", "SourceDLog"]]];
 
-oneChartFast = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
+oneChartFast = inhomogeneityOf[oneConnection, ranges, 2, 1, <||>, variables,
   epsilon, "Output" -> "ChartOrBundle", "BundleRoots" -> oneRoots];
 oneChartPreparation = <|
   "Preparation" -> oneChartFast["DeferredPreparation"],
@@ -144,13 +143,12 @@ FTAssert["C9 chart-aware production bypasses provider compilation and \
 source-frame materialization",
   Lookup[oneChartFast, "Status", None] === "PreparedChartDeferred" &&
     ! KeyExistsQ[oneChartFast, "DeferredBundle"] &&
-    ! KeyExistsQ[oneChartFast, "Forcing"] &&
+    ! KeyExistsQ[oneChartFast, "Inhomogeneity"] &&
     Lookup[oneChartFast["Census"], "Status", None] ===
       "SkippedForChart" &&
     TrueQ[oneChartFast["ChartDecision", "ChartAvailableQ"]]];
-oneChartFastSolution = SolveEpsFormStripInFrame[
+oneChartFastSolution = SolveOffDiagonalBasisTransformationBlock[
   placeholderStrip, variables, epsilon, oneFrame,
-  "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["one_root_preparation"],
   "DeferredPreparation" -> oneChartPreparation,
   "Verbose" -> False];
@@ -159,19 +157,18 @@ same exact gauge",
     Lookup[oneChartFastSolution, "Status", None] === "Solved" &&
     StringStartsQ[oneChartFastSolution["Method"],
       "RationalizingParametrization/Kallen1/"] &&
-    AllTrue[Flatten[oneChartFastSolution["Gauge"] - oneSolution["Gauge"]],
+    AllTrue[Flatten[oneChartFastSolution["OffDiagonalBasisTransformationBlock"] - oneSolution["OffDiagonalBasisTransformationBlock"]],
       TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[#1,
         oneRoots]] &]];
-ambiguousDeferredSolution = SolveEpsFormStripInFrame[
+ambiguousDeferredSolution = SolveOffDiagonalBasisTransformationBlock[
   placeholderStrip, variables, epsilon, oneFrame,
-  "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["ambiguous_deferred"],
   "MultiquadraticOptions" -> {"DeferredBundle" -> oneBundle},
   "DeferredPreparation" -> oneChartPreparation,
   "Verbose" -> False];
 FTAssert["C10b simultaneous bundle and preparation are refused before solve",
   Lookup[ambiguousDeferredSolution, "Status", None] ===
-    "AmbiguousDeferredForcing"];
+    "AmbiguousDeferredInhomogeneity"];
 
 (* Cancellation can make the assembled source live in a strict subfield even
    when its raw DAG operands mention the full declared frame.  The route-only
@@ -188,7 +185,7 @@ subsetConnection = {
   {{0, 0, 0}, {0, 0, 0},
     {kallenRootExpressions[[1]] + kallenRootExpressions[[3]], 0, 0}},
   ConstantArray[0, {3, 3}]};
-subsetChartFast = forcingOf[subsetConnection, {{1}, {2}, {3}}, 3, 1,
+subsetChartFast = inhomogeneityOf[subsetConnection, {{1}, {2}, {3}}, 3, 1,
   <||>, variables, epsilon, "Output" -> "ChartOrBundle",
   "BundleRoots" -> kallenRoots];
 FTAssert["C10c0 a chartable raw subfield bypasses modular grade sampling",
@@ -204,10 +201,10 @@ cancelConnection = {
    {Total[kallenRootExpressions], 0, 0}},
   ConstantArray[0, {3, 3}]};
 cancelSolved = <|2 -> {{1}}|>;
-cancelChartFast = forcingOf[cancelConnection, {{1}, {2}, {3}}, 3, 1,
+cancelChartFast = inhomogeneityOf[cancelConnection, {{1}, {2}, {3}}, 3, 1,
   cancelSolved, variables, epsilon, "Output" -> "ChartOrBundle",
   "BundleRoots" -> kallenRoots];
-FTAssert["C10c an assembled one-root forcing bypasses a syntactic three-root provider",
+FTAssert["C10c an assembled one-root inhomogeneity bypasses a syntactic three-root provider",
   Lookup[cancelChartFast, "Status", None] === "PreparedChartDeferred" &&
     Lookup[cancelChartFast["ChartDecision"], "Method", None] ===
       "ModularActiveGrades" &&
@@ -301,7 +298,7 @@ fullRootConnection = {
   {{0, 0}, {Total[rootExpression /@ declaredRoots], 0}},
   {{0, 0}, {0, 0}}
 };
-chartlessDirect = forcingOf[fullRootConnection, ranges, 2, 1, <||>,
+chartlessDirect = inhomogeneityOf[fullRootConnection, ranges, 2, 1, <||>,
   variables, epsilon, "Output" -> "ChartOrBundle",
   "BundleRoots" -> declaredRoots];
 FTAssert["C11 chartless production returns the direct provider without a \
@@ -311,9 +308,8 @@ materialized oracle",
       "BundleValid" &&
     chartlessDirect["SquareRootGeneratorIndices"] === {1, 2, 3}];
 
-plainRationalSolution = SolveEpsFormStripInFrame[
+plainRationalSolution = SolveOffDiagonalBasisTransformationBlock[
   {zeroPair, zeroPair, {{{1}}, {{0}}}}, variables, epsilon, declaredFrame,
-  "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["plain_rational"],
   "Verbose" -> False];
 FTAssert["C12 an ordinary nonzero rational strip still uses RationalFrame",

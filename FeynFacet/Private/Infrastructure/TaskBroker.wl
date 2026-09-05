@@ -40,6 +40,8 @@ ClearAll[
   taskBrokerCached,
   taskBrokerFreeKernels,
   taskBrokerNewName,
+  taskBrokerTogetherTask,
+  taskBrokerParallelTogether,
   taskBrokerRun,
   taskBrokerSubmit,
   taskBrokerCancel,
@@ -228,6 +230,118 @@ taskBrokerNewName[label_String] := (
   StringJoin["tb_", label, "_", ToString[$ProcessID], "_",
     $taskBrokerNonce, "_", IntegerString[$taskBrokerCounter, 10, 5]]);
 
+(* Exact entrywise rational simplification shared by coefficient-presentation
+   pullbacks and off-diagonal block re-expression.  The largest entry stays
+   on the controller; the remaining entries are byte-balanced across the
+   helper queue. *)
+taskBrokerTogetherTask[dataFile_String] := Module[
+  {data = taskBrokerRead[dataFile]},
+  If[! AssociationQ[data], Return[$Failed]];
+  Together /@ (data["Expressions"] /. data["Rules"])
+];
+
+taskBrokerParallelTogether[array_, rules_List, label_String,
+    deadline_: Infinity] := Module[
+  {started = AbsoluteTime[], dimensions = Dimensions[array],
+   expressions = Flatten[array], values, helpers, bytes, localIndex,
+   helperIndices, helperBatches, batchLoads, targetBatch, dataFiles,
+   codes, handle, farmed, missing, timeout, route = "Serial",
+   deadlineQ, expiredQ, boundedTogether, timedOutQ},
+  deadlineQ = deadline === Infinity ||
+    (NumericQ[deadline] && Positive[deadline]);
+  expiredQ[] := NumericQ[deadline] && AbsoluteTime[] >= deadline;
+  boundedTogether[expression_] := Module[{remaining},
+    If[deadline === Infinity, Return[Together[expression]]];
+    remaining = N[deadline - AbsoluteTime[]];
+    If[remaining <= 0, Return[$Aborted]];
+    Quiet[TimeConstrained[Together[expression], remaining, $Aborted]]];
+  timedOutQ[value_] := value === $Aborted;
+  If[! AllTrue[rules, MatchQ[#1, _Rule] &],
+    Return[<|"Status" -> "InvalidTogetherRules"|>]];
+  If[! deadlineQ,
+    Return[<|"Status" -> "InvalidTogetherDeadline",
+      "Deadline" -> deadline|>]];
+  If[expiredQ[],
+    Return[<|"Status" -> "DeadlineExpired", "Seconds" -> 0.|>]];
+  If[expressions === {},
+    Return[<|"Status" -> "OK", "Result" -> array, "Route" -> "Serial",
+      "Helpers" -> 0, "Tasks" -> 0, "Seconds" -> 0.|>]];
+  helpers = If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0];
+  helpers = Min[helpers, Max[0, Length[expressions] - 1]];
+  values = ConstantArray[$Failed, Length[expressions]];
+  If[helpers < 1,
+    Do[
+      values[[index]] = boundedTogether[
+        expressions[[index]] /. rules];
+      If[timedOutQ[values[[index]]],
+        Return[<|"Status" -> "DeadlineExpired", "Route" -> route,
+          "Helpers" -> 0, "Tasks" -> 0,
+          "Seconds" -> N[AbsoluteTime[] - started]|>]],
+      {index, Length[expressions]}],
+    route = "Parallel";
+    bytes = ByteCount /@ expressions;
+    localIndex = First[Ordering[bytes, -1]];
+    helperIndices = DeleteCases[Range[Length[expressions]], localIndex];
+    helperBatches = ConstantArray[{}, helpers];
+    batchLoads = ConstantArray[0, helpers];
+    Do[
+      targetBatch = First[Ordering[batchLoads, 1]];
+      helperBatches[[targetBatch]] = Append[
+        helperBatches[[targetBatch]], index];
+      batchLoads[[targetBatch]] += bytes[[index]],
+      {index, SortBy[helperIndices, -bytes[[#1]] &]}];
+    dataFiles = Map[Function[batch, taskBrokerDataFile[
+        taskBrokerNewName["together_data"],
+        <|"Expressions" -> expressions[[batch]], "Rules" -> rules|>]],
+      helperBatches];
+    codes = StringJoin[
+        "FeynFacet`Private`taskBrokerTogetherTask[\"", #1, "\"]"] & /@
+      dataFiles;
+    timeout = If[deadline === Infinity, 7200.,
+      Max[0.25, N[deadline - AbsoluteTime[]]]];
+    handle = taskBrokerSubmit[codes, "Label" -> label,
+      "Timeout" -> timeout];
+    values[[localIndex]] = boundedTogether[
+      expressions[[localIndex]] /. rules];
+    If[timedOutQ[values[[localIndex]]],
+      taskBrokerCancel[handle];
+      Return[<|"Status" -> "DeadlineExpired", "Route" -> route,
+        "Helpers" -> helpers, "Tasks" -> Length[helperBatches],
+        "Seconds" -> N[AbsoluteTime[] - started]|>]];
+    farmed = taskBrokerCollect[handle];
+    If[ListQ[farmed],
+      Do[If[index <= Length[farmed] && ListQ[farmed[[index]]] &&
+            Length[farmed[[index]]] === Length[helperBatches[[index]]],
+          values[[helperBatches[[index]]]] = farmed[[index]]],
+        {index, Length[helperBatches]}]];
+    missing = Select[helperIndices, values[[#1]] === $Failed &];
+    If[expiredQ[],
+      Return[<|"Status" -> "DeadlineExpired", "Route" -> route,
+        "Helpers" -> helpers, "Tasks" -> Length[helperBatches],
+        "Seconds" -> N[AbsoluteTime[] - started]|>]];
+    If[missing =!= {},
+      Do[
+        values[[index]] = boundedTogether[
+          expressions[[index]] /. rules];
+        If[timedOutQ[values[[index]]],
+          Return[<|"Status" -> "DeadlineExpired", "Route" -> route,
+            "Helpers" -> helpers, "Tasks" -> Length[helperBatches],
+            "Seconds" -> N[AbsoluteTime[] - started]|>]],
+        {index, missing}]]];
+  If[expiredQ[],
+    Return[<|"Status" -> "DeadlineExpired", "Route" -> route,
+      "Helpers" -> If[route === "Parallel", helpers, 0],
+      "Tasks" -> If[route === "Parallel", Length[helperBatches], 0],
+      "Seconds" -> N[AbsoluteTime[] - started]|>]];
+  <|"Status" -> "OK", "Result" -> ArrayReshape[values, dimensions],
+    "Route" -> route,
+    "Helpers" -> If[route === "Parallel", helpers, 0],
+    "Tasks" -> If[route === "Parallel", Length[helperBatches], 0],
+    "Seconds" -> N[AbsoluteTime[] - started]|>
+];
+taskBrokerParallelTogether[___] :=
+  <|"Status" -> "InvalidParallelTogetherInput"|>;
+
 (* run a list of task codes (strings of Wolfram code evaluated in a helper
    kernel) and return their results in order; $Failed for a task that
    failed, timed out, or whose result file is unreadable *)
@@ -313,4 +427,3 @@ taskBrokerCollect[handle_Association] := CheckAbort[Module[
       If[pending =!= {}, " (TIMEOUT on " <> ToString[Length[pending]] <> ")", ""]]];
   results],
   taskBrokerCancel[handle]; Abort[]];
-

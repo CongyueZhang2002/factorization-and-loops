@@ -8,14 +8,14 @@ Clear[xAdaptive, yAdaptive, epsAdaptive];
 record = <|
   "Variables" -> {xAdaptive, yAdaptive},
   "Regulator" -> epsAdaptive,
-  "Strip" -> {
+  "OffDiagonalBlockEquation" -> {
     {{{1}}, {{0}}},
     {{{0}}, {{0}}},
     {{{1 - epsAdaptive xAdaptive}}, {{0}}}
   }
 |>;
 
-result = FeynFacet`SolveEpsFormStripFiniteField[
+result = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[
   record,
   "Primes" -> {1000003, 2147483423, 2147483477},
   "EpsilonSamples" -> ((#/(# + 20)) & /@ Range[12]),

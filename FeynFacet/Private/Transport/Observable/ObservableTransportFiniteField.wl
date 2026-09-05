@@ -1,6 +1,7 @@
-(* Modular coordinate reconstruction for demand-projected observable transport.
+(* Finite-field coordinate reconstruction for requested-output coefficient
+   operators.
 
-   This file is deliberately separate from ObservableTransport.wl.  Its stable
+   This file is deliberately separate from the main operator constructor. Its stable
    integration point is observableTransportModularRowBasis.  Rank samples are
    proposals; a Ratracer reconstruction (including a cached one) is accepted
    only after independent checks at fresh modular points.  Such acceptance is
@@ -121,7 +122,7 @@ observableTransportFFNormalizeSamples[sampleRules_List,
       SortBy[variables, SymbolName] &]
 ];
 
-(* This matches ObservableTransport.wl's established pivot convention. *)
+(* This matches the requested-output operator's established pivot convention. *)
 observableTransportFFIndependentRows[m_, rules_List] := Module[
   {evaluated, reduced, pivots},
   If[Length[m] === 0, Return[{}]];
@@ -149,7 +150,7 @@ observableTransportFFCompileExpressions[expressions_List,
   (* Do not memoize arbitrary symbolic subtrees here.  The transport
      matrices contain many large, distinct Laurent/radical expressions;
      installing each one as a DownValue makes compilation spend its time
-     structurally hashing expression-sized keys and retains the whole
+     repeatedly traversing expression-sized keys and retaining the whole
      matrix twice.  The compiled evaluator below still memoizes the small
      operation-tree nodes where sharing is useful. *)
   compile[value_] := Which[
@@ -210,7 +211,8 @@ observableTransportFFEvaluateExpressions[compiledExpressions_List,
   evaluate[node_] := evaluate[node] = evaluateRaw[node];
   (* Pattern dispatch keeps payloads opaque.  A Switch-based dispatcher can
      evaluate part-extractions in nonselected branch expressions when nested
-     inside held arithmetic, which leaked rational AST payloads on CF27. *)
+     inside held arithmetic, which leaked rational AST payloads in a
+     production reduction. *)
   evaluateRaw[{"Integer", value_Integer}] := Mod[value, prime];
   evaluateRaw[{"Rational", numerator_Integer, denominator_Integer}] :=
     With[{d = Mod[denominator, prime]},
@@ -337,7 +339,7 @@ observableTransportFFAlgebraicMatrixValue[m_, variables_List,
   branched = Quiet[Check[transportChartApplyRootBranches[
     Normal[m], roots, Mod[signs rootValues, prime]], $Failed]];
   If[branched === $Failed, Return[$Failed]];
-  values = Map[multiquadraticStripModRational[
+  values = Map[multiquadraticOffDiagonalBlockModRational[
       # /. Thread[variables -> point], prime] &, branched, {2}];
   If[MatrixQ[values, IntegerQ], values, $Failed]
 ];
@@ -364,8 +366,8 @@ observableTransportFFGrammarOffenders[template_, variables_List, count_Integer] 
   offenders
 ];
 
-(* Radicals of a specialized algebraic record (overhaul 2026-09-02, CF259
-   probe 4).  Once a variable is fixed to a rational base point, Wolfram
+(* Radicals of a specialized algebraic record (overhaul 2026-09-02,
+   production probe).  Once a variable is fixed to a rational base point, Wolfram
    canonicalizes Sqrt[c q] as Sqrt[c'] Sqrt[q'] with q' a rational multiple
    of the declared square q and c' a NUMERIC square root (e.g.
    Sqrt[56/45 + y^2] = Sqrt[56 + 45 y^2]/(3 Sqrt[5])).  The root-branch
@@ -542,7 +544,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
         If[! AllTrue[radicalConstants,
             modularResidueQ[#, prime] &],
           rejections["NumericRadicalNonResidue"]++; Continue[]];
-        point = multiquadraticStripModRational[#, prime] & /@
+        point = multiquadraticOffDiagonalBlockModRational[#, prime] & /@
           (variables /. rules);
         If[MemberQ[point, $Failed],
           rejections["PointNotReducible"]++; Continue[]];
@@ -644,12 +646,12 @@ observableTransportFFAlgebraicCovariantSheetTrial[
       "BranchMask" -> mask|>, Module]];
   rowCount = First[Dimensions[images[[1]]]];
   matrix = Transpose[Join @@ images];
-  If[finiteFieldStripCFFRBinary[] =!= None,
-    run = finiteFieldStripCFFRRun[matrix,
+  If[finiteFieldOffDiagonalBlockCFFRBinary[] =!= None,
+    run = finiteFieldOffDiagonalBlockCFFRRun[matrix,
       ConstantArray[0, Length[matrix]], prime,
       Range[Dimensions[matrix][[2]]], 1, Automatic];
     If[Lookup[run, "Status", None] === "OK",
-      verification = finiteFieldStripCFFRVerify[matrix,
+      verification = finiteFieldOffDiagonalBlockCFFRVerify[matrix,
         ConstantArray[0, Length[matrix]], prime, run["Response"],
         Automatic];
       If[Lookup[verification, "Status", None] === "OK",
@@ -753,7 +755,7 @@ observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
         If[! AllTrue[radicalConstants,
             modularResidueQ[#, prime] &],
           Continue[]];
-        point = multiquadraticStripModRational[#, prime] & /@
+        point = multiquadraticOffDiagonalBlockModRational[#, prime] & /@
           (variables /. rules);
         If[MemberQ[point, $Failed], Continue[]];
         deltaValues = observableTransportFFEvaluateExpressions[
@@ -974,7 +976,7 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
         constantRootCompiler, ConstantArray[0, Length[variables]], prime];
       (* round 4 (Codex review, correctness point 2): the numeric radical
          constants of the normalized matrix ({"SquareRootConstant", s}
-         nodes, e.g. the Sqrt[5] of a rescaled CF259 root) must be
+         nodes, e.g. the Sqrt[5] of a rescaled declared root) must be
          residues at the prime as well -- at a prime with (s|p) = -1
          every validation point fails inside the matrix evaluation and
          the run is refused, seed-dependently *)
@@ -1124,7 +1126,7 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
         constantRootCompiler, ConstantArray[0, Length[variables]], prime];
       (* round 4 (Codex review, correctness point 2): the numeric radical
          constants of the normalized matrix ({"SquareRootConstant", s}
-         nodes, e.g. the Sqrt[5] of a rescaled CF259 root) must be
+         nodes, e.g. the Sqrt[5] of a rescaled declared root) must be
          residues at the prime as well -- at a prime with (s|p) = -1
          every validation point fails inside the matrix evaluation and
          the run is refused, seed-dependently *)
@@ -1645,8 +1647,8 @@ observableTransportFFPivotSolve[a_, b_, prime_Integer,
     StringQ[requestedFLINT] && requestedFLINT =!= "",
       ExpandFileName[requestedFLINT],
     requestedFLINT === Automatic &&
-        Length[DownValues[finiteFieldStripFLINTBinary]] > 0,
-      Quiet[Check[finiteFieldStripFLINTBinary[], None]],
+        Length[DownValues[finiteFieldOffDiagonalBlockFLINTBinary]] > 0,
+      Quiet[Check[finiteFieldOffDiagonalBlockFLINTBinary[], None]],
     requestedFLINT === None, None,
     True, $Failed];
   If[binary === $Failed || (StringQ[binary] && ! FileExistsQ[binary]),
@@ -2033,7 +2035,7 @@ observableTransportModularRowBasis[m_, variables_List,
     "ModularCertificate" -> certificate|>
 ];
 
-(* Reconstruct a final rational matrix, rather than an intermediate gauge.
+(* Reconstruct a final rational matrix, rather than an intermediate basisTransformationBlock.
    Appending its rows below an identity basis turns every requested entry into
    one coordinate of a single traced multi-RHS system and reuses the same
    fresh full-row validation path. *)
@@ -2083,7 +2085,7 @@ observableTransportModularMatrixReconstruction[m_, variables_List,
 (* Round 9 (T, 2026-09-03): constant dlog residues reconstructed on the
    letters of an exact family certificate that verified the dlog identity
    but left "Residues" -> Missing["NotReconstructed"] (the exact
-   certification route; CF265, CF305 on the Kallen charts).  For an
+   certification route in some rationalizing parametrizations).  For an
    eps-linear connection A_k = eps Sum_i R_i d_k log l_i with constant
    rational R_i, the design matrix W (one row per sample point and
    variable, one column per letter) is shared by every matrix entry, so the
@@ -2095,8 +2097,9 @@ observableTransportModularMatrixReconstruction[m_, variables_List,
    is checked at one point per prime, and every failure is typed.  This is
    a certified finite-field route; there is no symbolic decomposition. *)
 Options[observableTransportCertificateLetterResidues] = {
-  (* CF265's exact-route residues need nine 31-bit primes (about 130-bit
-     rationals): the cap matches the rational-layer route's default *)
+  (* A measured exact-route residue set needs nine 31-bit primes (about
+     130-bit rationals): the cap matches the
+     rational-epsilon-dependent-block route's default. *)
   "PrimeCount" -> 2, "MaximumPrimeCount" -> 24, "ValidationPoints" -> 3,
   "ExtraPoints" -> 3,
   (* Round 9b (T, R3's F1): eps is sampled at random per point; at the

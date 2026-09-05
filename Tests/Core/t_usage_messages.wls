@@ -16,10 +16,31 @@ checks = <|
   "CutKeepsHoldAll" -> Attributes[FeynFacet`Cut] === {HoldAll},
   "PartialFractionKeepsOptions" -> Options[FeynFacet`PartialFraction] =!= {},
   "PublicDefinitionsLoaded" -> AllTrue[{FeynFacet`DiagonalBlockEpsForm,
-    FeynFacet`SolveEpsFormStripFiniteField, FeynFacet`FamilyRootData,
+    FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField, FeynFacet`FamilyRootData,
     FeynFacet`ValidateFamilyDLogEpsilonForm,
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs,
+    FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ,
+    FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs,
     FeynFacet`SimplifyHardCoefficients},
-    Length[DownValues[#]] > 0 &]
+    Length[DownValues[#]] > 0 &],
+  "FiniteFieldImplementationHelpersArePrivate" ->
+    And @@ (System`Names[#] === {} & /@ {
+      "FeynFacet`PrepareOffDiagonalBlockFiniteFieldSystem",
+      "FeynFacet`ComputeOffDiagonalBlockFiniteFieldImage",
+      "FeynFacet`InterpolateOffDiagonalBasisTransformationBlockInEpsilon",
+      "FeynFacet`RecordVerifiedOffDiagonalBasisTransformationBlock"}),
+  "RetiredTransportCompatibilitySymbolsAreAbsent" ->
+    And @@ (System`Names[#] === {} & /@ {
+      "FeynFacet`TransportFamily",
+      "FeynFacet`TransportPathArtifactRun",
+      "FeynFacet`TransportStatus",
+      "FeynFacet`TransportWord",
+      "FeynFacet`TransportQuadrature",
+      "FeynFacet`TransportConstant",
+      "FeynFacet`BuildObservableTransport",
+      "FeynFacet`AcceptedObservableTransportQ",
+      "FeynFacet`ObservableTransportWordMap",
+      "FeynFacet`ReconstructObservableTransportWordMaps"})
 |>;
 Print[InputForm[checks]];
 Print["exported: ", Length[symbols], "  missing usage: ", missing];

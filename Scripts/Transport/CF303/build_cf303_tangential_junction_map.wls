@@ -14,6 +14,16 @@ validationPath = If[Length[scriptArguments] >= 2,
   "/tmp/cf303_junction_validation.json"];
 outputPath = FileNameJoin[{scriptDirectory, "Artifacts",
   "CF303TangentialJunctionMap.wl"}];
+framePath = If[Length[scriptArguments] >= 3,
+  ExpandFileName[scriptArguments[[3]]],
+  FileNameJoin[{scriptDirectory, "Artifacts",
+    "CF303SixModeEndpointFrame.wl"}]];
+jetControlPath = If[Length[scriptArguments] >= 4,
+  ExpandFileName[scriptArguments[[4]]],
+  FileNameJoin[{scriptDirectory, "Artifacts",
+    "CF303TangentialJunctionJetControl.wl"}]];
+outputPath = If[Length[scriptArguments] >= 5,
+  ExpandFileName[scriptArguments[[5]]], outputPath];
 
 fitPaths = Sort[FileNames["q*.json", interpolationDirectory]];
 fits = Import[#, "RawJSON"] & /@ fitPaths;
@@ -67,11 +77,12 @@ polynomialImage[polynomial_, prime_] := polynomialFrom[
   (Mod[Numerator[#]*PowerMod[Mod[Denominator[#], prime], -1, prime],
       prime] &) /@ CoefficientList[polynomial, p]];
 
-liftSmallRationalVector[imagesByPrime_] := Module[
+liftSmallRationalVector[imagesByPrime_, validationFunction_: (True &)] := Module[
   {direct, homogeneous, combined, dimension, modulus, basis, reduced,
-   candidates, valid, vector},
+   shortRows, candidates, valid, vector},
   direct = FeynFacet`Private`modularLift[imagesByPrime, primes];
-  If[direct =!= $Failed, Return[<|"Values" -> direct,
+  If[direct =!= $Failed && TrueQ[validationFunction[direct]],
+    Return[<|"Values" -> direct,
     "Method" -> "Scalar"|>]];
   homogeneous = Append[#, 1] & /@ imagesByPrime;
   combined = ChineseRemainder[#, primes] & /@ Transpose[homogeneous];
@@ -80,29 +91,120 @@ liftSmallRationalVector[imagesByPrime_] := Module[
       index -> modulus], {index, dimension - 1}],
     {Join[Most[combined], {1}]}];
   reduced = SortBy[LatticeReduce[basis], Max[Abs[#]] &];
+  shortRows = Take[reduced, UpTo[12]];
+  shortRows = Join[shortRows, Flatten[Table[
+      {shortRows[[left]] + shortRows[[right]],
+       shortRows[[left]] - shortRows[[right]]},
+      {left, Min[6, Length[shortRows]]},
+      {right, left + 1, Min[6, Length[shortRows]]}], 2]];
   candidates = DeleteDuplicates[(With[
       {gcd = Apply[GCD, Abs[#]]},
       If[Last[#] < 0, -#/gcd, #/gcd]]) & /@
-    Take[reduced, UpTo[12]]];
+    shortRows];
   valid = Select[candidates, Function[candidate,
     Last[candidate] =!= 0 && And @@ MapThread[
       Function[{image, prime}, Mod[Last[candidate], prime] =!= 0 &&
         Mod[Most[candidate]*PowerMod[
           Mod[Last[candidate], prime], -1, prime], prime] === image],
-      {imagesByPrime, primes}]]];
+      {imagesByPrime, primes}] &&
+      TrueQ[validationFunction[Most[candidate]/Last[candidate]]]]];
   If[valid === {}, Return[$Failed]];
   vector = First[valid];
   <|"Values" -> Most[vector]/Last[vector],
-    "Method" -> "ProjectivePartialFraction",
+    "Method" -> "ProjectiveCommonScale",
     "HeightBits" -> IntegerLength[Max[Abs[vector]], 2]|>
+];
+
+projectivePolynomialCoefficientLift[records_, key_] := Catch@Module[
+  {vectors, coefficientImages, modulus, split, dimension, center,
+   primitive, constructionValid, independentPointValid, nonzero,
+   subsetFamilies, localImages, localDimension, reduced, shortRows,
+   scaleCandidates, candidates, acceptedCandidates, individual, successful,
+   seed, candidate,
+   numerator, denominator, function},
+  vectors = Join[#["numerator"], #["denominator"]] & /@ records;
+  If[! SameQ @@ (Length /@ vectors), Throw[$Failed]];
+  coefficientImages = ChineseRemainder[#, primes] & /@ Transpose[vectors];
+  modulus = Times @@ primes;
+  split = Length[First[records]["numerator"]];
+  dimension = Length[coefficientImages];
+  center[value_] := With[{residue = Mod[value, modulus]},
+    If[2*residue > modulus, residue - modulus, residue]];
+  primitive[vector_] := Module[{divisor = Apply[GCD, Abs[vector]], result},
+    If[divisor === 0, Return[vector]];
+    result = vector/divisor;
+    If[Last[result] < 0, -result, result]];
+  constructionValid[vector_] := Last[vector] =!= 0 && And @@ MapThread[
+    Function[{image, prime}, Mod[Last[vector], prime] =!= 0 &&
+      Mod[vector*PowerMod[Mod[Last[vector], prime], -1, prime], prime] ===
+        image], {vectors, primes}];
+  independentPointValid[vector_] := Module[{n, d},
+    n = Take[vector, split]; d = Drop[vector, split];
+    modularValue[polynomialFrom[n]/polynomialFrom[d]] ===
+      Lookup[validationValues, key, 0]];
+  nonzero = Flatten@Position[coefficientImages, Except[0], {1},
+    Heads -> False];
+  individual = Table[FeynFacet`Private`modularLift[
+      List /@ vectors[[All, index]], primes], {index, dimension}];
+  successful = Cases[individual, {value_} :> value];
+  seed = Apply[LCM, Denominator /@ successful];
+  scaleCandidates = {seed};
+  Do[
+    subsetFamilies = DeleteCases[DeleteDuplicates[Map[
+      Sort@DeleteCases[Take[DeleteDuplicates[#], UpTo[count]],
+        index_ /; index < 1 || index >= dimension] &,
+      {Take[nonzero, UpTo[count]],
+       Take[Reverse[nonzero], UpTo[count]],
+       Extract[nonzero, List /@ DeleteDuplicates[Round[Subdivide[
+         1, Length[nonzero], Min[count, Length[nonzero]] - 1]]]],
+       Flatten@Table[{index, split + 1 - index, split + index,
+         dimension + 1 - index}, {index, Ceiling[count/2]}],
+       Select[Range[split + 1, dimension - 1],
+         Mod[#, Max[1, Floor[(dimension - split - 1)/count]]] === 0 &],
+       Select[Range[1, split],
+         Mod[#, Max[1, Floor[split/count]]] === 0 &]}]], {}];
+    Do[
+      localImages = coefficientImages[[subset]];
+      localDimension = Length[localImages] + 1;
+      reduced = SortBy[LatticeReduce[Join[
+        Table[ReplacePart[ConstantArray[0, localDimension], index -> modulus],
+          {index, localDimension - 1}], {Join[localImages, {1}]}]],
+        Max[Abs[#]] &];
+      shortRows = Take[reduced, UpTo[12]];
+      shortRows = Join[shortRows, Flatten[Table[
+          {shortRows[[left]] + shortRows[[right]],
+           shortRows[[left]] - shortRows[[right]]},
+          {left, Min[6, Length[shortRows]]},
+          {right, left + 1, Min[6, Length[shortRows]]}], 2]];
+      scaleCandidates = Join[scaleCandidates, Last /@ shortRows];
+      candidates = DeleteDuplicates[
+        primitive[center /@ (coefficientImages*#)] & /@ scaleCandidates];
+      acceptedCandidates = Cases[candidates,
+        item_ /; constructionValid[item] && independentPointValid[item]];
+      If[acceptedCandidates =!= {},
+        candidate = First[acceptedCandidates];
+        numerator = Take[candidate, split];
+        denominator = Drop[candidate, split];
+        function = polynomialFrom[numerator]/polynomialFrom[denominator];
+        Throw[<|"Function" -> function, "Numerator" -> numerator,
+          "Denominator" -> denominator,
+          "Method" -> "ProjectivePolynomialCoefficientReconstruction",
+          "CoefficientHeightBits" ->
+            IntegerLength[Max[Abs[candidate]], 2]|>]],
+      {subset, subsetFamilies}],
+    {count, {4, 6, 8, 10, 12, 16}}];
+  $Failed
 ];
 
 factorPartialLift[records_, key_] := Module[
   {denominators, numerators, firstPrime, modularFactors, liftProduct,
-   remaining, exactFactors = {}, candidate, exactDenominator,
-   denominatorValid, partialImage, partialImages, quotientLength,
-   quotientImages, quotientLift, pieceKeys, pieceAssociation,
-   pieceAssociations, pieceLift, function, coefficients},
+   remaining, exactFactors = {}, multiplicityGroups, candidateSubsets,
+   firstLift, candidate, exactDenominator,
+   denominatorValid, tryNumeratorLift, numeratorImages,
+   shiftedNumeratorImages, partialImage, partialImages, quotientLength,
+   pieceKeys, pieceAssociation, pieceAssociations, pieceLengths,
+   combinedImages, functionFromCombined, combinedLift, function,
+   coefficients},
   denominators = polynomialFrom[#["denominator"]] & /@ records;
   numerators = polynomialFrom[#["numerator"]] & /@ records;
   firstPrime = First[primes];
@@ -128,13 +230,31 @@ factorPartialLift[records_, key_] := Module[
     If[!valid, $Failed, <|"Indices" -> indices,
       "Factor" -> exactPolynomial, "Exponent" -> exponent|>]
   ];
+  firstLift[subsets_] := Module[{lifted = $Failed},
+    Do[
+      lifted = liftProduct[indices];
+      If[AssociationQ[lifted], Break[]],
+      {indices, subsets}];
+    lifted];
   remaining = Range[Length[modularFactors]];
   While[remaining =!= {},
-    candidate = SelectFirst[Flatten[Table[
-        liftProduct[#] & /@ Subsets[remaining, {size}],
-        {size, 1, Min[6, Length[remaining]]}], 1],
-      AssociationQ, Missing["NotFound"]];
-    If[MissingQ[candidate], Return[$Failed]];
+    (* Over a finite field, one rational square-free factor may split into
+       many irreducible factors.  All factors carrying the same multiplicity
+       can be recombined safely: their product is still square-free and is
+       coprime to every other multiplicity block.  Try those complete blocks
+       first.  This avoids an artificial subset-size ceiling (the CF303
+       degree-66 denominator has eight modular factors in one multiplicity
+       block), and it is much cheaper than a combinatorial search.  Smaller
+       subsets remain a fallback when a multiplicity block contains several
+       rational factors whose product is too large for one-prime lifting. *)
+    multiplicityGroups = Values[GroupBy[remaining,
+      modularFactors[[#, 2]] &]];
+    candidate = firstLift[multiplicityGroups];
+    If[! AssociationQ[candidate],
+      candidateSubsets = Flatten[Table[Subsets[remaining, {size}],
+        {size, 1, Min[8, Length[remaining]]}], 1];
+      candidate = firstLift[candidateSubsets]];
+    If[! AssociationQ[candidate], Return[$Failed]];
     AppendTo[exactFactors, candidate];
     remaining = Complement[remaining, candidate["Indices"]]];
   exactDenominator = Expand[Times @@
@@ -143,6 +263,45 @@ factorPartialLift[records_, key_] := Module[
     Expand[polynomialImage[exactDenominator, prime] - denominator,
       Modulus -> prime] === 0], {denominators, primes}];
   If[!denominatorValid, Return[$Failed]];
+  tryNumeratorLift[images_, numeratorFunction_, basis_] := Module[
+    {supports, lift, commonDenominator, primitive, candidateFunction},
+    supports = Flatten@Position[#, Except[0], {1}, Heads -> False] & /@ images;
+    If[! SameQ @@ (Length /@ images) || ! SameQ @@ supports,
+      Return[$Failed]];
+    lift = liftSmallRationalVector[images,
+      modularValue[numeratorFunction[#]/exactDenominator] ===
+          Lookup[validationValues, key, 0] &];
+    If[lift === $Failed, Return[$Failed]];
+    commonDenominator = Apply[LCM, Denominator /@ lift["Values"]];
+    primitive = commonDenominator*lift["Values"];
+    candidateFunction = numeratorFunction[primitive]/
+      (commonDenominator*exactDenominator);
+    If[modularValue[candidateFunction] =!= Lookup[validationValues, key, 0],
+      Return[$Failed]];
+    <|"Function" -> candidateFunction,
+      "Method" -> "ExactDenominatorCommonScaleNumerator",
+      "CoefficientLiftMethod" -> lift["Method"],
+      "NumeratorBasis" -> basis,
+      "PrimitiveNumerator" -> primitive,
+      "CommonScalarDenominator" -> commonDenominator,
+      "ExactDenominatorFactors" ->
+        ({#["Factor"], #["Exponent"]} & /@ exactFactors),
+      "CoefficientHeightBits" -> IntegerLength[Max[Abs[Join[
+        primitive, {commonDenominator}]]], 2]|>
+  ];
+  numeratorImages = Lookup[records, "numerator"];
+  candidate = tryNumeratorLift[numeratorImages, polynomialFrom,
+    <|"Type" -> "Monomial", "Variable" -> p|>];
+  If[AssociationQ[candidate], Return[candidate]];
+  shiftedNumeratorImages = MapThread[CoefficientList[
+      PolynomialMod[polynomialFrom[#1] /. p ->
+        p + PowerMod[2, -1, #2], #2], p] &,
+    {numeratorImages, primes}];
+  candidate = tryNumeratorLift[shiftedNumeratorImages,
+    polynomialFrom[#] /. p -> p - 1/2 &,
+    <|"Type" -> "ShiftedMonomial", "Variable" -> p,
+      "Center" -> 1/2|>];
+  If[AssociationQ[candidate], Return[candidate]];
   partialImage[numerator_, denominator_, prime_] := Module[
     {quotient, remainder, pieces, factor, exponent, block, cofactor,
      gcd, bezout, local, localCoefficients},
@@ -175,10 +334,6 @@ factorPartialLift[records_, key_] := Module[
   partialImages = MapThread[partialImage,
     {numerators, denominators, primes}];
   quotientLength = Max[Length /@ Lookup[partialImages, "Quotient"]];
-  quotientImages = PadRight[#, quotientLength] & /@
-    Lookup[partialImages, "Quotient"];
-  quotientLift = liftSmallRationalVector[quotientImages];
-  If[quotientLift === $Failed, Return[$Failed]];
   pieceKeys = Flatten[Table[{factorIndex, power},
     {factorIndex, Length[exactFactors]},
     {power, exactFactors[[factorIndex, "Exponent"]], 1, -1}], 1];
@@ -189,20 +344,32 @@ factorPartialLift[records_, key_] := Module[
     {factorIndex, Length[exactFactors]},
     {power, exactFactors[[factorIndex, "Exponent"]], 1, -1}], 1]];
   pieceAssociations = pieceAssociation /@ partialImages;
-  pieceLift = Association@Table[pieceKey -> liftSmallRationalVector[
-      (#[pieceKey] & /@ pieceAssociations)], {pieceKey, pieceKeys}];
-  If[MemberQ[Values[pieceLift], $Failed], Return[$Failed]];
-  function = polynomialFrom[quotientLift["Values"]] + Total[Flatten[
-    Table[polynomialFrom[pieceLift[{factorIndex, power}, "Values"]]/
-      exactFactors[[factorIndex, "Factor"]]^power,
-      {factorIndex, Length[exactFactors]},
-      {power, exactFactors[[factorIndex, "Exponent"]], 1, -1}], 1]];
+  pieceLengths = Length /@ Lookup[First[pieceAssociations], pieceKeys];
+  combinedImages = MapThread[Join[
+      PadRight[#1["Quotient"], quotientLength],
+      Flatten[Lookup[#2, pieceKeys]]] &,
+    {partialImages, pieceAssociations}];
+  functionFromCombined[values_] := Module[
+    {pieces = TakeList[values,
+       Prepend[pieceLengths, quotientLength]], quotient, pieceValues},
+    quotient = First[pieces];
+    pieceValues = AssociationThread[pieceKeys, Rest[pieces]];
+    polynomialFrom[quotient] + Total[Flatten[
+      Table[polynomialFrom[pieceValues[{factorIndex, power}]]/
+        exactFactors[[factorIndex, "Factor"]]^power,
+        {factorIndex, Length[exactFactors]},
+        {power, exactFactors[[factorIndex, "Exponent"]], 1, -1}], 1]]];
+  combinedLift = liftSmallRationalVector[combinedImages,
+    modularValue[functionFromCombined[#]] ===
+        Lookup[validationValues, key, 0] &];
+  If[combinedLift === $Failed, Return[$Failed]];
+  function = functionFromCombined[combinedLift["Values"]];
   If[modularValue[function] =!= Lookup[validationValues, key, 0],
     Return[$Failed]];
-  coefficients = Cases[{quotientLift, Values[pieceLift]},
-    value : (_Integer | _Rational) :> value, Infinity];
+  coefficients = combinedLift["Values"];
   <|"Function" -> function, "Method" -> "FactorAwarePartialFraction",
     "PartialFractionCount" -> Length[pieceKeys],
+    "CoefficientLiftMethod" -> combinedLift["Method"],
     "ExactDenominatorFactors" ->
       ({#["Factor"], #["Exponent"]} & /@ exactFactors),
     "CoefficientHeightBits" -> Max[IntegerLength[
@@ -210,7 +377,7 @@ factorPartialLift[records_, key_] := Module[
 ];
 
 liftOne[key_] := Module[
-  {records, degrees, numerator, denominator, function, partial},
+  {records, degrees, numerator, denominator, function, projective, partial},
   records = Lookup[recordsByFit, key];
   degrees = normalizeDegrees /@ Lookup[records, "degrees"];
   If[! SameQ @@ degrees, Return[<|"Status" -> "DegreeMismatch",
@@ -227,12 +394,16 @@ liftOne[key_] := Module[
         "Denominator" -> denominator, "Function" -> function,
         "Method" -> "ScalarRationalReconstruction"|>]]];
   partial = factorPartialLift[records, key];
-  If[partial === $Failed,
-    <|"Status" -> "FactorPartialLiftFailed", "Key" -> key,
-      "Degrees" -> First[degrees],
-      "ModulusBits" -> IntegerLength[Times @@ primes, 2]|>,
-    Join[<|"Status" -> "Lifted", "Key" -> key,
-      "Degrees" -> First[degrees]|>, partial]]
+  If[partial =!= $Failed,
+    Return[Join[<|"Status" -> "Lifted", "Key" -> key,
+      "Degrees" -> First[degrees]|>, partial]]];
+  projective = projectivePolynomialCoefficientLift[records, key];
+  If[projective =!= $Failed,
+    Return[Join[<|"Status" -> "Lifted", "Key" -> key,
+      "Degrees" -> First[degrees]|>, projective]]];
+  <|"Status" -> "FactorPartialLiftFailed", "Key" -> key,
+    "Degrees" -> First[degrees],
+    "ModulusBits" -> IntegerLength[Times @@ primes, 2]|>
 ];
 lifted = liftOne /@ expectedKeys;
 failed = Select[lifted, #Status =!= "Lifted" &];
@@ -275,10 +446,8 @@ targetRecords = DeleteCases[Map[Function[record, With[
 zeroChainRecords = Select[residueRecords,
   modeEigenvalues[[#ModeIndex]] === 0 &];
 
-frame = Get[FileNameJoin[{scriptDirectory, "Artifacts",
-  "CF303SixModeEndpointFrame.wl"}]];
-jetControl = Get[FileNameJoin[{scriptDirectory, "Artifacts",
-  "CF303TangentialJunctionJetControl.wl"}]];
+frame = Get[framePath];
+jetControl = Get[jetControlPath];
 If[Lookup[jetControl, "Status", None] =!=
       "CF303TangentialJunctionIntertwiningJetsAcceptedV1" ||
     ! TrueQ[jetControl["PhysicalNormalization", "TargetGModeMapComplete"]],
@@ -399,6 +568,9 @@ result = <|
   "TangentialTargetConnection" ->
     frame["ProductionInput", "Layer", "Diagonal"],
   "RawResidueDeckEmitted" -> False|>;
+If[! DirectoryQ[DirectoryName[outputPath]],
+  CreateDirectory[DirectoryName[outputPath],
+    CreateIntermediateDirectories -> True]];
 Put[result, outputPath];
 Print["PASS status=", result["Status"], " primes=", Length[primes],
   " validation=", validationComparisons,

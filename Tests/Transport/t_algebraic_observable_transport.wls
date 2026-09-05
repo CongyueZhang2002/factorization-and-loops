@@ -43,20 +43,20 @@ record = <|
     "Roots" -> {<|"Root" -> Sqrt[1 - x],
       "RootSquare" -> 1 - x|>}|>,
   "GateVerdict" -> True,
-  "GaugeIdentity" -> True,
+  "ConnectionTransformationEquation" -> True,
   "Flatness" -> True,
   "TTotalInvertible" -> True
 |>;
 
-path = FindObservableTransportPath[record];
+path = ChooseRegularBasePointAndFirstPathParameterScale[record];
 demand = <|
-  "PhysicalRows" -> {1},
-  "PhysicalOrders" -> {2, 3},
-  "PhysicalValuation" -> 2,
-  "Path" -> path
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> {{2, 1}, {3, 1}},
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 2,
+  "RegularBasePointAndFirstPathParameterScale" -> path
 |>;
-transport = BuildObservableTransport[record, demand,
-  "BoundaryEvolution" -> "AmbientBasePoint"];
+transport = ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+  record, demand, "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints"];
 
 certifiedDLog = <|
   "Valid" -> True,
@@ -84,12 +84,12 @@ certifiedRecord = <|
     "Roots" -> {<|"Root" -> Sqrt[1 - x],
       "RootSquare" -> 1 - x|>}|>,
   "GateVerdict" -> True,
-  "GaugeIdentity" -> True,
+  "ConnectionTransformationEquation" -> True,
   "Flatness" -> True,
   "TTotalInvertible" -> True,
   "Checks" -> AssociationThread[
     {"EpsFactored", "DLog", "BlockLowerTriangular",
-     "TransformationInverse", "GaugeIdentity", "SourceFlatness",
+     "TransformationInverse", "ConnectionTransformationEquation", "SourceFlatness",
      "Flatness", "ChartIdentity"} -> ConstantArray[True, 8]],
   "EpsilonFormCertificate" -> <|
     "Version" -> 1,
@@ -115,12 +115,16 @@ certifiedRecord = <|
       "ConstantResidues" -> True,
       "ResiduesVerifiedAtAllPrimes" -> True|>,
     "DLog" -> certifiedDLog|>|>;
-certifiedTransport = BuildObservableTransport[certifiedRecord, demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
+certifiedTransport =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    certifiedRecord, demand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints",
+    "IteratedIntegralCoefficientRepresentation" ->
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs"];
 computedDLog = Join[record["DLog"], <|
   "Status" -> "ComputedDLogResidues",
-  "Purpose" -> "ObservableTransportInput",
+  "Purpose" -> "RequestedOutputIteratedIntegralCoefficientOperatorInput",
   "CoefficientField" -> "Multiquadratic",
   "IdentityMethod" -> "FiniteFieldPointwise",
   "PointwiseReplay" -> True,
@@ -142,16 +146,21 @@ computedRecordUncertified = Join[
 certification = FeynFacet`Private`observableTransportCertifyEpsilonValuations[
   computedRecordUncertified];
 computedRecord = Lookup[certification, "Record", <||>];
-computedTransport = BuildObservableTransport[computedRecord, demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
-computedWithoutValuations = BuildObservableTransport[
+computedTransport =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    computedRecord, demand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints"];
+computedWithoutValuations =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
   KeyDrop[computedRecord, "TransportEpsilonValuations"], demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
-computedUncertified = BuildObservableTransport[computedRecordUncertified,
-  demand, "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
+  "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints"];
+computedUncertified =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+  computedRecordUncertified, demand,
+  "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints"];
 (* a stale/high claim: TMin 2 where the transformation has order 1, and
    BlockLower 0 where the inverse has order -1 *)
 staleTMin = FeynFacet`Private`observableTransportCertifyEpsilonValuations[
@@ -163,24 +172,29 @@ staleBlockLower = FeynFacet`Private`observableTransportCertifyEpsilonValuations[
 (* a forged record: the claim raised after certification, certificate kept *)
 forgedRecord = Join[computedRecord, <|"TransportEpsilonValuations" ->
   Join[computedRecord["TransportEpsilonValuations"], <|"TMin" -> 2|>]|>];
-forgedTransport = BuildObservableTransport[forgedRecord, demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
+forgedTransport =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    forgedRecord, demand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints"];
 (* A constant rescaling preserves both the transformation equation and the
    epsilon valuations; mathematical re-evaluation must accept it. *)
 rescaledRecord = Join[computedRecord, <|"TTotal" -> {{2 eps}},
   "TTotalInverse" -> {{1/(2 eps)}}|>];
-rescaledTransport = BuildObservableTransport[rescaledRecord, demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
+rescaledTransport =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    rescaledRecord, demand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints"];
 (* a conservative claim (below the observed orders) certifies, not tight *)
 conservative = FeynFacet`Private`observableTransportCertifyEpsilonValuations[
   Join[computedRecordUncertified, <|"TransportEpsilonValuations" ->
     <|"TMin" -> 0, "BlockLower" -> {-2}|>|>]];
-conservativeTransport = BuildObservableTransport[
+conservativeTransport =
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
   Lookup[conservative, "Record", <||>], demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
+  "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints"];
 (* a record without valuations: the certifier derives them from the trials *)
 derived = FeynFacet`Private`observableTransportCertifyEpsilonValuations[
   KeyDrop[computedRecordUncertified, "TransportEpsilonValuations"]];
@@ -198,13 +212,14 @@ radicalCertification = FeynFacet`Private`observableTransportCertifyEpsilonValuat
 undeclaredRadical = FeynFacet`Private`observableTransportCertifyEpsilonValuations[
   Join[radicalRecord, <|"TTotal" -> {{eps Sqrt[1 + x^3]}}|>]];
 (* round 7: the bounded route (rigorous lower bounds, exact evaluation of
-   the candidates only) must agree with the exhaustive route on a 3x3 gauge
+   the candidates only) must agree with the exhaustive route on a 3x3
+   basis-transformation matrix
    with nested quotients, a hidden zero, poles of two orders and radicals *)
-boundedGauge = {{eps Sqrt[1 - x] + 1/(eps^2 (1 + 2 eps)), (1 + Sqrt[1 - x])/(eps (1 + eps)) - 1/eps, 0},
+boundedBasisTransformationMatrix = {{eps Sqrt[1 - x] + 1/(eps^2 (1 + 2 eps)), (1 + Sqrt[1 - x])/(eps (1 + eps)) - 1/eps, 0},
   {0, (Sqrt[6/5] - Sqrt[30]/5)/eps^3 + eps^2, eps (1 + eps Sqrt[1 - x])/(1 + 5 eps)},
   {(3 + eps (1 - x))/(eps^3 (1 + 2 eps) (1 + 5 eps)) - 3/(eps^3 (1 + 2 eps) (1 + 5 eps)), 1, eps^4}};
 boundedRecord = Join[computedRecordUncertified, <|"Dim" -> 3, "Ranges" -> {{1}, {2, 3}},
-  "TTotal" -> boundedGauge, "TTotalInverse" -> Transpose[boundedGauge],
+  "TTotal" -> boundedBasisTransformationMatrix, "TTotalInverse" -> Transpose[boundedBasisTransformationMatrix],
   "TransportEpsilonValuations" -> <|"TMin" -> -2, "BlockLower" -> {-2, -1}|>|>];
 boundedCertification = FeynFacet`Private`observableTransportCertifyEpsilonValuations[boundedRecord];
 exhaustiveCertification = FeynFacet`Private`observableTransportCertifyEpsilonValuations[boundedRecord, "Exhaustive" -> True];
@@ -224,7 +239,7 @@ fileAgain = FeynFacet`Private`observableTransportCertifyEpsilonValuationsFile[
   fileFixture];
 Quiet[DeleteFile[fileFixture]];
 If[Lookup[computedTransport, "Status", None] =!=
-    "ModularlyVerifiedObservableTransport",
+    "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated",
   Print["Computed-dlog diagnostic: ",
     InputForm[KeyTake[computedTransport,
       {"Status", "Step", "FamilyInputRoute", "Certificates",
@@ -238,8 +253,8 @@ tamperedProbabilistic = Join[
 tamperedTransport = Join[certifiedTransport,
   <|"ProbabilisticCertificates" -> tamperedProbabilistic|>];
 If[Lookup[transport, "Status", None] =!=
-    "ModularlyVerifiedObservableTransport",
-  Print["Algebraic transport diagnostic: ",
+    "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated",
+  Print["Algebraic coefficient-operator diagnostic: ",
     InputForm[KeyTake[transport,
       {"Status", "Prime", "Point", "BranchMask", "SpaceRank",
        "JoinedRank", "CoefficientField", "Accepted", "Required",
@@ -249,59 +264,65 @@ If[Lookup[transport, "Status", None] =!=
 FTAssert["the algebraic family record is admitted only after exact certificates",
   ExactFamilyEpsilonFormQ[record]];
 FTAssert["an endpoint-regular two-segment path is selected automatically",
-  AssociationQ[path] && path["Status"] === "ExactPathData"];
-FTAssert["observable-only transport finishes over the declared algebraic field",
+  AssociationQ[path] && path["Status"] ===
+    "RegularBasePointAndFirstPathParameterScaleSelected"];
+FTAssert["the requested-output coefficient operator is constructed over the declared square-root presentation",
   AssociationQ[transport] &&
-    transport["Status"] === "ModularlyVerifiedObservableTransport" &&
-    AcceptedObservableTransportQ[transport]];
+    transport["Status"] ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[transport]];
 FTAssert["the first segment uses the exact certified dlog residue",
-  transport["FirstSegmentKernelMethod"] === "DLogResidues" &&
-    Length[transport["FirstSegmentKernels"]] === 1];
+  transport["FirstPathSegmentKernelMethod"] === "DLogResidues" &&
+    Length[transport["FirstPathSegmentIteratedIntegralKernels"]] === 1];
 FTAssert["the second zero connection is represented without spurious kernels",
-  transport["SecondSegmentKernelMethod"] === "DLogResidues" &&
-    transport["SecondSegmentKernels"] === {}];
+  transport["SecondPathSegmentKernelMethod"] === "DLogResidues" &&
+    transport["SecondPathSegmentIteratedIntegralKernels"] === {}];
 FTAssert["all demand-driven transport identities are exact",
   And @@ (TrueQ /@ Values[transport["Certificates"]])];
 FTAssert["constrained algebraic closure is certified at split finite-field points",
   AssociationQ[transport] &&
-    transport["Status"] === "ModularlyVerifiedObservableTransport" &&
+    transport["Status"] ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
     transport["ConstraintRank"] > 0 &&
-    AcceptedObservableTransportQ[transport]];
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[transport]];
 FTAssert["an exact record's valuations come from the exact gauge scan and are bound",
-  transport["TransportEpsilonValuationSource"] === "ComputedFromGauge" &&
+  transport["TransportEpsilonValuationSource"] === "ComputedFromBasisTransformationMatrix" &&
     transport["TransportEpsilonValuationCertificate"]["Status"] ===
-      "ExactGaugeValuationScan" &&
+      "ExactBasisTransformationEpsilonValuationScan" &&
     TrueQ[transport["Certificates"]["TransportEpsilonValuationsBound"]]];
 FTAssert["a modular multiquadratic record is admitted by its finite-field certificate",
   CertifiedFamilyEpsilonFormQ[certifiedRecord] &&
     ! ExactFamilyEpsilonFormQ[certifiedRecord]];
 FTAssert["certified dlog residues bypass algebraic entry decomposition",
   certifiedTransport["Status"] ===
-      "ModularlyVerifiedObservableTransport" &&
-    certifiedTransport["FirstSegmentKernelMethod"] ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
+    certifiedTransport["FirstPathSegmentKernelMethod"] ===
       "CertifiedDLogResidues" &&
-    certifiedTransport["SecondSegmentKernelMethod"] ===
+    certifiedTransport["SecondPathSegmentKernelMethod"] ===
       "CertifiedDLogResidues" &&
     certifiedTransport["Certificates"]["FirstKernelIdentity"] &&
     ! certifiedTransport["Certificates"]["FirstKernelIdentityExact"] &&
     certifiedTransport["Certificates"]["FirstKernelIdentityCertified"] &&
-    AcceptedObservableTransportQ[certifiedTransport]];
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      certifiedTransport]];
 FTAssert["certified residue transport remains exact matrix arithmetic",
-  ObservableTransportWordMap[certifiedTransport, {}, {}]["Status"] ===
-      "ModularlyVerifiedWordMap" &&
-    TrueQ[ObservableTransportWordMap[
+  ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+      certifiedTransport, {}, {}]["Status"] ===
+      "IteratedIntegralCoefficientMatrixComputed" &&
+    TrueQ[ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
       certifiedTransport, {}, {}]["MatrixArithmeticExact"]]];
 FTAssert["computed dlog input transports without materialized epsilon matrices",
   computedTransport["Status"] ===
-      "ModularlyVerifiedObservableTransport" &&
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
     computedTransport["FamilyInputRoute"] === "ComputedDLog" &&
     computedTransport["TransportEpsilonValuationSource"] ===
       "FamilyRecord" &&
     computedTransport["TransportEpsilonValuations"] === <|
       "TMin" -> 1, "BlockLower" -> {-1}|> &&
-    computedTransport["FirstSegmentKernelMethod"] ===
+    computedTransport["FirstPathSegmentKernelMethod"] ===
       "CertifiedDLogResidues" &&
-    AcceptedObservableTransportQ[computedTransport]];
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      computedTransport]];
 FTAssert["computed dlog production never falls back to a symbolic gauge scan",
   computedWithoutValuations["Status"] ===
     "TransportEpsilonValuationsRequired"];
@@ -337,16 +358,18 @@ FTAssert["a claim raised after certification is refused: certificate does not na
   forgedTransport["Status"] === "TransportEpsilonValuationCertificateInvalid"];
 FTAssert["a mathematically equivalent constant basis rescaling is accepted after direct valuation re-evaluation",
   rescaledTransport["Status"] ===
-      "ModularlyVerifiedObservableTransport" &&
-    AcceptedObservableTransportQ[rescaledTransport]];
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      rescaledTransport]];
 FTAssert["a conservative claim certifies as not tight and transports accepted",
   conservative["Status"] === "TransportEpsilonValuationsCertified" &&
     conservative["Tight"] === False &&
     conservativeTransport["Status"] ===
-      "ModularlyVerifiedObservableTransport" &&
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" &&
     conservativeTransport["TransportEpsilonValuations"] ===
       <|"TMin" -> 0, "BlockLower" -> {-2}|> &&
-    AcceptedObservableTransportQ[conservativeTransport]];
+    IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      conservativeTransport]];
 FTAssert["a record without valuations gets them derived and tight",
   derived["Status"] === "TransportEpsilonValuationsCertified" &&
     TrueQ[derived["Tight"]] &&
@@ -405,16 +428,20 @@ FTAssert["the in-place certifier: a dry run leaves the file uncertified, the wri
     fileStatusAfterWrite === "TransportEpsilonValuationsCertified" &&
     TrueQ[fileAgain["AlreadyCertified"]]];
 FTAssert["the accept predicate refuses a result without its valuation certificate or with an altered one",
-  ! AcceptedObservableTransportQ[KeyDrop[computedTransport,
+  ! IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+    KeyDrop[computedTransport,
       "TransportEpsilonValuationCertificate"]] &&
-    ! AcceptedObservableTransportQ[Join[computedTransport,
+    ! IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      Join[computedTransport,
       <|"TransportEpsilonValuationCertificate" -> Join[
         computedTransport["TransportEpsilonValuationCertificate"],
         <|"TMin" -> 0|>]|>]] &&
-    ! AcceptedObservableTransportQ[Join[computedTransport,
+    ! IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      Join[computedTransport,
       <|"Certificates" -> KeyDrop[computedTransport["Certificates"],
         "TransportEpsilonValuationsBound"]|>]]];
 FTAssert["tampered residue evidence is rejected fail closed",
-  ! AcceptedObservableTransportQ[tamperedTransport]];
+  ! IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+    tamperedTransport]];
 
 FTReport[];

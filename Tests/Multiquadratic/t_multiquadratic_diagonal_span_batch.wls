@@ -10,12 +10,12 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {affineBatch, spansSampled, spanSampled, spanExact, spanBounded} =
-  mq /@ {"multiquadraticStripRationalAffineParticularBatch",
-    "multiquadraticStripDiagonalSpansSampled",
-    "multiquadraticStripDiagonalSpanSampled",
-    "multiquadraticStripDiagonalSpan",
-    "multiquadraticStripDiagonalSpanBoundedExact"};
-samplePoints = mq["$multiquadraticStripDiagonalSpanSamplePoints"];
+  mq /@ {"multiquadraticOffDiagonalBlockRationalAffineParticularBatch",
+    "multiquadraticOffDiagonalBlockDiagonalSpansSampled",
+    "multiquadraticOffDiagonalBlockDiagonalSpanSampled",
+    "multiquadraticOffDiagonalBlockDiagonalSpan",
+    "multiquadraticOffDiagonalBlockDiagonalSpanBoundedExact"};
+samplePoints = mq["$multiquadraticOffDiagonalBlockDiagonalSpanSamplePoints"];
 
 Clear[x, y];
 

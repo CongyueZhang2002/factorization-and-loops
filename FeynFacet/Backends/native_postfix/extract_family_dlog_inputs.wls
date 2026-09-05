@@ -15,7 +15,7 @@ record = Quiet[Check[Get[input], $Failed]];
 If[! AssociationQ[record], Print["input is not an association"]; Exit[1]];
 
 required = {"Variables", "Regulator", "ChartRecord", "EpsFormX",
-  "EpsFormY", "Letters", "StripSolvers", "SectorCertificates",
+  "EpsFormY", "Letters", "OffDiagonalBlockSolutions", "SectorCertificates",
   "Status", "Family"};
 If[! AllTrue[required, KeyExistsQ[record, #] &],
   Print["missing keys: ", Complement[required, Keys[record]]]; Exit[1]];
@@ -42,7 +42,7 @@ result = <|
   "LetterX" -> ({D[#, variables[[1]]]/#} & /@ letters),
   "LetterY" -> ({D[#, variables[[2]]]/#} & /@ letters),
   "AcceptedBlockEvidence" -> <|
-    "StripSolvers" -> record["StripSolvers"],
+    "OffDiagonalBlockSolutions" -> record["OffDiagonalBlockSolutions"],
     "SectorCertificates" -> record["SectorCertificates"]|>,
   "Purpose" -> "ComputeCommonDLogResiduesForTransport"
 |>;

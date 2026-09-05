@@ -1,6 +1,7 @@
 # --- Agent workspaces and generated run data (kept locally, not in git) ---
 Output/
 Work/
+Runtime/
 Codex/ppHX_NLO/
 Codex/ppHX_NNLO_DoubleReal/
 Codex/EvaluateMasters/

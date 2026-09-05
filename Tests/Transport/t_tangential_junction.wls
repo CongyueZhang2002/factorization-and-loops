@@ -16,7 +16,8 @@ spec = <|
   "Scope" -> "Full",
   "Junction" -> <|"Prescription" -> "TangentialRegularized",
     "NormalCoordinate" -> "rho", "LocalDirection" -> -1|>,
-  "BoundaryCoordinateKeys" -> {{"period-a", 0}, {"period-b", 0}},
+  "BoundaryCoordinateKeys" -> {
+    {"boundary-constant-a", 0}, {"boundary-constant-b", 0}},
   "ModeExponents" -> {0, -2 - 4 eps},
   "SourceModeMap" -> <|
     0 -> SparseArray[{{1, 1} -> 1}, {1, 2}],
@@ -44,38 +45,48 @@ FTAssert["a complete sparse zero/nonzero-exponent junction builds without mergin
     binding["Dimensions"] === <|"SourceState" -> 1,
       "TargetGState" -> 1, "LocalState" -> 2,
       "JunctionModes" -> 2, "DownstreamBoundary" -> 2,
-      "Stage3Boundary" -> 2|>];
+      "UpstreamBoundaryData" -> 2|>];
 
 upstream = {
   <|"BoundaryOrder" -> -1, "OutputOrder" -> 0,
-    "Word" -> {pLetter},
-    "Map" -> SparseArray[{{1, 1} -> 2, {2, 2} -> 3}, {2, 2}]|>
+    "IteratedIntegralLetterSequence" -> {pLetter},
+    "IteratedIntegralCoefficientMatrix" ->
+      SparseArray[{{1, 1} -> 2, {2, 2} -> 3}, {2, 2}]|>
 };
 downstream = {
   <|"BoundaryOrder" -> 0, "OutputOrder" -> 2,
-    "Word" -> {zLetter},
-    "Map" -> SparseArray[{{1, 1} -> 5, {1, 2} -> 7}, {1, 2}]|>,
+    "IteratedIntegralLetterSequence" -> {zLetter},
+    "IteratedIntegralCoefficientMatrix" ->
+      SparseArray[{{1, 1} -> 5, {1, 2} -> 7}, {1, 2}]|>,
   <|"BoundaryOrder" -> 0, "OutputOrder" -> 2,
-    "Word" -> {zLetter},
-    "Map" -> SparseArray[{{1, 1} -> -1}, {1, 2}]|>
+    "IteratedIntegralLetterSequence" -> {zLetter},
+    "IteratedIntegralCoefficientMatrix" ->
+      SparseArray[{{1, 1} -> -1}, {1, 2}]|>
 };
-composed = ComposeTangentialJunctionWordMaps[
+composed = ComposeTangentialJunctionIteratedIntegralCoefficientMaps[
   binding, upstream, downstream, 2];
 
-FTAssert["epsilon-order routing, sparse multiplication and duplicate segmented-word merging give the exact coefficient map",
-  composed["Status"] === "TangentialJunctionWordsComposed" &&
-    composed["TermCount"] === 1 &&
-    First[composed["Terms"]]["BoundaryOrder"] === -1 &&
-    First[composed["Terms"]]["UpstreamWord"] === {pLetter} &&
-    First[composed["Terms"]]["DownstreamWord"] === {zLetter} &&
-    Normal[First[composed["Terms"]]["Map"]] === {{8, 21}}];
+FTAssert["epsilon-order routing, sparse multiplication and duplicate segmented-letter-sequence merging give the exact coefficient map",
+  composed["Status"] ===
+      "TangentialJunctionIteratedIntegralCoefficientMapsComposed" &&
+    composed["IteratedIntegralCoefficientMapTermCount"] === 1 &&
+    First[composed["IteratedIntegralCoefficientMapTerms"]][
+      "BoundaryOrder"] === -1 &&
+    First[composed["IteratedIntegralCoefficientMapTerms"]][
+      "UpstreamPathIteratedIntegralLetterSequence"] === {pLetter} &&
+    First[composed["IteratedIntegralCoefficientMapTerms"]][
+      "DownstreamPathIteratedIntegralLetterSequence"] === {zLetter} &&
+    Normal[First[composed["IteratedIntegralCoefficientMapTerms"]][
+      "IteratedIntegralCoefficientMatrix"]] === {{8, 21}}];
 
-FTAssert["the consumer preserves Stage-3 coordinates and the ordered two-segment word contract",
+FTAssert["the consumer preserves boundary coordinates and the ordered two-segment iterated-integral contract",
   composed["BoundaryCoordinateKeys"] === spec["BoundaryCoordinateKeys"] &&
     composed["ActiveBoundaryColumns"] === {1, 2} &&
-    composed["SegmentedWordConvention"] === <|
-      "KeyOrder" -> {"UpstreamWord", "DownstreamWord"},
-      "WordOrientation" -> "OutermostFirst",
+    composed["SegmentedIteratedIntegralConvention"] === <|
+      "KeyOrder" -> {
+        "UpstreamPathIteratedIntegralLetterSequence",
+        "DownstreamPathIteratedIntegralLetterSequence"},
+      "LetterSequenceOrientation" -> "OutermostFirst",
       "NoShuffleExpansion" -> True|>];
 
 incomplete = BuildTangentialJunctionBinding[
@@ -84,7 +95,7 @@ incomplete = BuildTangentialJunctionBinding[
       "IndependentTargetFModeMap" -> IdentityMatrix[1]|>]];
 FTAssert["an F-mode map or a leading target extension cannot stand in for the complete target G-mode map",
   incomplete["Status"] === "TangentialJunctionTargetGModeMapRequired" &&
-    ComposeTangentialJunctionWordMaps[
+    ComposeTangentialJunctionIteratedIntegralCoefficientMaps[
       Join[binding, <|"TargetGModeMapComplete" -> False|>],
       upstream, downstream, 2]["Status"] ===
         "TangentialJunctionTargetGModeMapRequired"];

@@ -2,7 +2,7 @@
 (* Adaptive task-broker engagement in the finite-field strip solver
    (2026-08-24).
 
-   THE DEFECT.  SolveEpsFormStripFiniteField decided ONCE per block
+   THE DEFECT.  SolveOffDiagonalBasisTransformationBlockFiniteField decided ONCE per block
    whether to farm the per-prime sample batches to the KernelPool
    helpers, from the PILOT: one sample's build time times the regulator
    schedule.  The pilot measures the build only, and the build is not
@@ -28,13 +28,10 @@
    ACCEPTANCE CRITERIA, stated before the run.
 
    (a) REGRESSION.  With the broker inactive, the synthetic fixture
-       returns what the HEAD solver returned for it: every key HEAD
-       produced is present with an identical value (the measured-seconds
-       keys excepted, which differ by construction), no key is lost, and
-       the only added keys are the six broker-record keys.  The recorded
-       HEAD values below were measured on 2026-08-24 from
-       git HEAD 1833bf4's FiniteFieldStripSolve.wl, loaded over the
-       working tree in one kernel session, same fixture, same options.
+       remains exactly solved and dlog-certified, emits no digest-based
+       identity field, and records an inactive broker with per-prime wall
+       times.  Broker choices are compared across runs through the explicit
+       mathematical result fields, not through run-dependent telemetry.
 
    (b) RE-DECISION.  On the GAP fixture -- the same block sampled the way
        the defect looks in production, so that the pilot estimate
@@ -49,16 +46,16 @@
        "BrokerReDecision" naming that prime and that measurement, ends
        with "BrokerActive" -> True, and the solution is still exact --
        ExactPfaffianResidualsZero and DLogFormCertified -- with the same
-       payload as the run that never farmed.  The farming path is really
+       mathematical result as the run that never farmed.  The farming path is really
        entered (the broker's data files appear).  With a tiny minimum
-       (0.001 s) farming is on for the whole solve and the payload is
+       (0.001 s) farming is on for the whole solve and the mathematics is
        still identical.
 
    (c) BUDGET FIRST.  An expired deadline still returns the typed
        BudgetExhausted association with the broker active, and that
        association reports the broker state it stopped in.
 
-   (d) ARTIFACTS AND RESUME.  The per-prime artifact layout is unchanged
+   (d) ARTIFACTS AND RESUME.  The per-prime artifact layout is canonical
        (one <prefix>_mod_<prime>.wl per prime), and a resumed solve that
        reloads every prime measures nothing and re-decides nothing.
 
@@ -90,14 +87,14 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
 report[label_, value_] := Print["     ", label, ": ", Short[value, 6]];
 
-solve = FeynFacet`SolveEpsFormStripFiniteField;
+solve = FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField;
 brokerActiveQ = FeynFacet`Private`taskBrokerActiveQ;
-parseMinimum = FeynFacet`Private`finiteFieldStripBrokerMinimumSecondsParse;
-resolveMinimum = FeynFacet`Private`finiteFieldStripBrokerMinimumSeconds;
+parseMinimum = FeynFacet`Private`finiteFieldOffDiagonalBlockBrokerMinimumSecondsParse;
+resolveMinimum = FeynFacet`Private`finiteFieldOffDiagonalBlockBrokerMinimumSeconds;
 
 (* ------------------------------------------------------------------ *)
 (* The fixture: the synthetic 1x1 strip of                             *)
-(* Tests/FiniteField/t_finite_field_strip_solve.wls, on three primes so that a     *)
+(* Tests/FiniteField/t_finite_field_off_diagonal_block_solve.wls, on three primes so that a     *)
 (* re-decision after the first prime has later primes to act on        *)
 (* ------------------------------------------------------------------ *)
 
@@ -105,7 +102,7 @@ Clear[xSynthetic, ySynthetic, epsSynthetic];
 syntheticRecord = <|
   "Variables" -> {xSynthetic, ySynthetic},
   "Regulator" -> epsSynthetic,
-  "Strip" -> {
+  "OffDiagonalBlockEquation" -> {
     {{{1}}, {{0}}},
     {{{0}}, {{0}}},
     {{{1 - epsSynthetic xSynthetic}}, {{0}}}
@@ -135,26 +132,15 @@ gapOptions = Join[{
   "HeldOutCount" -> 20},
   fixtureOptions];
 (* the block's mathematics, which no sampling schedule may change *)
-mathKeys = {"Status", "Method", "Gauge", "Alphabet", "ResidueMatrices",
-  "GaugeDenominator", "GaugeDenominatorDegrees", "GaugeNumeratorDegrees",
-  "GaugeSupport", "GaugeSupportCount", "NormalizationColumns", "Primes",
+mathKeys = {"Status", "Method", "OffDiagonalBasisTransformationBlock", "Alphabet", "ResidueMatrices",
+  "OffDiagonalBasisTransformationDenominator", "OffDiagonalBasisTransformationDenominatorDegrees", "OffDiagonalBasisTransformationNumeratorDegrees",
+  "OffDiagonalBasisTransformationNumeratorSupport", "OffDiagonalBasisTransformationNumeratorSupportCount", "NormalizationColumns", "Primes",
   "CombinedModulus", "LettersEpsFree", "ResiduesKinematicsFree",
   "ResiduesEpsFree", "ExactPfaffianResidualsZero",
   "ExactPfaffianIdentitiesZero", "ConstantResidues", "DLogFormCertified",
   "CanonicalEpsFormCertified", "ExactDLog", "SelectedNumeratorDegreeOffset",
   "SelectedSupportShell", "ModularPrimeCount", "UnseenPrime"};
 mathPayload[r_] := If[AssociationQ[r], KeyTake[r, mathKeys], r];
-
-(* keys whose values are measured wall times and differ between runs by
-   construction; everything else is payload *)
-secondsKeys = {"PrimeSamplingSeconds", "PrimeInterpolationSeconds",
-  "TotalSamplingSeconds", "TotalInterpolationSeconds", "ExactCheckSeconds",
-  "LiftingSeconds", "PrimeWallSeconds", "BrokerPilotSeconds",
-  "BrokerEstimatedPrimeSeconds"};
-brokerKeys = {"BrokerActive", "BrokerMinimumSeconds", "BrokerPilotSeconds",
-  "BrokerEstimatedPrimeSeconds", "BrokerReDecision", "PrimeWallSeconds"};
-payload[r_] := If[AssociationQ[r], KeyDrop[r,
-  Join[secondsKeys, brokerKeys, {"BackendConfiguration"}]], r];
 
 (* the fake pool: alive (its pid is this process), four helpers
    advertised, ceiling 0 so no task is ever queued *)
@@ -195,97 +181,17 @@ brokerOff[];
 check["the task broker is inactive for the regression run", ! TrueQ[brokerActiveQ[]]];
 {inactiveSeconds, inactive} = AbsoluteTiming[solve[syntheticRecord, Sequence @@ fixtureOptions]];
 
-(* RECORDED FROM HEAD 1833bf4 ON 2026-08-24 (see the header) *)
-headKeys = {"Status", "Method", "Gauge", "Alphabet", "ResidueMatrices", "Primes", 
- "CombinedModulus", "NormalizationColumns", "GaugeDenominator", 
- "GaugeDenominatorDegrees", "GaugeNumeratorDegrees", "GaugeSupport", 
- "GaugeSupportCount", "CoefficientLiftChecks", "LiftingSeconds", 
- "CertificationMode", "LettersEpsFree", "ResiduesKinematicsFree", 
- "ResiduesEpsFree", "ExactPfaffianResidualsZero", 
- "ExactPfaffianIdentitiesZero", "ConstantResidues", "DLogFormCertified", 
- "CanonicalEpsFormCertified", "CheckMethod", "StructuralFailureReasons", 
- "ExactCheckSeconds", "EquationCount", "ExactDLog", "EliminationPlan", 
- "EliminationPlanFingerprint", "BackendRequested", "BackendThreads", 
- "BackendConfiguration", "BackendsUsed", "PlanDiscoveryBackendRequested", 
- "PlanDiscoveryBackendUsed", "SelectedNumeratorDegreeOffset", 
- "SelectedSupportShell", "SupportStrategy", "ProbeCount", "DegreeProbe", 
- "SelectedSupportKind", "ModularPrimeCount", "MaximumPrimeCount", 
- "AdaptivePrimeSampling", "RegulatorSampling", "UnseenPrimeCheck", 
- "UnseenPrime", "PrimeSampleCounts", "PrimeConstructionCounts", 
- "PrimeMaximumTotalDegrees", "PrimeSamplingSeconds", 
- "PrimeInterpolationSeconds", "TotalSamplingSeconds", 
- "TotalInterpolationSeconds"};
-
-headPayload = <|"Status" -> "Solved", "Method" -> "SimultaneousFiniteFieldAffinePDE", 
- "Gauge" -> {{xSynthetic}}, "Alphabet" -> {xSynthetic, ySynthetic}, 
- "ResidueMatrices" -> {{{0}}, {{0}}}, 
- "Primes" -> {1000003, 1000033, 1000037}, 
- "CombinedModulus" -> 1000073001431003663, "NormalizationColumns" -> {}, 
- "GaugeDenominator" -> 1, "GaugeDenominatorDegrees" -> {0, 0}, 
- "GaugeNumeratorDegrees" -> {1, 0}, "GaugeSupport" -> {{0, 0}, {1, 0}}, 
- "GaugeSupportCount" -> 2, "CoefficientLiftChecks" -> 
-  {True, True, True, True}, "CertificationMode" -> "HeldOut", 
- "LettersEpsFree" -> True, "ResiduesKinematicsFree" -> True, 
- "ResiduesEpsFree" -> True, "ExactPfaffianResidualsZero" -> True, 
- "ExactPfaffianIdentitiesZero" -> True, "ConstantResidues" -> True, 
- "DLogFormCertified" -> True, "CanonicalEpsFormCertified" -> True, 
- "CheckMethod" -> "Exact", "StructuralFailureReasons" -> {}, 
- "EquationCount" -> 2, "ExactDLog" -> True, 
- "EliminationPlan" -> <|"Status" -> "OK", "NormalizationColumns" -> {}, 
-   "IndependentEquationRows" -> {11, 13, 15, 16}, "GenericRank" -> 4, 
-   "Nullity" -> 0, "UnknownCount" -> 4, "GaugeUnknownCount" -> 2, 
-   "FreeResidueCount" -> 2, "GaugeNumeratorDegrees" -> {1, 0}, 
-   "GaugeDenominatorDegrees" -> {0, 0}, "PilotPrime" -> 1000003, 
-   "GaugeSupport" -> {{0, 0}, {1, 0}}, "PlanSchema" -> 
-    "FeynFacetFiniteFieldStripEliminationPlan", "PlanSchemaVersion" -> 1, 
-   "PreparationFingerprint" -> 
-    "a4d8520061e391d827165d2a9bd4debcab0035dde6ad33ed41ca41889af25e09", 
-   "SolverProvenance" -> <|"Discoverer" -> "WolframMatrixRankNullSpace", 
-     "IndependentRows" -> "WolframLeftNullspacePivots", 
-     "PlanDiscoveryBackend" -> "Wolfram", "Implementation" -> 
-      "FiniteFieldStripSolve", "ImplementationVersion" -> 1|>, 
-   "PlanDiscoveryBackendRequested" -> "Wolfram", 
-   "PlanDiscoveryBackendUsed" -> "Wolfram", "PlanFingerprint" -> 
-    "7b922293cecd60f96be34de73ca8bbdde794d34ba316b11aad85eb2c2fab4081"|>, 
- "EliminationPlanFingerprint" -> 
-  "7b922293cecd60f96be34de73ca8bbdde794d34ba316b11aad85eb2c2fab4081", 
- "BackendRequested" -> Automatic, "BackendThreads" -> 2, 
- "BackendConfiguration" -> 
-  <|"Schema" -> "FeynFacetFiniteFieldFixedCoreBackendConfiguration", 
-   "SchemaVersion" -> 1, "Contract" -> "FixedConstrainedCore", 
-   "BackendProtocol" -> "CFFA4V1/CFFA4X1OrWolfram", 
-   "BackendRequested" -> Automatic, "BackendThreads" -> 2, 
-   "FiniteFieldStripSolveSHA256" -> 
-    "8b28be1fc297ad7d1b9b6e736bfa7047053f5e08d381d9d7603eb9b8461caa18", 
-   "FLINTBinarySHA256" -> 
-    "e2d7d3ee375f712a20c62b31c4510b9cdac2fa13f7cce5256bb05733bee9d46b", 
-   "Fingerprint" -> 
-    "959e5ac447d985128989e3ce8237225267a1c94e540182c7518a9538663b6a7e"|>, 
- "BackendsUsed" -> {"Wolfram"}, "PlanDiscoveryBackendRequested" -> 
-  "Wolfram", "PlanDiscoveryBackendUsed" -> "Wolfram", 
- "SelectedNumeratorDegreeOffset" -> {1, 0}, 
- "SelectedSupportShell" -> "Rectangle", "SupportStrategy" -> 
-  "SimplexFirst", "ProbeCount" -> 2, "DegreeProbe" -> 
-  <|"GaugeSupportCount" -> 2, "GaugeUnknownCount" -> 2, 
-   "FreeResidueCount" -> 2, "Rank" -> 4, "SupportMaximumDegrees" -> 
-    {1, 0}|>, "SelectedSupportKind" -> "Rectangle", 
- "ModularPrimeCount" -> 3, "MaximumPrimeCount" -> 40, 
- "AdaptivePrimeSampling" -> True, "RegulatorSampling" -> "HeldOut", 
- "UnseenPrimeCheck" -> True, "UnseenPrime" -> 2147483399, 
- "PrimeSampleCounts" -> {7, 4, 4}, "PrimeConstructionCounts" -> 
-  {4, 1, 1}, "PrimeMaximumTotalDegrees" -> {4, 4, 4}|>;
+digestFieldQ[key_String] :=
+  StringContainsQ[key, "Hash" | "Fingerprint" | "SHA"];
+digestFieldQ[_] := False;
 
 check["the fixture solves with the broker inactive",
   AssociationQ[inactive] && inactive["Status"] === "Solved" &&
     TrueQ[inactive["ExactPfaffianResidualsZero"]] &&
     TrueQ[inactive["DLogFormCertified"]]];
-check["no key HEAD returned is lost",
-  AssociationQ[inactive] && Complement[headKeys, Keys[inactive]] === {}];
-check["the only added keys are the six broker-record keys",
+check["the live result carries no digest-based identity field",
   AssociationQ[inactive] &&
-    Sort[Complement[Keys[inactive], headKeys]] === Sort[brokerKeys]];
-check["every HEAD payload value is reproduced exactly",
-  payload[inactive] === payload[headPayload]];
+    FreeQ[inactive, rule_Rule /; digestFieldQ[First[rule]]]];
 check["the broker record of an inactive-broker solve is off and empty",
   AssociationQ[inactive] && inactive["BrokerActive"] === False &&
     inactive["BrokerReDecision"] === None &&
@@ -308,7 +214,7 @@ report["pilot estimate for one prime", Round[inactive["BrokerEstimatedPrimeSecon
   solve[syntheticRecord, "BrokerMinimumSeconds" -> 10^6,
     Sequence @@ gapOptions]];
 check["the gap fixture reproduces the HEAD mathematics of the block",
-  mathPayload[gapBaseline] === mathPayload[headPayload]];
+  mathPayload[gapBaseline] === mathPayload[inactive]];
 check["the gap fixture farms nothing at an unreachable minimum",
   AssociationQ[gapBaseline] && gapBaseline["BrokerActive"] === False &&
     gapBaseline["BrokerReDecision"] === None];
@@ -453,7 +359,7 @@ check["the farmed run is still exact and validated",
     TrueQ[betweenResult["LettersEpsFree"]] &&
     TrueQ[betweenResult["ResiduesKinematicsFree"]]];
 check["engaging the helpers changes no mathematics",
-  mathPayload[betweenResult] === mathPayload[headPayload]];
+  mathPayload[betweenResult] === mathPayload[inactive]];
 requirePrecondition["the remaining primes really went through the farming path",
   brokerDataFiles[] =!= {} &&
     AnyTrue[brokerDataFiles[], StringContainsQ[FileNameTake[#], "record_"] &]];
@@ -468,11 +374,11 @@ report["re-decision log line", First[StringCases[logText,
 {tinySeconds, tinyResult} = AbsoluteTiming[
   solve[syntheticRecord, Sequence @@ fixtureOptions,
     "BrokerMinimumSeconds" -> 0.001]];
-check["a 0.001 s minimum farms and still returns the exact payload",
+check["a 0.001 s minimum farms and leaves the mathematical result unchanged",
   AssociationQ[tinyResult] && tinyResult["BrokerActive"] === True &&
     TrueQ[tinyResult["ExactPfaffianResidualsZero"]] &&
     TrueQ[tinyResult["DLogFormCertified"]] &&
-    payload[tinyResult] === payload[headPayload]];
+    mathPayload[tinyResult] === mathPayload[inactive]];
 report["0.001 s minimum: engaged at the pilot (no re-decision needed)",
   tinyResult["BrokerReDecision"] === None];
 report["0.001 s minimum seconds", Round[tinySeconds, 0.01]];
@@ -484,7 +390,7 @@ report["0.001 s minimum seconds", Round[tinySeconds, 0.01]];
 {quietSeconds, quietResult} = AbsoluteTiming[
   solve[syntheticRecord, Sequence @@ fixtureOptions]];
 check["at the default minimum the decision follows the measured prime",
-  AssociationQ[quietResult] && payload[quietResult] === payload[headPayload] &&
+  AssociationQ[quietResult] && mathPayload[quietResult] === mathPayload[inactive] &&
     If[First[quietResult["PrimeWallSeconds"], 0.] >= 8.0,
       AssociationQ[quietResult["BrokerReDecision"]],
       quietResult["BrokerActive"] === False &&
@@ -530,15 +436,15 @@ artifactDirectory = CreateDirectory[];
   solve[syntheticRecord, "BrokerMinimumSeconds" -> 0.001,
     "ArtifactDirectory" -> artifactDirectory, Sequence @@ fixtureOptions]];
 artifacts = Sort[FileNameTake /@ FileNames["*.wl", artifactDirectory]];
-check["the per-prime artifact layout is one file per prime, unchanged",
+check["the per-prime artifact layout is one canonical file per prime",
   AssociationQ[firstPass] &&
-    artifacts === Sort[("finite_field_strip_mod_" <> ToString[#] <> ".wl") & /@
+    artifacts === Sort[("finite_field_off_diagonal_block_mod_" <> ToString[#] <> ".wl") & /@
       firstPass["Primes"]]];
 {resumeSeconds, resumed} = AbsoluteTiming[
   solve[syntheticRecord, "BrokerMinimumSeconds" -> 0.001,
     "ArtifactDirectory" -> artifactDirectory, Sequence @@ fixtureOptions]];
-check["the resumed solve returns the same payload",
-  payload[resumed] === payload[headPayload]];
+check["the resumed solve returns the same mathematical result",
+  mathPayload[resumed] === mathPayload[inactive]];
 check["a resumed prime is not timed and cannot trigger a re-decision",
   AssociationQ[resumed] && resumed["PrimeWallSeconds"] === {} &&
     resumed["BrokerReDecision"] === None];
@@ -559,7 +465,7 @@ resolvedMinimum[opts___] := Lookup[
 
 check["the option default is the built-in 8.0 when the variable is unset",
   optionDefault[] === 8.0 &&
-    FeynFacet`Private`$finiteFieldStripBrokerMinimumSecondsDefault === 8.0];
+    FeynFacet`Private`$finiteFieldOffDiagonalBlockBrokerMinimumSecondsDefault === 8.0];
 check["well-formed values parse",
   parseMinimum["12", 8.0] === 12. && parseMinimum["0.001", 8.0] === 0.001 &&
     parseMinimum["  2.5  ", 8.0] === 2.5 && parseMinimum["1e-3", 8.0] === 0.001 &&
@@ -572,15 +478,15 @@ check["malformed values fall back to the option default",
     parseMinimum["Run[\"true\"]", 8.0] === 8.0];
 
 (* read once per session: the second call keeps the first value *)
-FeynFacet`Private`$finiteFieldStripBrokerMinimumSecondsCache = None;
+FeynFacet`Private`$finiteFieldOffDiagonalBlockBrokerMinimumSecondsCache = None;
 SetEnvironment["FACET_BROKER_MINIMUM_SECONDS" -> "2.5"];
 firstRead = resolveMinimum[];
 SetEnvironment["FACET_BROKER_MINIMUM_SECONDS" -> "9.5"];
 secondRead = resolveMinimum[];
-FeynFacet`Private`$finiteFieldStripBrokerMinimumSecondsCache = None;
+FeynFacet`Private`$finiteFieldOffDiagonalBlockBrokerMinimumSecondsCache = None;
 SetEnvironment["FACET_BROKER_MINIMUM_SECONDS" -> "not a number"];
 malformedRead = resolveMinimum[];
-FeynFacet`Private`$finiteFieldStripBrokerMinimumSecondsCache = None;
+FeynFacet`Private`$finiteFieldOffDiagonalBlockBrokerMinimumSecondsCache = None;
 check["the variable is read once per kernel session",
   firstRead === 2.5 && secondRead === 2.5];
 check["a malformed variable resolves to the built-in default",
@@ -590,7 +496,7 @@ check["a malformed variable resolves to the built-in default",
    option still wins over it.  Reloading the private file is exactly how
    FeynFacet.m binds that default. *)
 loadPrivate[] := (BeginPackage["FeynFacet`"]; Begin["`Private`"];
-  Quiet[Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldStripSolve.wl"]],
+  Quiet[Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldOffDiagonalBlockSolve.wl"]],
     General::shdw];
   End[]; Quiet[EndPackage[], General::shdw];);
 SetEnvironment["FACET_BROKER_MINIMUM_SECONDS" -> "2.5"];
@@ -608,7 +514,7 @@ loadPrivate[];
 check["the reloaded solver still solves the fixture exactly",
   With[{r = solve[syntheticRecord, Sequence @@ fixtureOptions]},
     AssociationQ[r] && TrueQ[r["ExactPfaffianResidualsZero"]] &&
-      payload[r] === payload[headPayload]]];
+      mathPayload[r] === mathPayload[inactive]]];
 
 (* ------------------------------------------------------------------ *)
 

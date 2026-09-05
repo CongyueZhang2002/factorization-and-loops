@@ -9,9 +9,9 @@
    Items (default: all):
      load          package load (this kernel's own load is measured by
                    AbsoluteTiming around LoadFACET)
-     ot_CF27       observable transport of CF27 (rational, 8 masters)
-     ot_CF230      observable transport of CF230 (Kallen1 chart, 13 masters)
-     ot_CF385      observable transport of CF385 (modular acceptance family)
+     ot_CF27       requested-output coefficient operator for CF27 (rational, 8 masters)
+     ot_CF230      requested-output coefficient operator for CF230 (Kallen1 chart, 13 masters)
+     ot_CF385      requested-output coefficient operator for CF385
      ff_strip      finite-field affine strip solve on the frozen (9,6)
                    fixture of BenchmarkStripBackends/frozen_M0 (if present)
      dbe_synthetic diagonal-block eps-form on the 2x2 synthetic block of
@@ -43,7 +43,7 @@ loadSeconds = First[AbsoluteTiming[
 If[MemberQ[items, "load"], row["load", "OK", loadSeconds,
   "commit=" <> StringTrim[Quiet[Check[Import["!cd " <> root <> " && git rev-parse --short HEAD", "Text"], "?"]]]]];
 
-observableTransportItem[family_String] := Module[
+coefficientOperatorItem[family_String] := Module[
   {epsFile, deFile, valFile, eps, de, val, demand, result, seconds},
   epsFile = FileNameJoin[{root, results, "FamilyEpsFormsCertified", "family_epsform_" <> family <> ".wl"}];
   deFile = FileNameJoin[{root, results, "DifferentialEquations", "nnlo_de_" <> family <> ".wl"}];
@@ -53,19 +53,25 @@ observableTransportItem[family_String] := Module[
   eps = FeynFacet`FamilyArtifactRead[epsFile];
   de = FeynFacet`FamilyArtifactRead[deFile];
   val = Get[valFile];
-  demand = FeynFacet`BuildObservableTransportDemand[eps, de, val];
-  If[Lookup[demand, "Status", None] =!= "ExactObservableDemand",
+  demand = FeynFacet`Private`mapMasterIntegralCoefficientValuationsToRequestedRows[
+    eps, de, val];
+  If[Lookup[demand, "Status", None] =!=
+      "MasterIntegralCoefficientValuationsMappedToRequestedRows",
     Return[row["ot_" <> family, Lookup[demand, "Status", "DemandFailed"], 0]]];
-  {seconds, result} = AbsoluteTiming[FeynFacet`BuildObservableTransport[eps, demand]];
+  {seconds, result} = AbsoluteTiming[
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      eps, demand]];
   row["ot_" <> family, Lookup[result, "Status", "?"], seconds,
-    "pairs=" <> ToString[Length[Lookup[result, "PhysicalDemandPairs", {}]]] <>
-    " weight=" <> ToString[Lookup[result, "MaximumWeight", "?"]] <>
+    "pairs=" <> ToString[Length[Lookup[result,
+      "RequestedMasterIntegralEpsilonOrderAndRowPairs", {}]]] <>
+    " weight=" <> ToString[Lookup[result,
+      "MaximumIteratedIntegralWeight", "?"]] <>
     " boundary=" <> ToString[Lookup[result, "BoundaryCoordinates", "?"]]];
   ClearAll[eps, de, val, demand, result]];
 
 Do[Which[
   item === "load", Null,
-  StringStartsQ[item, "ot_"], observableTransportItem[StringDrop[item, 3]],
+  StringStartsQ[item, "ot_"], coefficientOperatorItem[StringDrop[item, 3]],
   item === "dbe_synthetic", Module[{x, y, ep, Rx, Ry, Rxy, Bx, By, T0, T0i, Ax, Ay, tog, seconds, result},
     (* the synthetic irreducible 2x2 block of Tests/EpsilonForm/t_diagonal_block_epsform.wls:
        a flat KZ-type dlog form hidden behind a rational gauge with an eps-dependent apparent locus *)

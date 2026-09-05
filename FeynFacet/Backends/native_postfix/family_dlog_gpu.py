@@ -417,7 +417,7 @@ def write_dlog_record(path: Path, sidecar: Path,
     body = (
         '<|"Schema" -> "FamilyDLogResiduesV1", '
         '"Status" -> "ComputedDLogResidues", "Valid" -> True, '
-        '"Purpose" -> "ObservableTransportInput", '
+        '"Purpose" -> "RequestedOutputIteratedIntegralCoefficientOperatorInput", '
         f'"Variables" -> {variables}, "Regulator" -> {regulator}, '
         f'"Dimension" -> {dimension}, "CoefficientField" -> "Multiquadratic", '
         f'"Letters" -> {letters}, "Residues" -> '

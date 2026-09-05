@@ -6,8 +6,9 @@
                  string literals handled), no source file under FeynFacet/
                  contains a canonical-family literal ("CF" followed by a
                  digit), an absolute /home/ path, or a project-tree name.
-                 Comments may cite families and measurements: that is
-                 provenance, and the plan keeps it.
+                 Raw loaded Private source, including comments, log text,
+                 and status text, contains no concrete family or campaign
+                 identifiers; measured scale descriptions remain generic.
      RUNTIME  -- the per-family root-data registry ships EMPTY; an
                  unregistered family is Missing, never None; a synthetic
                  family registers and resolves in both supported V2 forms
@@ -108,6 +109,37 @@ FTAssert["no absolute /home/ path outside comments",
   ! MemberQ[violations, r_ /; r["Kind"] === "AbsoluteHomePath"]];
 FTAssert["no project-tree name outside comments",
   ! MemberQ[violations, r_ /; r["Kind"] === "ProjectTreeName"]];
+
+(* Loaded implementation prose must remain reusable across projects.  This
+   scan is deliberately raw: family labels in comments and messages are the
+   regression this assertion protects against. *)
+privateSourceFiles = Sort[DeleteDuplicates[Join[
+  FileNames["*.m", FileNameJoin[{root, "FeynFacet", "Private"}], Infinity],
+  FileNames["*.wl", FileNameJoin[{root, "FeynFacet", "Private"}], Infinity]]]];
+privateProvenanceForbidden = <|
+  "ConcreteCanonicalFamily" -> RegularExpression["(?i)\\bCF[0-9]+\\b"],
+  "NamedCampaignFamily" -> RegularExpression["(?i)(ppHX|UU[_-]?08([_-][A-Za-z0-9]+)*|NNLO_DoubleReal)"],
+  "ConcreteResultsPath" -> RegularExpression["(?i)Results[\\\\/]"],
+  "ConcreteReviewPath" -> RegularExpression["(?i)Exchange[\\\\/](Codex|Fable)"],
+  "ConcreteRepositoryPath" -> RegularExpression["(?i)(/home/maxzhang|factorization-and-loops)"]
+|>;
+
+privateProvenanceViolations = Flatten[Table[
+  With[{lines = StringSplit[Import[file, "Text"], "\n", All]},
+    Flatten[Table[
+      If[StringContainsQ[lines[[line]], privateProvenanceForbidden[kind]],
+        <|"File" -> FileNameTake[file], "Line" -> line, "Kind" -> kind,
+          "Text" -> StringTrim[lines[[line]]]|>,
+        Nothing],
+      {kind, Keys[privateProvenanceForbidden]}, {line, Length[lines]}], 1]],
+  {file, privateSourceFiles}], 1];
+
+If[privateProvenanceViolations =!= {},
+  Print["private-source provenance violations:"];
+  Scan[Print["  ", #["File"], ":", #["Line"], " [", #["Kind"], "] ",
+    StringTake[#["Text"], UpTo[100]]] &, privateProvenanceViolations]];
+FTAssert["Private comments, messages, and statuses contain no concrete family or campaign identifiers",
+  privateProvenanceViolations === {}];
 
 (* ------------------------------------------------------------------ *)
 (*  RUNTIME: the per-family root-data registry                          *)
@@ -257,17 +289,9 @@ FTAssert["the installation roots are package properties, not literals",
   StringQ[FeynFacet`Private`$feynFacetAddonRoot] &&
     DirectoryQ[FeynFacet`Private`$feynFacetAddonRoot] &&
     StringQ[FeynFacet`Private`$feynFacetLoader] &&
-    FeynFacet`Private`masterTransportResolveInstallationRoot[Automatic] ===
-      FeynFacet`Private`$feynFacetAddonRoot &&
-    FeynFacet`Private`masterTransportResolveInstallationRoot[
-      FileNameJoin[{$TemporaryDirectory, "feynfacet-no-such-root"}]] ===
-      $Failed];
-(* the blockwise engine is retired (2026-09-02, round 2); the generality
-   statement that survives is that the retired public route answers typed
-   and no live definition of the engine remains *)
-FTAssert["the blockwise transport engine is retired and answers typed",
-  Lookup[FeynFacet`TransportFamily[<||>, "Engine" -> "Blockwise"], "Status", None] ===
-      "RouteRetired" &&
+    FileExistsQ[FeynFacet`Private`$feynFacetLoader]];
+FTAssert["the removed path-ordered compatibility route is not public",
+  System`Names["FeynFacet`TransportFamily"] === {} &&
     DownValues[FeynFacet`Private`masterTransportBlockwiseSolve] === {}];
 
 (* A2: an empty differential directory is named, never a complete inventory *)
@@ -275,20 +299,20 @@ emptyDirectory = CreateDirectory[FileNameJoin[{$TemporaryDirectory,
   "feynfacet-generality-" <> CreateUUID[]}]];
 valuations = FileNameJoin[{emptyDirectory, "valuations.wl"}];
 Put[<||>, valuations];
-manifestReport = FeynFacet`BuildObservableTransportManifest[
-  {emptyDirectory}, emptyDirectory, valuations,
-  FileNameJoin[{emptyDirectory, "manifest.tsv"}],
-  "ReportFile" -> None];
+inputFileSearch =
+  FeynFacet`FindRequestedOutputIteratedIntegralCoefficientInputFiles[
+    {emptyDirectory}, emptyDirectory];
 FTAssert["zero differential families is a named refusal, not an inventory",
-  Lookup[manifestReport, "Status", None] ===
+  Lookup[inputFileSearch, "Status", None] ===
       "NoDifferentialFamiliesFound" &&
-    Lookup[manifestReport, "DifferentialFamilyCount", -1] === 0 &&
+    Lookup[inputFileSearch, "DifferentialFamilyCount", -1] === 0 &&
     ! FileExistsQ[FileNameJoin[{emptyDirectory, "manifest.tsv"}]]];
-FTAssert["the manifest builder takes its file patterns from the caller",
+FTAssert["the input-file finder takes its file patterns from the caller",
   Sort[Keys[Association[
-    Options[FeynFacet`BuildObservableTransportManifest]]]] ===
-    Sort[{"Card", "ReportFile", "DifferentialFilePattern",
-      "EpsFormFilePattern", "FamilyFromFileName", "FamilySortKey"}]];
+    Options[
+      FeynFacet`FindRequestedOutputIteratedIntegralCoefficientInputFiles]]]] ===
+    Sort[{"DifferentialFilePattern", "EpsFormFilePattern",
+      "FamilyFromFileName"}]];
 Quiet[DeleteDirectory[emptyDirectory, DeleteContents -> True]];
 
 (* C4: the chart-extension output variables.  RationalizeRoots is an

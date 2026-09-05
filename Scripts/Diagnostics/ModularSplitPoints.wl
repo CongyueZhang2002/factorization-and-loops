@@ -2,8 +2,8 @@
    and predicate of the 2026-09-02 finite-field consolidation, moved out
    of FeynFacet/Private/Core/Modular/ModularArithmetic.wl in round 4 (2026-09-02)
    because they have NO production caller and no identical production
-   body: MultiquadraticStripSolve.wl evaluates a radicand at a point as an
-   exact rational (multiquadraticStripModRational: Together, then ONE
+   body: MultiquadraticOffDiagonalBlockSolve.wl evaluates a radicand at a point as an
+   exact rational (multiquadraticOffDiagonalBlockModRational: Together, then ONE
    reduction) and needs the reduced radicands themselves for the roots,
    whereas modularEvaluateAt below reduces literal by literal and refuses
    a coefficient denominator divisible by p even when it cancels; and the

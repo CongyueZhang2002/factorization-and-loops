@@ -1,8 +1,8 @@
 #!/usr/bin/env wolframscript
-(* Cross-stage promotion of the installable multiquadratic strip ABI.
+(* Cross-stage promotion of an installable multiquadratic off-diagonal block.
 
-   A planted scalar off-diagonal strip uses a rank-three frame, an
-   eight-grade gauge and three algebraic dlog letters.  The reconstructed
+   A planted scalar off-diagonal block uses three square-root generators, an
+   eight-grade basis-transformation block and three algebraic dlog letters.  The reconstructed
    rational-in-epsilon residues are deliberately proportional to 1 + eps:
    installation therefore produces a valid cumulative family connection
    which is not yet epsilon factored.  The family regulator factor removes
@@ -23,9 +23,10 @@ zeroQ[value_] := Quiet[Check[TrueQ[Numerator[Together[value]] === 0],
   False]];
 zeroMatrixQ[value_] := ListQ[value] && AllTrue[Flatten[value], zeroQ];
 
-solve = mq["solveEpsFormStripMultiquadratic"];
-rowForm = mq["familyRowGaugeDLogForm"];
-rowApply = mq["familyRowGaugeApply"];
+solve = mq[
+  "solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"];
+rowForm = mq["familyRowBasisTransformationDLogForm"];
+rowApply = mq["familyRowBasisTransformationApply"];
 decompose = mq["multiquadraticFieldDecompose"];
 currentRoots = mq["coefficientPresentationSquareRootsInVariables"];
 
@@ -45,42 +46,50 @@ check["C0 the planted presentation has three square-root generators",
 maskFactor[mask_Integer] := Product[
   If[BitGet[mask, index - 1] === 1, declaredRoots[[index]], 1],
   {index, Length[declaredRoots]}];
-gaugeDenominator = 2 + x + y;
-knownGauge = {{Together[Sum[(mask + 1) maskFactor[mask], {mask, 0, 7}]/
-  gaugeDenominator]}};
+offDiagonalBasisTransformationDenominator = 2 + x + y;
+knownBasisTransformationBlock = {{Together[
+  Sum[(mask + 1) maskFactor[mask], {mask, 0, 7}]/
+    offDiagonalBasisTransformationDenominator]}};
 letters = ((1 + #)/(1 - #) &) /@ declaredRoots;
 dlogs = ({Together[D[#, x]/#], Together[D[#, y]/#]} &) /@ letters;
 
 (* Every active residue has the same removable regulator factor.  With
-   zero diagonal blocks, Bbar = dG + installed form is exactly the strip
-   equation used by familyRowGaugeApply. *)
+   zero diagonal blocks, the inhomogeneity dH plus the installed form is
+   exactly the off-diagonal block equation used by
+   familyRowBasisTransformationApply. *)
 installedTarget = Table[
   Together[eps (1 + eps) Total[dlogs[[All, direction]]]],
   {direction, 2}];
 zeroDiagonal = {{{0}}, {{0}}};
-bbar = Table[{{Together[
-    D[knownGauge[[1, 1]], variables[[direction]]] +
+inhomogeneity = Table[{{Together[
+    D[knownBasisTransformationBlock[[1, 1]], variables[[direction]]] +
       installedTarget[[direction]]]}}, {direction, 2}];
-stripRecord = <|"Family" -> "PlantedInstalledRank3Chain",
+offDiagonalBlockRecord = <|"Family" -> "PlantedInstalledRank3Chain",
   "Sector" -> 2, "LowerSector" -> 1, "Variables" -> variables,
-  "Regulator" -> eps, "Strip" -> {zeroDiagonal, zeroDiagonal, bbar}|>;
+  "Regulator" -> eps,
+  "OffDiagonalBlockEquation" ->
+    {zeroDiagonal, zeroDiagonal, inhomogeneity}|>;
 
-solved = solve[stripRecord, frame,
+solved = solve[offDiagonalBlockRecord, frame,
   "CoefficientProvider" -> "SplitBranch",
   "PlanDiscoveryBackend" -> "Wolfram",
   "RowAlphabet" -> {}, "AdditionalLetters" -> {},
   "AlgebraicLetters" -> letters,
-  (* GaugeDenominator is the BASE denominator: with the default
-     GaugeDenominatorFactor -> Automatic the preparation multiplies it by
+  (* OffDiagonalBasisTransformationDenominator is the base denominator. With
+     the default OffDiagonalBasisTransformationDenominatorFactor -> Automatic,
+     the preparation multiplies it by
      the norms of the algebraic letters, and the constant support cannot
-     represent the planted gauge over that enlarged denominator (the
+     represent the planted basis-transformation block over that enlarged denominator (the
      32x20 ansatz is then inconsistent at every prime, reported as
      NoUsableStructuralPilot).  The factor is pinned to 1 here. *)
-  "GaugeDenominator" -> gaugeDenominator, "GaugeDenominatorFactor" -> 1,
+  "OffDiagonalBasisTransformationDenominator" ->
+    offDiagonalBasisTransformationDenominator,
+  "OffDiagonalBasisTransformationDenominatorFactor" -> 1,
   "Support" -> {{0, 0}},
   "RegulatorSampleCount" -> 3, "DLogKernels" -> 1,
   "IntegrabilityScreen" -> False, "ScreenFirst" -> False,
-  "GaugeScreen" -> False, "RegulatorReconstruction" -> True,
+  "OffDiagonalBasisTransformationBlockScreen" -> False,
+  "RegulatorReconstruction" -> True,
   "RegulatorReconstructionCount" -> 4,
   "RegulatorReconstructionCheck" -> "ProviderPoints",
   "ReconstructionUnseenPrimeCount" -> 2,
@@ -90,10 +99,11 @@ solved = solve[stripRecord, frame,
 If[Lookup[solved, "Status", None] =!= "Solved",
   Print["SOLVER DIAGNOSTIC: ", Short[solved, 12]]];
 
-check["C1 the prepared gauge denominator is the planted base denominator",
-  TrueQ[Together[Lookup[solved, "GaugeDenominator", $Failed] -
-      gaugeDenominator] === 0]];
-check["C1 the rank-three provider reconstruction is authenticated Solved",
+check["C1 the prepared basis-transformation denominator is the planted base denominator",
+  TrueQ[Together[Lookup[solved,
+        "OffDiagonalBasisTransformationDenominator", $Failed] -
+      offDiagonalBasisTransformationDenominator] === 0]];
+check["C1 the rank-three provider reconstruction is accepted",
   Lookup[solved, "Status", None] === "Solved" &&
     Lookup[solved, "SolutionContract", None] ===
       "InstallableMultiquadraticDLogV1" &&
@@ -109,12 +119,16 @@ check["C1 fresh installation evidence uses two unseen primes and six images",
     Lookup[Lookup[solved, "InstallationEvidence", <||>],
       "ValidationImageCount", 0] >= 6];
 
-recoveredGauge = Lookup[solved, "Gauge", $Failed];
-gaugeChannels = If[MatrixQ[recoveredGauge] && Dimensions[recoveredGauge] ===
-    {1, 1}, decompose[recoveredGauge[[1, 1]], roots], $Failed];
-check["C1 the installed gauge occupies every one of the eight grades",
-  ListQ[gaugeChannels] && Length[gaugeChannels] === 8 &&
-    AllTrue[gaugeChannels, ! zeroQ[#] &]];
+recoveredBasisTransformationBlock = Lookup[solved,
+  "OffDiagonalBasisTransformationBlock", $Failed];
+basisTransformationChannels = If[
+  MatrixQ[recoveredBasisTransformationBlock] &&
+    Dimensions[recoveredBasisTransformationBlock] === {1, 1},
+  decompose[recoveredBasisTransformationBlock[[1, 1]], roots], $Failed];
+check["C1 the installed basis-transformation block occupies every one of the eight grades",
+  ListQ[basisTransformationChannels] &&
+    Length[basisTransformationChannels] === 8 &&
+    AllTrue[basisTransformationChannels, ! zeroQ[#] &]];
 
 installedForm = If[Lookup[solved, "Status", None] === "Solved",
   rowForm[solved, variables, eps, {1, 1}], $Failed];
@@ -134,15 +148,16 @@ check["C2 the installed mathematical row genuinely uses all three roots",
             AnyTrue[installedChannels, Function[directionChannels,
               ! zeroQ[directionChannels[[channelIndex]]]]]]]]]];
 
-(* Embed the solved 1 x 1 strip in the lower-left block of a two-master
+(* Embed the solved 1 x 1 off-diagonal block in the lower-left block of a two-master
    family.  The row update simultaneously constructs the cumulative
    connection, transformation and inverse used by the later stages. *)
 rawConnection = Table[
-  {{0, 0}, {bbar[[direction, 1, 1]], 0}}, {direction, 2}];
-rowResult = If[MatrixQ[recoveredGauge] && ListQ[installedForm],
+  {{0, 0}, {inhomogeneity[[direction, 1, 1]], 0}}, {direction, 2}];
+rowResult = If[MatrixQ[recoveredBasisTransformationBlock] &&
+    ListQ[installedForm],
   rowApply[rawConnection, IdentityMatrix[2], IdentityMatrix[2], {2},
-    recoveredGauge, variables, installedForm],
-  <|"Status" -> "UpstreamStripFailure"|>];
+    recoveredBasisTransformationBlock, variables, installedForm],
+  <|"Status" -> "UpstreamOffDiagonalBlockFailure"|>];
 expectedInstalledConnection = Table[
   {{0, 0}, {installedTarget[[direction]], 0}}, {direction, 2}];
 check["C3 installation updates the complete cumulative family connection",
@@ -183,7 +198,7 @@ totalTransformation = If[MatrixQ[factorTransformation] &&
 totalInverse = If[MatrixQ[factorInverse] &&
     Lookup[rowResult, "Status", None] === "OK",
   Map[Together, factorInverse . rowResult["Inverse"], {2}], $Failed];
-check["C5 row installation and regulator factor compose in gauge order",
+check["C5 row installation and regulator factor compose in basis-transformation order",
   MatrixQ[totalTransformation] && MatrixQ[totalInverse] &&
     zeroMatrixQ[totalTransformation . totalInverse - IdentityMatrix[2]] &&
     zeroMatrixQ[totalInverse . totalTransformation - IdentityMatrix[2]]];
@@ -220,9 +235,10 @@ validation = Lookup[certified, "Validation", <||>];
 modular = Lookup[validation, "SamplingEvidence", <||>];
 
 check["C6 the installed and factored family is high-confidence certified",
-  Lookup[certified, "Status", None] ===
-      "FamilyDLogEpsilonFormValidated" &&
-    FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified] &&
+  Lookup[certified, "DataType", None] ===
+      "FamilyDLogEpsilonFormValidationResult" &&
+    Lookup[certified, "Status", None] ===
+      "FamilyDLogEpsilonFormValidationPassed" &&
     TrueQ[Lookup[validation, "Probabilistic", False]] &&
     ! TrueQ[Lookup[validation, "Exact", True]] &&
     Lookup[validation, "Method", None] ===
@@ -245,7 +261,7 @@ check["C6 the rational lift is replayed at disjoint fresh primes",
           Lookup[#, "SheetCount", 0] === 8 &] &]];
 
 (* Change one active dlog residue while retaining the alphabet and the
-   authenticated cumulative transformation.  The altered target is still
+   validated cumulative transformation.  The altered target is still
    a perfectly good dlog form, so rejection must come from the mathematical
    connection-transformation equation rather than from a
    missing-letter/schema shortcut. *)

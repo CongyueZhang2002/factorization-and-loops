@@ -33,7 +33,7 @@ log[a___] := Print["[s6 +", ToString[Round[AbsoluteTime[] - start]], "s] ",
   StringJoin[ToString /@ {a}]];
 
 log["loading FACET"];
-If[Names["FeynFacet`TransportFamily"] === {},
+If[Names["FeynFacet`FamilyArtifactRead"] === {},
   Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]]];
 log["loading CANONICA"];
 FeynFacet`Private`canonicalBlocksLoadCanonica[];

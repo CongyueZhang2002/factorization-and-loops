@@ -1,6 +1,5 @@
-(* Modular (finite-field) family certificate (2026-08-22; revised the same
-   day after Codex's adversarial review,
-   Exchange/Codex/2026-08-22/02_final_checker_stress_suite).
+(* Modular (finite-field) family certificate (2026-08-22; revised after
+   an adversarial stress review).
 
    Every matrix entry is compiled ONCE (after Together) into integer
    coefficient and exponent arrays; all identities are evaluated at random
@@ -25,11 +24,14 @@
    one exact characteristic-zero evaluation of the matrix identities. *)
 
 ClearAll[
-  familyCertCompile, familyCertCompileMatrix, familyCertPowers, familyCertPolyValue,
+  familyCertCompile, familyCertCompileMatrix,
+  familyCertCompileMatrixTask, familyCertCompileMatrices,
+  familyCertPowers, familyCertPolyValue,
   familyCertValue, familyCertDerivativeValue, familyCertMatrixValue, familyCertMatrixDerivativeValue,
   familyCertPresentationSubstitution,
   familyCertPresentationDifferentialPullbackMatrix,
-  familyCertDegree, familyCertLetters, familyCertRationalReconstruct,
+  familyCertDegree, familyCertLetters,
+  familyCertNormalizeRationalLetters, familyCertRationalReconstruct,
   familyCertDegMul, familyCertDegDeriv, familyCertDegAdd, familyCertDegCompose, familyCertBounds,
   familyCertCharacteristicZeroPoint, familyCertificateModular
   , familyCertMQFailure, familyCertMQModRational, familyCertMQSquareRoot,
@@ -53,7 +55,14 @@ familyCertPresentationDifferentialPullbackMatrix[
 
 familyCertCompile[expr_, symbols_List] := Module[{rat, num, den, rn, rd, scale, cn, cd},
   If[TrueQ[expr === 0], Return[<|"Zero" -> True, "Degree" -> {0, 0}, "Max" -> {0, 0, 0}, "Height" -> 1, "Terms" -> 0|>]];
-  rat = Together[expr];
+  (* Most production entries have already been stored as one rational
+     function.  Numerator/Denominator can certify that representation
+     directly; re-running Together on every entry dominated a measured
+     final validation (166 s of a 243 s certificate).  Only an uncombined sum
+     or another non-rational syntax reaches the general simplifier. *)
+  num = Numerator[expr]; den = Denominator[expr];
+  rat = If[PolynomialQ[num, symbols] && PolynomialQ[den, symbols],
+    expr, Together[expr]];
   {num, den} = {Numerator[rat], Denominator[rat]};
   If[! (PolynomialQ[num, symbols] && PolynomialQ[den, symbols]), Return[$Failed]];
   rn = CoefficientRules[Expand[num], symbols]; rd = CoefficientRules[Expand[den], symbols];
@@ -67,7 +76,77 @@ familyCertCompile[expr_, symbols_List] := Module[{rat, num, den, rn, rd, scale, 
     "Degree" -> {Max[Total /@ Keys[rn]], Max[Total /@ Keys[rd]]},
     "Height" -> Max[Abs[Join[cn, cd]]], "Terms" -> Max[Length[rn], Length[rd]]|>];
 
-familyCertCompileMatrix[matrix_List, symbols_List] := Map[familyCertCompile[#, symbols] &, matrix, {2}];
+familyCertCompileMatrix[matrix_List, symbols_List] := Module[
+  {dimensions = Dimensions[matrix], entries, uniqueEntries, uniqueIndex,
+   indices, compiled},
+  entries = Flatten[matrix];
+  uniqueEntries = DeleteDuplicates[entries];
+  uniqueIndex = AssociationThread[uniqueEntries,
+    Range[Length[uniqueEntries]]];
+  indices = (Lookup[uniqueIndex, Key[#]] &) /@ entries;
+  compiled = familyCertCompile[#, symbols] & /@ uniqueEntries;
+  ArrayReshape[compiled[[indices]], dimensions]
+];
+
+familyCertCompileMatrixTask[dataFile_String] := Module[
+  {data = taskBrokerRead[dataFile], specifications},
+  If[! AssociationQ[data], Return[$Failed]];
+  specifications = Lookup[data, "Specifications", $Failed];
+  If[! MatchQ[specifications, {{_List, _List} ..}], Return[$Failed]];
+  familyCertCompileMatrix[#[[1]], #[[2]]] & /@ specifications
+];
+
+(* Compile independent matrices concurrently.  This is arithmetic
+   preparation, not another validation layer.  In a KernelPool mission the
+   controller and its allocated helpers share byte-balanced batches; a
+   standalone main kernel uses its already-open subkernels. *)
+familyCertCompileMatrices[specifications : {{_List, _List} ..}] := Module[
+  {count = Length[specifications], compile, helpers, bytes, batchCount,
+   batches, loads, target, localBatchIndex, localBatch, remoteBatches,
+   results, dataFiles, codes, handle, farmed},
+  compile[spec_] := familyCertCompileMatrix[spec[[1]], spec[[2]]];
+  If[$KernelID === 0 && $KernelCount > 1,
+    DistributeDefinitions[familyCertCompile, familyCertCompileMatrix];
+    Return[ParallelMap[
+      familyCertCompileMatrix[#[[1]], #[[2]]] &, specifications,
+      Method -> "FinestGrained", DistributedContexts -> None]]];
+  helpers = If[TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]],
+    Min[taskBrokerFreeKernels[], count - 1], 0];
+  If[helpers < 1, Return[compile /@ specifications]];
+  bytes = ByteCount[First[#]] & /@ specifications;
+  batchCount = helpers + 1;
+  batches = ConstantArray[{}, batchCount];
+  loads = ConstantArray[0, batchCount];
+  Do[
+    target = First[Ordering[loads, 1]];
+    batches[[target]] = Append[batches[[target]], index];
+    loads[[target]] += bytes[[index]],
+    {index, Ordering[bytes, All, Greater]}];
+  localBatchIndex = First[Ordering[loads, -1]];
+  localBatch = batches[[localBatchIndex]];
+  remoteBatches = Delete[batches, localBatchIndex];
+  results = ConstantArray[$Failed, count];
+  dataFiles = Map[Function[batch, taskBrokerDataFile[
+      taskBrokerNewName["family_certificate_compile_data"],
+      <|"Specifications" -> specifications[[batch]]|>]], remoteBatches];
+  codes = StringJoin[
+      "FeynFacet`Private`familyCertCompileMatrixTask[\"", #1, "\"]"] & /@
+    dataFiles;
+  handle = taskBrokerSubmit[codes,
+    "Label" -> "familyCertificateCompile", "Timeout" -> 7200.];
+  results[[localBatch]] = compile /@ specifications[[localBatch]];
+  farmed = taskBrokerCollect[handle];
+  If[ListQ[farmed],
+    Do[If[index <= Length[farmed] && ListQ[farmed[[index]]] &&
+          Length[farmed[[index]]] === Length[remoteBatches[[index]]],
+        results[[remoteBatches[[index]]]] = farmed[[index]]],
+      {index, Length[remoteBatches]}]];
+  Do[If[results[[index]] === $Failed,
+      results[[index]] = compile[specifications[[index]]]],
+    {index, count}];
+  results
+];
+familyCertCompileMatrices[___] := $Failed;
 
 familyCertPowers[point_List, maxima_List, p_Integer] :=
   Table[PowerMod[point[[v]], k, p], {v, Length[point]}, {k, 0, maxima[[v]]}];
@@ -121,6 +200,34 @@ familyCertLetters[epsilonForm_List, variables_List, regulator_Symbol] := Module[
       Select[Flatten[epsilonForm], ! TrueQ[# === 0] &]]];
   factors = Select[factors, ! FreeQ[#, Alternatives @@ variables] &];
   DeleteDuplicates[factors, PossibleZeroQ[#1 - #2] || PossibleZeroQ[#1 + #2] &]];
+
+(* A caller-supplied alphabet may contain the same irreducible divisor with
+   opposite normalization, or a product of already-listed divisors.  Such a
+   list spans the right dlog space but its sampling matrix cannot have full
+   column rank.  Reduce it to the irreducible rational divisors before the
+   residue fit; this is the same mathematical alphabet used by
+   familyCertLetters, without rescanning every transformed matrix entry. *)
+familyCertNormalizeRationalLetters[candidates_List, variables_List,
+    regulator_Symbol] := Module[{one, factors},
+  one[letter_] := Module[{rat, numerator, denominator, lists},
+    rat = Quiet[Check[Together[letter], $Failed]];
+    If[rat === $Failed, Return[{$Failed}]];
+    {numerator, denominator} = {Numerator[rat], Denominator[rat]};
+    If[! (PolynomialQ[numerator, Append[variables, regulator]] &&
+        PolynomialQ[denominator, Append[variables, regulator]]),
+      Return[{$Failed}]];
+    lists = Quiet[Check[
+      Join[Rest[FactorList[numerator]], Rest[FactorList[denominator]]],
+      $Failed]];
+    If[lists === $Failed, Return[{$Failed}]];
+    First /@ Select[lists, Last[#] =!= 0 &]
+  ];
+  factors = Select[Flatten[one /@ candidates],
+    # === $Failed || ! FreeQ[#, Alternatives @@ variables] &];
+  DeleteDuplicates[factors,
+    PossibleZeroQ[#1 - #2] || PossibleZeroQ[#1 + #2] &]
+];
+familyCertNormalizeRationalLetters[___] := {$Failed};
 
 (* one implementation (Core/ModularArithmetic.wl, overhaul 2026-09-02):
    Wang reconstruction with the symmetric bound Floor[Sqrt[(m-1)/2]] *)
@@ -210,8 +317,9 @@ familyCertCharacteristicZeroPoint[s_, si_, b1_, b2_, av_, aw_, variables_, regul
 
 Options[familyCertificateModular] = {"Points" -> 12, "Primes" -> 3, "ValidationPoints" -> 4,
   "MaxPrimes" -> 60,   (* residue reconstruction adds primes (6 at a time) until the CRT modulus suffices;
-                          CF231's residues reach 101 digits (2026-08-22), i.e. ~30 primes of 24 bits *)
-  "CharacteristicZeroGuard" -> True, "Seed" -> Automatic, "Verbose" -> False};
+                          measured residues reach 101 digits, i.e. about 30 primes of 24 bits *)
+  "CharacteristicZeroGuard" -> True, "CandidateLetters" -> Automatic,
+  "Seed" -> Automatic, "Verbose" -> False};
 
 (* The certificate is written for a TWO-variable family: it samples
    {variables[[1]], variables[[2]], regulator} as one triple, differentiates
@@ -242,13 +350,18 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
   SeedRandom[seed];
   (* --- compile (Together inside) --- *)
   compileSeconds = First[AbsoluteTiming[
-    cS = familyCertCompileMatrix[s, symbols]; cSi = familyCertCompileMatrix[si, symbols];
-    cB1 = familyCertCompileMatrix[b1, symbols]; cB2 = familyCertCompileMatrix[b2, symbols];
-    cAv = familyCertCompileMatrix[av, srcSymbols]; cAw = familyCertCompileMatrix[aw, srcSymbols];
+    {cS, cSi, cB1, cB2, cAv, cAw} = familyCertCompileMatrices[{
+      {s, symbols}, {si, symbols}, {b1, symbols}, {b2, symbols},
+      {av, srcSymbols}, {aw, srcSymbols}}];
     If[chartQ,
       {f, g} = Last /@ familyCertPresentationSubstitution[chart];
       cF = familyCertCompile[f, symbols]; cG = familyCertCompile[g, symbols]];
-    letters = familyCertLetters[{b1, b2}, variables, regulator];
+    letters = Replace[OptionValue["CandidateLetters"],
+      Automatic :> familyCertLetters[{b1, b2}, variables, regulator]];
+    If[ListQ[letters],
+      letters = familyCertNormalizeRationalLetters[
+        letters, variables, regulator],
+      letters = {$Failed}];
     cL = familyCertCompile[#, symbols] & /@ letters]];
   If[! FreeQ[{cS, cSi, cB1, cB2, cAv, cAw, cL, If[chartQ, {cF, cG}, {}]}, $Failed],
     Return[<|"Status" -> "NotRational"|>]];
@@ -281,7 +394,10 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
             "Flatness" -> True,
             "EpsFactored" -> True, "SourceFlatness" -> True|>,
           trainRows = {}, trainRhs = {}, valRows = {}, valRhs = {}, K = None, rank = 0, phase = "train",
-          lval, lvx, lvy, pts = {}, trained = 0, validated = 0, dlogOK, rankOK},
+          lval, lvx, lvy, pts = {}, trained = 0, validated = 0,
+          dlogOK, rankOK, currentRank = 0,
+          maxTrainingPoints = Max[2 pointsPerPrime,
+            Ceiling[Length[letters]/2] + 4]},
         p = RandomPrime[{pLow, pHigh}];
         If[MemberQ[primes, p], Continue[]];
         ok[m_] := AllTrue[Flatten[Mod[m, p]], # === 0 &];
@@ -304,15 +420,22 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
                 If[phase === "train",
                   trainRows = Join[trainRows, {rx, ry}]; trainRhs = Join[trainRhs, {Mod[inv Flatten[B1], p], Mod[inv Flatten[B2], p]}];
                   trained++;
-                  If[Length[trainRows] >= Length[letters] && MatrixRank[trainRows, Modulus -> p] === Length[letters],
-                    K = Quiet[Check[LinearSolve[trainRows, trainRhs, Modulus -> p], $Failed]];
-                    rank = Length[letters];
-                    If[K === $Failed || ! AllTrue[Flatten[Mod[trainRows . K - trainRhs, p]], # === 0 &], K = "Inconsistent"];
-                    phase = "validate"],
+                  If[Length[trainRows] >= Length[letters],
+                    currentRank = MatrixRank[trainRows, Modulus -> p];
+                    rank = Max[rank, currentRank];
+                    If[currentRank === Length[letters],
+                      K = Quiet[Check[LinearSolve[trainRows, trainRhs,
+                        Modulus -> p], $Failed]];
+                      If[K === $Failed ||
+                          ! AllTrue[Flatten[
+                            Mod[trainRows . K - trainRhs, p]], # === 0 &],
+                        K = "Inconsistent"];
+                      phase = "validate"]],
                   valRows = Join[valRows, {rx, ry}]; valRhs = Join[valRhs, {Mod[inv Flatten[B1], p], Mod[inv Flatten[B2], p]}];
                   validated++]],
               validated++];
-            If[letters =!= {} && phase === "train" && trained >= 2 pointsPerPrime, Break[]];
+            If[letters =!= {} && phase === "train" &&
+                trained >= maxTrainingPoints, Break[]];
             Continue[]];
           S = familyCertMatrixValue[cS, pw, p]; Si = familyCertMatrixValue[cSi, pw, p];
           dSx = familyCertMatrixDerivativeValue[cS, 1, pw, p]; dSy = familyCertMatrixDerivativeValue[cS, 2, pw, p];
@@ -361,21 +484,31 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
               If[phase === "train",
                 trainRows = Join[trainRows, {rx, ry}]; trainRhs = Join[trainRhs, {Mod[inv Flatten[B1], p], Mod[inv Flatten[B2], p]}];
                 trained++;
-                If[Length[trainRows] >= Length[letters] && MatrixRank[trainRows, Modulus -> p] === Length[letters],
-                  K = Quiet[Check[LinearSolve[trainRows, trainRhs, Modulus -> p], $Failed]];
-                  rank = Length[letters];
-                  If[K === $Failed || ! AllTrue[Flatten[Mod[trainRows . K - trainRhs, p]], # === 0 &],
-                    K = "Inconsistent"];
-                  phase = "validate"],
+                If[Length[trainRows] >= Length[letters],
+                  currentRank = MatrixRank[trainRows, Modulus -> p];
+                  rank = Max[rank, currentRank];
+                  If[currentRank === Length[letters],
+                    K = Quiet[Check[LinearSolve[trainRows, trainRhs,
+                      Modulus -> p], $Failed]];
+                    If[K === $Failed ||
+                        ! AllTrue[Flatten[
+                          Mod[trainRows . K - trainRhs, p]], # === 0 &],
+                      K = "Inconsistent"];
+                    phase = "validate"]],
                 valRows = Join[valRows, {rx, ry}]; valRhs = Join[valRhs, {Mod[inv Flatten[B1], p], Mod[inv Flatten[B2], p]}];
                 validated++]],
             (* no letters: the form must be zero; count every point as validation *)
             validated++];
-          If[letters =!= {} && phase === "train" && trained >= 2 pointsPerPrime,
+          If[letters =!= {} && phase === "train" &&
+              trained >= maxTrainingPoints,
             (* the design never reached full rank: the prime is discarded *)
             Break[]]];
         rankOK = letters === {} || (phase === "validate" && rank === Length[letters]);
-        If[! rankOK, trouble["DlogRankDeficient" <> ToString[p]] = <|"Prime" -> p, "Trained" -> trained|>; Continue[]];
+        If[! rankOK,
+          trouble["DlogRankDeficient" <> ToString[p]] = <|
+            "Prime" -> p, "Trained" -> trained,
+            "Rank" -> rank, "Letters" -> Length[letters]|>;
+          Continue[]];
         If[validated < validationPoints, trouble["TooFewPoints" <> ToString[p]] = <|"Prime" -> p, "Validated" -> validated|>; Continue[]];
         dlogOK = Which[
           letters === {}, zeroForm,
@@ -595,7 +728,7 @@ familyCertMQSquareRoot[value_Integer, prime_Integer] :=
 
 (* Prepare all scalar expressions once.  The root frame is the same
    canonical, square-class-independent frame used by the deferred equation
-   and direct strip solver.  Nested radicals are admitted only after the
+   and direct offDiagonalBlockEquation solver.  Nested radicals are admitted only after the
    shared exact denester rewrites them in that frame; an extra numeric square
    class is not silently synthesized and is therefore an undeclared root. *)
 familyCertMQPrepare[objects_Association, roots_List,
@@ -635,7 +768,7 @@ familyCertMQPrepare[objects_Association, roots_List,
   numericClasses = Lookup[census, "NumericRadicalClasses", {}];
   numericClassIndices = Table[FirstCase[
       Subsets[Range[Length[orderedRoots]]],
-      subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+      subset_ /; TrueQ[multiquadraticOffDiagonalBlockSquareClassSquareQ[
         Together[numericClass/Times @@
           (squareRootRecordRadicand /@ orderedRoots[[subset]])]]] :> subset,
       None],
@@ -671,8 +804,8 @@ familyCertMQPrepare[objects_Association, roots_List,
       scale rootSymbols[[index]]]];
   canonicalObjects = AssociationThread[Keys[normalObjects],
     canonical["Expression"]];
-  (* Large symbolic entries must not become DownValue keys.  On CF259 the
-     structural hashing and retained keys inflated a 471 MB artifact to more
+  (* Large symbolic entries must not become DownValue keys.  In production the
+     repeated structural traversal and retained keys inflated a 471 MB artifact to more
      than 10 GB before the first prime trial.  Atomic entries cover the common
      repeated zero/constant case without a cache. *)
   polynomializeEntry[entry_?AtomQ] := entry;
@@ -705,14 +838,14 @@ familyCertMQPrepare[objects_Association, roots_List,
           {0, Infinity}, Heads -> True], UpTo[6]]|>]]];
   (* Production trials consume an exact polynomial plan, never the symbolic
      expressions themselves.  The same packed evaluator already used by the
-     multiquadratic strip screens reduces exact coefficients once per prime
+     multiquadratic offDiagonalBlockEquation screens reduces exact coefficients once per prime
      and then evaluates every point and sign sheet with machine-integer power
      tables.  Keep Letters only as a cardinality marker; their logarithmic
      derivatives are the compiled LetterX/LetterY matrices. *)
   evaluationVariables = Join[variables, {regulator}, rootSymbols];
   compileEntry[0] := 0;
   compileEntry[entry_] :=
-    multiquadraticStripScreenCompileScalarExact[
+    multiquadraticOffDiagonalBlockScreenCompileScalarExact[
       entry, {}, {}, evaluationVariables];
   compiledObjects = AssociationMap[Function[key,
       If[key === "Letters", canonicalObjects[key],
@@ -877,7 +1010,7 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
       "PreparedCompiledEvaluatorMissing"]]];
   reduceEntry[0] := 0;
   reduceEntry[entry_Association] :=
-    multiquadraticStripScreenReduceScalar[entry, prime];
+    multiquadraticOffDiagonalBlockScreenReduceScalar[entry, prime];
   reduceEntry[_] := $Failed;
   objects = AssociationMap[Function[key,
       If[key === "Letters", exactObjects[key],
@@ -888,7 +1021,7 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
       "CompiledEvaluatorPrimeReductionFailed", <|"Prime" -> prime|>]]];
   evaluate[0] := 0;
   evaluate[entry_Association] :=
-    multiquadraticStripScreenEvaluateRationalValue[
+    multiquadraticOffDiagonalBlockScreenEvaluateRationalValue[
       entry, powerTables, prime];
   evaluate[_] := $Failed;
   evaluateMatrix[matrix_] := Map[evaluate, matrix, {2}];
@@ -917,7 +1050,7 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
       signs = Table[If[BitGet[mask, bit] === 1, -1, 1],
         {bit, 0, rank - 1}];
       signedRoots = Mod[signs rootValues, prime];
-      powerTables = multiquadraticStripScreenPowerTables[
+      powerTables = multiquadraticOffDiagonalBlockScreenPowerTables[
         Join[point, signedRoots], maximumExponents, prime];
       {S, Si, B1, B2, dSx, dSy, Av, Aw, dAvw, dAwv,
         jacobian, letterX, letterY} = Map[evaluateMatrix, Lookup[objects,
@@ -926,7 +1059,7 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
       If[MemberQ[{S, Si, B1, B2, dSx, dSy, Av, Aw,
           dAvw, dAwv, jacobian, letterX, letterY}, $Failed],
         pointOK = False; Break[]];
-      powerTables = multiquadraticStripScreenPowerTables[
+      powerTables = multiquadraticOffDiagonalBlockScreenPowerTables[
         Join[ReplacePart[point, 3 -> epsilon2], signedRoots],
         maximumExponents, prime];
       {B1b, B2b} = evaluateMatrix /@ Lookup[objects, {"B1", "B2"}];
@@ -947,7 +1080,7 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
          transformation equation transports the source curvature
          covariantly.  Re-differentiating the two enormous final
          epsilon-form matrices proves no additional statement and dominated
-         CF300's otherwise modular certificate. *)
+         a measured production certificate. *)
       pointIdentity["Flatness"] = pointIdentity["Flatness"] &&
         pointIdentity["TransformationInverse"] &&
         pointIdentity["ConnectionTransformationEquation"] &&
@@ -1200,7 +1333,7 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
       "ValidatedRegulatorRootFrames", Return[validatedRootFrame]];
   (* One kinematic point contributes two one-form rows on every sign sheet.
      A smaller training design cannot determine a generic coefficient vector
-     in the supplied alphabet: CF300's old 3-point design found a spurious
+     in the supplied alphabet: a measured 3-point design found a spurious
      rank-17 section which fit training images but failed fresh points, while
      seven points exposed the stable rank 23 and validated.  Size the design
      before sampling; held-out points remain disjoint acceptance evidence. *)

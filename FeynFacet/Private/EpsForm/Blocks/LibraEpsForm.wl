@@ -99,11 +99,8 @@ LibraFamilyEpsForm[___] := <|"Status" -> "RouteRetired",
   "Code" -> "FeynFacet/Private_Backup/LibraEpsForm.wl"|>;
 
 
-(* The Libra loader (moved here verbatim from Transport/MasterTransport.wl,
-   layer pass 2026-09-02): the diagonal-block route
-   (DiagonalBlockEpsForm.wl, EpsForm) is its production caller and
-   Transport loads after EpsForm; MasterTransport.wl's Libra backend
-   still calls it. *)
+(* The Libra loader belongs to the diagonal-block epsilon-form route.
+   No loaded transport module uses Libra for path ordering. *)
 $masterTransportLibraLoaded = False;
 
 masterTransportLoadLibra[root_String] := Module[{file, path},

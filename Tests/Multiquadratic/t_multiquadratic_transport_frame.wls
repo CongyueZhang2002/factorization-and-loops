@@ -73,17 +73,17 @@ zeroNoChartStrip = {
   {{{cf300Roots[[3, "Generator"]]}},
     {{cf300Roots[[3, "Generator"]]}}},
   {{{0}}, {{0}}}};
-zeroNoChartSolution = SolveEpsFormStripInFrame[
+zeroNoChartSolution = SolveOffDiagonalBasisTransformationBlock[
   zeroNoChartStrip, {v, w}, eps, familyGeneratorData[[2]],
-  "FiniteFieldFirst" -> True, "Verbose" -> False];
-FTAssert["zero forcing bypasses a missing joint root chart",
+  "Verbose" -> False];
+FTAssert["zero inhomogeneity bypasses a missing joint root chart",
   AssociationQ[zeroNoChartSolution] &&
     zeroNoChartSolution["Status"] === "Solved" &&
-    zeroNoChartSolution["Method"] === "ZeroForcing" &&
+    zeroNoChartSolution["Method"] === "ZeroInhomogeneity" &&
     zeroNoChartSolution["SquareRootGeneratorIndices"] === {2, 3} &&
     zeroNoChartSolution["CoefficientPresentation", "DataType"] ===
       "SquareRootGeneratorsAndQuadraticRelations" &&
-    zeroNoChartSolution["Gauge"] === {{0}} &&
+    zeroNoChartSolution["OffDiagonalBasisTransformationBlock"] === {{0}} &&
     zeroNoChartSolution["Validation", "Method"] === "Exact" &&
     TrueQ[zeroNoChartSolution["Validation", "Passed"]] &&
     zeroNoChartSolution["Validation", "SamplingEntered"] === False &&
@@ -110,11 +110,11 @@ FTAssert["root-set lookup is independent of the source variable names",
     {lambda1 /. {v -> a, w -> b}, lambda3 /. {v -> a, w -> b}},
     {a, b}]["Name"] === "Kallen13"];
 
-knownGauge = {{Sqrt[lambda1]}};
+knownOffDiagonalBasisTransformationBlock = {{Sqrt[lambda1]}};
 zeroOneForm = {ConstantArray[0, {1, 1}], ConstantArray[0, {1, 1}]};
 algebraicStrip = {zeroOneForm, zeroOneForm,
-  {D[knownGauge, v], D[knownGauge, w]}};
-stripSolution = SolveEpsFormStripInFrame[
+  {D[knownOffDiagonalBasisTransformationBlock, v], D[knownOffDiagonalBasisTransformationBlock, w]}};
+stripSolution = SolveOffDiagonalBasisTransformationBlock[
   algebraicStrip, {v, w}, eps, generatorData,
   "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
   "CANONICATimeLimit" -> 30, "CANONICAKernels" -> 1,
@@ -129,7 +129,7 @@ FTAssert["a one-root algebraic strip is solved in its rational chart and pulled 
     stripSolution["SquareRootGeneratorIndices"] === {1} &&
     TrueQ[stripSolution["ExactDLog"]] &&
     TrueQ[stripSolution["Validation"]["CoordinateComposition"]] &&
-    TrueQ[stripSolution["Validation"]["GaugeRoundTrip"]] &&
+    TrueQ[stripSolution["Validation"]["BasisTransformationCoordinateReexpressionVerified"]] &&
     TrueQ[stripSolution["Validation"]["TransformedOneFormPullBack"]] &&
     TrueQ[stripSolution["Validation"]["SourceDLog"]] &&
     stripSolution["Validation"]["Method"] === "Exact" &&
@@ -138,17 +138,17 @@ FTAssert["a one-root algebraic strip is solved in its rational chart and pulled 
       {"Chart", "FrameCertificate", "RootIndices", "RootSquares"}] === {}];
 
 FTAssert["exact chart pullback remains the default",
-  ("GaugePullBackMode" /.
-      Options[FeynFacet`SolveEpsFormStripInFrame]) === "Exact"];
+  ("BasisTransformationReexpressionMode" /.
+      Options[FeynFacet`SolveOffDiagonalBasisTransformationBlock]) === "Exact"];
 
-invalidPullBackMode = SolveEpsFormStripInFrame[
+invalidPullBackMode = SolveOffDiagonalBasisTransformationBlock[
   algebraicStrip, {v, w}, eps, generatorData,
-  "GaugePullBackMode" -> "NotAMode", "Verbose" -> False];
+  "BasisTransformationReexpressionMode" -> "NotAMode", "Verbose" -> False];
 FTAssert["an unknown gauge pullback mode is refused before solving",
   AssociationQ[invalidPullBackMode] &&
-    invalidPullBackMode["Status"] === "InvalidGaugePullBackMode"];
+    invalidPullBackMode["Status"] === "InvalidBasisTransformationReexpressionMode"];
 
-legacyPresentationResult = SolveEpsFormStripInFrame[
+legacyPresentationResult = SolveOffDiagonalBasisTransformationBlock[
   algebraicStrip, {v, w}, eps,
   <|"Variables" -> {v, w}, "Subst" -> {v -> v, w -> w},
     "Roots" -> {}|>, "Verbose" -> False];
@@ -313,6 +313,16 @@ FTAssert["assembly-only returns the family system with certified epsilon-form di
           "TransformationInverseVerified"}]]) &&
     MemberQ[{"Verified", "ByGaugeCovariance"},
       assembled["FamilyDifferentialSystem"]["Certificate"]["FlatnessConjugatedRoute"]]];
+
+automaticBlocksRefusal =
+  AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+    system, generatorData,
+    "SourceVariables" -> {v, w}, "Regulator" -> eps,
+    "Verbose" -> False];
+FTAssert["family assembly requires explicit diagonal-block specifications",
+  AssociationQ[automaticBlocksRefusal] &&
+    automaticBlocksRefusal["Status"] ===
+      "DiagonalBlockSpecificationsRequired"];
 
 rootFreeRecord = <|
   "CoefficientVariables" -> {v, w},

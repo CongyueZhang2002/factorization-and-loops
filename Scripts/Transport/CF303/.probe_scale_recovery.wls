@@ -9,13 +9,15 @@ primes = Lookup[fits, "prime"];
 modulus = Times @@ primes;
 key = If[Rest[$ScriptCommandLine] === {}, "1:-2:44:0",
   First[Rest[$ScriptCommandLine]]];
+validationPath = If[Length[Rest[$ScriptCommandLine]] >= 2,
+  Rest[$ScriptCommandLine][[2]],
+  "/tmp/cf303_junction_validation_q2305843009213693693_p3.json"];
 records = (SelectFirst[#["coordinates"], #["key"] === key &] &) /@ fits;
 vectors = Join[#["numerator"], #["denominator"]] & /@ records;
 images = ChineseRemainder[#, primes] & /@ Transpose[vectors];
 dimension = Length[images];
 split = Length[First[records]["numerator"]];
-validation = Import[
-  "/tmp/cf303_junction_validation_q2305843009213693951.json", "RawJSON"];
+validation = Import[validationPath, "RawJSON"];
 q = validation["prime"];
 point = validation["p_mod_prime"];
 expected = Lookup[Association[(StringRiffle[ToString /@

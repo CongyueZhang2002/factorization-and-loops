@@ -1,71 +1,80 @@
 #!/usr/bin/env wolframscript
 
-(* A multiquadratic transport base should split its declared roots over Q
-   whenever the bounded rational-height grid supplies such a regular point.
-   Rational records retain the historical first-candidate path, and an
-   algebraic record with no split candidate retains the regular fallback. *)
+(* A square-root presentation prefers a regular rational base at which its
+   declared generators take nonzero rational values.  The selected third
+   scalar is exposed only through the first path parameter's affine scale. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 x = Symbol["Global`splitPathX"];
 y = Symbol["Global`splitPathY"];
+u = Symbol["Global`splitPathU"];
+z = Symbol["Global`splitPathZ"];
 eps = Symbol["Global`eps"];
 
+sourceVariablePresentation = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> {x, y},
+  "CoefficientVariables" -> {x, y},
+  "SourceVariableSubstitution" -> {x -> x, y -> y},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2],
+  "JacobianDeterminant" -> 1|>;
 baseRecord = <|
-  "Status" -> "ExactEpsilonForm",
-  "Variables" -> {x, y},
-  "Regulator" -> eps,
-  "Dim" -> 1,
-  "Ranges" -> {{1}},
-  "TTotal" -> {{1}},
-  "TTotalInverse" -> {{1}},
-  "EpsFormX" -> {{0}},
-  "EpsFormY" -> {{0}},
-  "Letters" -> {x, y, 1 - x, 1 - y}
-|>;
+  "CoefficientVariables" -> {x, y},
+  "DimensionalRegulator" -> eps,
+  "BasisTransformationMatrix" -> {{1}},
+  "CachedInverseBasisTransformationMatrix" -> {{1}},
+  "Letters" -> {x, y, 1 - x, 1 - y},
+  "ConstantResidueMatrices" -> ConstantArray[{{0}}, 4],
+  "CoefficientPresentation" -> sourceVariablePresentation|>;
 
-algebraicRecord = Join[baseRecord, <|
-  "CoefficientField" -> "Multiquadratic",
-  "ChartRecord" -> <|
-    "CoefficientField" -> "Multiquadratic",
-    "Variables" -> {x, y},
-    "Subst" -> {x -> x, y -> y},
-    "Roots" -> {
-      <|"Root" -> Sqrt[1 - x], "RootSquare" -> 1 - x|>,
-      <|"Root" -> Sqrt[1 - y], "RootSquare" -> 1 - y|>}
-  |>
-|>];
-algebraicPath = FindObservableTransportPath[algebraicRecord];
+squareRootPresentation =
+  BuildSquareRootGeneratorsAndQuadraticRelations[
+    {1 - x, 1 - y}, {x, y}, {u, z}];
+algebraicRecord = <|
+  "CoefficientVariables" -> {u, z},
+  "DimensionalRegulator" -> eps,
+  "BasisTransformationMatrix" -> {{1}},
+  "CachedInverseBasisTransformationMatrix" -> {{1}},
+  "Letters" -> {u, z, 1 - u, 1 - z},
+  "ConstantResidueMatrices" -> ConstantArray[{{0}}, 4],
+  "CoefficientPresentation" -> squareRootPresentation|>;
+algebraicPath = ChooseRegularBasePointAndFirstPathParameterScale[
+  algebraicRecord];
 algebraicBase = Lookup[algebraicPath, {"FirstBase", "SecondBase"}, {}];
-algebraicSquares = ({1 - x, 1 - y} /.
-  Thread[{x, y} -> algebraicBase]);
+algebraicSquares = ({1 - u, 1 - z} /.
+  Thread[{u, z} -> algebraicBase]);
 
-FTAssert["a multiquadratic planner prefers a regular rational split base",
-  Lookup[algebraicPath, "Status", None] === "ExactPathData" &&
+FTAssert["a square-root presentation prefers a rational split base",
+  Lookup[algebraicPath, "Status", None] ===
+      "RegularBasePointAndFirstPathParameterScaleSelected" &&
     algebraicBase === {3/4, 3/4} &&
     FeynFacet`Private`observableTransportRecordRegularQ[algebraicRecord,
-      Thread[{x, y} -> algebraicBase]]];
-FTAssert["every declared root is nonzero and rational at that base",
+      Thread[{u, z} -> algebraicBase]]];
+FTAssert["every declared square root is nonzero and rational at that base",
   algebraicSquares === {1/4, 1/4} &&
     VectorQ[Sqrt[algebraicSquares],
       MatchQ[#, _Integer | _Rational] && # =!= 0 &]];
 
-rationalPath = FindObservableTransportPath[
-  Join[baseRecord, <|"CoefficientField" -> "Rational"|>]];
-FTAssert["rational-family path ordering is unchanged",
+rationalPath = ChooseRegularBasePointAndFirstPathParameterScale[baseRecord];
+FTAssert["the rational presentation retains deterministic candidate order",
   Lookup[rationalPath,
-    {"FirstBase", "SecondBase", "FirstTargetSample"}, {}] ===
-      {1/4, 1/4, 1/3}];
+    {"FirstBase", "SecondBase", "FirstPathParameterScale"}, {}] ===
+      {1/4, 1/4, 1/12}];
 
-fallbackRecord = Join[algebraicRecord, <|"ChartRecord" ->
-  Join[algebraicRecord["ChartRecord"], <|"Roots" ->
-    {<|"Root" -> Sqrt[2], "RootSquare" -> 2|>}|>]|>];
-fallbackPath = FindObservableTransportPath[fallbackRecord,
-  "Candidates" -> {{1/4, 1/4, 1/3}}];
-FTAssert["a multiquadratic record with no split candidate uses the regular fallback",
+constantSquareRootPresentation =
+  BuildSquareRootGeneratorsAndQuadraticRelations[{2}, {x, y}, {u, z}];
+fallbackRecord = Join[algebraicRecord, <|
+  "CoefficientPresentation" -> constantSquareRootPresentation|>];
+fallbackPath = ChooseRegularBasePointAndFirstPathParameterScale[
+  fallbackRecord, "Candidates" -> {{1/4, 1/4, 1/3}}];
+FTAssert["a presentation with no split candidate uses the regular fallback",
   Lookup[fallbackPath,
-    {"Status", "FirstBase", "SecondBase", "FirstTargetSample"}, {}] ===
-      {"ExactPathData", 1/4, 1/4, 1/3}];
+    {"Status", "FirstBase", "SecondBase",
+      "FirstPathParameterScale"}, {}] ===
+      {"RegularBasePointAndFirstPathParameterScaleSelected",
+        1/4, 1/4, 1/12}];
 
 FTReport[];

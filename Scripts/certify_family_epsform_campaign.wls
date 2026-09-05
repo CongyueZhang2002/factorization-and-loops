@@ -5,6 +5,7 @@ If[Length[$ScriptCommandLine] < 5,
 
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
 {outputDirectory, differentialDirectory} =
   ExpandFileName /@ $ScriptCommandLine[[2 ;; 3]];
@@ -71,6 +72,11 @@ Do[
     Print["CERTIFY-CAMPAIGN family=", family, " exact=False system-unreadable"];
     Continue[]
   ];
+  systemReference = <|
+    "RelativePath" -> FileNameJoin[
+      {FileNameTake[DirectoryName[systemFile]], FileNameTake[systemFile]}],
+    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+    "Family" -> family|>;
 
   accepted = False;
   candidateDiagnostics = {};
@@ -81,7 +87,9 @@ Do[
       AppendTo[candidateDiagnostics, <|
         "Source" -> candidate, "Status" -> "Unreadable"|>];
       Continue[]];
-    certified = FeynFacet`ValidateFamilyDLogEpsilonForm[record, system];
+    certified =
+      FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+        record, system, systemReference];
     If[AssociationQ[certified] &&
         Lookup[certified, "Status", None] ===
           "FamilyDLogEpsilonFormValidated" &&
@@ -121,7 +129,7 @@ Do[
       " criteria=", InputForm[DeleteDuplicates[
         Lookup[candidateDiagnostics, "Conditions", <||>]]]]
   ];
-  Clear[system, record, certified, existing],
+  Clear[system, systemReference, record, certified, existing],
   {systemFile, differentialFiles}
 ];
 

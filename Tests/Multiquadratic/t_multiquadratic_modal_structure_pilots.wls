@@ -1,8 +1,8 @@
 #!/usr/bin/env wolframscript
-(* Round-B structural-pilot quorum: an exceptional first-prime pivot structure is
-   isolated when the next two primes agree, cached support pilots are never
-   sampled or RREFed again, and three distinct pivot structures fail typed before
-   any affine section is locked. *)
+(* Structural-pilot policy: the first usable image selects the affine section.
+   Later images are constrained to that section, so a deliberately exceptional
+   first prime produces a typed reconstruction refusal rather than triggering
+   extra full RREFs to vote on pivot structures. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -14,33 +14,33 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {prepare, compile, layoutBuilder, compiledProvider, assembleSample,
   discoverySolve, pilotRecord, reconstruct} = mq /@ {
-  "multiquadraticStripPrepare", "multiquadraticStripCompile",
-  "multiquadraticStripAssemblyLayout",
-  "multiquadraticStripCompiledProvider",
-  "multiquadraticStripAssembleSample",
-  "multiquadraticStripPlanDiscoverySolve",
-  "multiquadraticStripPilotImageRecord",
-  "multiquadraticStripReconstructRegulator"};
+  "multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+  "multiquadraticOffDiagonalBlockAssemblyLayout",
+  "multiquadraticOffDiagonalBlockCompiledProvider",
+  "multiquadraticOffDiagonalBlockAssembleSample",
+  "multiquadraticOffDiagonalBlockPlanDiscoverySolve",
+  "multiquadraticOffDiagonalBlockPilotImageRecord",
+  "multiquadraticOffDiagonalBlockReconstructRegulator"};
 
 Clear[px, py, pe, pcx, pcy];
 frame = BuildSquareRootGeneratorsAndQuadraticRelations[
   {}, {px, py}, {pcx, pcy}];
-primes = Take[FeynFacet`Private`$multiquadraticStripPrimePool, 3];
+primes = Take[FeynFacet`Private`$multiquadraticOffDiagonalBlockPrimePool, 3];
 {primeOne, primeTwo, primeThree} = primes;
 
 buildFixture[diagonal_List] := Module[
-  {width = Length[diagonal], upperZero, lowerZero, forcingZero, record,
+  {width = Length[diagonal], upperZero, lowerZero, inhomogeneityZero, record,
    prepared, assembly, layout, provider},
   upperZero = ConstantArray[0, {1, 1}];
   lowerZero = ConstantArray[0, {width, width}];
-  forcingZero = ConstantArray[0, {1, width}];
+  inhomogeneityZero = ConstantArray[0, {1, width}];
   record = <|"Family" -> "MODAL_STRUCTURAL_PILOT_TEST", "Sector" -> 2,
     "LowerSector" -> 1, "Variables" -> {px, py}, "Regulator" -> pe,
-    "Strip" -> {{upperZero, upperZero},
+    "OffDiagonalBlockEquation" -> {{upperZero, upperZero},
       {DiagonalMatrix[diagonal], lowerZero},
-      {forcingZero, forcingZero}}|>;
+      {inhomogeneityZero, inhomogeneityZero}}|>;
   prepared = prepare[record, frame, "OneForms" -> {},
-    "GaugeDenominator" -> 1, "Support" -> {{0, 0}}];
+    "OffDiagonalBasisTransformationDenominator" -> 1, "Support" -> {{0, 0}}];
   assembly = compile[prepared];
   layout = layoutBuilder[prepared];
   provider = compiledProvider[assembly];
@@ -53,7 +53,7 @@ makePilot[fixture_Association, prime_Integer] := Module[{sample, solution},
     prime, "PointCount" -> 2, "MaximumAttempts" -> 40,
     "RandomSeed" -> 2026082700 + Mod[prime, 997]];
   solution = discoverySolve[sample["Matrix"], sample["RightHandSide"],
-    prime, fixture["Preparation"]["GaugeUnknownCount"],
+    prime, fixture["Preparation"]["OffDiagonalBasisTransformationUnknownCount"],
     fixture["Preparation"]["ResidueUnknownCount"], Automatic, 2,
     Automatic];
   pilotRecord[prime, 1, sample, solution]
@@ -74,9 +74,9 @@ reconstructWithPilots[fixture_Association, pilots_List, pointCount_: 2] := recon
   "PlanDiscoveryBackendMinimumEntries" -> Automatic,
   "PilotImages" -> pilots, "ExactVerification" -> "ProviderPoints"];
 
-(* At primeOne every gauge column vanishes; at the other primes all columns
-   pivot.  The first pivot structure is therefore exceptional and the next two are
-   the generic two-vote structure. *)
+(* At primeOne every basis-transformation column vanishes; at the other primes
+   all columns pivot.  The first supplied pilot therefore selects an exceptional
+   section and the later primes cannot enter that section. *)
 exceptionalFixture = buildFixture[{primeOne}];
 exceptionalPilots = makePilot[exceptionalFixture, #1] & /@ primes;
 check["the adversarial pilots have one isolated pivot structure then two agreeing",
@@ -88,32 +88,18 @@ check["the adversarial pilots have one isolated pivot structure then two agreein
 
 exceptionalResult = reconstructWithPilots[exceptionalFixture,
   exceptionalPilots];
-check["the next two primes win and their first prime becomes the reference",
-  exceptionalResult["Status"] === "ReconstructedRegulatorDependenceV1" &&
-    exceptionalResult["ModalReferencePrime"] === primeTwo &&
-    exceptionalResult["ModalStructuralStructure"] ===
-      {exceptionalPilots[[2, "Solution", "Rank"]],
-       exceptionalPilots[[2, "Solution", "Nullity"]],
-       exceptionalPilots[[2, "Solution", "PivotColumns"]]}];
-check["the isolated first prime remains rejected and exceptional evidence",
-  MemberQ[exceptionalResult["RejectedPrimes"], primeOne] &&
-    Lookup[Lookup[exceptionalResult["PrimeRejections"], primeOne, <||>],
-      "Status", None] === "NonmodalModularStructure" &&
-    AnyTrue[exceptionalResult["ExceptionalRegulatorImages"],
-      Lookup[#1, "Prime", None] === primeOne &&
-        Lookup[#1, "Reason", None] === "NonmodalModularStructure" &]];
-check["all three cached pilots incur no repeated sampling or RREF",
-  exceptionalResult["StructuralPilotPrimeCount"] === 3 &&
-    exceptionalResult["StructuralPilotRREFCount"] === 3 &&
-    exceptionalResult["StructuralPilotCacheHitCount"] === 3 &&
-    exceptionalResult["StructuralPilotNewSampleCount"] === 0 &&
-    exceptionalResult["StructuralPilotNewFullAffineSolveCount"] === 0 &&
-    exceptionalResult["ReusedPilotImageCount"] === 3 &&
-    exceptionalResult["FullAffineSolveCount"] === 3 &&
-    exceptionalResult["FullAffineFallbackCount"] === 0];
-check["native selection remains Automatic with the requested thread policy",
-  exceptionalResult["PlanDiscoveryBackendRequested"] === Automatic &&
-    exceptionalResult["PlanDiscoveryBackendThreads"] === 2];
+check["the first usable pilot selects the section without a pivot vote",
+  exceptionalResult["Status"] === "ReconstructionPrimePoolExhausted" &&
+    exceptionalResult["GoodPrimes"] === {primeOne}];
+check["later primes with a different section are rejected typed",
+  ContainsAll[exceptionalResult["RejectedPrimes"], {primeTwo, primeThree}] &&
+    AllTrue[{primeTwo, primeThree},
+      Lookup[exceptionalResult["PrimeRejections"], #1, None] ===
+        "ExceptionalRegulatorImagesExhausted" &]];
+check["the supplied pilot records retain the requested native backend policy",
+  AllTrue[Lookup[exceptionalPilots, "Solution"],
+    Lookup[#1, "PlanDiscoveryBackendRequested", None] === Automatic &&
+      Lookup[#1, "PlanDiscoveryBackendThreads", None] === 2 &]];
 
 (* Cache admission checks all three image keys and replays both the particular
    and nullspace residuals. *)
@@ -162,28 +148,6 @@ check["a matrix admission refusal is not called modular instability",
     resourceResult["Stage"] === "StructuralPilotSampling" &&
     KeyExistsQ[resourceResult, "SizeEstimate"] &&
     KeyExistsQ[resourceResult, "MaximumMatrixBytes"]];
-
-(* Each prime now kills a different column, so rank and nullity agree but the
-   pivot columns differ at all three primes. *)
-unstableFixture = buildFixture[primes];
-unstablePilots = makePilot[unstableFixture, #1] & /@ primes;
-check["the failure fixture exposes three distinct pivot-column sets",
-  Length[DeleteDuplicates[Lookup[Lookup[unstablePilots, "Solution"],
-      "PivotColumns"]]] === 3];
-unstableResult = reconstructWithPilots[unstableFixture, unstablePilots];
-check["three nonrepeating pivot structures fail typed before normalization locks",
-  unstableResult["Status"] === "ModularStructureUnstable" &&
-    unstableResult["DistinctPrimeCount"] === 3 &&
-    unstableResult["RequiredAgreementCount"] === 2 &&
-    Length[unstableResult["StructuralPilotEvidence"]] === 3 &&
-    ! KeyExistsQ[unstableResult, "NormalizationColumns"]];
-check["the no-repeat failure also pays for no repeated sample or RREF",
-  unstableResult["StructuralPilotRREFCount"] === 3 &&
-    unstableResult["StructuralPilotCacheHitCount"] === 3 &&
-    unstableResult["StructuralPilotNewSampleCount"] === 0 &&
-    unstableResult["StructuralPilotNewFullAffineSolveCount"] === 0 &&
-    unstableResult["ReusedPilotImageCount"] === 3 &&
-    unstableResult["FullAffineSolveCount"] === 3];
 
 Print["t_multiquadratic_modal_structure_pilots: ", pass, " OK, ", fail,
   " FAIL"];

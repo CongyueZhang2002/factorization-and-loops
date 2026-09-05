@@ -3,9 +3,9 @@
    Codex review 2026-09-02: "test one real pre-overhaul checkpoint").
 
    Until 2026-09-02 every stored multiquadratic record carried
-   "SourceSHA256" -> <SHA-256 of MultiquadraticStripSolve.wl at write
+   "SourceSHA256" -> <SHA-256 of MultiquadraticOffDiagonalBlockSolve.wl at write
    time> as its implementation identity.  U3 replaced the key by the
-   hand-maintained "ABIVersion" -> "MultiquadraticStripSolve-ABI-1" and
+   hand-maintained "ABIVersion" -> "MultiquadraticOffDiagonalBlockSolve-ABI-1" and
    ruled that pre-U3 records are the legacy lineage of ABI-1.  The
    validators, however, required the new key (a legacy record failed the
    KeyExistsQ list and the header seal), so the ruling was prose only.
@@ -34,7 +34,7 @@
         legacy certificate with a changed content hash, a malformed
         hash, or checked against another letter does not;
      C  a compiled assembly of a real rank-2 strip validates and hydrates
-        through multiquadraticStripReadPreparedArtifact in the current
+        through multiquadraticOffDiagonalBlockReadPreparedArtifact in the current
         format (lineage "ABIVersion") and in the legacy format (lineage
         "LegacySourceSHA256"); a tampered content fingerprint, a
         malformed legacy hash, a foreign ABI version (resealed, so only
@@ -57,23 +57,23 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   letterCertificate, letterCertificateValidQ, constructedEvidence,
   channelTextKey, expressionTextKey, lineage, legacyHashQ, prepare,
   compile, rootOrder, clearCaches} =
- mq /@ {"multiquadraticStripFingerprint",
-   "multiquadraticStripPrepareCheckpointRecord",
-   "multiquadraticStripPrepareCheckpointAccept",
-   "multiquadraticStripArtifactWrite", "multiquadraticStripArtifactLoadRaw",
-   "multiquadraticStripReadPreparedArtifact",
-   "multiquadraticStripCompiledValidQ",
-   "multiquadraticStripSemanticPayload",
-   "multiquadraticStripLetterDLogCertificate",
-   "multiquadraticStripLetterDLogCertificateValidQ",
-   "multiquadraticStripConstructedDLogEvidence",
-   "multiquadraticStripChannelTextKey",
-   "multiquadraticStripExpressionTextKey",
-   "multiquadraticStripABILineage",
-   "multiquadraticStripLegacySourceSHA256Q",
-   "multiquadraticStripPrepare", "multiquadraticStripCompile",
-   "multiquadraticStripRootOrder", "multiquadraticStripClearCaches"};
-abiVersion = mq["$multiquadraticStripABIVersion"];
+ mq /@ {"multiquadraticOffDiagonalBlockFingerprint",
+   "multiquadraticOffDiagonalBlockPrepareCheckpointRecord",
+   "multiquadraticOffDiagonalBlockPrepareCheckpointAccept",
+   "multiquadraticOffDiagonalBlockArtifactWrite", "multiquadraticOffDiagonalBlockArtifactLoadRaw",
+   "multiquadraticOffDiagonalBlockReadPreparedArtifact",
+   "multiquadraticOffDiagonalBlockCompiledValidQ",
+   "multiquadraticOffDiagonalBlockSemanticPayload",
+   "multiquadraticOffDiagonalBlockLetterDLogCertificate",
+   "multiquadraticOffDiagonalBlockLetterDLogCertificateValidQ",
+   "multiquadraticOffDiagonalBlockConstructedDLogEvidence",
+   "multiquadraticOffDiagonalBlockChannelTextKey",
+   "multiquadraticOffDiagonalBlockExpressionTextKey",
+   "multiquadraticOffDiagonalBlockABILineage",
+   "multiquadraticOffDiagonalBlockLegacySourceSHA256Q",
+   "multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+   "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticOffDiagonalBlockClearCaches"};
+abiVersion = mq["$multiquadraticOffDiagonalBlockABIVersion"];
 artifactContext = "FeynFacet`MultiquadraticArtifact`";
 
 scratch = FileNameJoin[{$TemporaryDirectory,
@@ -81,16 +81,16 @@ scratch = FileNameJoin[{$TemporaryDirectory,
 CreateDirectory[scratch, CreateIntermediateDirectories -> True];
 
 (* the hash a pre-U3 writer stored: 64 hex digits of the source file *)
-legacyHash = Hash["MultiquadraticStripSolve.wl before U3", "SHA256", "HexString"];
+legacyHash = Hash["MultiquadraticOffDiagonalBlockSolve.wl before U3", "SHA256", "HexString"];
 otherHash = Hash["another pre-U3 source", "SHA256", "HexString"];
-foreignVersion = "MultiquadraticStripSolve-ABI-0";
+foreignVersion = "MultiquadraticOffDiagonalBlockSolve-ABI-0";
 
 (* re-key an association from "ABIVersion" to the legacy key IN PLACE *)
 legacyKeyed[record_Association, hash_: legacyHash] := Association[KeyValueMap[
   If[#1 === "ABIVersion", "SourceSHA256" -> hash, #1 -> #2] &, record]];
 
 FTAssert["the ABI version is the U3 string and a legacy hash is 64 hex digits",
-  abiVersion === "MultiquadraticStripSolve-ABI-1" &&
+  abiVersion === "MultiquadraticOffDiagonalBlockSolve-ABI-1" &&
    StringLength[legacyHash] === 64 && legacyHashQ[legacyHash] === True &&
    legacyHashQ["deadbeef"] === False && legacyHashQ[None] === False &&
    legacyHashQ[abiVersion] === False];
@@ -236,18 +236,18 @@ canonicalRootRecords[indices_] := Module[
     order["Roots"]]];
 gradeFactor[grade_, roots_] :=
   Product[If[BitGet[grade, k - 1] === 1, roots[[k]], 1], {k, Length[roots]}];
-buildGauge[coefficients_, dimensions_, roots_] := Table[
+buildOffDiagonalBasisTransformationBlock[coefficients_, dimensions_, roots_] := Table[
   Sum[coefficients[[i, j, grade + 1, monomial]]
       x^support[[monomial, 1]] y^support[[monomial, 2]] gradeFactor[grade, roots]/
       denominator,
     {grade, 0, 2^Length[roots] - 1}, {monomial, Length[support]}],
   {i, dimensions[[1]]}, {j, dimensions[[2]]}];
-buildForcing[e_, c_, gauge_, residues_] := Table[
+buildInhomogeneity[e_, c_, gauge_, residues_] := Table[
   Map[Together, Sum[residues[[a]] eps oneForms[[a, mu]], {a, Length[letters]}] +
     D[gauge, {x, y}[[mu]]] - eps (e[[mu]] . gauge - gauge . c[[mu]]), {2}],
   {mu, 2}];
 buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
-  {rootRecords, roots, gradeCount, coefficients, residues, gauge, e, c, bbar},
+  {rootRecords, roots, gradeCount, coefficients, residues, gauge, e, c, inhomogeneity},
   rootRecords = canonicalRootRecords[indices];
   roots = Lookup[rootRecords, "Root", {}];
   gradeCount = 2^Length[indices];
@@ -257,30 +257,30 @@ buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
   residues = BlockRandom[SeedRandom[seed + 1];
     Table[RandomInteger[{-4, 4}] + RandomChoice[{0, 1/4, -1/7}],
       {Length[letters]}, {dimensions[[1]]}, {dimensions[[2]]}]];
-  gauge = buildGauge[coefficients, dimensions, roots];
+  gauge = buildOffDiagonalBasisTransformationBlock[coefficients, dimensions, roots];
   e = BlockRandom[SeedRandom[seed + 2];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[1]],
       dimensions[[1]]}], {Length[letters]}]]];
   c = BlockRandom[SeedRandom[seed + 3];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[2]],
       dimensions[[2]]}], {Length[letters]}]]];
-  bbar = buildForcing[e, c, gauge, residues];
+  inhomogeneity = buildInhomogeneity[e, c, gauge, residues];
   <|"Family" -> "TLEGACY", "Sector" -> 4, "LowerSector" -> 2,
     "Variables" -> {x, y}, "Regulator" -> eps,
-    "Strip" -> {e, c, bbar}|>];
+    "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>];
 record = buildRecord[{1, 2}, {2, 2}, 20260825];
 
 clearCaches[];
 preparation = prepare[record, frame, "OneForms" -> oneForms,
-  "GaugeDenominator" -> denominator, "Support" -> support,
+  "OffDiagonalBasisTransformationDenominator" -> denominator, "Support" -> support,
   "RootIndices" -> {1, 2}];
 FTAssert["C0b the reference preparation succeeds",
-  Lookup[preparation, "Status", None] === "PreparedMultiquadraticStripV1"];
+  Lookup[preparation, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1"];
 {compileSeconds, assembly} = AbsoluteTiming[
-  compile[preparation, "PreparationValidated" -> True]];
+  compile[preparation]];
 Print["     compile seconds: ", Round[compileSeconds, 0.01]];
 FTAssert["C1 the assembly compiles, carries ABIVersion and validates",
-  Lookup[assembly, "Status", None] === "CompiledMultiquadraticStripV1" &&
+  Lookup[assembly, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
    assembly["ABIVersion"] === abiVersion && compiledValidQ[assembly] === True];
 
 currentAssemblyFile = FileNameJoin[{scratch, "assembly_current.wl"}];
@@ -296,7 +296,7 @@ FTAssert["C2 the current assembly hydrates with lineage ABIVersion",
    lines 7755-7762: the same key list with "SourceSHA256" last) *)
 legacySemanticKeys = {"ABIFingerprint", "AlgebraABIFingerprint",
   "RootOrderingFingerprint", "RootCount", "GradeCount", "Dimensions",
-  "GaugeSupport", "GaugeUnknownCount", "ResidueUnknownCount", "UnknownCount",
+  "OffDiagonalBasisTransformationNumeratorSupport", "OffDiagonalBasisTransformationUnknownCount", "ResidueUnknownCount", "UnknownCount",
   "EquationsPerPoint", "ColumnOrder", "RowOrder",
   "ExactChannelFormsFingerprint", "CompiledFormsFingerprint",
   "CompiledFormsShapeFingerprint", "SourceSHA256"};
@@ -341,14 +341,14 @@ rawFrozen = artifactLoadRaw[frozen, artifactContext];
 FTAssert["D1 the 2026-08-25 fixture loads raw and carries a well-formed legacy SourceSHA256",
   Lookup[rawFrozen, "Status", None] === "RawMultiquadraticArtifact" &&
    AssociationQ[rawFrozen["Value"]] &&
-   rawFrozen["Value"]["Schema"] === "FrozenCF300StripSolversV1" &&
+   rawFrozen["Value"]["Schema"] === "FrozenCF300OffDiagonalBlockSolutionsV1" &&
    legacyHashQ[rawFrozen["Value"]["SourceSHA256"]] === True &&
    lineage[rawFrozen["Value"]] === "LegacySourceSHA256"];
 FTAssert["D2 the prepared-artifact reader refuses the foreign schema typed: the alias admits a KEY, not a schema",
   Lookup[readPrepared[frozen], "Status", None] === "ArtifactSchemaUnknown"];
 FTAssert["D3 its strip-solver entries name primes",
   With[{primes = DeleteDuplicates[Flatten[Lookup[
-      rawFrozen["Value"]["StripSolvers"], "Primes", {}]]]},
+      rawFrozen["Value"]["OffDiagonalBlockSolutions"], "Primes", {}]]]},
    primes =!= {} && AllTrue[primes, PrimeQ]]];
 
 DeleteDirectory[scratch, DeleteContents -> True];

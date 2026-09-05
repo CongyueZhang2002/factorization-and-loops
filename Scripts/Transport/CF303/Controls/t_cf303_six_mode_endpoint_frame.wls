@@ -12,8 +12,6 @@ recordsToMatrix[records_, field_] := Normal[SparseArray[
   ({#Row, #Column} -> Lookup[#, field, 0]) & /@ records, {6, 6}]];
 zeroMatrixQ[matrix_] := And @@ Flatten[Map[# === 0 &, matrix, {2}]];
 reduceMatrix[matrix_] := Map[Cancel[Together[#]] &, matrix, {2}];
-artifactKey[record_, current_, legacy_] := If[
-  KeyExistsQ[record, current], record[current], record[legacy]];
 checks = {};
 check[name_, condition_] := AppendTo[checks, <|"Name" -> name,
   "Passed" -> TrueQ[condition]|>];
@@ -23,15 +21,14 @@ normalResidue = Normal[SparseArray[
   ({#Row, #Column} -> Lookup[#Principal, -1, 0]) & /@
     source["Homogeneous"]["Normal"], {6, 6}]];
 residueRecord = frame["NormalResidue"];
-modeRecord = artifactKey[frame, "NormalResidueEigenbasis", "ModeFrame"];
+modeRecord = frame["NormalResidueEigenbasis"];
 v = modeRecord["Matrix"];
 vInverse = modeRecord["Inverse"];
 lambda = residueRecord["NonzeroEigenvalue"];
 projector = residueRecord["SpectralProjector"];
 gamma = Normal[SparseArray[
   ({#Row, #Column} -> #Value) & /@
-    artifactKey[frame, "TangentialConnectionInEigenbasis",
-      "TangentialConnection"]["SparseEntries"], {6, 6}]];
+    frame["TangentialConnectionInEigenbasis"]["SparseEntries"], {6, 6}]];
 eigenbasisTransformation =
   TransformTangentialConnectionToNormalResidueEigenbasis[
     normalResidue, bParallel,
@@ -64,10 +61,9 @@ check["package_api_cross_eigenspace_blocks_vanish",
   zeroMatrixQ[gamma[[1 ;; 5, {6}]]] &&
   zeroMatrixQ[gamma[[{6}, 1 ;; 5]]]];
 
-targetRecord = frame["AcceptedTargetGauge"];
-targetGauge = targetRecord["Matrix"];
-acceptedFrame = artifactKey[targetRecord,
-  "AcceptedNormalResidueEigenbasis", "AcceptedModeFrame"];
+targetRecord = frame["AcceptedTargetBasisTransformation"];
+targetBasisTransformationMatrix = targetRecord["Matrix"];
+acceptedFrame = targetRecord["AcceptedNormalResidueEigenbasis"];
 acceptedEigenbasisTransformation =
   TransformTangentialConnectionToNormalResidueEigenbasis[
     normalResidue, bParallel,
@@ -78,9 +74,11 @@ acceptedGamma = acceptedEigenbasisTransformation[
   "TangentialConnectionInEigenbasis"];
 targetConnection = targetRecord["TargetEpsilonConnection"];
 targetCouplings = targetRecord["TargetGPLCouplings"];
-check["accepted_target_gauge_and_normal_residue_eigenbasis_api",
-  Cancel[Together[Det[targetGauge]]] === targetRecord["Determinant"] &&
-  zeroMatrixQ[reduceMatrix[targetRecord["Inverse"] . targetGauge -
+check["accepted_target_basis_transformation_and_normal_residue_eigenbasis_api",
+  Cancel[Together[Det[targetBasisTransformationMatrix]]] ===
+    targetRecord["Determinant"] &&
+  zeroMatrixQ[reduceMatrix[targetRecord["Inverse"] .
+      targetBasisTransformationMatrix -
     IdentityMatrix[2]]] &&
   acceptedEigenbasisTransformation["Status"] ===
       "TangentialConnectionTransformedToNormalResidueEigenbasis" &&
@@ -106,8 +104,7 @@ check["nonzero_mode_integer_shear_and_prefactor",
     eps*(4/p + 16*p/(1 - 2*p^2))]] === 0];
 
 production = frame["ProductionInput"];
-productionFrame = artifactKey[production,
-  "PhysicalNormalResidueEigenbasis", "PhysicalModeFrame"];
+productionFrame = production["PhysicalNormalResidueEigenbasis"];
 productionEigenbasisTransformation =
   TransformTangentialConnectionToNormalResidueEigenbasis[
     normalResidue, bParallel,
@@ -119,12 +116,13 @@ productionGamma = Normal[SparseArray[
     production["TangentialConnectionSparseEntries"], {6, 6}]];
 sourceIndices = {1, 2, 3, 6};
 productionSource = production["Source"];
-productionLayer = production["Layer"];
+productionBlock = production["Layer"];
 sourceConnection = eps*(
   productionSource["Residues"][[1]]/p +
   productionSource["Residues"][[2]]*p/(1 - 2*p^2));
 check["production_frame_and_epsilon_diagonal_blocks",
-  production["Status"] === "CF303SixModeRationalLayerInputAcceptedV1" &&
+  production["Status"] ===
+      "CF303SixModeRationalEpsilonDependentBlockInputValidatedV2" &&
   production["FrameColumnOrder"] === {"Block24Mode1", "Block24Mode2",
     "Block23Zero", "TargetMode1", "TargetMode2", "Block23Nonzero"} &&
   production["SourceModeOrder"] === {"Block24Mode1", "Block24Mode2",
@@ -149,35 +147,42 @@ check["accepted_coordinate_binding_and_embedded_target_extension",
     "Block23NonzeroTargetExtensionInProductionNormalization"] ===
       {-1/((1 + 4*eps)*(2 + 3*eps)),
        -1/((1 + 4*eps)*(2 + 3*eps))} &&
-  productionLayer["TargetBoundarySelectors"][0] ===
+  productionBlock["TargetBoundarySelectors"][0] ===
     {{0, 0, 0, 0, 1, 0}, {0, 0, 0, 0, 0, 1}}];
-prepared = BuildRationalEpsilonLayerTransport[productionSource,
-  productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>,
+productionDemand =
+  <|"RequestedOutputPairs" -> {{0, 1}, {0, 2}}|>;
+prepared = SolveRationalEpsilonDependentBlockByVariationOfConstants[
+  productionSource, productionBlock, productionDemand,
   "PrepareOnly" -> True];
-check["rational_epsilon_layer_input_prepares",
-  prepared["Status"] === "Prepared" &&
+check["rational_epsilon_dependent_block_problem_prepares",
+  prepared["Status"] ===
+      "RationalEpsilonDependentBlockVariationOfConstantsProblemPrepared" &&
   prepared["Dimensions"] === {2, 4} &&
   prepared["SharedBoundaryCoordinates"] === True &&
-  productionLayer["ZeroColumns"] === {4}];
-fullRun = BuildRationalEpsilonLayerTransport[productionSource,
-  productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>,
-  "PrimeCount" -> 3, "WordRepresentation" -> "LazyOperator"];
-fullOperator = BuildRationalEpsilonLayerOperator[productionSource,
-  productionLayer, fullRun];
+  productionBlock["ZeroColumns"] === {4}];
+fullSolution = SolveRationalEpsilonDependentBlockByVariationOfConstants[
+  productionSource, productionBlock, productionDemand,
+  "PrimeCount" -> 3,
+  "IteratedIntegralCoefficientRepresentation" ->
+    "LazyCoefficientOperator"];
+fullOperator =
+  ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientOperator[
+    productionSource, productionBlock, fullSolution];
 fullEvidence = production["FullRunEvidence"];
-check["full_symbolic_endpoint_transport_and_operator",
-  fullRun["Status"] === "RationalEpsilonLayerTransportAccepted" &&
-  AcceptedRationalEpsilonLayerTransportQ[fullRun, productionSource,
-    productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>] &&
-  fullOperator["Status"] === "RationalEpsilonLayerOperatorAccepted" &&
-  AcceptedRationalEpsilonLayerOperatorQ[fullOperator] &&
-  fullEvidence["Route"] === "SealedModularCircuit" &&
+check["full_symbolic_path_endpoint_solution_and_coefficient_operator",
+  fullSolution["Status"] ===
+      "RationalEpsilonDependentBlockSolutionAccepted" &&
+  RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[
+    fullOperator] &&
+  fullEvidence["VariationOfConstantsMethod"] ===
+    "FiniteFieldHermiteReductionAndReconstruction" &&
   fullEvidence["OffDiagonalTransformationBlockRepresentation"] === "RationalFunction" &&
   Length[fullEvidence["Primes"]] === 3 &&
   PrimeQ[fullEvidence["FreshValidationPrime"]] &&
-  fullEvidence["GaugeNonzeroEntries"] === 6 &&
-  TrueQ[fullEvidence["FourArgumentPredicate"]] &&
-  TrueQ[fullEvidence["OperatorPredicate"]]];
+  fullEvidence[
+    "OffDiagonalBasisTransformationBlockNonzeroEntries"] === 6 &&
+  TrueQ[fullEvidence[
+    "CoefficientOperatorStructuralPredicate"]]];
 
 junction = production["AcceptedZPathJunction"];
 junctionSource = junction["SourceModeMap"];

@@ -4,10 +4,10 @@
 
    THE MEASUREMENT.  Preparation of the real CF300 (12,9) block is
    1439.7 s, of which 1400.5 s (97.3%) is global exact decomposition of
-   the forcing into characteristic-zero channels.  The modular solve
+   the inhomogeneity into characteristic-zero channels.  The modular solve
    never needs those functions -- only their VALUES at finite-field
    points.  Codex's bounded benchmark on the same frozen block showed
-   that evaluating the ORIGINAL forcing directly on all Galois branches
+   that evaluating the ORIGINAL inhomogeneity directly on all Galois branches
    reproduces every frozen exact channel projection, 32 of 32.
 
    THIS SUITE is the acceptance for the two providers that generalize
@@ -44,7 +44,7 @@
    D8  At Codex's benchmark image (p = 10007 is not an admissible screen
        prime, so the check is run at the fixture's own admissible prime),
        both providers reproduce the FROZEN EXACT CHANNELS of every
-       forcing entry -- the same equality Codex measured, now as a
+       inhomogeneity entry -- the same equality Codex measured, now as a
        standing test.
    D9  The two providers agree with each other at fresh split points.
    D10 MEASURED, NOT ASSERTED: per-entry provider seconds against the
@@ -64,14 +64,14 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {modularInverse, gradeEvaluate, activeRoots, provider, providerChannels,
   decompose, compose, currentRoots, rootCensus, rootOrder, multiply,
   liftLocal} =
- mq /@ {"multiquadraticStripModularInverse",
-   "multiquadraticStripModularGradeEvaluate",
-   "multiquadraticStripEntryActiveRoots",
-   "multiquadraticStripDirectProvider",
-   "multiquadraticStripProviderChannels",
+ mq /@ {"multiquadraticOffDiagonalBlockModularInverse",
+   "multiquadraticOffDiagonalBlockModularGradeEvaluate",
+   "multiquadraticOffDiagonalBlockEntryActiveRoots",
+   "multiquadraticOffDiagonalBlockDirectProvider",
+   "multiquadraticOffDiagonalBlockProviderChannels",
    "multiquadraticFieldDecompose", "multiquadraticFieldCompose",
-   "transportChartCurrentRoots", "multiquadraticStripRootCensus",
-   "multiquadraticStripRootOrder", "multiquadraticMultiply",
+   "transportChartCurrentRoots", "multiquadraticOffDiagonalBlockRootCensus",
+   "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticMultiply",
    "multiquadraticLiftLocalChannels"};
 
 prime = 2147483423;   (* an admissible screen prime: 3 mod 4, below 2^31 *)
@@ -115,7 +115,7 @@ entryOne = Together[(1 + de dy Sqrt[delta2])/(3 + dy)];
 zero11 = {{{0}}, {{0}}};
 providerRecord = <|"Family" -> "PROVIDERS", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {dx, dy}, "Regulator" -> de,
-  "Strip" -> {zero11, zero11, {{{entryBoth}}, {{entryOne}}}}|>;
+  "OffDiagonalBlockEquation" -> {zero11, zero11, {{{entryBoth}}, {{entryOne}}}}|>;
 
 quotient = provider[providerRecord, roots, "Kind" -> "QuotientGrade"];
 split = provider[providerRecord, roots, "Kind" -> "SplitBranch"];
@@ -125,8 +125,8 @@ check["the two providers are built",
 report["D7 active-root histogram", Lookup[quotient, "ActiveRootHistogram",
   None]];
 check["D7 the per-entry active-root census is recorded and is not uniform",
-  quotient["ActiveRoots"]["BBar"][[1, 1, 1]] === {1, 2} &&
-    quotient["ActiveRoots"]["BBar"][[2, 1, 1]] === {2}];
+  quotient["ActiveRoots"]["Inhomogeneity"][[1, 1, 1]] === {1, 2} &&
+    quotient["ActiveRoots"]["Inhomogeneity"][[2, 1, 1]] === {2}];
 check["D7 the census agrees with the standalone entry classifier",
   activeRoots[entryBoth, roots] === {1, 2} &&
     activeRoots[entryOne, roots] === {2} &&
@@ -162,19 +162,19 @@ oracleChannels[entry_] := Module[{channels},
   modAt[#1 /. Thread[{dx, dy} -> splitPoint] /. de -> epsValue] & /@ channels];
 
 check["D2 the quotient-grade provider reproduces the exact oracle's channels",
-  quotientChannels["BBar"][[1, 1, 1]] === oracleChannels[entryBoth] &&
-    quotientChannels["BBar"][[2, 1, 1]] === oracleChannels[entryOne]];
+  quotientChannels["Inhomogeneity"][[1, 1, 1]] === oracleChannels[entryBoth] &&
+    quotientChannels["Inhomogeneity"][[2, 1, 1]] === oracleChannels[entryOne]];
 report["D2 quotient channels / oracle",
-  {quotientChannels["BBar"][[1, 1, 1]], oracleChannels[entryBoth]}];
+  {quotientChannels["Inhomogeneity"][[1, 1, 1]], oracleChannels[entryBoth]}];
 
 check["D3 the split-branch provider agrees with the quotient-grade provider",
-  splitChannels["BBar"] === quotientChannels["BBar"]];
+  splitChannels["Inhomogeneity"] === quotientChannels["Inhomogeneity"]];
 
 check["D6 the single-root entry is evaluated locally and lifted: its \
 channels live on the masks of that root's subfield only",
-  quotientChannels["BBar"][[2, 1, 1, {2, 4}]] === {0, 0} &&
-    quotientChannels["BBar"][[2, 1, 1, 3]] =!= 0];
-report["D6 single-root entry channels", quotientChannels["BBar"][[2, 1, 1]]];
+  quotientChannels["Inhomogeneity"][[2, 1, 1, {2, 4}]] === {0, 0} &&
+    quotientChannels["Inhomogeneity"][[2, 1, 1, 3]] =!= 0];
+report["D6 single-root entry channels", quotientChannels["Inhomogeneity"][[2, 1, 1]]];
 
 (* a NONSPLIT point *)
 nonsplitPoint = SelectFirst[Table[{a, 3 a + 1}, {a, 2, 4000}],
@@ -201,7 +201,7 @@ check["D4 the quotient-grade provider evaluates there anyway",
    the POINT rather than record a value. *)
 zeroNormEntry = 1/(5 + Sqrt[delta1]);
 zeroNormRecord = Join[providerRecord,
-  <|"Strip" -> {zero11, zero11, {{{zeroNormEntry}}, {{0}}}}|>];
+  <|"OffDiagonalBlockEquation" -> {zero11, zero11, {{{zeroNormEntry}}, {{0}}}}|>];
 zeroNormProvider = provider[zeroNormRecord, roots,
   "Kind" -> "QuotientGrade"];
 zeroNormPoint = {24, 7};
@@ -227,7 +227,7 @@ fixtureDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "FrozenTestFixtures_2026-08-25"}];
 stripFile = FileNameJoin[{fixtureDirectory, "cf300_frozen_strip_12_9_input.wl"}];
 channelFile = FileNameJoin[{fixtureDirectory,
-  "cf300_frozen_channel_forcing.wl"}];
+  "cf300_frozen_channel_inhomogeneity.wl"}];
 check["the frozen CF300 (12,9) strip and its exact channels are in the \
 repository",
   FileExistsQ[stripFile] && FileExistsQ[channelFile]];
@@ -240,7 +240,7 @@ frozenChannels = FeynFacet`FamilyArtifactRead[channelFile, "Global`"];
 cfVariables = cfRecord["Variables"];
 cfRegulator = cfRecord["Regulator"];
 cfAllRoots = currentRoots[chart, cfVariables];
-cfCensus = rootCensus[cfRecord["Strip"], cfAllRoots];
+cfCensus = rootCensus[cfRecord["OffDiagonalBlockEquation"], cfAllRoots];
 cfOrder = rootOrder[chart, cfVariables, cfCensus["RootIndices"], cfRegulator];
 cfRoots = cfOrder["Roots"];
 check["the fixture is a rank-2 multiquadratic strip",
@@ -287,9 +287,9 @@ check["D8 both providers evaluate the real block at that image",
       "MultiquadraticPointCoefficientsV1"];
 check["D8 THE ANCHOR: the split-branch provider reproduces every frozen \
 exact channel of the real block",
-  cfSplitChannels["BBar"] === cfFrozenImages];
+  cfSplitChannels["Inhomogeneity"] === cfFrozenImages];
 check["D8 and so does the quotient-grade provider",
-  cfQuotientChannels["BBar"] === cfFrozenImages];
+  cfQuotientChannels["Inhomogeneity"] === cfFrozenImages];
 report["D8 entry count / channel count",
   {Times @@ Dimensions[frozenChannels][[1 ;; 3]],
    Times @@ Dimensions[frozenChannels]}];
@@ -308,11 +308,11 @@ check["D9 the two providers agree at three fresh split points",
         b = providerChannels[cfSplit, 7, prime, point]},
         Lookup[a, "Status", None] === "MultiquadraticPointCoefficientsV1" &&
           Lookup[b, "Status", None] === "MultiquadraticPointCoefficientsV1" &&
-          a["BBar"] === b["BBar"]]]]];
+          a["Inhomogeneity"] === b["Inhomogeneity"]]]]];
 
 (* D10: the measurement the round-2 disposition asks for -- per-entry
    provider cost against the symbolic oracle on the dominant entries *)
-cfEntries = Flatten[cfRecord["Strip"][[3]]];
+cfEntries = Flatten[cfRecord["OffDiagonalBlockEquation"][[3]]];
 cfLeaves = LeafCount /@ cfEntries;
 dominant = Take[Ordering[cfLeaves, -Length[cfLeaves]] // Reverse, UpTo[3]];
 report["D10 entry leaf counts", cfLeaves];
@@ -328,10 +328,10 @@ Do[
    rootValues = PowerMod[deltaValues, (prime + 1)/4, prime];
    {oracleSeconds, oracleValue} = AbsoluteTiming[decompose[entry, cfRoots]];
    {quotientSeconds, quotient} = AbsoluteTiming[
-     mq["multiquadraticStripQuotientGradeEntry"][entry, cfRoots,
+     mq["multiquadraticOffDiagonalBlockQuotientGradeEntry"][entry, cfRoots,
        activeIndices, scalarRules, deltaValues, prime]];
    {splitSeconds, split} = AbsoluteTiming[
-     mq["multiquadraticStripSplitBranchEntry"][entry, cfRoots,
+     mq["multiquadraticOffDiagonalBlockSplitBranchEntry"][entry, cfRoots,
        activeIndices, scalarRules, deltaValues, rootValues, prime]];
    report["D10 entry " <> ToString[index] <> " leaves / active roots / \
 oracle s / quotient s / split s / split method",

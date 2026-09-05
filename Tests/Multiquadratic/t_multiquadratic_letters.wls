@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Alphabet construction and the residue-only integrability screen of
-   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl (2026-08-24).
+   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockSolve.wl (2026-08-24).
 
    The fixture is the real off-diagonal block CF300 (12,9), read from the
    repository by a repository-relative path
@@ -16,7 +16,7 @@
    C1  Offered the pool {0, 1, -1, 2, 3, 5} -- the engine's historical
        sample list {0, 1, -1, 2} with two generic values appended -- the
        chooser returns {1, 2, 3, 5} and records 0 and -1 as REJECTED.
-       Those two are poles of this block's forcing (its channel
+       Those two are poles of this block's inhomogeneity (its channel
        denominators carry eps^3 and 1 + eps), and the engine lost 14 of
        32 candidate dlogs on them.
 
@@ -39,7 +39,7 @@
 
    The integrability screen on CF300 (12,9).
    C6  On the block's candidate letters WITHOUT the algebraic family the
-       screen returns the typed "AlphabetIntegrabilityObstruction" with
+       screen returns the typed "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage" with
        affine defect 1, and it MEASURED the diagonal connections flat
        (F_e = F_c = 0), which is what makes the residue-only reduction
        valid.
@@ -48,7 +48,7 @@
    C8  With the four repair letters added the same screen returns
        "AlphabetIntegrabilityConsistent" with defect 0.
    C9  The screen never compiles or decomposes the block: it returns in
-       under 120 s on a 2x2 block whose forcing has 10^5-leaf entries.
+       under 120 s on a 2x2 block whose inhomogeneity has 10^5-leaf entries.
 
    The screen on synthetic blocks.
    C10 A block built from a known gauge and known residues over a flat
@@ -63,7 +63,7 @@
 
    Gauge denominator.
    C12 The norm gauge-denominator factor of the CF300 (12,9) alphabet is
-       non-trivial, and merging it into the forcing gauge denominator
+       non-trivial, and merging it into the inhomogeneity gauge denominator
        admits each shared pole ONCE, at the larger order -- the merged
        degree is strictly smaller than the degree of the product. *)
 
@@ -84,17 +84,17 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {candidateLetters, regulatorSamples, polarCurves, normFilter,
   algebraicLetters, normFactor, mergeDenominator, screen, rootCensus,
-  rootOrder, rationalGaugeDenominator, currentRoots} =
- mq /@ {"multiquadraticStripCandidateLetters",
-   "multiquadraticStripRegulatorSampleValues",
-   "multiquadraticStripRationalPolarCurves",
-   "multiquadraticStripNormInAlphabetQ",
-   "multiquadraticStripAlgebraicLetters",
-   "multiquadraticStripNormDenominatorFactor",
-   "multiquadraticStripMergeGaugeDenominator",
-   "multiquadraticStripIntegrabilityScreen",
-   "multiquadraticStripRootCensus", "multiquadraticStripRootOrder",
-   "multiquadraticRationalGaugeDenominator",
+  rootOrder, rationalOffDiagonalBasisTransformationDenominator, currentRoots} =
+ mq /@ {"multiquadraticOffDiagonalBlockCandidateLetters",
+   "multiquadraticOffDiagonalBlockRegulatorSampleValues",
+   "multiquadraticOffDiagonalBlockRationalPolarCurves",
+   "multiquadraticOffDiagonalBlockNormInAlphabetQ",
+   "multiquadraticOffDiagonalBlockAlgebraicLetters",
+   "multiquadraticOffDiagonalBlockNormDenominatorFactor",
+   "multiquadraticOffDiagonalBlockMergeOffDiagonalBasisTransformationDenominator",
+   "multiquadraticOffDiagonalBlockIntegrabilityScreen",
+   "multiquadraticOffDiagonalBlockRootCensus", "multiquadraticOffDiagonalBlockRootOrder",
+   "multiquadraticRationalOffDiagonalBasisTransformationDenominator",
    "transportChartCurrentRoots"};
 
 If[longTestsQ,
@@ -117,14 +117,14 @@ check["the CF300 (12,9) fixture is frozen in the repository",
 record = FeynFacet`FamilyArtifactRead[stripFile, "Global`"];
 check["the fixture record carries a strip and its chart variables",
   AssociationQ[record] && MatchQ[record["Variables"], {_Symbol, _Symbol}] &&
-    MatchQ[record["Strip"], {_List, _List, _List}]];
+    MatchQ[record["OffDiagonalBlockEquation"], {_List, _List, _List}]];
 variables = record["Variables"];
 regulator = record["Regulator"];
 {vx, vy} = variables;
 delta1 = 1 - 2 vx + vx^2 + 2 vy + 2 vx vy + vy^2;
 delta2 = 1 - 4 vx vy;
 allRoots = currentRoots[chart, variables];
-census = rootCensus[record["Strip"], allRoots];
+census = rootCensus[record["OffDiagonalBlockEquation"], allRoots];
 order = rootOrder[chart, variables, census["RootIndices"], regulator];
 check["the fixture is a rank-2 multiquadratic strip over d1 and d2",
   Lookup[order, "Status", None] === "StableRootOrder" &&
@@ -138,7 +138,7 @@ dlogKernels = If[StringQ[dlogKernelText] &&
   FromDigits[dlogKernelText], Automatic];
 
 (* ---- C1: the regulator sample chooser ---- *)
-samples = regulatorSamples[record["Strip"][[3]], variables, regulator, 4,
+samples = regulatorSamples[record["OffDiagonalBlockEquation"][[3]], variables, regulator, 4,
    {0, 1, -1, 2, 3, 5}];
 check["C1 the chooser accepts four generic values and rejects the two poles",
   Lookup[samples, "Status", None] === "RegulatorSamplesChosen" &&
@@ -148,7 +148,7 @@ report["C1 chosen / rejected regulator samples",
   {samples["Values"], samples["RejectedValues"]}];
 
 (* ---- the candidate letter set (two samples, to keep the suite fast) ---- *)
-{letterSeconds, letters} = AbsoluteTiming[candidateLetters[record["Strip"],
+{letterSeconds, letters} = AbsoluteTiming[candidateLetters[record["OffDiagonalBlockEquation"],
    roots, variables, regulator, record, "RegulatorSampleCount" -> 2,
    "DLogKernels" -> dlogKernels]];
 check["the candidate letter set is built",
@@ -210,7 +210,7 @@ report["C4 generated letters",
 
 (* ---- C6/C7/C8/C9: the screen on the real block ---- *)
 baseRecords = Select[letters["LetterRecords"],
-   MemberQ[{"Diagonal", "ForcingDLog", "RationalFactor"}, #1["Kind"]] &];
+   MemberQ[{"Diagonal", "InhomogeneityDLog", "RationalFactor"}, #1["Kind"]] &];
 dlogPair[f_] := {Together[D[f, vx]/f], Together[D[f, vy]/f]};
 repairRecords = <|"Kind" -> "Algebraic", "Letter" -> #1,
     "OneForm" -> dlogPair[#1]|> & /@ repairLetters;
@@ -219,7 +219,7 @@ sampleValue = First[letters["RegulatorValues"]];
    screen[record, roots, baseRecords, "PointCount" -> 12,
      "RegulatorValue" -> sampleValue, "ScoreLetters" -> False]];
 check["C6 the screen on the non-algebraic letters is a typed obstruction",
-  Lookup[obstruction, "Status", None] === "AlphabetIntegrabilityObstruction"];
+  Lookup[obstruction, "Status", None] === "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage"];
 check["C6 the affine defect is 1",
   Lookup[obstruction, "Defect", None] === 1 &&
     obstruction["AugmentedRank"] === obstruction["Rank"] + 1];
@@ -257,10 +257,10 @@ check["C12 the norm gauge-denominator factor is a non-constant polynomial",
 check["C12 the merge takes the larger order of a shared factor, not the product",
   TrueQ[Together[mergeDenominator[(1 + vx)^2 vy, (1 + vx) vy^3, variables] /
       ((1 + vx)^2 vy^3)] === 1]];
-(* the eps-free part of the gauge denominator this block's forcing rule
+(* the eps-free part of the gauge denominator this block's inhomogeneity rule
    produces, as MEASURED by the post-mortem denominator census:
    y (-1+x+y) (-1+4xy)^2 times an eps-dependent factor.  Recomputing it
-   here would decompose the forcing into channels, which is the 807 s the
+   here would decompose the inhomogeneity into channels, which is the 807 s the
    screen exists to avoid. *)
 baseDenominator = vy (-1 + vx + vy) (-1 + 4 vx vy)^2;
 merged = mergeDenominator[baseDenominator, factor, variables];
@@ -290,7 +290,7 @@ syntheticForms = {Together[D[Log[#1], sx]], Together[D[Log[#1], sy]]} & /@
    syntheticLetters;
 syntheticRecords = <|"Kind" -> "Supplied", "Letter" -> #1[[1]],
     "OneForm" -> #1[[2]]|> & /@ Transpose[{syntheticLetters, syntheticForms}];
-(* a 1x1 diagonal pair is flat for any residues; the forcing is BUILT
+(* a 1x1 diagonal pair is flat for any residues; the inhomogeneity is BUILT
    from a known gauge and known residues, so the screen must accept it *)
 (* e and c are built from letters 1 and 2 ONLY and the residues sit on
    letters 3 and 4: a diagonal pair that already uses a residue-carrying
@@ -298,18 +298,18 @@ syntheticRecords = <|"Kind" -> "Supplied", "Letter" -> #1[[1]],
    vacuous rather than an obstruction. *)
 syntheticE = {{{2 syntheticForms[[1, 1]]}}, {{2 syntheticForms[[1, 2]]}}};
 syntheticC = {{{3 syntheticForms[[2, 1]]}}, {{3 syntheticForms[[2, 2]]}}};
-syntheticGauge = {{(1 + 2 sx - 3 sy + sx sy)/(1 - sx - sy)}};
+syntheticOffDiagonalBasisTransformationBlock = {{(1 + 2 sx - 3 sy + sx sy)/(1 - sx - sy)}};
 syntheticResidues = {{{0}}, {{0}}, {{5/2}}, {{-3}}};
-syntheticForcing = Table[
-   Map[Together, D[syntheticGauge, {sx, sy}[[mu]]] -
-     se (syntheticE[[mu]] . syntheticGauge -
-       syntheticGauge . syntheticC[[mu]]) +
+syntheticInhomogeneity = Table[
+   Map[Together, D[syntheticOffDiagonalBasisTransformationBlock, {sx, sy}[[mu]]] -
+     se (syntheticE[[mu]] . syntheticOffDiagonalBasisTransformationBlock -
+       syntheticOffDiagonalBasisTransformationBlock . syntheticC[[mu]]) +
      se Sum[syntheticResidues[[a]] syntheticForms[[a, mu]],
        {a, Length[syntheticLetters]}], {2}],
    {mu, 2}];
 syntheticRecord = <|"Family" -> "SYNTHETIC_FLAT", "Sector" -> 3,
    "LowerSector" -> 1, "Variables" -> {sx, sy}, "Regulator" -> se,
-   "Strip" -> {syntheticE, syntheticC, syntheticForcing}|>;
+   "OffDiagonalBlockEquation" -> {syntheticE, syntheticC, syntheticInhomogeneity}|>;
 syntheticScreen = screen[syntheticRecord, {}, syntheticRecords,
    "PointCount" -> 8, "RegulatorValue" -> 1/13, "ScoreLetters" -> False];
 check["C10 the synthetic block is consistent with its own alphabet",
@@ -323,7 +323,7 @@ strippedScreen = screen[syntheticRecord, {}, Drop[syntheticRecords, {3}],
    "PointCount" -> 8, "RegulatorValue" -> 1/13, "ScoreLetters" -> False];
 check["C10 removing the letter that carries a residue is an obstruction",
   Lookup[strippedScreen, "Status", None] ===
-      "AlphabetIntegrabilityObstruction" && strippedScreen["Defect"] >= 1 &&
+      "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage" && strippedScreen["Defect"] >= 1 &&
     AssociationQ[strippedScreen["Witness"]] &&
     TrueQ[strippedScreen["Witness"]["TransposeResidualZero"]]];
 report["C10 synthetic (letter 1-x-y removed)", KeyTake[strippedScreen,
@@ -337,7 +337,7 @@ curvedE = Table[
      {{0, 0}, {1, 1}} syntheticForms[[2, mu]], {mu, 2}];
 curvedRecord = <|"Family" -> "SYNTHETIC_CURVED", "Sector" -> 3,
    "LowerSector" -> 1, "Variables" -> {sx, sy}, "Regulator" -> se,
-   "Strip" -> {curvedE, {{{0}}, {{0}}},
+   "OffDiagonalBlockEquation" -> {curvedE, {{{0}}, {{0}}},
      {{{1/sx}, {1/sy}}, {{1/(1 - sx - sy)}, {1}}}}|>;
 curvedScreen = screen[curvedRecord, {}, syntheticRecords, "PointCount" -> 6,
    "RegulatorValue" -> 1/13, "ScoreLetters" -> False];

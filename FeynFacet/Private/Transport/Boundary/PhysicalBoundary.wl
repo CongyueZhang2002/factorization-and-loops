@@ -75,8 +75,12 @@ boundaryModeIdentifier[mode_Association] :=
 
 boundaryModeCoefficient["BoundaryConstant", id_, order_] :=
   BoundaryConstantEpsilonCoefficient[id, order];
-boundaryModeCoefficient["BoundaryFunction", id_, order_] :=
-  BoundaryFunctionEpsilonCoefficient[id, order];
+boundaryModeCoefficient["BoundaryFunction", id_, order_,
+    tangentialVariables_List] :=
+  Apply[BoundaryFunctionEpsilonCoefficient[id, order],
+    tangentialVariables];
+boundaryModeCoefficient[type_, id_, order_, _List] :=
+  boundaryModeCoefficient[type, id, order];
 boundaryModeCoefficientPattern :=
   _BoundaryConstantEpsilonCoefficient | _BoundaryFunctionEpsilonCoefficient;
 
@@ -126,7 +130,8 @@ boundaryLocalOrder[expression_, variable_Symbol] := Module[
       Exponent[numerator /. variable -> scale variable, scale, Min] -
         Exponent[denominator /. variable -> scale variable, scale, Min]]
   ];
-  (* A multiquadratic chart can leave square roots in the inverse gauge even
+  (* A square-root presentation can leave square roots in the inverse basis
+     transformation even
      when every root is regular and nonzero at the chosen physical edge.
      Their exact local series still has an ordinary integer valuation.  Read
      that valuation directly instead of rejecting the mode merely because
@@ -825,11 +830,13 @@ MatchBoundaryAsymptoticsToFrobeniusModes[frobenius_Association, transformation_?
         Lookup[mode, "Status", "BoundaryModeIncomplete"]]|>,
       boundaryTypedID[boundaryDataType, boundaryModeDataID[mode]]]], modes];
   <|
+    "DataType" -> "BoundaryAsymptoticModeMatching",
+    "SchemaVersion" -> 2,
     "Status" -> If[AllTrue[modes,
       Lookup[#, "Status", None] ===
         "BoundaryAsymptoticsMatchedToFrobeniusMode" &],
-      "BoundaryAsymptoticModeMatching",
-      "BoundaryAsymptoticModeMatchingIncomplete"],
+      "BoundaryAsymptoticsMatchedToFrobeniusModes",
+      "BoundaryAsymptoticsNotFullyMatchedToFrobeniusModes"],
     "Family" -> family,
     "PhysicalKinematicLimit" -> limit,
     "BoundaryDomain" -> boundaryDomain,
@@ -855,7 +862,7 @@ MatchBoundaryAsymptoticsToFrobeniusModes[frobenius_Association, transformation_?
 ];
 
 MatchBoundaryAsymptoticsToFrobeniusModes[___] :=
-  <|"Status" -> "BoundaryAsymptoticModeMatchingInputInvalid"|>;
+  <|"Status" -> "BoundaryAsymptoticsToFrobeniusModesInputsInvalid"|>;
 
 (* A basis for a degenerate admissible residue eigenspace.  It records the
    independent directions only.  No relation among their boundary constants
@@ -917,7 +924,7 @@ boundaryConstructValueVectorAndSelectorMatrices[modeMap_Association, boundaryDat
    boundaryVectors, functionSpace, dataStatus, incompleteStatus,
    boundaryDataType, dataIDKey, analyticClassKey, coefficientLabelsKey,
    coefficientRecordsKey, valueVectorKey, family, physicalLimit,
-   modeID, modeClass, normalizedRecord},
+   modeID, modeClass, normalizedRecord, tangentialVariables},
   fail[status_, extra_: <||>] :=
     Throw[Join[<|"Status" -> status|>, extra]];
   action = OptionValue["MissingBoundaryDataAction"];
@@ -925,7 +932,11 @@ boundaryConstructValueVectorAndSelectorMatrices[modeMap_Association, boundaryDat
   If[low > high || ! MemberQ[{"Refuse", "Formal"}, action],
     fail["BoundaryEpsilonWindowInvalid"]
   ];
-  If[Lookup[modeMap, "Status", None] =!= "BoundaryAsymptoticModeMatching",
+  If[Lookup[modeMap, "DataType", None] =!=
+        "BoundaryAsymptoticModeMatching" ||
+      Lookup[modeMap, "SchemaVersion", None] =!= 2 ||
+      Lookup[modeMap, "Status", None] =!=
+        "BoundaryAsymptoticsMatchedToFrobeniusModes",
     fail["CompleteBoundaryAsymptoticModeMatchingRequired",
       <|"BoundaryDataRequirements" ->
         Lookup[modeMap, "BoundaryDataRequirements", {}]|>]
@@ -945,6 +956,8 @@ boundaryConstructValueVectorAndSelectorMatrices[modeMap_Association, boundaryDat
     "BoundaryConstantVector", "BoundaryFunctionVector"];
   family = modeMap["Family"];
   physicalLimit = modeMap["PhysicalKinematicLimit"];
+  tangentialVariables = Lookup[modeMap["BoundaryDomain"],
+    "TangentialVariables", {}];
   modes = modeMap["FrobeniusModes"];
   regulator = modeMap["Regulator"];
   dimension = modeMap["Dimension"];
@@ -1001,7 +1014,8 @@ boundaryConstructValueVectorAndSelectorMatrices[modeMap_Association, boundaryDat
           <|"EpsilonOrders" -> orders|>]]];
   resolveCoefficients[mode_, data_Association, orders_List] :=
     Association@Table[order -> If[KeyExistsQ[data, order], data[order],
-      boundaryModeCoefficient[boundaryDataType, boundaryModeDataID[mode], order]],
+      boundaryModeCoefficient[boundaryDataType, boundaryModeDataID[mode],
+        order, tangentialVariables]],
       {order, orders}];
   addCoordinates[mode_, data_Association, orders_List] := Module[
     {affected = {}, value},

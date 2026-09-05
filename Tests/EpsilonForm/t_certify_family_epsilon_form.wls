@@ -2,8 +2,9 @@
    distinct for the same rational family dlog epsilon form. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
-Clear[v, w, u, eps];
+Clear[v, w, u, eps, master];
 transformation = {{v, 0}, {0, 1}};
 inverse = {{1/v, 0}, {0, 1}};
 epsilonForm = {
@@ -26,11 +27,21 @@ candidate = <|
   "EpsFormX" -> epsilonForm[[1]],
   "EpsFormY" -> epsilonForm[[2]]
 |>;
+v2System = <|
+  "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+  "Family" -> "SyntheticValidation", "KinematicVariables" -> {v, w},
+  "DimensionalRegulator" -> eps,
+  "OriginalMasterIntegralBasis" -> {master[1], master[2]},
+  "ConnectionMatrices" -> {system["Av"], system["Aw"]}|>;
+systemReference = <|
+  "RelativePath" -> "synthetic_validation_system.wl",
+  "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+  "Family" -> "SyntheticValidation"|>;
 
-exact = FeynFacet`ValidateFamilyDLogEpsilonForm[candidate, system,
-  "SourceVariables" -> {v, w}, "IdentityMethod" -> "Symbolic"];
-finiteField = FeynFacet`ValidateFamilyDLogEpsilonForm[candidate, system,
-  "SourceVariables" -> {v, w}, "IdentityMethod" -> "Modular",
+exact = FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+  candidate, v2System, systemReference, "IdentityMethod" -> "Symbolic"];
+finiteField = FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+  candidate, v2System, systemReference, "IdentityMethod" -> "Modular",
   "ModularPoints" -> 3, "ModularPrimes" -> 2];
 broken = FeynFacet`ValidateFamilyDLogEpsilonForm[
   ReplacePart[candidate, {"EpsFormX", 1, 1} -> 2 eps/v], system,
@@ -40,30 +51,29 @@ threeVariableSource = FeynFacet`ValidateFamilyDLogEpsilonForm[
 unsupportedMethod = FeynFacet`ValidateFamilyDLogEpsilonForm[
   candidate, system, "SourceVariables" -> {v, w},
   "IdentityMethod" -> "Unknown"];
-blockDecomposition = <|
-  "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
-  "SchemaVersion" -> 2,
-  "FamilyDifferentialSystemReference" -> <|
-    "RelativePath" -> "synthetic_validation_system.wl",
-    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
-    "Family" -> "SyntheticValidation"|>,
-  "IrreducibleDiagonalBlocks" -> {{1}, {2}}|>;
-transportInput = Join[KeyDrop[exact, "IrreducibleDiagonalBlocks"],
-  <|"BlockDecomposition" -> blockDecomposition|>];
-transportDemand = <|"PhysicalRows" -> {1}, "PhysicalOrders" -> {0},
-  "PhysicalValuation" -> 0, "Path" -> <|
+transportInput = exact;
+transportDemand = <|
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> {{0, 1}},
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
+  "RegularBasePointAndFirstPathParameterScale" -> <|
     "FirstVariable" -> v, "SecondVariable" -> w,
     "FirstBase" -> 1/2, "SecondBase" -> 1/2,
-    "FirstTargetSample" -> 1/3|>|>;
-transportFromV2Blocks = FeynFacet`BuildObservableTransport[
+    "FirstPathParameterScale" -> -1/6|>|>;
+transportFromV2Blocks =
+  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
   transportInput, transportDemand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
-transportFromTopLevelBlocks = FeynFacet`BuildObservableTransport[
+  "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints",
+  "IteratedIntegralCoefficientRepresentation" ->
+    "IteratedIntegralCoefficientOperatorForRequestedOutputs"];
+transportFromTopLevelBlocks =
+  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
   Join[KeyDrop[transportInput, "BlockDecomposition"],
     <|"IrreducibleDiagonalBlocks" -> {{1}, {2}}|>], transportDemand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
+  "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints",
+  "IteratedIntegralCoefficientRepresentation" ->
+    "IteratedIntegralCoefficientOperatorForRequestedOutputs"];
 
 tests = <|
   "ExactStatus" -> exact["Status"] ===
@@ -88,11 +98,12 @@ tests = <|
   "SourceRepresentation" ->
     exact["CoefficientPresentation", "DataType"] ===
       "SourceVariableRepresentation",
-  "ObservableTransportConsumesNestedBlockDecomposition" ->
-    FeynFacet`AcceptedObservableTransportQ[transportFromV2Blocks],
-  "ObservableTransportRefusesTopLevelBlockAlias" ->
-    Lookup[transportFromTopLevelBlocks, "Status", None] ===
-      "IncompleteFamilyEpsilonFormRecord",
+  "CoefficientOperatorConsumesNestedBlockDecomposition" ->
+    FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      transportFromV2Blocks],
+  "CoefficientOperatorRefusesTopLevelBlockAlias" ->
+    ! FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      transportFromTopLevelBlocks],
   "BrokenTransformationRejected" ->
     broken["Status"] === "FamilyDLogEpsilonFormValidationFailed" &&
       ! TrueQ[broken["Validation", "Conditions",

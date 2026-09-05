@@ -164,11 +164,11 @@ zeroMatrixQ[matrix_] := Module[{entries},
         If[verdict === $Failed, AppendTo[refusals, entry]; False,
           TrueQ[verdict]]]]]]];
 roundTrip[gauge_, map_, images_] := Select[Tuples[{1, -1}, 2],
-  Function[signs, Module[{branchImages, branchedGauge},
+  Function[signs, Module[{branchImages, brancheoffDiagonalBasisTransformationBlock},
     branchImages = MapThread[Times, {signs, images}];
-    branchedGauge = fp["transportChartApplyRootBranches"][
+    brancheoffDiagonalBasisTransformationBlock = fp["transportChartApplyRootBranches"][
       Map[Together, gauge /. map, {2}], usedRoots, branchImages];
-    zeroMatrixQ[(branchedGauge /.
+    zeroMatrixQ[(brancheoffDiagonalBasisTransformationBlock /.
       data["SourceVariableSubstitution"]) - gauge]]]];
 canonicalMap = MapThread[Rule, {chartVariables, canon["Images"]}];
 gaugeOne = {{1/(cx - cy)}};

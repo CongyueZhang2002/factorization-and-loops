@@ -17,22 +17,18 @@
                                                   v<->w members)
            1 - 4 v w                             (class 115, one-variable u)
        and a class member may carry the v<->w image of its
-       representative's quadratic (measured: CF53/CF57 host classes
-       90/93/91 with lambda2, CF48/CF52 host class 98 with v^2 + 4 w).
+       representative's quadratic (measured in host classes 90/93/91
+       with lambda2 and host class 98 with v^2 + 4 w).
      * A family may use one parametrization in which every class form it
        hosts is rational.  Single-root families use the parametrization of
        their root; two-root families use a joint parametrization built on
        the Kallen parametrization by
        a rational point on the second conic (derived and verified
-       exactly 2026-08-17 01:42, pool mission jcharts2); the three
-       triple-root families (CF259, CF300, CF303) are not covered here
+       exactly 2026-08-17 01:42); triple-root families are not covered here
        yet.
-     * Polynomial letters that are quadratic in the moving path variable
-       in every rational chart (1 - w + v w in the Kallen chart is a
-       (2,2)-curve on P^1 x P^1) are handled by ALGEBRAIC LETTERS
-       (MasterTransport.wl, masterTransportMonicCheck), not by charts.
-       Charts exist to make the block transformations rational, nothing
-       else.
+     * Coefficient presentations make block transformations representable;
+       they do not simplify or linearize the letters used by the later
+       requested-output iterated-integral coefficient operator.
 
    Every catalog entry carries forward square-root identities and a
    nondegenerate Jacobian.  VerifyRationalizingParametrization re-derives
@@ -43,11 +39,11 @@
    Jacobian determinant are recorded so that stage 3 can choose.
 
    Layer position (round 7, 2026-09-02): this file IS the Geometry layer
-   and loads BEFORE EpsForm.  The in-frame strip solver
-   SolveEpsFormStripInFrame and the helpers only it used (stage log,
+   and loads BEFORE EpsForm.  The in-frame off-diagonal block equation solver
+   SolveOffDiagonalBasisTransformationBlock and the helpers only it used (stage log,
    broker-parallel Together/decompose/Jacobian tasks, deferred-bundle
    pullbacks, deadline bookkeeping, timings, the retired Maple stub)
-   moved verbatim to EpsForm/Strip/EpsFormStripInFrame.wl, so nothing
+   moved verbatim to EpsForm/OffDiagonalBlock/OffDiagonalBlockInFrame.wl, so nothing
    here references an EpsForm symbol; the record-to-chart resolution
    observableTransportRecordChart (with observableTransportSourceFrameQ)
    came down from Transport because FamilyEpsForm needs it. *)
@@ -144,9 +140,9 @@ rationalizingParametrizationCatalogDefinitions[] := With[
   (* The Q4 charts keep the OTHER kinematic variable as a chart
      variable (v = p or w = p) and rationalize the root through the
      conic parametrization w = (p - s^2)/s (resp. v = ...), so that
-     4v + w^2 = ((p + s^2)/s)^2.  MEASURED 2026-08-17 (chart probes on
-     CF48/CF232): the naive parametrization v = (s^2 - u^2)/4, w = u
-     turns the letter v + w - w^2 of CF48/CF52 into a QUARTIC in the
+     4v + w^2 = ((p + s^2)/s)^2.  MEASURED 2026-08-17: the naive
+     parametrization v = (s^2 - u^2)/4, w = u turns a representative
+     letter v + w - w^2 into a QUARTIC in the
      path variable (not admissible as algebraic letters); with p linear
      in the frozen variable every letter of these families is of degree
      <= 2 in s (letters quadratic in s: roots algebraic in p, admissible). *)
@@ -199,7 +195,7 @@ point (x, z) = (1, 1+y) of z^2 = lambda3|_{Kallen2}"|>;
 
        a = (4 p (1-p) - 2 u)/(u^2 + 4 p (1-p)).
 
-     This chart was first derived for a difficult family strip, but the
+     This chart was first derived for a difficult family off-diagonal block equation, but the
      formula and lookup key are root-square data only: no family identity
      belongs in the package catalog. *)
   k3b115k = p (1 - p);
@@ -236,8 +232,8 @@ lambda2(v,w)=lambda3(-v,-w), while 1-4vw is invariant"|>;
 sqrt(1-4 v w)=1+u a gives a=(4 p(1-p)-2u)/(u^2+4 p(1-p))"|>;
   (* ---- joint charts for {lambda1, 4 v + w^2} and its v<->w image,
           derived 2026-08-24 by the ITERATED PENCIL and verified exactly
-          (CF259 rows 1..16 carry exactly this pair; the pair has no
-          entry above, which is what stopped the family solve with
+          (a measured production subsystem carries exactly this pair; the
+          pair has no entry above, which stopped its solve with
           NeedsMultiquadraticRegulatorFactorization).
 
      Step 1.  4 v + w^2 is quadratic in w with leading coefficient 1, so
@@ -1087,10 +1083,12 @@ masterTransportComposeTwoVariableRecord[recordParametrization_Association,
       "VerifiedCandidateCount" -> Length[verified],
       "Route" -> route|>]];
 
-(* A diagonal-block record is either written in
-   the source variables or carries one complete two-variable rationalizing
-   parametrization.  Former one-variable conic records are regenerated using
-   the corresponding two-variable catalog entry. *)
+(* A diagonal-block record may already be written in the selected family
+   coefficient variables, may be written in the source variables, or may
+   carry one complete block-local rationalizing parametrization.  Equality of
+   its coefficient-variable list with the selected presentation gives the
+   identity map; the downstream transformed-system equation still decides
+   acceptance, so this is coordinate routing rather than trusted evidence. *)
 masterTransportRecordCoordinateMap[record_Association,
     data_Association] := Module[
   {sourceVariables, targetVariables, sourceNames, targetNames,
@@ -1111,6 +1109,18 @@ masterTransportRecordCoordinateMap[record_Association,
   recordParametrization = Lookup[record,
     "RationalizingParametrization", None];
   If[recordParametrization === None || recordParametrization === Null,
+    If[recordNames === targetNames,
+      Return[<|
+        "Status" -> "OK",
+        "CoordinateRepresentation" ->
+          "SelectedFamilyCoefficientPresentation",
+        "CoefficientVariableRules" ->
+          Thread[recordVariables -> targetVariables],
+        "CoefficientVariableImages" -> targetVariables,
+        "CompositionStatement" ->
+          "the diagonal block is already written in the selected family coefficient variables",
+        "CompositionVerified" -> True|>]
+    ];
     If[recordNames =!= sourceNames,
       Return[<|"Status" ->
         "DiagonalBlockSourceVariableRepresentationMismatch",

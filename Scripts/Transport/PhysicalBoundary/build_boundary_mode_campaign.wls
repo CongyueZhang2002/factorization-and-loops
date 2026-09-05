@@ -129,7 +129,8 @@ familyFile[directory_, prefix_, family_] :=
 buildFamily[family_] := Catch@Module[
   {fail, start = AbsoluteTime[], formFile, transportFile, form, transport,
    chart, variables, endpoint, familyBoundaryIntegrals, permutation, realization,
-   rows, matches, rowMatches, blockPosition, canonicalRows, realizations, gaugeRules,
+   rows, matches, rowMatches, blockPosition, canonicalRows, realizations,
+   basisNormalizationParameterRules,
    connection, frobeniusSpec, frobeniusSeconds, frobenius, modeSeconds,
    modeMap, outputFile},
   fail[status_, extra_: <||>] := Throw[Join[<|"Family" -> family,
@@ -139,9 +140,9 @@ buildFamily[family_] := Catch@Module[
     "observable_transport_", family];
   If[!FileExistsQ[formFile], fail["CertifiedEpsilonFormMissing"]];
   If[!FileExistsQ[transportFile],
-    fail["ObservableTransportRequiredForGaugeBinding",
+    fail["IteratedIntegralCoefficientOperatorRequiredForBasisNormalizationBinding",
       <|"EpsilonFormFile" -> formFile,
-        "ExpectedTransportFile" -> transportFile|>]];
+        "ExpectedIteratedIntegralCoefficientOperatorFile" -> transportFile|>]];
   form = Get[formFile];
   transport = Get[transportFile];
   chart = Lookup[form, "Chart", If[
@@ -151,9 +152,10 @@ buildFamily[family_] := Catch@Module[
   endpoint = endpointForChart[chart, variables];
   If[MissingQ[endpoint], fail["PhysicalEdgeChartUnsupported",
       <|"Chart" -> chart|>]];
-  If[Lookup[transport, "Variables", None] =!= variables,
-    fail["TransportFrameMismatch", <|"FormVariables" -> variables,
-      "TransportVariables" -> Lookup[transport, "Variables", None]|>]];
+  If[Lookup[transport, "CoefficientVariables", None] =!= variables,
+    fail["CoefficientVariableMismatch", <|"FormVariables" -> variables,
+      "CoefficientOperatorVariables" ->
+        Lookup[transport, "CoefficientVariables", None]|>]];
 
   familyBoundaryIntegrals = Select[activeBoundaryIntegrals,
     MemberQ[#["Families"], family] &];
@@ -196,7 +198,8 @@ buildFamily[family_] := Catch@Module[
       "CanonicalRows" -> canonicalRows,
       "PhysicalRows" -> canonicalRows,
       "ConstraintRows" -> Range[Max[canonicalRows]],
-      "DemandedOutputs" -> transport["PhysicalDemandPairs"],
+      "DemandedOutputs" ->
+        transport["RequestedMasterIntegralEpsilonOrderAndRowPairs"],
       "EpsilonExponent" -> boundaryIntegral["EpsPart"],
       "IntegerValuation" ->
         boundaryIntegral["IntegerValuation", endpoint["Stratum"]],
@@ -210,8 +213,9 @@ buildFamily[family_] := Catch@Module[
       Join[realization, <|"KnownCoefficient" -> 0|>], realization]
   ], familyBoundaryIntegrals];
 
-  gaugeRules = Lookup[transport, "GaugeConstantRules", {}];
-  connection = form["EpsFormY"] /. gaugeRules;
+  basisNormalizationParameterRules = Lookup[transport,
+    "BasisNormalizationParameterRules", {}];
+  connection = form["EpsFormY"] /. basisNormalizationParameterRules;
   frobeniusSpec = <|
     "Variable" -> endpoint["Variable"],
     "Regulator" -> form["Regulator"],
@@ -229,7 +233,7 @@ buildFamily[family_] := Catch@Module[
       "Seconds" -> frobeniusSeconds|>]];
   modeSeconds = First@AbsoluteTiming[
     modeMap = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
-      form["TTotal"] /. gaugeRules,
+      form["TTotal"] /. basisNormalizationParameterRules,
       <|"Family" -> family, "Limit" -> endpoint["Stratum"],
         "BoundaryDomain" -> <|"Type" -> "PhysicalBoundaryPoint",
           "Coordinates" -> Join[endpoint["FixedRules"],
@@ -239,13 +243,18 @@ buildFamily[family_] := Catch@Module[
           "Stratum" -> endpoint["Stratum"], "LocalPower" -> 1,
           "LeadingCoefficient" -> endpoint["LeadingCoefficient"]|>|>,
       realizations]];
-  If[Lookup[modeMap, "Status", None] =!= "BoundaryAsymptoticModeMatching",
-    fail["BoundaryAsymptoticModeMatchingFailed", <|"Result" -> modeMap,
+  If[Lookup[modeMap, "DataType", None] =!=
+        "BoundaryAsymptoticModeMatching" ||
+      Lookup[modeMap, "SchemaVersion", None] =!= 2 ||
+      Lookup[modeMap, "Status", None] =!=
+        "BoundaryAsymptoticsMatchedToFrobeniusModes",
+    fail["BoundaryAsymptoticsNotMatchedToFrobeniusModes", <|"Result" -> modeMap,
       "Seconds" -> modeSeconds|>]];
   modeMap = Join[modeMap, <|
     "CampaignRecordStatus" -> "PhysicalBoundaryModeMapAcceptedV1",
     "Chart" -> chart,
-    "GaugeConstantRules" -> gaugeRules,
+    "BasisNormalizationParameterRules" ->
+      basisNormalizationParameterRules,
     "BoundaryIntegralIDs" ->
       Lookup[familyBoundaryIntegrals, "BoundaryIntegralID"],
     "BoundaryIntegralIDsWithEvaluatedValues" -> Intersection[
@@ -255,7 +264,8 @@ buildFamily[family_] := Catch@Module[
       Lookup[familyBoundaryIntegrals, "BoundaryIntegralID"], {1, 6, 7}],
     "FrobeniusModeIDs" -> Lookup[realizations, "FrobeniusModeID"],
     "SourceFiles" -> <|"EpsilonForm" -> formFile,
-      "ObservableTransport" -> transportFile|>,
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs" ->
+        transportFile|>,
     "TimingsSeconds" -> <|"Frobenius" -> frobeniusSeconds,
       "ModeMatching" -> modeSeconds,
       "Total" -> AbsoluteTime[] - start|>|>];

@@ -10,8 +10,8 @@ pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-solve = mq["solveEpsFormStripMultiquadratic"];
-rowForm = mq["familyRowGaugeDLogForm"];
+solve = mq["solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"];
+rowForm = mq["familyRowBasisTransformationDLogForm"];
 
 Clear[x, y, eps, cx, cy];
 delta = 1 + x;
@@ -24,20 +24,20 @@ gauge = {{Sqrt[delta]/delta}};
 e = {{{0}}, {{0}}};
 c = {{{0}}, {{0}}};
 oneForm = {1/x, 0};
-bbar = Table[Map[Together,
+inhomogeneity = Table[Map[Together,
     D[gauge, {x, y}[[mu]]] + eps oneForm[[mu]], {2}], {mu, 2}];
 record = <|"Family" -> "END_TO_END_INSTALL", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {x, y}, "Regulator" -> eps,
-  "Strip" -> {e, c, bbar}|>;
+  "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>;
 
 result = solve[record, frame,
   "CoefficientProvider" -> "SplitBranch",
   "AdditionalLetters" -> {x}, "AlgebraicLetters" -> {},
-  "GaugeDenominator" -> delta, "GaugeDenominatorFactor" -> 1,
+  "OffDiagonalBasisTransformationDenominator" -> delta, "OffDiagonalBasisTransformationDenominatorFactor" -> 1,
   "Support" -> {{0, 0}},
   "RegulatorSampleCount" -> 2, "DLogKernels" -> 1,
   "IntegrabilityScreen" -> False, "ScreenFirst" -> False,
-  "GaugeScreen" -> False, "RegulatorReconstruction" -> True,
+  "OffDiagonalBasisTransformationBlockScreen" -> False, "RegulatorReconstruction" -> True,
   "RegulatorReconstructionCheck" -> "ProviderPoints",
   "ReconstructionUnseenPrimeCount" -> 2,
   "ReconstructionFreshPointwiseChecksPerPrime" -> 3];
@@ -52,7 +52,7 @@ check["the direct solver promotes the reconstructed block to Solved",
     Lookup[result, "SolutionContract", None] ===
       "InstallableMultiquadraticDLogV1"];
 check["the generic gauge, not one regulator fibre, is installed",
-  TrueQ[Together[First[First[result["Gauge"]]] -
+  TrueQ[Together[First[First[result["OffDiagonalBasisTransformationBlock"]]] -
       First[First[gauge]]] === 0]];
 check["active support contains the certified dlog(x) contribution",
   MemberQ[Lookup[result, "Alphabet", {}], x] &&
@@ -93,7 +93,7 @@ check["installed summary retains adaptive prime-count telemetry",
 
 installedForm = If[Lookup[result, "Status", None] === "Solved",
   rowForm[result, {x, y}, eps, {1, 1}], $Failed];
-check["FamilyRowGauge consumes the certified forms without redifferentiation",
+check["FamilyRowBasisTransformation consumes the certified forms without redifferentiation",
   ListQ[installedForm] &&
     TrueQ[Together[installedForm[[1, 1, 1]] - eps/x] === 0] &&
     TrueQ[Together[installedForm[[2, 1, 1]]] === 0]];

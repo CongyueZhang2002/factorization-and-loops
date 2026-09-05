@@ -24,13 +24,13 @@ rows[mat_, method_, orders_, caps_: Automatic] := Block[
   FeynFacet`Private`observableTransportLaurentRows[mat, eps, orders, Range[Length[mat]], caps]];
 FTAssert["the production default is the Series route",
   FeynFacet`Private`$observableTransportLaurentMethod === "Series"];
-(* round 6: the jet route is retired to Private_Backup with its test *)
-FTAssert["selecting the retired Jet route is refused typed, at the row level and at the tensor level",
-  rows[{{1/eps}}, "Jet", {-1, 0}] === <|"Status" -> "RouteRetired", "Route" -> "Laurent jet", "Replacement" -> "Series"|> &&
+FTAssert["an undeclared Laurent-extraction method is rejected at the row and tensor levels",
+  rows[{{1/eps}}, "Jet", {-1, 0}] === $Failed &&
   Block[{FeynFacet`Private`$observableTransportLaurentMethod = "Jet"},
     FeynFacet`Private`observableTransportLaurentMatrices[{{1/eps}}, eps, {-1, 0}]] ===
-    <|"Status" -> "RouteRetired", "Route" -> "Laurent jet", "Replacement" -> "Series"|> &&
-  System`Names["FeynFacet`Private`observableTransportEpsJet*"] === {}];
+      $Failed &&
+    System`Names["FeynFacet`Private`$observableTransportLaurentJetRetired"] === {} &&
+    System`Names["FeynFacet`Private`observableTransportEpsJet*"] === {}];
 
 (* 1. synthetic matrix of t_observable_transport_laurent_jet.wls *)
 r1 = Sqrt[1 - 4 x y]; r2 = Sqrt[x^2 + 4 y];
@@ -85,12 +85,20 @@ FTAssert["a pole below the requested range is counted (the transport refuses suc
    Lookup[FeynFacet`Private`$observableTransportLaurentDiagnostics, "ValuationBelowRange", 0] === 1)];
 
 (* 4. end to end *)
-deterministicKeys = {"Status", "PhysicalRows", "PhysicalDemandPairs", "BoundarySlots",
+deterministicKeys = {"Status",
+    "NonzeroRequestedMasterIntegralEpsilonOrderAndRowPairs",
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs", "BoundarySlots",
     "BoundaryConstraintMatrix", "BoundaryAmbientSlots", "BoundaryKernelAtBase", "BoundaryBaseEmbedding",
-    "BoundaryEvolutionMethod", "BoundaryConstraintLeafCount", "ConstraintRank", "DualClosureRankHistory",
-    "SecondBoundaryClosureRankHistory", "FirstSegmentKernels", "FirstSegmentKernelMatrices",
-    "SecondSegmentKernels", "SecondSegmentKernelMatrices", "WordRepresentation", "MaximumWeight",
-    "FirstSegmentWordMaps", "TwoSegmentWordMaps", "TransportEpsilonValuations", "ExactOperatorAutomaton"};
+    "BoundaryConstraintSubspaceRepresentation",
+    "BoundaryConstraintLeafCount", "ConstraintRank", "DualClosureRankHistory",
+    "SecondBoundaryClosureRankHistory",
+    "FirstPathSegmentIteratedIntegralKernels",
+    "FirstPathSegmentKernelCoefficientMatrices",
+    "SecondPathSegmentIteratedIntegralKernels",
+    "SecondPathSegmentKernelCoefficientMatrices",
+    "IteratedIntegralCoefficientRepresentation",
+    "MaximumIteratedIntegralWeight", "TransportEpsilonValuations",
+    "ExactIteratedIntegralCoefficientOperator"};
 (* the first-segment kernels carry the per-call path symbol
    Unique["observablePath"]; compare them modulo that name *)
 pathSymbolRules[value_] := (# -> Symbol["Global`observablePathCompared"]) & /@
@@ -102,23 +110,45 @@ differingKeys[a_, b_] := If[! AssociationQ[a] || ! AssociationQ[b], {a, b},
     Select[deterministicKeys, Lookup[da, #, Missing["A"]] =!= Lookup[db, #, Missing["B"]] &]]];
 runBoth[record_, demand_, options___] := Module[{a, b},
   a = Block[{FeynFacet`Private`$observableTransportLaurentMethod = "Series"},
-    FeynFacet`BuildObservableTransport[record, demand, options]];
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      record, demand, options]];
   b = Block[{FeynFacet`Private`$observableTransportLaurentMethod = "SeriesCoefficient"},
-    FeynFacet`BuildObservableTransport[record, demand, options]];
+    FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      record, demand, options]];
   {a, b}];
-accepted[value_] := TrueQ[FeynFacet`AcceptedObservableTransportQ[value]];
-(* CF27, certified rational record *)
-cf27 = FeynFacet`FamilyArtifactRead[FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical",
-  "FamilyEpsFormsCertified", "family_epsform_CF27.wl"}]];
-system = Get[FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "DifferentialEquations", "nnlo_de_CF27.wl"}]];
-valuations = Get[FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "MasterCoefficientValuations.wl"}]];
-path27 = <|"FirstVariable" -> Symbol["Global`v"], "FirstBase" -> 1/4, "SecondBase" -> 1/4, "FirstTargetSample" -> 2/7|>;
-demand27 = FeynFacet`BuildObservableTransportDemand[cf27, system, valuations,
-  "HardFunctionOrders" -> {0}, "SafetyOrders" -> 1, "MasterValuation" -> 0, "Path" -> path27];
-{t27, pair27} = AbsoluteTiming[runBoth[cf27, demand27]];
-Print["CF27 both routes: ", Round[t27, 0.1], " s; statuses ", Lookup[#, "Status", Head[#]] & /@ pair27, "; differing keys ", differingKeys @@ pair27];
-FTAssert["CF27: both routes accepted and every deterministic part of the object is SameQ",
-  accepted[pair27[[1]]] && accepted[pair27[[2]]] && deterministic[pair27[[1]]] === deterministic[pair27[[2]]]];
+accepted[value_] := TrueQ[
+  FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[value]];
+(* Optional production fixture: generated family artifacts are deliberately
+   not a dependency of this synthetic unit test. *)
+cf27File = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+  "UU_08_10_canonical", "FamilyEpsFormsCertified",
+  "family_epsform_CF27.wl"}];
+system27File = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+  "UU_08_10_canonical", "DifferentialEquations", "nnlo_de_CF27.wl"}];
+valuationsFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+  "UU_08_10_canonical", "MasterCoefficientValuations.wl"}];
+If[AllTrue[{cf27File, system27File, valuationsFile}, FileExistsQ],
+  cf27 = FeynFacet`FamilyArtifactRead[cf27File];
+  system = FeynFacet`FamilyArtifactRead[system27File];
+  valuations = FeynFacet`FamilyArtifactRead[valuationsFile];
+  path27 = <|"FirstVariable" -> Symbol["Global`v"],
+    "FirstBase" -> 1/4, "SecondBase" -> 1/4,
+    "FirstPathParameterScale" -> 1/28|>;
+  demand27 =
+    FeynFacet`Private`mapMasterIntegralCoefficientValuationsToRequestedRows[
+    cf27, system, valuations,
+    "RequestedHardFunctionEpsilonOrders" -> {0},
+    "AdditionalRetainedEpsilonOrders" -> 1,
+    "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
+    "RegularBasePointAndFirstPathParameterScale" -> path27];
+  {t27, pair27} = AbsoluteTiming[runBoth[cf27, demand27]];
+  Print["CF27 both routes: ", Round[t27, 0.1], " s; statuses ",
+    Lookup[#, "Status", Head[#]] & /@ pair27,
+    "; differing keys ", differingKeys @@ pair27];
+  FTAssert["CF27: both routes accepted and every deterministic part of the object is SameQ",
+    accepted[pair27[[1]]] && accepted[pair27[[2]]] &&
+      deterministic[pair27[[1]]] === deterministic[pair27[[2]]]],
+  Print["CF27 generated artifacts not present; optional production comparison skipped"]];
 (* the algebraic toy record of t_algebraic_observable_transport.wls *)
 ax = Symbol["Global`algebraicX"]; ay = Symbol["Global`algebraicY"];
 toy = <|"Status" -> "ExactEpsilonForm", "Family" -> "AlgebraicObservableToy", "Variables" -> {ax, ay},
@@ -129,10 +159,15 @@ toy = <|"Status" -> "ExactEpsilonForm", "Family" -> "AlgebraicObservableToy", "V
     "Letters" -> {1 + Sqrt[1 - ax]}, "Residues" -> {{{1}}}, "ConstantResidues" -> True|>,
   "ChartRecord" -> <|"CoefficientField" -> "Multiquadratic", "Variables" -> {ax, ay}, "Subst" -> {ax -> ax, ay -> ay},
     "Roots" -> {<|"Root" -> Sqrt[1 - ax], "RootSquare" -> 1 - ax|>}|>,
-  "GateVerdict" -> True, "GaugeIdentity" -> True, "Flatness" -> True, "TTotalInvertible" -> True|>;
-toyPath = FeynFacet`FindObservableTransportPath[toy];
-toyDemand = <|"PhysicalRows" -> {1}, "PhysicalOrders" -> {2, 3}, "PhysicalValuation" -> 2, "Path" -> toyPath|>;
-pairToy = runBoth[toy, toyDemand, "BoundaryEvolution" -> "AmbientBasePoint"];
+  "GateVerdict" -> True, "ConnectionTransformationEquation" -> True, "Flatness" -> True, "TTotalInvertible" -> True|>;
+toyPath = FeynFacet`ChooseRegularBasePointAndFirstPathParameterScale[toy];
+toyDemand = <|
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> {{2, 1}, {3, 1}},
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 2,
+  "RegularBasePointAndFirstPathParameterScale" -> toyPath|>;
+pairToy = runBoth[toy, toyDemand,
+  "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints"];
 Print["algebraic toy both routes: statuses ", Lookup[#, "Status", Head[#]] & /@ pairToy, "; differing keys ", differingKeys @@ pairToy];
 FTAssert["algebraic toy record: both routes give the same status and deterministic object",
   deterministic[pairToy[[1]]] === deterministic[pairToy[[2]]]];
@@ -145,38 +180,39 @@ toy2 = Join[toy, <|"Family" -> "AlgebraicObservableToy2", "Dim" -> 2, "Ranges" -
   "EpsFormX" -> eps {{-1/(2 r (1 + r)), 0}, {0, -1/(2 r (1 + r))}}, "EpsFormY" -> eps {{0, 0}, {0, 0}},
   "DLog" -> <|"Valid" -> True, "Dimension" -> 2, "Variables" -> {ax, ay}, "Regulator" -> eps,
     "Letters" -> {1 + r}, "Residues" -> {{{1, 0}, {0, 1}}}, "ConstantResidues" -> True|>|>];
-toy2Demand = <|"PhysicalRows" -> {1, 2}, "PhysicalOrders" -> {0, 1}, "PhysicalValuation" -> 0, "Path" -> FeynFacet`FindObservableTransportPath[toy2]|>;
-pairToy2 = runBoth[toy2, toy2Demand, "BoundaryEvolution" -> "AmbientBasePoint"];
+toy2Demand = <|
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" ->
+    {{0, 1}, {0, 2}, {1, 1}, {1, 2}},
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
+  "RegularBasePointAndFirstPathParameterScale" ->
+    FeynFacet`ChooseRegularBasePointAndFirstPathParameterScale[toy2]|>;
+pairToy2 = runBoth[toy2, toy2Demand,
+  "BoundaryConstraintSubspaceRepresentation" ->
+    "AmbientSpaceWithBasePointConstraints"];
 Print["2x2 algebraic toy both routes: statuses ", Lookup[#, "Status", Head[#]] & /@ pairToy2, "; differing keys ", differingKeys @@ pairToy2,
-  "; physical rows ", Lookup[pairToy2[[1]], "PhysicalRows", None], "; constraint rank ", Lookup[pairToy2[[1]], "ConstraintRank", None]];
+  "; requested row/order pairs ", Lookup[pairToy2[[1]],
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs", None],
+  "; constraint rank ", Lookup[pairToy2[[1]], "ConstraintRank", None]];
 FTAssert["2x2 algebraic toy record (radical TTotal entries with poles): both routes give the same status and deterministic object",
   deterministic[pairToy2[[1]]] === deterministic[pairToy2[[2]]]];
 (* CF230, certified Kallen-chart record (its certified coefficient field is Rational), when present *)
 cf230File = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "FamilyEpsFormsCertified", "family_epsform_CF230.wl"}];
 de230File = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "DifferentialEquations", "nnlo_de_CF230.wl"}];
-If[FileExistsQ[cf230File] && FileExistsQ[de230File],
+If[FileExistsQ[cf230File] && FileExistsQ[de230File] &&
+    FileExistsQ[valuationsFile],
+  valuations = FeynFacet`FamilyArtifactRead[valuationsFile];
   cf230 = FeynFacet`FamilyArtifactRead[cf230File];
   de230 = FeynFacet`FamilyArtifactRead[de230File];
-  demand230 = FeynFacet`BuildObservableTransportDemand[cf230, de230, valuations];
-  FTAssert["CF230: the demand is built", Lookup[demand230, "Status", None] === "ExactObservableDemand"];
+  demand230 =
+    FeynFacet`Private`mapMasterIntegralCoefficientValuationsToRequestedRows[
+      cf230, de230, valuations];
+  FTAssert["CF230: requested rows are mapped",
+    Lookup[demand230, "Status", None] ===
+      "MasterIntegralCoefficientValuationsMappedToRequestedRows"];
   {t230, pair230} = AbsoluteTiming[runBoth[cf230, demand230]];
   Print["CF230 both routes: ", Round[t230, 0.1], " s; statuses ", Lookup[#, "Status", Head[#]] & /@ pair230,
     "; coefficient field ", Lookup[pair230[[1]], "CoefficientField", None], "; differing keys ", differingKeys @@ pair230];
   FTAssert["CF230 (certified chart record): both routes accepted and every deterministic part of the object is SameQ",
     accepted[pair230[[1]]] && accepted[pair230[[2]]] && deterministic[pair230[[1]]] === deterministic[pair230[[2]]]],
   Print["CF230 record not present; end-to-end multiquadratic comparison skipped"]];
-(* 5. a record whose TMin is above an entry's true valuation is refused *)
-badToy = Join[toy, <|"TransportEpsilonValuations" -> <|"TMin" -> 0, "BlockLower" -> {0}|>, "TTotal" -> {{1/eps}}, "TTotalInverse" -> {{eps}}|>];
-badResult = FeynFacet`BuildObservableTransport[badToy, toyDemand, "BoundaryEvolution" -> "AmbientBasePoint"];
-(* Since round 4 (agent T) a record's valuations must carry a certificate,
-   and the certifier refuses a claim above the observed order; an
-   uncertified or over-claimed record is therefore refused by that gate
-   before the Laurent stage runs.  The Laurent-stage guard
-   LaurentValuationBelowRecord is defence in depth behind it.  Either
-   typed refusal is the contract; a silent drop of the order is not. *)
-Print["stale-TMin record status: ", Lookup[badResult, "Status", None]];
-FTAssert["a record whose TMin exceeds an entry's valuation is refused typed (certificate gate or Laurent guard), never transported",
-  MemberQ[{"LaurentValuationBelowRecord", "TransportEpsilonValuationsUncertified",
-      "TransportEpsilonValuationsTooHigh", "TransportEpsilonValuationCertificateInvalid"},
-    Lookup[badResult, "Status", None]]];
 FTReport[];

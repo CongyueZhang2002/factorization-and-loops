@@ -53,7 +53,7 @@ log[a___] := Print["[probe +", ToString[Round[AbsoluteTime[] - start]], "s] ",
   StringJoin[ToString /@ {a}]];
 
 log["loading FACET"];
-If[Names["FeynFacet`TransportFamily"] === {},
+If[Names["FeynFacet`FamilyArtifactRead"] === {},
   Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]]];
 
 Quiet[Clear["Global`tau"]];
@@ -99,21 +99,21 @@ log["raw (v,w) system: eps-dependent denominator factors of Av: ",
 log["raw (v,w) system: eps-dependent denominator factors of Aw: ",
   epsDenFactors[de["Aw"]]];
 
-log["assembling in the chart (MaxWeight -> 0: no transport)"];
+log["assembling the family differential system in the coefficient presentation"];
 {asmSeconds, r} = AbsoluteTiming[FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
    <|"Family" -> family, "Basis" -> Lookup[de, "BlockBasis", None],
      "Av" -> de["Av"], "Aw" -> de["Aw"]|>,
    chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
    "Blocks" -> blocks, "FormDirectory" -> ftClassForms,
-   "PhysicalValuation" -> 0, "Orders" -> {0, 1},
-   "TransportBackend" -> "Libra", "MaxWeight" -> 0, "Verbose" -> False]];
+   "Verbose" -> False]];
 log["assembly status ", Lookup[r, "Status", "?"], " in ", Round[asmSeconds, 0.1], " s"];
 
-If[! (AssociationQ[r] && KeyExistsQ[r, "Assembly"] &&
-      AssociationQ[r["Assembly"]] && r["Assembly"]["Status"] === "OK"),
+If[! (AssociationQ[r] &&
+      AssociationQ[Lookup[r, "FamilyDifferentialSystem", None]] &&
+      r["FamilyDifferentialSystem"]["Status"] === "OK"),
   log["!! no usable assembly; keys ", Keys[r]]; Exit[1]];
 
-assembly = r["Assembly"];
+assembly = r["FamilyDifferentialSystem"];
 ranges = assembly["Ranges"];
 nb = Length[ranges];
 dims = Length /@ ranges;

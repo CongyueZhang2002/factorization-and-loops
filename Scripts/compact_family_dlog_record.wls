@@ -56,7 +56,7 @@ If[valuationFile =!= None &&
     Length[valuations["BlockLower"]] =!= Length[ranges],
   Print["transport epsilon valuations do not match the block layout"];
   Exit[1]];
-stripSolvers = Lookup[record, "StripSolvers", {}];
+stripSolvers = Lookup[record, "OffDiagonalBlockSolutions", {}];
 pairs = DeleteDuplicates[Lookup[stripSolvers,
   {"Sector", "LowerSector"}, Missing[]]];
 expectedPairs = Binomial[Length[ranges], 2];
@@ -65,10 +65,10 @@ blockSummary = <|
   "ExpectedOffDiagonalPairs" -> expectedPairs,
   "RecordedOffDiagonalPairs" -> Length[pairs],
   "CompletePairCoverage" -> Length[pairs] === expectedPairs,
-  "ZeroForcingCount" -> Count[Lookup[stripSolvers, "Method", None],
-    "ZeroForcing"],
+  "ZeroInhomogeneityCount" -> Count[Lookup[stripSolvers, "Method", None],
+    "ZeroInhomogeneity"],
   "ComputedBlockCount" -> Length[stripSolvers] -
-    Count[Lookup[stripSolvers, "Method", None], "ZeroForcing"]|>;
+    Count[Lookup[stripSolvers, "Method", None], "ZeroInhomogeneity"]|>;
 If[! TrueQ[blockSummary["CompletePairCoverage"]],
   Print["accepted block coverage is incomplete"]; Exit[1]];
 
@@ -81,7 +81,7 @@ compact = Join[
     "EpsFormRepresentation" -> "ConstantResidueDLog",
     "DLog" -> dlog,
     "BlockAssemblyEvidence" -> blockSummary,
-    "Purpose" -> "ObservableTransportInput",
+    "Purpose" -> "RequestedOutputIteratedIntegralCoefficientOperatorInput",
     "CompactionSeconds" -> N[AbsoluteTime[] - started]|>,
   If[valuationFile === None, <||>,
     <|"TransportEpsilonValuations" -> valuations|>]];

@@ -42,7 +42,7 @@
 
 $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
-If[Names["FeynFacet`TransportFamily"] === {},
+If[Names["FeynFacet`FamilyArtifactRead"] === {},
   Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]],
   Get[FileNameJoin[{root, "FeynFacet", "FeynFacet.m"}]]];
 clearGlobalSymbol[name_String] := ToExpression["Global`" <> name, InputForm,
@@ -80,7 +80,16 @@ readArtifact[file_String] := normalizeRegulator[normalizeSymbols[Get[file]]];
 putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"},
   Put[expr, tmp]; RenameFile[tmp, file, OverwriteTarget -> True]];
 epsOrderOf = FeynFacet`Private`masterTransportEpsOrder;
-laurentList = FeynFacet`Private`masterTransportLaurentList;
+laurentList[e_, {firstOrder_, lastOrder_}, regulator_] := Module[
+  {rational = Together[e], valuation},
+  If[lastOrder < firstOrder, Return[{}]];
+  valuation = epsOrderOf[rational, regulator];
+  If[valuation === Infinity,
+    Return[ConstantArray[0, lastOrder - firstOrder + 1]]];
+  If[valuation < firstOrder, Return[$Failed]];
+  Table[Together[SeriesCoefficient[rational,
+    {regulator, 0, order}]], {order, firstOrder, lastOrder}]
+];
 
 ftData = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical"}];
 
@@ -199,24 +208,21 @@ chart = FeynFacet`FamilyRootData[family];
 system = <|"Family" -> family, "Basis" -> de["BlockBasis"], "Av" -> de["Av"], "Aw" -> de["Aw"]|>;
 log["assembling, frame ", If[AssociationQ[chart], chart["Name"], "SourceVW"],
   ", demand nMax ", nMax];
-rec = If[AssociationQ[chart],
-  FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system, chart, "SourceVariables" -> {vv, ww},
-    "Regulator" -> ee, "Blocks" -> blocks,
-    "FormDirectory" -> FileNameJoin[{ftData, "ClassForms"}],
-    "PhysicalValuation" -> 0, "Orders" -> {0, 1},
-    "TransportBackend" -> "Libra", "MaxWeight" -> 0, "Verbose" -> False],
-  FeynFacet`TransportFamily[system, "Variables" -> {vv, ww}, "Regulator" -> ee,
-    "Blocks" -> blocks, "FormDirectory" -> FileNameJoin[{ftData, "ClassForms"}],
-    "BasePoint" -> {1/4, 1/4}, "PhysicalValuation" -> 0, "Orders" -> {0, 1},
-    "TransportBackend" -> "Libra", "MaxWeight" -> 0, "Verbose" -> False]];
-If[! (AssociationQ[rec] && KeyExistsQ[rec, "Assembly"] && AssociationQ[rec["Assembly"]] &&
-      KeyExistsQ[rec["Assembly"], "Ranges"]),
+rec = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+  system, If[AssociationQ[chart], chart, None],
+  "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
+  "Blocks" -> blocks,
+  "FormDirectory" -> FileNameJoin[{ftData, "ClassForms"}],
+  "Verbose" -> False];
+If[! (AssociationQ[rec] &&
+      AssociationQ[Lookup[rec, "FamilyDifferentialSystem", None]] &&
+      KeyExistsQ[rec["FamilyDifferentialSystem"], "Ranges"]),
   log["!! assembly failed: ", Lookup[rec, "Status", "?"]];
   putAtomic[<|"Family" -> family, "Status" -> "AssemblyFailed",
     "Reason" -> Lookup[rec, "Reason", Lookup[rec, "Status", "?"]]|>,
     FileNameJoin[{diagdir, "gauge_" <> family <> "_diag.wl"}]];
   Exit[1]];
-assembly = rec["Assembly"];
+assembly = rec["FamilyDifferentialSystem"];
 {x1, x2} = If[AssociationQ[chart], chart["Variables"], {vv, ww}];
 Ax = assembly["Apv"]; Ay = assembly["Apw"];
 ranges = assembly["Ranges"]; nb = Length[ranges]; n = Length[Ax];

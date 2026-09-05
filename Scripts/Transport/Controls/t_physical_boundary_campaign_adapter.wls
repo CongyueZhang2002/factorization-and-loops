@@ -8,9 +8,8 @@ Block[{$HistoryLength = 0}, Module[
   demand, transport, frobenius, constantRealizations, constantModeMap,
   adapter, composition, firstIndex, missingLetters, missingModes,
   insufficientDepth, logarithmicMode, logarithmicFailure,
-  knownZeroModeMap, knownZeroAdapter, materializedDemand,
-  materializedTransport, storedMap, providedMap, materializedAdapter,
-  materializedComposition, functionRealizations, functionModeMap,
+  knownZeroModeMap, knownZeroAdapter,
+  functionRealizations, functionModeMap,
   functionAdapter, testResult},
 
 repo = ExpandFileName@FileNameJoin[
@@ -47,16 +46,19 @@ epsilonForm = <|
   "TTotalInvertible" -> True|>;
 path = <|"FirstVariable" -> x, "SecondVariable" -> y,
   "FirstBase" -> 3, "SecondBase" -> 1/2,
-  "FirstTargetSample" -> 4|>;
-demand = <|"PhysicalRows" -> {1, 2},
-  "PhysicalOrders" -> {0, 1, 2}, "PhysicalValuation" -> 0,
-  "Path" -> path|>;
-transport = FeynFacet`BuildObservableTransport[epsilonForm, demand,
-  "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "OperatorAutomaton"];
-transport = Join[transport, <|
-  "DLogLetters" -> epsilonForm["DLog", "Letters"],
-  "DLogResidues" -> epsilonForm["DLog", "Residues"]|>];
+  "FirstPathParameterScale" -> 1|>;
+demand = <|
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> Flatten[
+    Table[{order, row}, {order, 0, 2}, {row, 2}], 1],
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
+  "RegularBasePointAndFirstPathParameterScale" -> path|>;
+transport =
+  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    epsilonForm, demand,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      "AmbientSpaceWithBasePointConstraints",
+    "IteratedIntegralCoefficientRepresentation" ->
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs"];
 
 frobenius = FeynFacet`ComputeTruncatedLocalFrobeniusExpansion[
   epsilonForm["EpsFormY"], <|"Variable" -> y, "Regulator" -> eps,
@@ -86,7 +88,7 @@ constantModeMap = FeynFacet`MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
 adapter = FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
   transport, constantModeMap, <||>,
   "BoundaryDataEpsilonOrderWindow" -> {0, 2},
-  "DemandWordPairs" -> {{{}, {}}}];
+  "RequestedPathSegmentLetterIndexSequencePairs" -> {{{}, {}}}];
 composition =
   FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonBoundaryCoefficientMaps[
     adapter, transport, {{{}, {}}}];
@@ -98,9 +100,11 @@ check["endpoint and interior base are distinct and both connecting segments are 
   adapter["Path", "Endpoint", "Point"] =!=
       adapter["Path", "InteriorBase", "Point"] &&
     Length[adapter["Path", "Segments"]] === 2 &&
-    AnyTrue[adapter["EndpointWordTerms"],
+    AnyTrue[adapter[
+        "BoundaryPathIteratedIntegralCoefficientMatrixTerms"],
       Total[Length /@ Lookup[#,
-        {"EndpointFirstWord", "EndpointSecondWord"}, {}]] === 1 &]];
+        {"BoundaryPathFirstSegmentLetterIndices",
+          "BoundaryPathSecondSegmentLetterIndices"}, {}]] === 1 &]];
 check["composition returns typed boundary-constant coefficient maps",
   composition["Status"] ===
       "EndpointAutomatonBoundaryCoefficientMapsBuilt" &&
@@ -108,8 +112,8 @@ check["composition returns typed boundary-constant coefficient maps",
     AnyTrue[composition["BoundaryDataRequirements"],
       Lookup[#, "Status", None] === "Unevaluated" &]];
 
-firstIndex = First[transport["ExactOperatorAutomaton",
-  "FirstAlphabetIndices"]];
+firstIndex = First[transport["ExactIteratedIntegralCoefficientOperator",
+  "FirstPathSegmentAlphabetLetterIndices"]];
 check["an unprepared current-path word fails typed",
   MatchQ[
     FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonBoundaryCoefficientMaps[
@@ -118,7 +122,7 @@ check["an unprepared current-path word fails typed",
 
 missingLetters =
   FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
-    KeyDrop[transport, "DLogLetters"], constantModeMap, <||>,
+    KeyDrop[transport, "Letters"], constantModeMap, <||>,
     "MaximumConnectorWeight" -> 0,
     "BoundaryDataEpsilonOrderWindow" -> {0, 1}];
 missingModes =
@@ -164,33 +168,6 @@ check["a known-zero boundary constant remains explicit in the requirements and c
     FreeQ[Lookup[knownZeroAdapter[
       "BoundaryConstantEpsilonCoefficientRecords"], "BoundaryConstantID"],
       {family, 2}]];
-
-materializedDemand = Join[demand, <|"PhysicalOrders" -> {0, 1}|>];
-materializedTransport = FeynFacet`BuildObservableTransport[epsilonForm,
-  materializedDemand, "BoundaryEvolution" -> "AmbientBasePoint",
-  "WordRepresentation" -> "MaterializedWords"];
-materializedTransport = Join[materializedTransport, <|
-  "DLogLetters" -> epsilonForm["DLog", "Letters"],
-  "DLogResidues" -> epsilonForm["DLog", "Residues"]|>];
-storedMap = SelectFirst[materializedTransport["TwoSegmentWordMaps"],
-  First[#] === {} && #[[2]] === {} &][[3]];
-providedMap =
-  FeynFacetCampaign`PhysicalBoundary`Private`transportObservableWordMap[
-    materializedTransport, {}, {}];
-materializedAdapter =
-  FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
-    materializedTransport, constantModeMap, <||>,
-    "BoundaryDataEpsilonOrderWindow" -> {0, 1},
-    "DemandWordPairs" -> {{{}, {}}}];
-materializedComposition =
-  FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonBoundaryCoefficientMaps[
-    materializedAdapter, materializedTransport, {{{}, {}}}];
-check["the materialized provider returns and consumes the exact stored map",
-  TrueQ[providedMap === storedMap] &&
-    materializedAdapter["ObservableWordMapProvider"] ===
-      "MaterializedWords" &&
-    materializedComposition["Status"] ===
-      "EndpointAutomatonBoundaryCoefficientMapsBuilt"];
 
 functionRealizations = Table[<|
     "BoundaryFunctionID" -> {family, "f", id},

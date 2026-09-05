@@ -4,7 +4,7 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Block[{$Context = "FeynFacet`Private`",
     $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-  Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldStripSolve.wl"]]];
+  Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldOffDiagonalBlockSolve.wl"]]];
 
 pass = 0; fail = 0;
 check[label_, value_] := If[TrueQ[value], pass++; Print["OK   ", label],
@@ -30,16 +30,16 @@ canonical[q_] := Table[<|"EpsilonValue" -> value,
     "Values" -> (modQ[q, #1 /. e -> value] & /@ functions)|>,
   {value, epsilonValues}];
 
-binary = FeynFacet`Private`finiteFieldStripRegulatorInterpolationBinary[];
+binary = FeynFacet`Private`finiteFieldOffDiagonalBlockRegulatorInterpolationBinary[];
 check["native regulator-interpolation binary is installed",
   StringQ[binary] && FileExistsQ[binary]];
 
-nativeDiscovery = FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
+nativeDiscovery = FeynFacet`Private`finiteFieldOffDiagonalBlockNativeHeldOutInterpolate[
   canonical[p], p, 4, 3, 22, Automatic];
 wolframDiscovery = Block[{
-    FeynFacet`Private`$finiteFieldStripNativeInterpolationMinimumCoordinates =
+    FeynFacet`Private`$finiteFieldOffDiagonalBlockNativeInterpolationMinimumCoordinates =
       Infinity},
-  FeynFacet`Private`finiteFieldStripHeldOutInterpolate[canonical[p], p,
+  FeynFacet`Private`finiteFieldOffDiagonalBlockHeldOutInterpolate[canonical[p], p,
     "InitialConstructionCount" -> 4, "HeldOutCount" -> 3,
     "MaximumTotalDegree" -> 22]];
 check["native adaptive discovery is accepted",
@@ -60,7 +60,7 @@ cappedDiscovery = Internal`InheritedBlock[
   Clear[FeynFacet`Private`taskBrokerNativeThreadLimit];
   FeynFacet`Private`taskBrokerNativeThreadLimit[requested_Integer] :=
     Min[requested, 1];
-  FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
+  FeynFacet`Private`finiteFieldOffDiagonalBlockNativeHeldOutInterpolate[
     canonical[p], p, 4, 3, 22, Automatic]];
 check["native discovery obeys the live pool thread grant",
   Lookup[cappedDiscovery, "Status", None] === "HeldOutValidated" &&
@@ -68,20 +68,20 @@ check["native discovery obeys the live pool thread grant",
     Lookup[cappedDiscovery["Interpolations"], "Degrees"] === degrees];
 
 nativeWideDiscovery =
-  FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
+  FeynFacet`Private`finiteFieldOffDiagonalBlockNativeHeldOutInterpolate[
     canonical[wide], wide, 4, 3, 22, Automatic];
 check["adaptive discovery accepts a 61-bit prime",
   Lookup[nativeWideDiscovery, "Status", None] === "HeldOutValidated" &&
     Lookup[nativeWideDiscovery["Interpolations"], "Degrees"] === degrees];
 
-nativeFixed = FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
+nativeFixed = FeynFacet`Private`finiteFieldOffDiagonalBlockNativeHeldOutInterpolate[
   canonical[wide], wide, 4, 3, 22, degrees];
 check["fixed profile accepts a 61-bit prime",
   Lookup[nativeFixed, "Status", None] === "HeldOutValidated" &&
     Lookup[nativeFixed["Interpolations"], "Degrees"] === degrees &&
     Lookup[nativeFixed, "InterpolationBackendThreads", None] === 1];
 
-wrong = FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
+wrong = FeynFacet`Private`finiteFieldOffDiagonalBlockNativeHeldOutInterpolate[
   canonical[p], p, 4, 3, 22, ReplacePart[degrees, 1 -> {2, 2}]];
 check["wrong fixed profile is rejected rather than grown forever",
   Lookup[wrong, "Status", None] === "RejectPrimeDegreeProfileChanged" &&
@@ -93,7 +93,7 @@ highDegreeCanonical = Table[<|"EpsilonValue" -> value,
     "EpsilonMod" -> modQ[wide, value],
     "Values" -> (modQ[wide, #1 /. e -> value] & /@
       highDegreeFunctions)|>, {value, epsilonValues}];
-degreeExceeded = FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
+degreeExceeded = FeynFacet`Private`finiteFieldOffDiagonalBlockNativeHeldOutInterpolate[
   highDegreeCanonical, wide, 4, 3, 22, Automatic];
 check["a disproved maximum degree terminates without requesting images",
   Lookup[degreeExceeded, "Status", None] ===
@@ -105,7 +105,7 @@ check["a disproved maximum degree terminates without requesting images",
       coordinateCount &&
     Lookup[degreeExceeded, "InterpolationBackendThreads", None] >= 1];
 
-automatic = FeynFacet`Private`finiteFieldStripHeldOutInterpolate[
+automatic = FeynFacet`Private`finiteFieldOffDiagonalBlockHeldOutInterpolate[
   canonical[p], p, "InitialConstructionCount" -> 4,
   "HeldOutCount" -> 3, "MaximumTotalDegree" -> 22];
 check["large automatic interpolation selects the native batch",

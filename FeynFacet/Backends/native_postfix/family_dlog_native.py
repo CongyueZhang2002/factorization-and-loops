@@ -50,7 +50,7 @@ def write_record(path: Path, sidecar: Path,
     body = (
         '<|"Schema" -> "FamilyDLogResiduesV1", '
         '"Status" -> "ComputedDLogResidues", "Valid" -> True, '
-        '"Purpose" -> "ObservableTransportInput", '
+        '"Purpose" -> "RequestedOutputIteratedIntegralCoefficientOperatorInput", '
         f'"Variables" -> {sidecar_literal(sidecar, "Variables")}, '
         f'"Regulator" -> {sidecar_literal(sidecar, "Regulator")}, '
         f'"Dimension" -> {dimension}, "CoefficientField" -> "Multiquadratic", '

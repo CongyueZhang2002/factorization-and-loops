@@ -1,12 +1,12 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 HARDENING WAVE persistence and cooperative-budget work:
 
-     - PREPARE INTERMEDIATE PERSISTENCE.  multiquadraticStripPrepare
+     - PREPARE INTERMEDIATE PERSISTENCE.  multiquadraticOffDiagonalBlockPrepare
        measured 2710.9 s cold on the real CF300 (12,9) descriptor and
        checkpointed nothing, so the round-6 cancellation lost all of it.
        Each expensive substage boundary now writes one sealed record and
        a later preparation of the same inputs reads it back.
-     - COMPILE COOPERATIVE DEADLINE.  multiquadraticStripCompile did not
+     - COMPILE COOPERATIVE DEADLINE.  multiquadraticOffDiagonalBlockCompile did not
        accept "Deadline"; the public path checked only after it
        returned.
      - SCREEN INTERIOR BOUNDARIES.  The two per-image screens read the
@@ -58,7 +58,7 @@ Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
    names them in load order *)
 Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
   Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -67,20 +67,20 @@ note[label_, value_] := Print["     ", label, ": ",
   ToString[Short[value, 8], InputForm]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
-{prepare, compile, rootOrder, clearCaches, gaugeScreen, gaugeAnsatz,
+{prepare, compile, rootOrder, clearCaches, basisTransformationBlockScreen, basisTransformationBlockAnsatz,
   integrabilityScreen, checkpointFile, checkpointRecord, checkpointAccept,
   artifactWrite, artifactLoad, deadlineExpiredQ, solveMultiquadratic,
   familyDeadlineDecision, staleStopMigration} =
- mq /@ {"multiquadraticStripPrepare", "multiquadraticStripCompile",
-   "multiquadraticStripRootOrder", "multiquadraticStripCompileCacheClear",
-   "multiquadraticStripGaugeScreen", "multiquadraticStripGaugeAnsatz",
-   "multiquadraticStripIntegrabilityScreen",
-   "multiquadraticStripPrepareCheckpointFile",
-   "multiquadraticStripPrepareCheckpointRecord",
-   "multiquadraticStripPrepareCheckpointAccept",
-   "multiquadraticStripArtifactWrite", "multiquadraticStripArtifactLoadRaw",
-   "multiquadraticStripDeadlineExpiredQ", "solveEpsFormStripMultiquadratic",
-   "familyRowGaugeFamilyDeadlineDecision", "familyRowGaugeStaleStopMigration"};
+ mq /@ {"multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+   "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticOffDiagonalBlockCompileCacheClear",
+   "multiquadraticOffDiagonalBasisTransformationBlockScreen", "multiquadraticOffDiagonalBasisTransformationBlockAnsatz",
+   "multiquadraticOffDiagonalBlockIntegrabilityScreen",
+   "multiquadraticOffDiagonalBlockPrepareCheckpointFile",
+   "multiquadraticOffDiagonalBlockPrepareCheckpointRecord",
+   "multiquadraticOffDiagonalBlockPrepareCheckpointAccept",
+   "multiquadraticOffDiagonalBlockArtifactWrite", "multiquadraticOffDiagonalBlockArtifactLoadRaw",
+   "multiquadraticOffDiagonalBlockDeadlineExpiredQ", "solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators",
+   "familyRowBasisTransformationFamilyDeadlineDecision", "familyRowBasisTransformationStaleStopMigration"};
 
 scratch = FileNameJoin[{$TemporaryDirectory,
   "feynfacet-persistence-" <> CreateUUID[]}];
@@ -112,20 +112,20 @@ canonicalRootRecords[indices_] := Module[
 gradeFactor[grade_, roots_] :=
   Product[If[BitGet[grade, k - 1] === 1, roots[[k]], 1], {k, Length[roots]}];
 
-buildGauge[coefficients_, dimensions_, roots_] := Table[
+buildOffDiagonalBasisTransformationBlock[coefficients_, dimensions_, roots_] := Table[
   Sum[coefficients[[i, j, grade + 1, monomial]]
       x^support[[monomial, 1]] y^support[[monomial, 2]] gradeFactor[grade, roots]/
       denominator,
     {grade, 0, 2^Length[roots] - 1}, {monomial, Length[support]}],
   {i, dimensions[[1]]}, {j, dimensions[[2]]}];
 
-buildForcing[e_, c_, gauge_, residues_] := Table[
+buildInhomogeneity[e_, c_, gauge_, residues_] := Table[
   Map[Together, Sum[residues[[a]] eps oneForms[[a, mu]], {a, Length[letters]}] +
     D[gauge, {x, y}[[mu]]] - eps (e[[mu]] . gauge - gauge . c[[mu]]), {2}],
   {mu, 2}];
 
 buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
-  {rootRecords, roots, gradeCount, coefficients, residues, gauge, e, c, bbar},
+  {rootRecords, roots, gradeCount, coefficients, residues, gauge, e, c, inhomogeneity},
   rootRecords = canonicalRootRecords[indices];
   roots = Lookup[rootRecords, "Root", {}];
   gradeCount = 2^Length[indices];
@@ -135,28 +135,28 @@ buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
   residues = BlockRandom[SeedRandom[seed + 1];
     Table[RandomInteger[{-4, 4}] + RandomChoice[{0, 1/4, -1/7}],
       {Length[letters]}, {dimensions[[1]]}, {dimensions[[2]]}]];
-  gauge = buildGauge[coefficients, dimensions, roots];
+  gauge = buildOffDiagonalBasisTransformationBlock[coefficients, dimensions, roots];
   e = BlockRandom[SeedRandom[seed + 2];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[1]],
       dimensions[[1]]}], {Length[letters]}]]];
   c = BlockRandom[SeedRandom[seed + 3];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[2]],
       dimensions[[2]]}], {Length[letters]}]]];
-  bbar = buildForcing[e, c, gauge, residues];
+  inhomogeneity = buildInhomogeneity[e, c, gauge, residues];
   <|"Family" -> "TPERS", "Sector" -> 4, "LowerSector" -> 2,
     "Variables" -> {x, y}, "Regulator" -> eps,
-    "Strip" -> {e, c, bbar}|>];
+    "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>];
 
 record = buildRecord[{1, 2}, {2, 2}, 20260825];
 rootRecords = canonicalRootRecords[{1, 2}];
 otherRecord = buildRecord[{1, 2}, {2, 2}, 20260826];
 check["the fixture records are well-formed strips",
-  MatchQ[Lookup[record, "Strip", None], {_List, _List, _List}] &&
-    MatchQ[Lookup[otherRecord, "Strip", None], {_List, _List, _List}] &&
-    ! SameQ[record["Strip"], otherRecord["Strip"]]];
+  MatchQ[Lookup[record, "OffDiagonalBlockEquation", None], {_List, _List, _List}] &&
+    MatchQ[Lookup[otherRecord, "OffDiagonalBlockEquation", None], {_List, _List, _List}] &&
+    ! SameQ[record["OffDiagonalBlockEquation"], otherRecord["OffDiagonalBlockEquation"]]];
 
 (* the letter route is exercised too, so all three checkpoints appear *)
-prepareArgs = {"GaugeDenominator" -> denominator, "Support" -> support,
+prepareArgs = {"OffDiagonalBasisTransformationDenominator" -> denominator, "Support" -> support,
   "RootIndices" -> {1, 2}, "RegulatorSampleCount" -> 2};
 
 (* ================================================================== *)
@@ -166,7 +166,7 @@ prepareArgs = {"GaugeDenominator" -> denominator, "Support" -> support,
 clearCaches[];
 plain = prepare[record, frame, Sequence @@ prepareArgs];
 check["P0 the default preparation succeeds and persists nothing",
-  Lookup[plain, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[plain, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Lookup[plain, "PrepareCheckpoints", None] === {} &&
     FileNames["*", scratch] === {}];
 
@@ -178,10 +178,10 @@ firstRecords = Lookup[firstRun, "PrepareCheckpoints", {}];
 note["P1 checkpoint actions",
   {#["Substage"], #["Action"], #["Status"]} & /@ firstRecords];
 check["P1 the first run WRITES one record per expensive substage",
-  Lookup[firstRun, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[firstRun, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Sort[Lookup[Select[firstRecords, #["Action"] === "Write" &],
       "Substage"]] ===
-      {"CandidateLetters", "ForcingChannels", "GaugeDenominator"} &&
+      {"CandidateLetters", "InhomogeneityChannels", "OffDiagonalBasisTransformationDenominator"} &&
     AllTrue[Select[firstRecords, #["Action"] === "Write" &],
       #["Status"] === "MultiquadraticArtifactWritten" &]];
 
@@ -189,7 +189,7 @@ writtenFiles = Sort[FileNameTake /@ FileNames["*.wl", checkpointDirectory]];
 note["P1 files written", writtenFiles];
 check["P1 the three files are on disk under the declared tag",
   writtenFiles === {"TPERS_4_2_prepare_candidateletters.wl",
-    "TPERS_4_2_prepare_forcingchannels.wl",
+    "TPERS_4_2_prepare_inhomogeneitychannels.wl",
     "TPERS_4_2_prepare_gaugedenominator.wl"}];
 
 clearCaches[];
@@ -199,11 +199,11 @@ secondRecords = Lookup[secondRun, "PrepareCheckpoints", {}];
 note["P2 checkpoint actions",
   {#["Substage"], #["Action"], #["Status"]} & /@ secondRecords];
 check["P2 the second run READS all three back and writes nothing",
-  Lookup[secondRun, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[secondRun, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Select[secondRecords, #["Action"] === "Write" &] === {} &&
     Sort[Lookup[Select[secondRecords,
       #["Action"] === "Read" && #["Status"] === "Accepted" &], "Substage"]] ===
-      {"CandidateLetters", "ForcingChannels", "GaugeDenominator"}];
+      {"CandidateLetters", "InhomogeneityChannels", "OffDiagonalBasisTransformationDenominator"}];
 
 telemetryKeys = {"PrepareCheckpoints", "RootFreeFastPathCount",
   "ChannelPathStatistics"};
@@ -212,20 +212,20 @@ one, up to the checkpoint and channel-path telemetry",
   SameQ[KeyDrop[secondRun, telemetryKeys], KeyDrop[plain, telemetryKeys]] &&
     secondRun["ABIFingerprint"] === plain["ABIFingerprint"]];
 
-check["P2 the seal inside the forcing checkpoint authenticated as well",
+check["P2 the seal inside the inhomogeneity checkpoint authenticated as well",
   MemberQ[Lookup[Select[secondRecords, #["Action"] === "Seal" &], "Status"],
     "Accepted"]];
 
 (* ---- THE MUTATION: one channel entry changed on disk ---- *)
-forcingFile = FileNameJoin[{checkpointDirectory,
-  "TPERS_4_2_prepare_forcingchannels.wl"}];
-mutatedRaw = artifactLoad[forcingFile, "FeynFacet`MultiquadraticArtifact`"];
+inhomogeneityFile = FileNameJoin[{checkpointDirectory,
+  "TPERS_4_2_prepare_inhomogeneitychannels.wl"}];
+mutatedRaw = artifactLoad[inhomogeneityFile, "FeynFacet`MultiquadraticArtifact`"];
 mutatedCheckpoint = mutatedRaw["Value"];
 mutatedPayload = Append[mutatedCheckpoint["Payload"],
   "Channels" -> ReplacePart[mutatedCheckpoint["Payload"]["Channels"],
     {1, 1, 1, 1} -> 987654321]];
 artifactWrite[Append[mutatedCheckpoint, "Payload" -> mutatedPayload],
-  forcingFile];
+  inhomogeneityFile];
 clearCaches[];
 mutatedRun = prepare[record, frame, Sequence @@ prepareArgs,
   "CheckpointDirectory" -> checkpointDirectory, "CheckpointTag" -> "TPERS_4_2"];
@@ -234,15 +234,15 @@ note["P3 checkpoint actions after the mutation",
   {#["Substage"], #["Action"], #["Status"]} & /@ mutatedRecords];
 check["P3 a MUTATED checkpoint is refused typed on its payload hash",
   Lookup[SelectFirst[mutatedRecords,
-    #["Substage"] === "ForcingChannels" && #["Action"] === "Read" &, <||>],
+    #["Substage"] === "InhomogeneityChannels" && #["Action"] === "Read" &, <||>],
     "Status", None] === "PrepareCheckpointContentMismatch"];
 check["P3 the preparation recomputes and is still byte-identical to the \
 uncheckpointed one",
-  Lookup[mutatedRun, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[mutatedRun, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     SameQ[KeyDrop[mutatedRun, telemetryKeys], KeyDrop[plain, telemetryKeys]]];
 check["P3 the refused checkpoint is REWRITTEN from the recomputation",
   MemberQ[Lookup[Select[mutatedRecords,
-    #["Substage"] === "ForcingChannels" && #["Action"] === "Write" &],
+    #["Substage"] === "InhomogeneityChannels" && #["Action"] === "Write" &],
     "Status"], "MultiquadraticArtifactWritten"]];
 
 (* ---- a checkpoint belonging to DIFFERENT inputs ---- *)
@@ -252,50 +252,50 @@ otherRun = prepare[otherRecord, frame, Sequence @@ prepareArgs,
 otherRecords = Lookup[otherRun, "PrepareCheckpoints", {}];
 check["P4 a checkpoint written for a DIFFERENT strip is refused on its \
 input fingerprint",
-  Lookup[otherRun, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[otherRun, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Lookup[SelectFirst[otherRecords,
-      #["Substage"] === "ForcingChannels" && #["Action"] === "Read" &, <||>],
+      #["Substage"] === "InhomogeneityChannels" && #["Action"] === "Read" &, <||>],
       "Status", None] === "PrepareCheckpointInputMismatch"];
 check["P4 a sealed stale gauge denominator is only reused as an ansatz proposal",
   Lookup[SelectFirst[otherRecords,
-    #["Substage"] === "GaugeDenominator" && #["Action"] === "Read" &, <||>],
-    "Status", None] === "AcceptedGaugeDenominatorProposal"];
+    #["Substage"] === "OffDiagonalBasisTransformationDenominator" && #["Action"] === "Read" &, <||>],
+    "Status", None] === "AcceptedOffDiagonalBasisTransformationDenominatorProposal"];
 
 (* ---- the seal fingerprint itself ---- *)
 check["P5 a checkpoint whose header was edited without re-deriving its \
 fingerprint is refused",
-  Module[{good = checkpointRecord["ForcingChannels", "FP", {1, 2, 3},
+  Module[{good = checkpointRecord["InhomogeneityChannels", "FP", {1, 2, 3},
       {x, y}, eps], tampered},
     tampered = Append[good, "InputFingerprint" -> "FP2"];
-    Lookup[checkpointAccept[good, "ForcingChannels", "FP", {x, y}, eps],
+    Lookup[checkpointAccept[good, "InhomogeneityChannels", "FP", {x, y}, eps],
       "Status", None] === "Accepted" &&
-      Lookup[checkpointAccept[tampered, "ForcingChannels", "FP2", {x, y}, eps],
+      Lookup[checkpointAccept[tampered, "InhomogeneityChannels", "FP2", {x, y}, eps],
         "Status", None] === "PrepareCheckpointSealMismatch"]];
 check["P5 a checkpoint for another SUBSTAGE is refused",
   Lookup[checkpointAccept[
-    checkpointRecord["ForcingChannels", "FP", {1}, {x, y}, eps],
+    checkpointRecord["InhomogeneityChannels", "FP", {1}, {x, y}, eps],
     "CandidateLetters", "FP", {x, y}, eps], "Status", None] ===
     "PrepareCheckpointSubstageMismatch"];
 check["P5 resume admission is blind to the current implementation hash",
-  Module[{good = checkpointRecord["ForcingChannels", "FP", {1},
+  Module[{good = checkpointRecord["InhomogeneityChannels", "FP", {1},
       {x, y}, eps]},
-    Block[{FeynFacet`Private`$multiquadraticStripABIVersion =
-        "MultiquadraticStripSolve-ABI-other"},
-      Lookup[checkpointAccept[good, "ForcingChannels", "FP", {x, y}, eps],
+    Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockABIVersion =
+        "MultiquadraticOffDiagonalBlockSolve-ABI-other"},
+      Lookup[checkpointAccept[good, "InhomogeneityChannels", "FP", {x, y}, eps],
         "Status", None] === "Accepted"]]];
 check["P5 a payload is stored CONTEXT FREE and comes back in the \
 caller's symbols",
-  Module[{stored = checkpointRecord["ForcingChannels", "FP", {x + y},
+  Module[{stored = checkpointRecord["InhomogeneityChannels", "FP", {x + y},
       {x, y}, eps]},
     FreeQ[stored["Payload"], x | y | eps] &&
-      Lookup[checkpointAccept[stored, "ForcingChannels", "FP", {x, y}, eps],
+      Lookup[checkpointAccept[stored, "InhomogeneityChannels", "FP", {x, y}, eps],
         "Payload", None] === {x + y}]];
 
 check["P6 CheckpointMode -> Write reads nothing back",
   Module[{result = prepare[record, frame, Sequence @@ prepareArgs,
       "CheckpointDirectory" -> checkpointDirectory,
       "CheckpointTag" -> "TPERS_4_2", "CheckpointMode" -> "Write"]},
-    Lookup[result, "Status", None] === "PreparedMultiquadraticStripV1" &&
+    Lookup[result, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
       Select[Lookup[result, "PrepareCheckpoints", {}],
         #["Action"] === "Read" &] === {}]];
 check["P6 an invalid checkpoint option is a typed caller error",
@@ -313,27 +313,25 @@ check["P6 an invalid checkpoint option is a typed caller error",
 
 clearCaches[];
 preparation = prepare[record, frame, "OneForms" -> oneForms,
-  "GaugeDenominator" -> denominator, "Support" -> support,
+  "OffDiagonalBasisTransformationDenominator" -> denominator, "Support" -> support,
   "RootIndices" -> {1, 2}];
 check["C0 the reference preparation succeeds",
-  Lookup[preparation, "Status", None] === "PreparedMultiquadraticStripV1"];
+  Lookup[preparation, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1"];
 
 clearCaches[];
 {baselineSeconds, baseline} = AbsoluteTiming[
-  compile[preparation, "PreparationValidated" -> True]];
+  compile[preparation]];
 clearCaches[];
-withInfinity = compile[preparation, "PreparationValidated" -> True,
-  "Deadline" -> Infinity];
+withInfinity = compile[preparation,   "Deadline" -> Infinity];
 note["C1 baseline compile seconds", Round[baselineSeconds, 0.001]];
 check["C1 Deadline -> Infinity is byte-identical to passing no option",
-  Lookup[baseline, "Status", None] === "CompiledMultiquadraticStripV1" &&
+  Lookup[baseline, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
     baseline["AssemblyFingerprint"] === withInfinity["AssemblyFingerprint"] &&
     SameQ[KeyDrop[baseline, "CompileStatistics"],
       KeyDrop[withInfinity, "CompileStatistics"]]];
 
 clearCaches[];
-expiredEntry = compile[preparation, "PreparationValidated" -> True,
-  "Deadline" -> AbsoluteTime[] - 10];
+expiredEntry = compile[preparation,   "Deadline" -> AbsoluteTime[] - 10];
 check["C2 an already-expired deadline is a typed resumable stop at \
 Compilation:Entry",
   Lookup[expiredEntry, "Status", None] === "BudgetExhausted" &&
@@ -344,16 +342,14 @@ Compilation:Entry",
       KeyExistsQ[expiredEntry, #] &]];
 
 check["C3 an invalid deadline is a caller error that outranks the budget",
-  Lookup[compile[preparation, "PreparationValidated" -> True,
-    "Deadline" -> -5], "Status", None] === "InvalidDeadline"];
+  Lookup[compile[preparation,     "Deadline" -> -5], "Status", None] === "InvalidDeadline"];
 
 (* a deadline that expires DURING the compile: the interior boundaries
    are the only thing that can stop it, and it must stop TYPED *)
 interiorStops = Table[
   Module[{result},
     clearCaches[];
-    result = compile[preparation, "PreparationValidated" -> True,
-      "Deadline" -> AbsoluteTime[] + fraction baselineSeconds];
+    result = compile[preparation,       "Deadline" -> AbsoluteTime[] + fraction baselineSeconds];
     Lookup[result, "Stage", Lookup[result, "Status", None]]],
   {fraction, {0.02, 0.1, 0.3, 0.5}}];
 note["C4 stages reached with a deadline inside the compile", interiorStops];
@@ -361,14 +357,13 @@ check["C4 a deadline expiring inside the compile stops TYPED at a \
 Compilation substage, never by exception",
   AllTrue[interiorStops, StringQ[#] &&
     (StringStartsQ[#, "Compilation:"] ||
-      # === "CompiledMultiquadraticStripV1") &] &&
+      # === "CompiledMultiquadraticOffDiagonalBlockV1") &] &&
     MemberQ[interiorStops, stage_String /; StringStartsQ[stage,
       "Compilation:"]]];
 check["C4 the interior stop carries its resumable progress payload",
   Module[{result},
     clearCaches[];
-    result = compile[preparation, "PreparationValidated" -> True,
-      "Deadline" -> AbsoluteTime[] + 0.02 baselineSeconds];
+    result = compile[preparation,       "Deadline" -> AbsoluteTime[] + 0.02 baselineSeconds];
     Lookup[result, "Status", None] =!= "BudgetExhausted" ||
       (TrueQ[result["Resumable"]] && KeyExistsQ[result, "OneFormCount"] &&
         KeyExistsQ[result, "Architecture"] &&
@@ -381,9 +376,9 @@ check["C5 the top level forwards its own deadline to the compiler",
 check["C5 the top level stops typed when the budget expires before the \
 compile it forwards to",
   Module[{result = solveMultiquadratic[record, frame, "OneForms" -> oneForms,
-      "GaugeDenominator" -> denominator, "Support" -> support,
+      "OffDiagonalBasisTransformationDenominator" -> denominator, "Support" -> support,
       "RootIndices" -> {1, 2}, "IntegrabilityScreen" -> False,
-      "GaugeScreen" -> False, "Deadline" -> AbsoluteTime[] - 1]},
+      "OffDiagonalBasisTransformationBlockScreen" -> False, "Deadline" -> AbsoluteTime[] - 1]},
     Lookup[result, "Status", None] === "BudgetExhausted" &&
       StringQ[Lookup[result, "Stage", None]]]];
 
@@ -396,16 +391,16 @@ compile it forwards to",
    Replacing the expiry predicate by a counter addresses it exactly, and
    changes nothing else about what the screen computes. *)
 check["S0 the fault-injection point has a definition to replace",
-  Length[DownValues[FeynFacet`Private`multiquadraticStripDeadlineExpiredQ]] >= 1];
+  Length[DownValues[FeynFacet`Private`multiquadraticOffDiagonalBlockDeadlineExpiredQ]] >= 1];
 
-screenAnsatz = gaugeAnsatz[record, rootRecords, oneForms, denominator,
+screenAnsatz = basisTransformationBlockAnsatz[record, rootRecords, oneForms, denominator,
   "Support" -> support];
 check["S0 the screen ansatz is well formed",
-  Lookup[screenAnsatz, "Status", None] === "MultiquadraticGaugeAnsatzV1"];
+  Lookup[screenAnsatz, "Status", None] === "MultiquadraticOffDiagonalBasisTransformationAnsatzV1"];
 
 stagesAt[threshold_Integer, run_] := Module[{calls = 0, result},
-  result = Block[{FeynFacet`Private`multiquadraticStripDeadlineExpiredQ},
-    FeynFacet`Private`multiquadraticStripDeadlineExpiredQ[d_] := (
+  result = Block[{FeynFacet`Private`multiquadraticOffDiagonalBlockDeadlineExpiredQ},
+    FeynFacet`Private`multiquadraticOffDiagonalBlockDeadlineExpiredQ[d_] := (
       calls++; NumericQ[d] && calls >= threshold);
     run[]];
   Lookup[result, "Stage", Lookup[result, "Status", None]]];
@@ -414,13 +409,13 @@ stagesAt[threshold_Integer, run_] := Module[{calls = 0, result},
    that many thresholds enumerates every cooperative boundary the screen
    has, and no more *)
 countReads[run_] := Module[{calls = 0},
-  Block[{FeynFacet`Private`multiquadraticStripDeadlineExpiredQ},
-    FeynFacet`Private`multiquadraticStripDeadlineExpiredQ[d_] := (
+  Block[{FeynFacet`Private`multiquadraticOffDiagonalBlockDeadlineExpiredQ},
+    FeynFacet`Private`multiquadraticOffDiagonalBlockDeadlineExpiredQ[d_] := (
       calls++; False);
     run[]];
   calls];
 
-gaugeRun = Function[gaugeScreen[screenAnsatz,
+gaugeRun = Function[basisTransformationBlockScreen[screenAnsatz,
   "Deadline" -> AbsoluteTime[] + 3600, "PointCount" -> 4,
   "LeftNullSpace" -> True]];
 gaugeReads = countReads[gaugeRun];
@@ -430,25 +425,25 @@ gaugeStages = DeleteDuplicates[Table[
 note["S1 gauge-screen stages reachable by a cooperative boundary",
   gaugeStages];
 check["S1 the gauge screen has a boundary INSIDE its letter compile",
-  MemberQ[gaugeStages, "GaugeScreen:LetterCompile"]];
+  MemberQ[gaugeStages, "OffDiagonalBasisTransformationBlockScreen:LetterCompile"]];
 check["S1 the gauge screen has a boundary AFTER the rank pair",
-  MemberQ[gaugeStages, "GaugeScreen:PostRank"]];
+  MemberQ[gaugeStages, "OffDiagonalBasisTransformationBlockScreen:PostRank"]];
 check["S1 every gauge-screen stop is typed and names its screen",
   AllTrue[gaugeStages, StringQ[#] &&
-    (StringStartsQ[#, "GaugeScreen:"] ||
-      MemberQ[{"GaugeImageConsistent", "GaugeImageObstruction",
-        "GaugeScreenNotApplicable"}, #]) &]];
+    (StringStartsQ[#, "OffDiagonalBasisTransformationBlockScreen:"] ||
+      MemberQ[{"OffDiagonalBlockAnsatzConsistentAtFiniteFieldImage", "OffDiagonalBlockAnsatzInconsistentAtFiniteFieldImage",
+        "OffDiagonalBasisTransformationBlockScreenNotApplicable"}, #]) &]];
 
 (* The residue-only screen is applicable only to a FLAT diagonal pair
    (it is a statement about residues alone); the gauge fixture above is
    not flat, so the screen refuses it as not applicable before it ever
    reaches a rank.  The 1x1 flat fixture below is the one
-   Tests/Multiquadratic/t_multiquadratic_gauge_screen.wls screens, and it walks the
+   Tests/Multiquadratic/t_multiquadratic_off_diagonal_basis_transformation_screen.wls screens, and it walks the
    whole screen. *)
 Clear[ax, ay, ae];
 flatRecord = <|"Family" -> "TPERSFlat", "Sector" -> 2, "LowerSector" -> 1,
   "Variables" -> {ax, ay}, "Regulator" -> ae,
-  "Strip" -> {{{{1}}, {{ae}}}, {{{0}}, {{0}}},
+  "OffDiagonalBlockEquation" -> {{{{1}}, {{ae}}}, {{{0}}, {{0}}},
     {{{0}}, {{ae^2 (ay - ax)/(1 + ae)}}}}|>;
 integrabilityLetters = {
   <|"Kind" -> "Synthetic", "Letter" -> Missing["NotADLog"],
@@ -473,11 +468,11 @@ check["S2 every integrability-screen stop is typed and names its screen",
   AllTrue[integrabilityStages, StringQ[#] &&
     (StringStartsQ[#, "IntegrabilityScreen:"] ||
       MemberQ[{"AlphabetIntegrabilityConsistent",
-        "AlphabetIntegrabilityObstruction",
+        "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage",
         "IntegrabilityScreenNotApplicable"}, #]) &]];
 check["S3 an unbounded screen is unchanged by the boundaries",
-  Module[{result = gaugeScreen[screenAnsatz, "PointCount" -> 4]},
-    MemberQ[{"GaugeImageConsistent", "GaugeImageObstruction"},
+  Module[{result = basisTransformationBlockScreen[screenAnsatz, "PointCount" -> 4]},
+    MemberQ[{"OffDiagonalBlockAnsatzConsistentAtFiniteFieldImage", "OffDiagonalBlockAnsatzInconsistentAtFiniteFieldImage"},
       Lookup[result, "Status", None]]]];
 
 (* ================================================================== *)
@@ -497,13 +492,13 @@ check["T2 an invalid ceiling is a typed caller error",
     "InvalidCeilingOption"];
 check["T3 a declared unknown-count ceiling really reaches the screen",
   Module[{result = solveMultiquadratic[record, frame,
-      "OneForms" -> oneForms, "GaugeDenominator" -> denominator,
+      "OneForms" -> oneForms, "OffDiagonalBasisTransformationDenominator" -> denominator,
       "Support" -> support, "RootIndices" -> {1, 2},
       "IntegrabilityScreen" -> False, "ScreenMaximumUnknowns" -> 1,
       "Deadline" -> AbsoluteTime[] + 600]},
     (* the screen refuses itself as not applicable and the established
        route continues, so the solve does NOT stop at the screen *)
-    Lookup[result, "Status", None] =!= "GaugeImageObstruction"]];
+    Lookup[result, "Status", None] =!= "OffDiagonalBlockAnsatzInconsistentAtFiniteFieldImage"]];
 
 (* ================================================================== *)
 (* F  WHOLE-FAMILY DEADLINE PERSISTENCE                                 *)
@@ -556,7 +551,7 @@ reimplement it",
   Module[{driverSource = Import[FileNameJoin[{root, "Scripts",
       "family_epsform_sector.wls"}], "Text"]},
     StringContainsQ[driverSource,
-      "familyRowGaugeFamilyDeadlineDecision"] &&
+      "familyRowBasisTransformationFamilyDeadlineDecision"] &&
       StringContainsQ[driverSource,
         "sectorDeadline = Min[AbsoluteTime[] + sectorBudget, familyDeadline]"]]];
 
@@ -614,7 +609,7 @@ check["M6 the sector driver applies the package migration and does not \
 reimplement it",
   StringContainsQ[Import[FileNameJoin[{root, "Scripts",
     "family_epsform_sector.wls"}], "Text"],
-    "familyRowGaugeStaleStopMigration"]];
+    "familyRowBasisTransformationStaleStopMigration"]];
 
 Quiet[DeleteDirectory[scratch, DeleteContents -> True]];
 Print["t_multiquadratic_persistence: ", pass, " OK, ", fail, " FAIL"];

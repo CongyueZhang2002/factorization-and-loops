@@ -12,11 +12,11 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {build, activeCert, rowForm, prepare, layoutBuilder,
   candidateLetters} =
-  mq /@ {"multiquadraticStripBuildInstallableSolution",
-    "multiquadraticStripActivePotentialCertification",
-    "familyRowGaugeDLogForm", "multiquadraticStripPrepare",
-    "multiquadraticStripAssemblyLayout",
-    "multiquadraticStripCandidateLetters"};
+  mq /@ {"multiquadraticOffDiagonalBlockBuildInstallableSolution",
+    "multiquadraticOffDiagonalBlockActivePotentialCertification",
+    "familyRowBasisTransformationDLogForm", "multiquadraticOffDiagonalBlockPrepare",
+    "multiquadraticOffDiagonalBlockAssemblyLayout",
+    "multiquadraticOffDiagonalBlockCandidateLetters"};
 
 Clear[ix, iy, ie, icx, icy];
 dimensions = {1, 1};
@@ -27,10 +27,10 @@ installFrame = BuildSquareRootGeneratorsAndQuadraticRelations[
   {}, {ix, iy}, {icx, icy}];
 installRecord = <|"Family" -> "INSTALLATION_CONTRACT", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {ix, iy}, "Regulator" -> ie,
-  "Strip" -> {zero11, zero11, zero11}|>;
+  "OffDiagonalBlockEquation" -> {zero11, zero11, zero11}|>;
 makePreparation[installedForms_List] := prepare[installRecord, installFrame,
   "RootIndices" -> {}, "OneForms" -> installedForms,
-  "GaugeDenominator" -> ix - 1, "Support" -> {{0, 0}},
+  "OffDiagonalBasisTransformationDenominator" -> ix - 1, "Support" -> {{0, 0}},
   "CompileCore" -> False];
 preparation = makePreparation[forms];
 layout = layoutBuilder[preparation];
@@ -51,8 +51,8 @@ reconstruction = <|
   "CoefficientData" -> layout["CoefficientData"],
   "Variables" -> {ix, iy}, "Regulator" -> ie,
   "Vector" -> vector,
-  "GaugeChannels" -> {{{(1 + ie)/(ix - 1)}}},
-  "Gauge" -> {{(1 + ie)/(ix - 1)}},
+  "OffDiagonalBasisTransformationBlockComponents" -> {{{(1 + ie)/(ix - 1)}}},
+  "OffDiagonalBasisTransformationBlock" -> {{(1 + ie)/(ix - 1)}},
   "Residues" -> allResidues,
   "SamplePrimes" -> {10037, 10039},
   "UnseenPrimes" -> {10061, 10067},
@@ -79,7 +79,7 @@ probabilistic = <|"Status" -> "FreshProviderResidualZero",
 
 check["I0 the installation fixture carries its explicit coefficient data",
   Lookup[preparation, "Status", None] ===
-      "PreparedMultiquadraticStripV1" &&
+      "PreparedMultiquadraticOffDiagonalBlockV1" &&
     reconstruction["CoefficientData"] === layout["CoefficientData"]];
 solved = build[preparation, reconstruction, active, probabilistic,
   dimensions];
@@ -94,8 +94,8 @@ check["I2 zero-residue candidates are absent from every active payload",
     solved["OneForms"] === {{1/ix, 0}} &&
     solved["ResidueMatrices"] === {{{1 + ie}}}];
 check["I3 the generic reconstructed gauge, not a sampled fibre, is installed",
-  solved["Gauge"] === reconstruction["Gauge"] &&
-    ! FreeQ[solved["Gauge"], ie]];
+  solved["OffDiagonalBasisTransformationBlock"] === reconstruction["OffDiagonalBasisTransformationBlock"] &&
+    ! FreeQ[solved["OffDiagonalBasisTransformationBlock"], ie]];
 check["I4 certified one-forms are published and consumable",
   TrueQ[solved["OneFormsCertified"]] &&
     rowForm[solved, {ix, iy}, ie, dimensions] ===
@@ -146,10 +146,10 @@ check["N2 nonzero reconstructed residues cannot be omitted",
     dimensions]["Status"] ===
     "ActiveSupportPayloadMismatch"];
 
-mutatedGauge = Join[reconstruction,
-  <|"Gauge" -> {{2 (1 + ie)/(1 - ix)}}|>];
+mutateoffDiagonalBasisTransformationBlock = Join[reconstruction,
+  <|"OffDiagonalBasisTransformationBlock" -> {{2 (1 + ie)/(1 - ix)}}|>];
 check["N3 a basis-transformation block inconsistent with the vector is refused",
-  build[preparation, mutatedGauge, active, probabilistic,
+  build[preparation, mutateoffDiagonalBasisTransformationBlock, active, probabilistic,
     dimensions]["Status"] === "ReconstructionPayloadMismatch"];
 mutatedResidues = Join[reconstruction,
   <|"Residues" -> {{{2 + ie}}, {{0}}}|>];
@@ -166,7 +166,7 @@ check["N5 the active one-form order follows the preparation data",
    that the installation boundary independently recomputes. *)
 zero11 = {{{0}}, {{0}}};
 constructed = candidateLetters[{zero11, zero11, zero11}, {}, {ix, iy}, ie,
-  <|"StripSolvers" -> {}|>, "RegulatorSampleCount" -> 1,
+  <|"OffDiagonalBlockSolutions" -> {}|>, "RegulatorSampleCount" -> 1,
   "RowAlphabet" -> {}, "AdditionalLetters" -> {ix},
   "AlgebraicLetters" -> {}, "DLogKernels" -> 1];
 constructedRecords = Select[Lookup[constructed, "LetterRecords", {}],

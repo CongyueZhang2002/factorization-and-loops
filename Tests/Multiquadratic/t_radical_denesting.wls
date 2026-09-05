@@ -61,7 +61,7 @@
        (a), (b) and (c); what (d) certifies is that the classifier is
        clean on real campaign data.
    Consumers of the classifier that were NOT extended to nested or
-   numeric radicals must still fail closed: SolveEpsFormStripInFrame
+   numeric radicals must still fail closed: SolveOffDiagonalBasisTransformationBlock
    returns the typed "StripContainsDenestedRadicals". *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
@@ -230,7 +230,7 @@ FTAssert["(c) the canonicalized expression is the same function numerically",
 
 (* consumers that were not extended must still fail closed *)
 strip = {{{{eps/(1 - x)}}, {{0}}}, {{{0}}, {{0}}}, {{{Sqrt[base1]}}, {{0}}}};
-stripResult = SolveEpsFormStripInFrame[strip, {x, y}, eps, frame];
+stripResult = SolveOffDiagonalBasisTransformationBlock[strip, {x, y}, eps, frame];
 FTAssert["(c) the strip solver stops, typed, on a denested radical",
   AssociationQ[stripResult] &&
     stripResult["Status"] === "StripContainsDenestedRadicals" &&

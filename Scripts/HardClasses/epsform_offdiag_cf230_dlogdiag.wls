@@ -22,7 +22,7 @@ start = AbsoluteTime[];
 log[a___] := Print["[dlogdiag +", ToString[Round[AbsoluteTime[] - start]], "s] ",
   StringJoin[ToString /@ {a}]];
 
-If[Names["FeynFacet`TransportFamily"] === {},
+If[Names["FeynFacet`FamilyArtifactRead"] === {},
   Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]]];
 xx = Symbol["Global`x"]; yy = Symbol["Global`y"]; ee = Symbol["Global`eps"];
 vars = {xx, yy};

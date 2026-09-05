@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
 
-(* Read-only census of accepted observable transports versus physical
-   boundary-mode bindings.  This distinguishes a completed path operator
+(* Read-only census of validated requested-output coefficient operators versus
+   physical boundary-mode bindings.  This distinguishes a coefficient operator
    from a completed physical solution and is intentionally family neutral. *)
 
 $AllowInternet = False;
@@ -28,23 +28,25 @@ records = Map[Function[file, Module[
     modeFile = FileNameJoin[{modeDirectory,
       "boundary_mode_" <> family <> ".wl"}];
     <|"Family" -> family, "Status" -> Lookup[transport, "Status", None],
-      "WordRepresentation" -> Lookup[transport, "WordRepresentation", None],
+      "IteratedIntegralCoefficientRepresentation" ->
+        Lookup[transport, "IteratedIntegralCoefficientRepresentation", None],
       "BoundaryKernelDimensions" -> dimensions,
       "BoundaryNullity" -> If[MatchQ[dimensions, {_Integer, _Integer}],
         Last[dimensions], Missing[]],
       "BoundaryCoordinateCount" ->
         Lookup[transport, "BoundaryCoordinates", Missing[]],
-      "PhysicalDemandCount" ->
-        Length[Lookup[transport, "PhysicalDemandPairs", {}]],
+      "RequestedMasterIntegralEpsilonCoefficientCount" -> Length[Lookup[
+        transport, "RequestedMasterIntegralEpsilonOrderAndRowPairs", {}]],
       "PhysicalModeMapPresent" -> FileExistsQ[modeFile],
-      "TransportFile" -> file, "ModeFile" -> modeFile|>
+      "IteratedIntegralCoefficientOperatorFile" -> file,
+      "ModeFile" -> modeFile|>
   ]], files];
 
 summary = <|
-  "Status" -> "PhysicalTransportInputInventory",
-  "AcceptedObservableTransportCount" -> Count[records,
-    record_ /; MemberQ[{"ExactObservableTransport",
-      "ModularlyVerifiedObservableTransport"}, record["Status"]]],
+  "Status" -> "PhysicalMasterIntegralSolutionInputInventory",
+  "ValidatedIteratedIntegralCoefficientOperatorCount" -> Count[records,
+    record_ /; record["Status"] ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated"],
   "PhysicalModeMapCount" -> Count[records,
     record_ /; TrueQ[record["PhysicalModeMapPresent"]]],
   "MissingPhysicalModeMapCount" -> Count[records,

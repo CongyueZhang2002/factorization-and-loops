@@ -1,9 +1,9 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 preparation work in
-   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl:
+   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockSolve.wl:
 
      - prepare CONSUMES the sealed compile core instead of decomposing the
-       forcing independently (so E, C and BBar are decomposed once for
+       inhomogeneity independently (so E, C and Inhomogeneity are decomposed once for
        prepare and compile together, not twice);
      - the intern pools never cache a NEGATIVE result (Codex P1,
        2026-08-25: a failed early core stored $Failed under the core key
@@ -48,7 +48,7 @@ Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
    names them in load order *)
 Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
   Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -58,19 +58,19 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, compile, rootOrder, coreKeyOf, coreRecord, intern, internProbe,
   internStatistics, internReset, clearCaches, deadlineCheckpoint,
   stageStart, stageDone, tensorInterned} =
- mq /@ {"multiquadraticStripPrepare", "multiquadraticStripCompile",
-   "multiquadraticStripRootOrder", "multiquadraticStripCompileCoreKey",
-   "multiquadraticStripCompileCoreRecord", "multiquadraticStripIntern",
-   "multiquadraticStripInternProbe", "multiquadraticStripInternStatistics",
-   "multiquadraticStripInternReset", "multiquadraticStripCompileCacheClear",
-   "multiquadraticStripDeadlineCheckpoint", "multiquadraticStripStageStart",
-   "multiquadraticStripStageDone",
-   "multiquadraticStripCompileTensorInterned"};
+ mq /@ {"multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+   "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticOffDiagonalBlockCompileCoreKey",
+   "multiquadraticOffDiagonalBlockCompileCoreRecord", "multiquadraticOffDiagonalBlockIntern",
+   "multiquadraticOffDiagonalBlockInternProbe", "multiquadraticOffDiagonalBlockInternStatistics",
+   "multiquadraticOffDiagonalBlockInternReset", "multiquadraticOffDiagonalBlockCompileCacheClear",
+   "multiquadraticOffDiagonalBlockDeadlineCheckpoint", "multiquadraticOffDiagonalBlockStageStart",
+   "multiquadraticOffDiagonalBlockStageDone",
+   "multiquadraticOffDiagonalBlockCompileTensorInterned"};
 
-deadlineTag = mq["$multiquadraticStripDeadlineTag"];
+deadlineTag = mq["$multiquadraticOffDiagonalBlockDeadlineTag"];
 
 (* ------------------------------------------------------------------ *)
-(* The fixture: the same construction t_multiquadratic_strip_solve uses  *)
+(* The fixture: the same construction t_multiquadratic_off_diagonal_block_solve uses  *)
 (* -- a block BUILT from a known gauge and known residues, so that the   *)
 (* preparation under test is a preparation of a real solvable block.     *)
 (* ------------------------------------------------------------------ *)
@@ -97,20 +97,20 @@ canonicalRoots[indices_] := Module[
 gradeFactor[grade_, roots_] :=
   Product[If[BitGet[grade, k - 1] === 1, roots[[k]], 1], {k, Length[roots]}];
 
-buildGauge[coefficients_, dimensions_, roots_] := Table[
+buildOffDiagonalBasisTransformationBlock[coefficients_, dimensions_, roots_] := Table[
   Sum[coefficients[[i, j, grade + 1, monomial]]
       x^support[[monomial, 1]] y^support[[monomial, 2]] gradeFactor[grade, roots]/
       denominator,
     {grade, 0, 2^Length[roots] - 1}, {monomial, Length[support]}],
   {i, dimensions[[1]]}, {j, dimensions[[2]]}];
 
-buildForcing[e_, c_, gauge_, residues_] := Table[
+buildInhomogeneity[e_, c_, gauge_, residues_] := Table[
   Map[Together, Sum[residues[[a]] eps oneForms[[a, mu]], {a, Length[letters]}] +
     D[gauge, {x, y}[[mu]]] - eps (e[[mu]] . gauge - gauge . c[[mu]]), {2}],
   {mu, 2}];
 
 buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
-  {roots, gradeCount, coefficients, residues, gauge, e, c, bbar},
+  {roots, gradeCount, coefficients, residues, gauge, e, c, inhomogeneity},
   roots = canonicalRoots[indices];
   gradeCount = 2^Length[indices];
   coefficients = BlockRandom[SeedRandom[seed];
@@ -119,23 +119,23 @@ buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
   residues = BlockRandom[SeedRandom[seed + 1];
     Table[RandomInteger[{-4, 4}] + RandomChoice[{0, 1/4, -1/7}],
       {Length[letters]}, {dimensions[[1]]}, {dimensions[[2]]}]];
-  gauge = buildGauge[coefficients, dimensions, roots];
+  gauge = buildOffDiagonalBasisTransformationBlock[coefficients, dimensions, roots];
   e = BlockRandom[SeedRandom[seed + 2];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[1]],
       dimensions[[1]]}], {Length[letters]}]]];
   c = BlockRandom[SeedRandom[seed + 3];
     diagonalForm[Table[RandomInteger[{-2, 2}, {dimensions[[2]],
       dimensions[[2]]}], {Length[letters]}]]];
-  bbar = buildForcing[e, c, gauge, residues];
+  inhomogeneity = buildInhomogeneity[e, c, gauge, residues];
   <|"Family" -> "TFIX", "Sector" -> 4, "LowerSector" -> 2,
     "Variables" -> {x, y}, "Regulator" -> eps,
-    "Strip" -> {e, c, bbar}|>];
+    "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>];
 
 record = buildRecord[{1, 2}, {2, 2}, 20260825];
 check["the fixture record is a well-formed strip",
-  MatchQ[Lookup[record, "Strip", None], {_List, _List, _List}]];
+  MatchQ[Lookup[record, "OffDiagonalBlockEquation", None], {_List, _List, _List}]];
 
-prepareArgs = {"OneForms" -> oneForms, "GaugeDenominator" -> denominator,
+prepareArgs = {"OneForms" -> oneForms, "OffDiagonalBasisTransformationDenominator" -> denominator,
   "Support" -> support, "RootIndices" -> {1, 2}};
 
 (* ------------------------------------------------------------------ *)
@@ -150,15 +150,15 @@ clearCaches[];
   prepare[record, frame, Sequence @@ prepareArgs, "CompileCore" -> False]];
 
 check["E1 both preparation routes succeed",
-  Lookup[prepCore, "Status", None] === "PreparedMultiquadraticStripV1" &&
-    Lookup[prepPlain, "Status", None] === "PreparedMultiquadraticStripV1"];
+  Lookup[prepCore, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
+    Lookup[prepPlain, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1"];
 
 (* The channel-path counters are process TELEMETRY of the decomposition
    actually performed, and the early core legitimately performs more of
    it: it decomposes E and C as well, which is the entire point -- the
    compiler then decomposes neither.  t_solver_budget already classifies
    these two keys as timing/telemetry rather than result.  Everything
-   else -- the ABI payload, the fingerprints, the sealed forcing
+   else -- the ABI payload, the fingerprints, the sealed inhomogeneity
    channels, the support, the one-forms, the normalizations -- must be
    byte-identical. *)
 telemetryKeys = {"RootFreeFastPathCount", "ChannelPathStatistics"};
@@ -166,27 +166,25 @@ check["E2 the early-core preparation is SameQ to the HEAD-route \
 preparation, up to channel-path telemetry",
   SameQ[KeyDrop[prepCore, telemetryKeys], KeyDrop[prepPlain, telemetryKeys]]];
 
-check["E2b the sealed forcing channels and the whole ABI are identical",
-  SameQ[prepCore["ForcingChannels"], prepPlain["ForcingChannels"]] &&
+check["E2b the sealed inhomogeneity channels and the whole ABI are identical",
+  SameQ[prepCore["InhomogeneityChannels"], prepPlain["InhomogeneityChannels"]] &&
     SameQ[prepCore["ABIPayload"], prepPlain["ABIPayload"]] &&
     prepCore["ABIFingerprint"] === prepPlain["ABIFingerprint"]];
 
 check["E3 no wall clock entered the preparation record",
   FreeQ[KeyDrop[prepCore, {"Record", "Frame", "Roots", "OneForms",
-    "OneFormMetadata", "LetterRecords", "ForcingChannels",
-    "GaugeDenominator", "GaugeDenominatorFactor"}], _Real]];
+    "OneFormMetadata", "LetterRecords", "InhomogeneityChannels",
+    "OffDiagonalBasisTransformationDenominator", "OffDiagonalBasisTransformationDenominatorFactor"}], _Real]];
 
 clearCaches[];
 asmCore = compile[prepare[record, frame, Sequence @@ prepareArgs,
-  "CompileCore" -> True], "PreparationValidated" -> True,
-  "CompileCore" -> True];
+  "CompileCore" -> True],   "CompileCore" -> True];
 clearCaches[];
 asmPlain = compile[prepare[record, frame, Sequence @@ prepareArgs,
-  "CompileCore" -> False], "PreparationValidated" -> True,
-  "CompileCore" -> False];
+  "CompileCore" -> False],   "CompileCore" -> False];
 check["E4 both compiled assemblies agree on every semantic fingerprint",
-  Lookup[asmCore, "Status", None] === "CompiledMultiquadraticStripV1" &&
-    Lookup[asmPlain, "Status", None] === "CompiledMultiquadraticStripV1" &&
+  Lookup[asmCore, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
+    Lookup[asmPlain, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
     asmCore["AssemblyFingerprint"] === asmPlain["AssemblyFingerprint"] &&
     asmCore["ExactChannelFormsFingerprint"] ===
       asmPlain["ExactChannelFormsFingerprint"] &&
@@ -200,8 +198,7 @@ check["E4 both compiled assemblies agree on every semantic fingerprint",
 clearCaches[];
 prep2 = prepare[record, frame, Sequence @@ prepareArgs, "CompileCore" -> True];
 statsAfterPrepare = internStatistics[];
-asm2 = compile[prep2, "PreparationValidated" -> True,
-  "ForcingChannels" -> Lookup[prep2, "ForcingChannels", Automatic]];
+asm2 = compile[prep2,   "InhomogeneityChannels" -> Lookup[prep2, "InhomogeneityChannels", Automatic]];
 statsAfterCompile = internStatistics[];
 
 check["R1 prepare builds the core exactly once (one miss, no hit)",
@@ -211,16 +208,16 @@ check["R1 prepare builds the core exactly once (one miss, no hit)",
 check["R2 the compiler that follows HITS that core and rebuilds nothing",
   Lookup[Lookup[statsAfterCompile, "Core", <||>], "Misses", 0] === 1 &&
     Lookup[Lookup[statsAfterCompile, "Core", <||>], "Hits", 0] === 1 &&
-    Lookup[asm2, "Status", None] === "CompiledMultiquadraticStripV1"];
+    Lookup[asm2, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1"];
 
 check["R3 a SECOND ansatz on the same equation hits the same core",
   Module[{prep3, stats3},
     prep3 = prepare[record, frame, "OneForms" -> oneForms,
-      "GaugeDenominator" -> denominator, "RootIndices" -> {1, 2},
+      "OffDiagonalBasisTransformationDenominator" -> denominator, "RootIndices" -> {1, 2},
       "Support" -> Sort[{{0, 0}, {0, 1}, {1, 0}, {1, 1}}],
       "CompileCore" -> True];
     stats3 = internStatistics[];
-    Lookup[prep3, "Status", None] === "PreparedMultiquadraticStripV1" &&
+    Lookup[prep3, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
       Lookup[Lookup[stats3, "Core", <||>], "Misses", 0] === 1 &&
       Lookup[Lookup[stats3, "Core", <||>], "Hits", 0] === 2]];
 
@@ -238,7 +235,7 @@ check["N2 and leaves NO entry in the pool",
     Lookup[Lookup[internStatistics[], "Core", <||>], "Entries", 0] === 0 &&
     Lookup[Lookup[internStatistics[], "Core", <||>], "Rejected", 0] === 1];
 
-goodCore = <|"E" -> <||>, "C" -> <||>, "BBar" -> <||>,
+goodCore = <|"E" -> <||>, "C" -> <||>, "Inhomogeneity" -> <||>,
   "RootSquares" -> <||>, "RootLogDerivatives" -> <||>|>;
 check["N3 a later GOOD build for the same key succeeds and is cached",
   intern["Core", negKey, Function[goodCore]] === goodCore &&
@@ -265,7 +262,7 @@ check["N4 a MALFORMED core (no $Failed, but members missing) is refused too",
 (* DownValues has attribute HoldAll: DownValues[coreSymbol] would read the
    TEST VARIABLE's own (empty) down values and the patch would silently
    land on nothing.  With[] injects the resolved symbol. *)
-coreSymbol = mq["multiquadraticStripCompileCoreRecord"];
+coreSymbol = mq["multiquadraticOffDiagonalBlockCompileCoreRecord"];
 savedCore = With[{sym = coreSymbol}, DownValues[sym]];
 check["F0 the fault-injection point has a definition to replace",
   savedCore =!= {}];
@@ -282,17 +279,16 @@ With[{sym = coreSymbol}, DownValues[sym] = savedCore];
 
 check["F1 the fault fired and prepare still succeeded via the fallback",
   faultFired > 0 &&
-    Lookup[prepFaulted, "Status", None] === "PreparedMultiquadraticStripV1"];
+    Lookup[prepFaulted, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1"];
 
 faultedKey = coreKeyOf[prepFaulted, {x, y}, eps];
 check["F2 the Core pool holds NO negative entry for the faulted key",
   faultedKey =!= $Failed && MissingQ[internProbe["Core", faultedKey]] &&
     Lookup[Lookup[internStatistics[], "Core", <||>], "Rejected", 0] >= 1];
 
-asmAfterFault = compile[prepFaulted, "PreparationValidated" -> True,
-  "ForcingChannels" -> Lookup[prepFaulted, "ForcingChannels", Automatic]];
+asmAfterFault = compile[prepFaulted,   "InhomogeneityChannels" -> Lookup[prepFaulted, "InhomogeneityChannels", Automatic]];
 check["F3 the compile that follows rebuilds the core and succeeds",
-  Lookup[asmAfterFault, "Status", None] === "CompiledMultiquadraticStripV1" &&
+  Lookup[asmAfterFault, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
     asmAfterFault["AssemblyFingerprint"] === asmCore["AssemblyFingerprint"]];
 check["F3b the faulted preparation is SameQ to the unfaulted one, up to \
 channel-path telemetry",
@@ -339,16 +335,16 @@ check["D5 the interior checkpoint throws when expired and is silent at \
 Infinity",
   Module[{thrown, quiet},
     thrown = Catch[
-      Block[{FeynFacet`Private`$multiquadraticStripActiveDeadline =
+      Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockActiveDeadline =
           AbsoluteTime[] - 1},
-        deadlineCheckpoint["ForcingChannels", <|"Entry" -> 3, "Of" -> 9|>]],
+        deadlineCheckpoint["InhomogeneityChannels", <|"Entry" -> 3, "Of" -> 9|>]],
       deadlineTag, Function[{payload, tag}, payload]];
     quiet = Catch[
-      Block[{FeynFacet`Private`$multiquadraticStripActiveDeadline = Infinity},
-        deadlineCheckpoint["ForcingChannels", <|"Entry" -> 3, "Of" -> 9|>]],
+      Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockActiveDeadline = Infinity},
+        deadlineCheckpoint["InhomogeneityChannels", <|"Entry" -> 3, "Of" -> 9|>]],
       deadlineTag, Function[{payload, tag}, "THREW"]];
     AssociationQ[thrown] && Lookup[thrown, "Entry", None] === 3 &&
-      Lookup[thrown, "Substage", None] === "ForcingChannels" &&
+      Lookup[thrown, "Substage", None] === "InhomogeneityChannels" &&
       quiet === False]];
 
 (* ------------------------------------------------------------------ *)
@@ -357,16 +353,16 @@ Infinity",
 
 check["O1 CompileCore is a public option of the top-level solver",
   MemberQ[Keys[Association[
-    Options[mq["solveEpsFormStripMultiquadratic"]]]], "CompileCore"]];
+    Options[mq["solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"]]]], "CompileCore"]];
 
 check["O2 the option list declares Deadline exactly once",
-  Count[Options[mq["solveEpsFormStripMultiquadratic"]],
+  Count[Options[mq["solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"]],
     HoldPattern["Deadline" -> _] | HoldPattern["Deadline" :> _]] === 1];
 
 check["O3 CompileShards is NOT a public option (private test control)",
   ! MemberQ[Keys[Association[
-    Options[mq["solveEpsFormStripMultiquadratic"]]]], "CompileShards"] &&
-    MemberQ[Keys[Association[Options[mq["multiquadraticStripCompile"]]]],
+    Options[mq["solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"]]]], "CompileShards"] &&
+    MemberQ[Keys[Association[Options[mq["multiquadraticOffDiagonalBlockCompile"]]]],
       "CompileShards"]];
 
 (* The DEFAULT is a measured decision and a test protects it.  Cold on
@@ -382,7 +378,7 @@ clearCaches[];
 defaultPrep = prepare[record, frame, Sequence @@ prepareArgs];
 check["O5 prepare's early core is OFF by default: a default preparation \
 builds no core at all",
-  Lookup[defaultPrep, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[defaultPrep, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Lookup[Lookup[internStatistics[], "Core", <||>], "Misses", 0] === 0 &&
     Lookup[Lookup[internStatistics[], "Core", <||>], "Entries", 0] === 0];
 check["O5b the default preparation is SameQ to the explicit CompileCore \
@@ -392,15 +388,14 @@ check["O5b the default preparation is SameQ to the explicit CompileCore \
 check["O5c the compiler's own core cache is still ON by default",
   Module[{asm},
     clearCaches[];
-    asm = compile[prepare[record, frame, Sequence @@ prepareArgs],
-      "PreparationValidated" -> True];
-    Lookup[asm, "Status", None] === "CompiledMultiquadraticStripV1" &&
+    asm = compile[prepare[record, frame, Sequence @@ prepareArgs]];
+    Lookup[asm, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
       TrueQ[Lookup[Lookup[asm, "CompileStatistics", <||>], "CompileCore",
         False]]]];
 
 solveSource = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
   Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &]];  (* all eight solver files *)
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &]];  (* all eight solver files *)
 check["O4 the top level forwards the compile-architecture options to the \
 compiler",
   StringContainsQ[solveSource,
@@ -427,16 +422,16 @@ clearCaches[];
 {quietResult, quietText} = capture[
   prepare[record, frame, Sequence @@ prepareArgs]];
 check["T1 a library call is QUIET by default",
-  Lookup[quietResult, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[quietResult, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     ! StringContainsQ[quietText, "[multiquadratic]"]];
 
 clearCaches[];
 {loudResult, loudText} = capture[
-  Block[{FeynFacet`Private`$multiquadraticStripStageLog = True},
+  Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockStageLog = True},
     prepare[record, frame, Sequence @@ prepareArgs]]];
 check["T2 the stage lines appear when the stage log is enabled",
-  Lookup[loudResult, "Status", None] === "PreparedMultiquadraticStripV1" &&
-    StringContainsQ[loudText, "[multiquadratic] prepare: forcing channel"] &&
+  Lookup[loudResult, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
+    StringContainsQ[loudText, "[multiquadratic] prepare: inhomogeneity channel"] &&
     StringContainsQ[loudText, " start"] &&
     StringContainsQ[loudText, " done"]];
 
@@ -452,7 +447,7 @@ check["T4 FACET_MQ_STAGE_LOG=Off silences an enabled stage log",
   Module[{text},
     SetEnvironment["FACET_MQ_STAGE_LOG" -> "Off"];
     text = Last[capture[
-      Block[{FeynFacet`Private`$multiquadraticStripStageLog = True},
+      Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockStageLog = True},
         stageStart["probe", <|"a" -> 1|>]; stageDone["probe"]]]];
     SetEnvironment["FACET_MQ_STAGE_LOG" -> "On"];
     ! StringContainsQ[text, "[multiquadratic] probe"]]];
@@ -460,7 +455,7 @@ check["T4 FACET_MQ_STAGE_LOG=Off silences an enabled stage log",
 check["T5 FACET_MQ_STAGE_LOG=On forces a disabled stage log on",
   Module[{text},
     text = Last[capture[
-      Block[{FeynFacet`Private`$multiquadraticStripStageLog = False},
+      Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockStageLog = False},
         stageStart["probe", <|"a" -> 1|>]; stageDone["probe"]]]];
     SetEnvironment["FACET_MQ_STAGE_LOG" -> ""];
     StringContainsQ[text, "[multiquadratic] probe start"] &&

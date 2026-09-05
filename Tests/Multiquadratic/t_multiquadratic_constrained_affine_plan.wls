@@ -11,15 +11,15 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {fullSolve, discover, plannedSolve, fallbackSolve, planValidQ,
   discoverySolve, backendDecision, consistencyEvidence,
   residualEvidenceValidQ} = mq /@ {
-  "multiquadraticStripAffineSolve",
-  "multiquadraticStripConstrainedPlanDiscover",
-  "multiquadraticStripConstrainedAffineSolve",
-  "multiquadraticStripConstrainedAffineFallback",
-  "multiquadraticStripConstrainedPlanValidQ",
-  "multiquadraticStripPlanDiscoverySolve",
-  "multiquadraticStripPlanDiscoveryBackendDecision",
-  "multiquadraticStripAffineConsistencyEvidence",
-  "multiquadraticStripFullResidualEvidenceValidQ"};
+  "multiquadraticOffDiagonalBlockAffineSolve",
+  "multiquadraticOffDiagonalBlockConstrainedPlanDiscover",
+  "multiquadraticOffDiagonalBlockConstrainedAffineSolve",
+  "multiquadraticOffDiagonalBlockConstrainedAffineFallback",
+  "multiquadraticOffDiagonalBlockConstrainedPlanValidQ",
+  "multiquadraticOffDiagonalBlockPlanDiscoverySolve",
+  "multiquadraticOffDiagonalBlockPlanDiscoveryBackendDecision",
+  "multiquadraticOffDiagonalBlockAffineConsistencyEvidence",
+  "multiquadraticOffDiagonalBlockFullResidualEvidenceValidQ"};
 
 prime = 1000003;
 originalCheckLevel = Quiet[Environment["FACET_CHECK_LEVEL"]];
@@ -148,12 +148,12 @@ wideNativeMatrix = Transpose[Prepend[widePlanned["NullspaceBasis"],
 wideNormalizationCorrupt = ReplacePart[wideNativeMatrix,
   {First[widePlan["NormalizationColumns"]], 2} -> 0];
 wideNormalizationRecovered = Internal`InheritedBlock[
-  {FeynFacet`Private`finiteFieldStripFLINTSolve},
-  Unprotect[FeynFacet`Private`finiteFieldStripFLINTSolve];
-  Clear[FeynFacet`Private`finiteFieldStripFLINTSolve];
-  FeynFacet`Private`finiteFieldStripFLINTSolve[___] :=
+  {FeynFacet`Private`finiteFieldOffDiagonalBlockFLINTSolve},
+  Unprotect[FeynFacet`Private`finiteFieldOffDiagonalBlockFLINTSolve];
+  Clear[FeynFacet`Private`finiteFieldOffDiagonalBlockFLINTSolve];
+  FeynFacet`Private`finiteFieldOffDiagonalBlockFLINTSolve[___] :=
     wideNormalizationCorrupt;
-  Protect[FeynFacet`Private`finiteFieldStripFLINTSolve];
+  Protect[FeynFacet`Private`finiteFieldOffDiagonalBlockFLINTSolve];
   plannedSolve[wideLater["Matrix"], wideLater["Right"], prime, widePlan]];
 check["normalization is exact and precedes the all-row residual replay",
   Lookup[wideNormalizationRecovered, "Status", None] ===
@@ -266,14 +266,14 @@ check["a native inconsistent verdict is preserved without Wolfram fallback",
 
 nativeSolveCalls = 0;
 countedInconsistent = Internal`InheritedBlock[
-  {FeynFacet`Private`multiquadraticStripNativeAffineSolve},
-  Unprotect[FeynFacet`Private`multiquadraticStripNativeAffineSolve];
-  Clear[FeynFacet`Private`multiquadraticStripNativeAffineSolve];
-  FeynFacet`Private`multiquadraticStripNativeAffineSolve[___] :=
+  {FeynFacet`Private`multiquadraticOffDiagonalBlockNativeAffineSolve},
+  Unprotect[FeynFacet`Private`multiquadraticOffDiagonalBlockNativeAffineSolve];
+  Clear[FeynFacet`Private`multiquadraticOffDiagonalBlockNativeAffineSolve];
+  FeynFacet`Private`multiquadraticOffDiagonalBlockNativeAffineSolve[___] :=
     (nativeSolveCalls++;
       <|"Status" -> "InconsistentModularSystem",
-        "Module" -> "MultiquadraticStripSolve"|>);
-  Protect[FeynFacet`Private`multiquadraticStripNativeAffineSolve];
+        "Module" -> "MultiquadraticOffDiagonalBlockSolve"|>);
+  Protect[FeynFacet`Private`multiquadraticOffDiagonalBlockNativeAffineSolve];
   consistencyEvidence[{{1, 0}, {0, 0}}, {1, 1}, prime,
     2, 0, "FLINTAffineRREF", 2, 0]];
 check["one-RHS native inconsistency does not launch a homogeneous RREF",

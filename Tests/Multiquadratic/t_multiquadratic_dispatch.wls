@@ -17,7 +17,7 @@
 
    F2, chartless dispatch in the public solver.  On the audit's rank
    three {s,t} fixture with u = 1-s-t (no joint rational chart) the
-   PUBLIC SolveEpsFormStripInFrame must reach the installable "Solved" result
+   PUBLIC SolveOffDiagonalBasisTransformationBlock must reach the installable "Solved" result
    with root rank 3, eight grades and all eight sign branches certified with
    zero residual.  In production mode exact symbolic certification is
    deferred to the family certificate, while fresh modular reconstruction
@@ -42,13 +42,13 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 private[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, layoutBuilder, decompose, compose, presentationRoots,
   rootExpression, rootRadicand, statistics, artifactWrite,
-  artifactLoadRaw} = private /@ {"multiquadraticStripPrepare",
-  "multiquadraticStripAssemblyLayout",
+  artifactLoadRaw} = private /@ {"multiquadraticOffDiagonalBlockPrepare",
+  "multiquadraticOffDiagonalBlockAssemblyLayout",
   "multiquadraticFieldDecompose", "multiquadraticFieldCompose",
   "coefficientPresentationSquareRootsInVariables",
   "squareRootRecordExpression", "squareRootRecordRadicand",
   "multiquadraticFieldPathStatistics",
-  "multiquadraticStripArtifactWrite", "multiquadraticStripArtifactLoadRaw"};
+  "multiquadraticOffDiagonalBlockArtifactWrite", "multiquadraticOffDiagonalBlockArtifactLoadRaw"};
 
 s = Symbol["Global`mqds"]; t = Symbol["Global`mqdt"];
 u = Symbol["Global`mqdu"]; eta = Symbol["Global`mqdeta"];
@@ -74,11 +74,11 @@ FTAssert["the root triple {s,t,1-s-t} has no joint rational chart",
 denominator = 1 - s - t;
 gauge = Sqrt[s] Sqrt[t] Sqrt[denominator]/denominator;
 zeroDiagonal = {{{0}}, {{0}}};
-forcing = Table[{{Together[D[gauge, {s, t}[[mu]]]]}}, {mu, 2}];
-strip = {zeroDiagonal, zeroDiagonal, forcing};
+inhomogeneity = Table[{{Together[D[gauge, {s, t}[[mu]]]]}}, {mu, 2}];
+strip = {zeroDiagonal, zeroDiagonal, inhomogeneity};
 record = <|"Family" -> "ARBITRARY_PROCESS_ALPHA", "Variables" -> {s, t},
-  "Regulator" -> eta, "Strip" -> strip|>;
-prepareOptions = Sequence["OneForms" -> {}, "GaugeDenominator" -> denominator,
+  "Regulator" -> eta, "OffDiagonalBlockEquation" -> strip|>;
+prepareOptions = Sequence["OneForms" -> {}, "OffDiagonalBasisTransformationDenominator" -> denominator,
   "Support" -> {{0, 0}}];
 
 (* ------------------------------------------------------------------ *)
@@ -94,17 +94,17 @@ reversedLayout = layoutBuilder[reversedPreparation];
 
 FTAssert["both root declaration orders prepare",
   Lookup[forwardPreparation, "Status", None] ===
-      "PreparedMultiquadraticStripV1" &&
+      "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Lookup[reversedPreparation, "Status", None] ===
-      "PreparedMultiquadraticStripV1" &&
+      "PreparedMultiquadraticOffDiagonalBlockV1" &&
     forwardPreparation["RootCount"] === 3 &&
     reversedPreparation["RootCount"] === 3];
 
-FTAssert["the preparation schema is MultiquadraticStripPreparationV3",
+FTAssert["the preparation schema is MultiquadraticOffDiagonalBlockPreparationV3",
   forwardPreparation["DefiningData"]["Schema"] ===
-      "MultiquadraticStripPreparationV3" &&
+      "MultiquadraticOffDiagonalBlockPreparationV3" &&
     forwardPreparation["PreparationSchema"] ===
-      "MultiquadraticStripPreparationV3"];
+      "MultiquadraticOffDiagonalBlockPreparationV3"];
 
 FTAssert["defining data does not contain source declaration indices",
   ! KeyExistsQ[forwardPreparation["DefiningData"], "RootSourceIndices"] &&
@@ -150,16 +150,15 @@ FTAssert["the source indices survive as diagnostic declaration data",
 (* F2: public dispatch without a catalogued joint parametrization       *)
 (* ------------------------------------------------------------------ *)
 
-publicResult = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
-  "FiniteFieldFirst" -> True, "FiniteFieldFallback" -> True,
+publicResult = SolveOffDiagonalBasisTransformationBlock[strip, {s, t}, eta, frame,
   "Verbose" -> False,
   (* This test exercises rank-three dispatch and reconstruction, not the
      independent problem of discovering a denominator ansatz. *)
   "MultiquadraticOptions" -> {prepareOptions,
-    "GaugeDenominatorFactor" -> 1,
+    "OffDiagonalBasisTransformationDenominatorFactor" -> 1,
     "IntegrabilityScreen" -> False,
     "ScreenFirst" -> False,
-    "GaugeScreen" -> False,
+    "OffDiagonalBasisTransformationBlockScreen" -> False,
     "DegreeOffsetLadder" -> None}];
 
 FTAssert["the public solver installs the triple-root strip without a joint parametrization",
@@ -220,7 +219,7 @@ artifactDirectory = FileNameJoin[{$TemporaryDirectory,
   "FeynFacetDispatchTest-" <> StringTake[CreateUUID[], 8]}];
 modularFile = FileNameJoin[{artifactDirectory, "PROBE_1_0_modular.wl"}];
 modularRecord = <|"Family" -> "PROBE", "Sector" -> 1, "LowerSector" -> 0,
-  "Variables" -> {s, t}, "Regulator" -> eta, "Strip" -> strip,
+  "Variables" -> {s, t}, "Regulator" -> eta, "OffDiagonalBlockEquation" -> strip,
   "Summary" -> <|"Method" -> "MultiquadraticModularCandidate",
     "Status" -> "Solved", "Installed" -> True,
     "RootCount" -> publicResult["RootCount"],
@@ -240,7 +239,7 @@ FTAssert["the recorded modular artifact round-trips in an explicit context",
     Length[hydrated["Value"]["Result"]["BranchCertificate"]] === 8];
 Quiet[DeleteDirectory[artifactDirectory, DeleteContents -> True]];
 
-disabled = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
+disabled = SolveOffDiagonalBasisTransformationBlock[strip, {s, t}, eta, frame,
   "MultiquadraticDispatch" -> False];
 FTAssert["switching the dispatch off reports the absent parametrization",
   Lookup[disabled, "Status", None] ===
@@ -251,7 +250,7 @@ FTAssert["switching the dispatch off reports the absent parametrization",
 (* An independent coefficient symbol lies outside the two-variable
    presentation, so the engine refuses the mathematical input. *)
 frameExtra = BuildSquareRootGeneratorsAndQuadraticRelations[{s, t, u}, {s, t}, {cs, ct}];
-outOfScope = SolveEpsFormStripInFrame[
+outOfScope = SolveOffDiagonalBasisTransformationBlock[
   {zeroDiagonal, zeroDiagonal, {{{Sqrt[u]}}, {{0}}}}, {s, t}, eta,
   frameExtra];
 FTAssert["an out-of-scope input reports the missing parametrization and engine refusal",
@@ -261,30 +260,31 @@ FTAssert["an out-of-scope input reports the missing parametrization and engine r
     Lookup[Lookup[outOfScope, "MultiquadraticRefusal", <||>], "Status", None] ===
       "ContextSensitivePreparationData"];
 
-optionError = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
+optionError = SolveOffDiagonalBasisTransformationBlock[strip, {s, t}, eta, frame,
   "MultiquadraticOptions" -> {"NoSuchEngineOption" -> 1}];
 FTAssert["a caller option error comes back as the engine typed it, not as a chart refusal",
   Lookup[optionError, "Status", None] === "UnknownOption" &&
     Lookup[optionError, "Options", None] === {"NoSuchEngineOption"}];
 
-malformed = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
+malformed = SolveOffDiagonalBasisTransformationBlock[strip, {s, t}, eta, frame,
   "MultiquadraticOptions" -> "not-a-rule-list"];
 FTAssert["a malformed multiquadratic option list is a typed refusal",
   Lookup[malformed, "Status", None] === "InvalidMultiquadraticOptions"];
 
 (* the dispatch must not shadow the contracts that precede it *)
-zeroForcing = SolveEpsFormStripInFrame[
+zeroInhomogeneity = SolveOffDiagonalBasisTransformationBlock[
   {zeroDiagonal, zeroDiagonal, {{{0}}, {{0}}}}, {s, t}, eta, frame];
-FTAssert["a vanishing forcing is still solved exactly before any dispatch",
-  Lookup[zeroForcing, "Status", None] === "Solved" &&
-    Lookup[zeroForcing, "Method", None] === "ZeroForcing" &&
-    TrueQ[Lookup[zeroForcing, "ExactDLog", False]]];
+FTAssert["a vanishing inhomogeneity is still solved exactly before any dispatch",
+  Lookup[zeroInhomogeneity, "Status", None] === "Solved" &&
+    Lookup[zeroInhomogeneity, "Method", None] === "ZeroInhomogeneity" &&
+    TrueQ[Lookup[zeroInhomogeneity, "ExactDLog", False]]];
 
-undeclared = SolveEpsFormStripInFrame[
+undeclared = SolveOffDiagonalBasisTransformationBlock[
   {zeroDiagonal, zeroDiagonal, {{{Sqrt[1 + s + 3 t]}}, {{0}}}}, {s, t}, eta,
   frame];
 FTAssert["an undeclared radical is still refused before any dispatch",
-  Lookup[undeclared, "Status", None] === "StripContainsUndeclaredRadicals"];
+  Lookup[undeclared, "Status", None] ===
+    "OffDiagonalBlockEquationContainsUndeclaredRadicals"];
 
 (* ------------------------------------------------------------------ *)
 (* F6.1: the scalar-local root-free fast path                           *)

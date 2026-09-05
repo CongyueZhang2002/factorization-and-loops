@@ -1,11 +1,31 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
+Clear[x, y, eps, master];
 conditions = <|"BasisTransformationInverse" -> True,
   "ConnectionTransformationEquation" -> True,
   "EpsilonFactorized" -> True, "DLogRepresentation" -> True|>;
+blockDecomposition = <|
+  "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
+  "SchemaVersion" -> 2,
+  "FamilyDifferentialSystemReference" -> <|
+    "RelativePath" -> "synthetic_family_system.wl",
+    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+    "Family" -> "Synthetic"|>,
+  "IrreducibleDiagonalBlocks" -> {{1}}|>;
 exact = <|"DataType" -> "FamilyDLogEpsilonForm", "SchemaVersion" -> 2,
   "Status" -> "FamilyDLogEpsilonFormValidated",
+  "Family" -> "Synthetic",
+  "CoefficientPresentation" -> <|
+    "DataType" -> "SourceVariableRepresentation", "SchemaVersion" -> 2,
+    "SourceVariables" -> {x, y}, "CoefficientVariables" -> {x, y},
+    "SourceVariableSubstitution" -> {x -> x, y -> y},
+    "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>,
+  "CoefficientVariables" -> {x, y}, "DimensionalRegulator" -> eps,
+  "OriginalMasterIntegralBasis" -> {master[1]},
+  "BlockDecomposition" -> blockDecomposition,
+  "BasisTransformationMatrix" -> {{1}}, "Letters" -> {},
+  "ConstantResidueMatrices" -> {},
   "Validation" -> <|"Exact" -> True,
     "Probabilistic" -> False,
     "Method" -> "CharacteristicZeroSymbolicIdentity",
@@ -33,16 +53,10 @@ legacyFiniteFieldMethod = ReplacePart[probabilistic,
   {"Validation", "Method"} -> "FiniteFieldEvaluation"];
 legacyStatus = ReplacePart[exact,
   "Status" -> "ExactlyValidatedFamilyDLogEpsilonForm"];
-v2BlockRecord = Join[exact, <|"BlockDecomposition" -> <|
-  "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
-  "SchemaVersion" -> 2,
-  "FamilyDifferentialSystemReference" -> <|
-    "RelativePath" -> "synthetic_family_system.wl",
-    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
-    "Family" -> "Synthetic"|>,
-  "IrreducibleDiagonalBlocks" -> {{1}}|>|>];
-legacyBlockRecord = Join[exact,
+v2BlockRecord = exact;
+legacyBlockRecord = Join[KeyDrop[exact, "BlockDecomposition"],
   <|"IrreducibleDiagonalBlocks" -> {{1}}|>];
+incompletePublicRecord = KeyDrop[exact, "OriginalMasterIntegralBasis"];
 
 tests = <|
   "ExactlyValidated" ->
@@ -61,6 +75,8 @@ tests = <|
       legacyFiniteFieldMethod],
   "LegacyStrengthStatusRejected" ->
     ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[legacyStatus],
+  "IncompletePublicRecordRejected" ->
+    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[incompletePublicRecord],
   "ObservableConsumerUsesNestedBlockDecomposition" ->
     FeynFacet`Private`observableTransportIrreducibleDiagonalBlocks[
       v2BlockRecord] === {{1}},

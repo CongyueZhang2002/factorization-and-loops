@@ -11,11 +11,11 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
-batch = mq["multiquadraticStripConstructDLogBatch"];
-shard = mq["multiquadraticStripDLogShardTask"];
-candidate = mq["multiquadraticStripCandidateLetters"];
-dlogData = mq["multiquadraticStripLetterDLogDataInField"];
-pairKey = mq["multiquadraticStripPotentialPairKey"];
+batch = mq["multiquadraticOffDiagonalBlockConstructDLogBatch"];
+shard = mq["multiquadraticOffDiagonalBlockDLogShardTask"];
+candidate = mq["multiquadraticOffDiagonalBlockCandidateLetters"];
+dlogData = mq["multiquadraticOffDiagonalBlockLetterDLogDataInField"];
+pairKey = mq["multiquadraticOffDiagonalBlockPotentialPairKey"];
 letters = {x, y, 1 - x - y, x + y, x^2 + y, 1 + x y, x - 2 y};
 serial = batch[letters, {}, {x, y}, 1];
 check["constructed dlogs retain their canonical pair key and zero verdict",
@@ -101,10 +101,10 @@ candidateDeadline = AbsoluteTime[] + 60;
 capturedCandidateDeadline = None;
 zero11 = {{{0}}, {{0}}};
 candidateResult = Internal`InheritedBlock[
-  {FeynFacet`Private`multiquadraticStripConstructDLogBatch},
-  Unprotect[FeynFacet`Private`multiquadraticStripConstructDLogBatch];
-  Clear[FeynFacet`Private`multiquadraticStripConstructDLogBatch];
-  FeynFacet`Private`multiquadraticStripConstructDLogBatch[
+  {FeynFacet`Private`multiquadraticOffDiagonalBlockConstructDLogBatch},
+  Unprotect[FeynFacet`Private`multiquadraticOffDiagonalBlockConstructDLogBatch];
+  Clear[FeynFacet`Private`multiquadraticOffDiagonalBlockConstructDLogBatch];
+  FeynFacet`Private`multiquadraticOffDiagonalBlockConstructDLogBatch[
       batchLetters_List, batchRoots_List, batchVariables_List,
       kernelCount_Integer, deadline_] :=
     (capturedCandidateDeadline = deadline;
@@ -112,7 +112,7 @@ candidateResult = Internal`InheritedBlock[
        "Route" -> "DeadlineCapture", "Subkernels" -> 0,
        "BrokerHelperCount" -> 0, "Seconds" -> 0.|>);
   candidate[{zero11, zero11, zero11}, {}, {cx, cy}, ce,
-    <|"StripSolvers" -> {}|>, "RegulatorSampleCount" -> 1,
+    <|"OffDiagonalBlockSolutions" -> {}|>, "RegulatorSampleCount" -> 1,
     "RowAlphabet" -> {}, "AdditionalLetters" -> {},
     "AlgebraicLetters" -> {}, "DLogKernels" -> 1,
     "Deadline" -> candidateDeadline]];

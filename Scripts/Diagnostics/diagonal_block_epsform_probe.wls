@@ -42,7 +42,7 @@ Print["slice residue ranks: ", MatrixRank /@ slice["SliceResidues"]];
 Print["slice residue eigenvalues: ", Sort[Eigenvalues[#]] & /@ slice["SliceResidues"]];
 
 t0 = AbsoluteTime[];
-solve = FeynFacet`SolveDiagonalBlockGaugeFiniteField[{ax, ay}, {x, y}, eps, slice, "Verbose" -> True];
+solve = FeynFacet`SolveDiagonalBlockBasisTransformationFiniteField[{ax, ay}, {x, y}, eps, slice, "Verbose" -> True];
 stamp["solve", t0];
 Print["solve status: ", solve["Status"]];
 put[solve, "solve"];
@@ -55,7 +55,7 @@ stamp["completion", t0];
 Print["completion status: ", completion["Status"]];
 put[completion, "completion"];
 If[completion["Status"] =!= "OK", Print[completion]; Exit[4]];
-Print["scalar gauge: ", completion["ScalarGauge"]];
+Print["scalar gauge: ", completion["ScalarBasisTransformationFactor"]];
 Print["final letters: ", completion["Letters"]];
 
 t0 = AbsoluteTime[];

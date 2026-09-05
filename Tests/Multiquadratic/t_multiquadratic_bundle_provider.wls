@@ -8,26 +8,26 @@ pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-{forcingOf, prepare, layoutBuilder, directProvider, channels, pointRows,
+{inhomogeneityOf, prepare, layoutBuilder, directProvider, channels, pointRows,
   assembleSample, providerPreflight, splitPlanBuilder, splitPlanValidQ,
   splitEntry, screenCompile, clearCaches, validateBundle,
   presentationRoots, generatorExpression} = mq /@ {
-    "blockEquationDeferredForcing",
-    "multiquadraticStripPrepare", "multiquadraticStripAssemblyLayout",
-    "multiquadraticStripDirectProvider",
-    "multiquadraticStripProviderChannels",
-    "multiquadraticStripAssemblePointRows",
-    "multiquadraticStripAssembleSample",
-    "multiquadraticStripProviderPreflight",
-    "multiquadraticStripSplitSparseEvaluationPlan",
-    "multiquadraticStripSplitSparseEvaluationPlanValidQ",
-    "multiquadraticStripSplitBranchEntry",
-    "multiquadraticStripScreenCompileScalar",
-    "multiquadraticStripClearCaches",
+    "blockEquationDeferredInhomogeneity",
+    "multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockAssemblyLayout",
+    "multiquadraticOffDiagonalBlockDirectProvider",
+    "multiquadraticOffDiagonalBlockProviderChannels",
+    "multiquadraticOffDiagonalBlockAssemblePointRows",
+    "multiquadraticOffDiagonalBlockAssembleSample",
+    "multiquadraticOffDiagonalBlockProviderPreflight",
+    "multiquadraticOffDiagonalBlockSplitSparseEvaluationPlan",
+    "multiquadraticOffDiagonalBlockSplitSparseEvaluationPlanValidQ",
+    "multiquadraticOffDiagonalBlockSplitBranchEntry",
+    "multiquadraticOffDiagonalBlockScreenCompileScalar",
+    "multiquadraticOffDiagonalBlockClearCaches",
     "blockEquationDeferredBundleValidate",
     "coefficientPresentationSquareRootsInVariables",
     "squareRootRecordExpression"};
-topSolve = mq["solveEpsFormStripMultiquadratic"];
+topSolve = mq["solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"];
 
 Clear[dx, dy, de, dsx, dsy, dcx, dcy];
 ranges = {{1}, {2}, {3, 4}};
@@ -43,7 +43,7 @@ entry[mu_, i_, j_] := (de + mu + i dx + j dy)/
 connection = Table[Table[If[blockOf[i] < blockOf[j], 0,
     entry[mu, i, j]], {i, 4}, {j, 4}], {mu, 2}];
 solved = <|2 -> {{(1 + dx)/(1 - dy)}, {dy/(1 + dx)}}|>;
-compat = forcingOf[connection, ranges, 3, 1, solved, {dx, dy}, de,
+compat = inhomogeneityOf[connection, ranges, 3, 1, solved, {dx, dy}, de,
   "DivisorRoots" -> {bundleRootRecord}];
 bundle = Lookup[compat, "DeferredBundle", <||>];
 
@@ -54,36 +54,36 @@ check["bundle provider fixture is validated",
 dimensions = Rest[bundle["Dimensions"]];
 e = Table[Sqrt[delta] IdentityMatrix[dimensions[[1]]], {2}];
 c = Table[ConstantArray[0, {dimensions[[2]], dimensions[[2]]}], {2}];
-zeroForcing = ConstantArray[0, bundle["Dimensions"]];
+zeroInhomogeneity = ConstantArray[0, bundle["Dimensions"]];
 bundleRecord = <|"Family" -> "BUNDLE_PROVIDER", "Sector" -> 3,
   "LowerSector" -> 1, "Variables" -> {dx, dy}, "Regulator" -> de,
-  "Strip" -> {e, c, zeroForcing}, "DeferredBundle" -> bundle|>;
+  "OffDiagonalBlockEquation" -> {e, c, zeroInhomogeneity}, "DeferredBundle" -> bundle|>;
 prepared = prepare[bundleRecord, coefficientPresentation, "RootIndices" -> {1},
-  "OneForms" -> {}, "GaugeDenominator" -> Automatic,
+  "OneForms" -> {}, "OffDiagonalBasisTransformationDenominator" -> Automatic,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
 layout = layoutBuilder[prepared];
 bundleSplit = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
+  "OffDiagonalBasisTransformationDenominator" -> prepared["OffDiagonalBasisTransformationDenominator"],
   "DeferredBundle" -> bundle];
 bundleQuotient = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "QuotientGrade", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
+  "OffDiagonalBasisTransformationDenominator" -> prepared["OffDiagonalBasisTransformationDenominator"],
   "DeferredBundle" -> bundle];
-oracleRecord = Join[bundleRecord, <|"Strip" -> {e, c, compat["Forcing"]}|>];
+oracleRecord = Join[bundleRecord, <|"OffDiagonalBlockEquation" -> {e, c, compat["Inhomogeneity"]}|>];
 oracle = directProvider[oracleRecord, prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
+  "OffDiagonalBasisTransformationDenominator" -> prepared["OffDiagonalBasisTransformationDenominator"],
   "DeferredBundle" -> None];
 
 check["bundle divisor summary supplies the automatic rational denominator",
-  Lookup[prepared, "Status", None] === "PreparedMultiquadraticStripV1" &&
+  Lookup[prepared, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     AssociationQ[prepared["BundleDivisorProvenance"]] &&
     bundle["SchemaVersion"] === 3 &&
     AssociationQ[bundle["CoefficientPresentation"]] &&
     bundle["SquareRootGeneratorIndices"] === {1} &&
     prepared["CoefficientPresentation"] === coefficientPresentation &&
-    FreeQ[prepared["GaugeDenominator"], Power[_, _Rational]]];
+    FreeQ[prepared["OffDiagonalBasisTransformationDenominator"], Power[_, _Rational]]];
 
 prime = 2147483423; epsilonValue = 5; point = {3, 7};
 bundleSplitImage = channels[bundleSplit, epsilonValue, prime, point];
@@ -113,8 +113,8 @@ check["the split plan validates and covers every positional occurrence",
 check["planned and unplanned provider channels are exactly identical",
   Lookup[plannedBundleSplitImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    KeyTake[plannedBundleSplitImage, {"E", "C", "BBar", "OneForms"}] ===
-      KeyTake[bundleSplitImage, {"E", "C", "BBar", "OneForms"}] &&
+    KeyTake[plannedBundleSplitImage, {"E", "C", "Inhomogeneity", "OneForms"}] ===
+      KeyTake[bundleSplitImage, {"E", "C", "Inhomogeneity", "OneForms"}] &&
     plannedBundleSplitImage["SplitSparseCompileAttemptCount"] === 0 &&
     plannedBundleSplitImage["SplitSparseUniqueLeafCount"] ===
       splitPlan["UniqueLeafCount"] &&
@@ -194,19 +194,19 @@ check["a planned zero denominator preserves the exact substitution fallback",
   AssociationQ[unplannedPole] && plannedPole === unplannedPole &&
     Lookup[plannedPole, "Status", None] =!= "OK"];
 
-check["bundle SplitBranch evaluates complete coefficients without dense BBar",
+check["bundle SplitBranch evaluates complete coefficients without dense Inhomogeneity",
   Lookup[bundleSplitImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    bundleSplitImage["BBar"] === oracleImage["BBar"] &&
+    bundleSplitImage["Inhomogeneity"] === oracleImage["Inhomogeneity"] &&
     bundleSplitImage["E"] === oracleImage["E"] &&
     bundleSplitImage["C"] === oracleImage["C"] &&
-    bundleSplitImage["BBar"] =!= ConstantArray[0,
-      Dimensions[bundleSplitImage["BBar"]]]];
+    bundleSplitImage["Inhomogeneity"] =!= ConstantArray[0,
+      Dimensions[bundleSplitImage["Inhomogeneity"]]]];
 check["bundle QuotientGrade agrees with split and materialized oracle",
   Lookup[bundleQuotientImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    KeyTake[bundleQuotientImage, {"E", "C", "BBar", "OneForms"}] ===
-      KeyTake[bundleSplitImage, {"E", "C", "BBar", "OneForms"}]];
+    KeyTake[bundleQuotientImage, {"E", "C", "Inhomogeneity", "OneForms"}] ===
+      KeyTake[bundleSplitImage, {"E", "C", "Inhomogeneity", "OneForms"}]];
 check["bundle evaluator reuses its interned operands",
   bundleSplitImage["BundleOperandEntryEvaluationCount"] ===
       Length[bundle["OperandTable"]] &&
@@ -226,7 +226,7 @@ mutated = ReplacePart[bundle,
   {Key["Jobs"], 1, Key["Terms"], 1, 1} -> 17];
 mutantProvider = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
+  "OffDiagonalBasisTransformationDenominator" -> prepared["OffDiagonalBasisTransformationDenominator"],
   "DeferredBundle" -> mutated];
 mutantImage = channels[mutantProvider, epsilonValue, prime, point];
 check["changed valid bundle equations produce changed provider coefficients",
@@ -235,57 +235,57 @@ check["changed valid bundle equations produce changed provider coefficients",
       "MultiquadraticDirectProviderV1" &&
     Lookup[mutantImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    mutantImage["BBar"] =!= bundleSplitImage["BBar"]];
+    mutantImage["Inhomogeneity"] =!= bundleSplitImage["Inhomogeneity"]];
 
-(* The production driver intentionally puts a zero tensor in BBar when the
-   validated deferred bundle is the forcing source.  A generator used only
+(* The production driver intentionally puts a zero tensor in Inhomogeneity when the
+   validated deferred bundle is the inhomogeneity source.  A generator used only
    by that bundle must therefore enter preparation through its coefficient
    presentation, not be
    rejected as an extraneous explicit RootIndices request. *)
 zeroE = ConstantArray[0, {2, dimensions[[1]], dimensions[[1]]}];
 zeroC = ConstantArray[0, {2, dimensions[[2]], dimensions[[2]]}];
-forcingOnlyRecord = <|"Family" -> "BUNDLE_ROOT_CENSUS", "Sector" -> 3,
+inhomogeneityOnlyRecord = <|"Family" -> "BUNDLE_ROOT_CENSUS", "Sector" -> 3,
   "LowerSector" -> 1, "Variables" -> {dx, dy}, "Regulator" -> de,
-  "Strip" -> {zeroE, zeroC, zeroForcing}, "DeferredBundle" -> bundle|>;
-forcingOnlyPrepared = prepare[forcingOnlyRecord, coefficientPresentation,
-  "OneForms" -> {}, "GaugeDenominator" -> Automatic,
+  "OffDiagonalBlockEquation" -> {zeroE, zeroC, zeroInhomogeneity}, "DeferredBundle" -> bundle|>;
+inhomogeneityOnlyPrepared = prepare[inhomogeneityOnlyRecord, coefficientPresentation,
+  "OneForms" -> {}, "OffDiagonalBasisTransformationDenominator" -> Automatic,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
-forcingOnlyProvider = directProvider[forcingOnlyPrepared["Record"],
-  forcingOnlyPrepared["Roots"], "Kind" -> "SplitBranch", "OneForms" -> {},
-  "GaugeDenominator" -> forcingOnlyPrepared["GaugeDenominator"],
+inhomogeneityOnlyProvider = directProvider[inhomogeneityOnlyPrepared["Record"],
+  inhomogeneityOnlyPrepared["Roots"], "Kind" -> "SplitBranch", "OneForms" -> {},
+  "OffDiagonalBasisTransformationDenominator" -> inhomogeneityOnlyPrepared["OffDiagonalBasisTransformationDenominator"],
   "DeferredBundle" -> bundle];
-forcingOnlyImage = channels[forcingOnlyProvider, epsilonValue, prime, point];
-forcingOnlyOracleRecord = Join[forcingOnlyRecord, <|
-  "Strip" -> {zeroE, zeroC, compat["Forcing"]}, "DeferredBundle" -> None|>];
-forcingOnlyOracle = directProvider[forcingOnlyOracleRecord,
-  forcingOnlyPrepared["Roots"], "Kind" -> "SplitBranch", "OneForms" -> {},
-  "GaugeDenominator" -> forcingOnlyPrepared["GaugeDenominator"],
+inhomogeneityOnlyImage = channels[inhomogeneityOnlyProvider, epsilonValue, prime, point];
+inhomogeneityOnlyOracleRecord = Join[inhomogeneityOnlyRecord, <|
+  "OffDiagonalBlockEquation" -> {zeroE, zeroC, compat["Inhomogeneity"]}, "DeferredBundle" -> None|>];
+inhomogeneityOnlyOracle = directProvider[inhomogeneityOnlyOracleRecord,
+  inhomogeneityOnlyPrepared["Roots"], "Kind" -> "SplitBranch", "OneForms" -> {},
+  "OffDiagonalBasisTransformationDenominator" -> inhomogeneityOnlyPrepared["OffDiagonalBasisTransformationDenominator"],
   "DeferredBundle" -> None];
-forcingOnlyOracleImage = channels[forcingOnlyOracle, epsilonValue, prime,
+inhomogeneityOnlyOracleImage = channels[inhomogeneityOnlyOracle, epsilonValue, prime,
   point];
 bundleRoots = presentationRoots[bundle["CoefficientPresentation"],
   {dx, dy}][[bundle["SquareRootGeneratorIndices"]]];
-check["prepare includes generators used only by a validated deferred forcing",
-  Lookup[forcingOnlyPrepared, "Status", None] ===
-      "PreparedMultiquadraticStripV1" &&
-    forcingOnlyPrepared["RootCount"] === 1 &&
-    forcingOnlyPrepared["RootIndices"] === {1} &&
-    (generatorExpression /@ forcingOnlyPrepared["Roots"]) ===
+check["prepare includes generators used only by a validated deferred inhomogeneity",
+  Lookup[inhomogeneityOnlyPrepared, "Status", None] ===
+      "PreparedMultiquadraticOffDiagonalBlockV1" &&
+    inhomogeneityOnlyPrepared["RootCount"] === 1 &&
+    inhomogeneityOnlyPrepared["RootIndices"] === {1} &&
+    (generatorExpression /@ inhomogeneityOnlyPrepared["Roots"]) ===
       (generatorExpression /@ bundleRoots)];
-check["the forcing-only bundle reaches the provider without materializing BBar",
-  Lookup[forcingOnlyImage, "Status", None] ===
+check["the inhomogeneity-only bundle reaches the provider without materializing Inhomogeneity",
+  Lookup[inhomogeneityOnlyImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    forcingOnlyImage["BBar"] === forcingOnlyOracleImage["BBar"] &&
-    forcingOnlyImage["BBar"] =!= ConstantArray[0,
-      Dimensions[forcingOnlyImage["BBar"]]]];
+    inhomogeneityOnlyImage["Inhomogeneity"] === inhomogeneityOnlyOracleImage["Inhomogeneity"] &&
+    inhomogeneityOnlyImage["Inhomogeneity"] =!= ConstantArray[0,
+      Dimensions[inhomogeneityOnlyImage["Inhomogeneity"]]]];
 
-topLevelForcingOnly = topSolve[forcingOnlyRecord, coefficientPresentation,
+topLevelInhomogeneityOnly = topSolve[inhomogeneityOnlyRecord, coefficientPresentation,
   "OneForms" -> Automatic,
   "AlgebraicLetters" -> {2 + dx + Sqrt[delta]},
   "AdditionalLetters" -> {}, "DLogKernels" -> 1,
   "CoefficientProvider" -> "SplitBranch",
-  "GaugeDenominator" -> Automatic, "Support" -> {{0, 0}},
-  "IntegrabilityScreen" -> False, "GaugeScreen" -> False,
+  "OffDiagonalBasisTransformationDenominator" -> Automatic, "Support" -> {{0, 0}},
+  "IntegrabilityScreen" -> False, "OffDiagonalBasisTransformationBlockScreen" -> False,
   "ScreenFirst" -> False, "SamplePrimes" -> {2147483423},
   "HeldOutPrime" -> 2147483323,
   "RegulatorReconstructionValues" -> {1, 2, 3, 5, 7, 11, 13},
@@ -295,15 +295,15 @@ topLevelForcingOnly = topSolve[forcingOnlyRecord, coefficientPresentation,
   "ReconstructionUnseenPrimeCount" -> 1,
   "ReconstructionFreshPointwiseChecksPerPrime" -> 1,
   "PointCount" -> 4, "MaximumAttempts" -> 160];
-check["top-level alphabet and provider keep the forcing-only bundle root",
-  AssociationQ[topLevelForcingOnly] &&
-    Lookup[topLevelForcingOnly, "RootIndices", None] === {1} &&
-    Lookup[topLevelForcingOnly, "OneFormCount", 0] >= 1 &&
+check["top-level alphabet and provider keep the inhomogeneity-only bundle root",
+  AssociationQ[topLevelInhomogeneityOnly] &&
+    Lookup[topLevelInhomogeneityOnly, "RootIndices", None] === {1} &&
+    Lookup[topLevelInhomogeneityOnly, "OneFormCount", 0] >= 1 &&
     ! MemberQ[{"InvalidDeferredBundle",
        "DeferredBundleCoefficientPresentationMismatch",
        "DeferredBundleRootOrderMismatch",
        "DeferredBundleRootCoverageIncomplete", "OneFormBasisFailed"},
-      Lookup[topLevelForcingOnly, "Status", None]]];
+      Lookup[topLevelInhomogeneityOnly, "Status", None]]];
 
 Print["t_multiquadratic_bundle_provider: ", pass, " OK, ", fail,
   " FAIL"];

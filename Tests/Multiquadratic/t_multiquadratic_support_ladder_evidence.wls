@@ -11,12 +11,12 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, compile, layoutBuilder, compiledProvider, ladderSolve,
   affineSolve, authenticatePilot} =
- mq /@ {"multiquadraticStripPrepare", "multiquadraticStripCompile",
-   "multiquadraticStripAssemblyLayout",
-   "multiquadraticStripCompiledProvider",
-   "multiquadraticStripProviderSupportLadder",
-   "multiquadraticStripAffineSolve",
-   "multiquadraticStripPilotImageAuthenticate"};
+ mq /@ {"multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
+   "multiquadraticOffDiagonalBlockAssemblyLayout",
+   "multiquadraticOffDiagonalBlockCompiledProvider",
+   "multiquadraticOffDiagonalBlockProviderSupportLadder",
+   "multiquadraticOffDiagonalBlockAffineSolve",
+   "multiquadraticOffDiagonalBlockPilotImageAuthenticate"};
 
 Clear[slx, sly, sle];
 variables = {slx, sly};
@@ -27,13 +27,13 @@ frame = <|"Name" -> "SupportEvidenceRankZero", "Kind" -> "TwoVariable",
 zero = {{{0}}, {{0}}};
 record = <|"Family" -> "SUPPORT_EVIDENCE_TEST", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> variables, "Regulator" -> sle,
-  "Strip" -> {zero, zero, zero}|>;
+  "OffDiagonalBlockEquation" -> {zero, zero, zero}|>;
 preparation = prepare[record, frame, "OneForms" -> {},
-  "GaugeDenominator" -> 1, "Support" -> {{0, 0}}];
+  "OffDiagonalBasisTransformationDenominator" -> 1, "Support" -> {{0, 0}}];
 assembly = compile[preparation];
 layout = layoutBuilder[preparation];
 provider = compiledProvider[assembly];
-primes = Take[FeynFacet`Private`$multiquadraticStripPrimePool, 4];
+primes = Take[FeynFacet`Private`$multiquadraticOffDiagonalBlockPrimePool, 4];
 images = MapThread[List, {primes, Range[Length[primes]]}];
 
 fakeSample[prime_, value_] := Module[{point = {2, 3}, normalizationCount,
@@ -56,18 +56,18 @@ fakeSample[prime_, value_] := Module[{point = {2, 3}, normalizationCount,
   "PhaseSeconds" -> <||>|>];
 
 runScenario[scenario_Association] := Internal`InheritedBlock[
-  {FeynFacet`Private`multiquadraticStripAssembleSample,
-   FeynFacet`Private`multiquadraticStripAffineConsistencyEvidence},
-  Unprotect[FeynFacet`Private`multiquadraticStripAssembleSample,
-    FeynFacet`Private`multiquadraticStripAffineConsistencyEvidence];
-  Clear[FeynFacet`Private`multiquadraticStripAssembleSample,
-    FeynFacet`Private`multiquadraticStripAffineConsistencyEvidence];
-  FeynFacet`Private`multiquadraticStripAssembleSample[
+  {FeynFacet`Private`multiquadraticOffDiagonalBlockAssembleSample,
+   FeynFacet`Private`multiquadraticOffDiagonalBlockAffineConsistencyEvidence},
+  Unprotect[FeynFacet`Private`multiquadraticOffDiagonalBlockAssembleSample,
+    FeynFacet`Private`multiquadraticOffDiagonalBlockAffineConsistencyEvidence];
+  Clear[FeynFacet`Private`multiquadraticOffDiagonalBlockAssembleSample,
+    FeynFacet`Private`multiquadraticOffDiagonalBlockAffineConsistencyEvidence];
+  FeynFacet`Private`multiquadraticOffDiagonalBlockAssembleSample[
       _Association, _Association, value_, prime_Integer, ___] :=
     If[Lookup[scenario, prime, "Unavailable"] === "Unavailable",
       <|"Status" -> "SyntheticImageUnavailable", "Prime" -> prime,
         "RegulatorValue" -> value|>, fakeSample[prime, value]];
-  FeynFacet`Private`multiquadraticStripAffineConsistencyEvidence[
+  FeynFacet`Private`multiquadraticOffDiagonalBlockAffineConsistencyEvidence[
       matrix_, right_, prime_Integer, ___] := Module[{status, solution},
     status = Lookup[scenario, prime, "Unavailable"];
     If[status === "Consistent",
@@ -79,8 +79,8 @@ runScenario[scenario_Association] := Internal`InheritedBlock[
       <|"Status" -> "ProviderSupportImageInconsistent", "Prime" -> prime,
         "Rank" -> 0, "AugmentedRank" -> 1, "Defect" -> 1,
         "MatrixDimensions" -> Dimensions[matrix]|>]];
-  Protect[FeynFacet`Private`multiquadraticStripAssembleSample,
-    FeynFacet`Private`multiquadraticStripAffineConsistencyEvidence];
+  Protect[FeynFacet`Private`multiquadraticOffDiagonalBlockAssembleSample,
+    FeynFacet`Private`multiquadraticOffDiagonalBlockAffineConsistencyEvidence];
   ladderSolve[preparation, layout, provider, Function[ignored, <||>],
     "DegreeOffsetLadder" -> {}, "Images" -> images,
     "MaximumImageAttempts" -> 4, "PointCount" -> 1,
@@ -107,7 +107,7 @@ replacementInconsistent = runScenario[<|primes[[1]] -> "Unavailable",
 FTAssert["SL2 only two unanimous usable inconsistencies certify exhaustion",
   replacementInconsistent["Status"] ===
       "DeferredProviderSupportLadderExhausted" &&
-    TrueQ[replacementInconsistent["ObstructionCertified"]] &&
+    TrueQ[replacementInconsistent["FiniteFieldAnsatzInconsistencyEvidenceComplete"]] &&
     First[replacementInconsistent["LadderRungs"]]["AttemptCount"] === 3 &&
     First[replacementInconsistent["LadderRungs"]]["Defects"] === {1, 1}];
 
@@ -116,7 +116,7 @@ mixed = runScenario[<|primes[[1]] -> "Consistent",
 FTAssert["SL3 mixed usable evidence is typed inconclusive, never obstruction",
   mixed["Status"] === "DeferredProviderSupportLadderInconclusive" &&
     mixed["Reason"] === "MixedConsistencyEvidence" &&
-    ! TrueQ[mixed["ObstructionCertified"]] &&
+    ! TrueQ[mixed["FiniteFieldAnsatzInconsistencyEvidenceComplete"]] &&
     First[mixed["LadderRungs"]]["Status"] ===
       "ProviderSupportRungMixedEvidence"];
 

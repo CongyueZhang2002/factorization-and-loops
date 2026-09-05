@@ -1,4 +1,4 @@
-# CF303 reduced six-mode endpoint frame
+# CF303 reduced six-mode basis at the path endpoint
 
 Date: 2026-09-03
 
@@ -44,7 +44,7 @@ P(4,3)=-(2+5 eps)/(2p^2),  P(4,4)=1,
 P(6,3)= (2+5 eps)/(2p^4),  P(6,4)=-p^-2.
 ```
 
-## Sparse moving frame
+## Sparse moving basis
 
 Let `c=(2+5 eps)/(2p^2)`.  The columns
 
@@ -65,7 +65,7 @@ V^-1 R V = diag(0,0,0,0,0,-2(1+2 eps)).
 ```
 
 The `p` dependence of `V` is essential.  The package API
-`BuildEndpointLeveltModeConnection` applies
+`TransformTangentialConnectionToNormalResidueEigenbasis` applies
 
 ```text
 Gamma = V^-1 B_parallel V - V^-1 dV/dp
@@ -78,7 +78,7 @@ vanish identically:
 Gamma(1..5,6)=0,    Gamma(6,1..5)=0.
 ```
 
-The five zero modes and the one nonzero mode therefore transport
+The five zero modes and the one nonzero mode therefore evolve
 independently.  The scalar nonzero block is
 
 ```text
@@ -105,10 +105,11 @@ d_p   K6 = eps (4/p + 16p/(1-2p^2)) K6.
 Thus the unique nonzero normal mode is in simultaneous rational GPL epsilon
 form after one integer shear and one scalar rational prefactor.
 
-## Production source frame
+## Production source basis
 
-The transport input uses compact gauges rather than leaving the rational
-exact-derivative kernels in the source diagonal.  For physical source modes
+The variation-of-constants input uses compact basis transformations rather
+than leaving the rational exact-derivative kernels in the source diagonal.
+For physical source modes
 1 and 2 define
 
 ```text
@@ -144,10 +145,10 @@ y = -14(-2+13eps-27eps^2+18eps^3)/(eps^3(2+3eps)).
 ```
 
 which in the `g6` production normalization is
-`-1/((1+4eps)(2+3eps)) (1,1)`.  The physical `p`-path frame already contains
+`-1/((1+4eps)(2+3eps)) (1,1)`. The physical `p`-path basis already contains
 the source-dependent target behavior, so its ordinary target selectors add
 only the two independent zero modes.  This does **not** by itself identify
-the raw `F25=T25^-1 I25` endpoint columns with `G25`: that conversion must
+the raw `F25=T25^-1 I25` columns at the path endpoint with `G25`: that conversion must
 contract the principal and finite local deck of `H` against the source
 Frobenius jets.  The junction record keeps the known `G25` extension and the
 independent `F25` columns separate and marks the full target map incomplete.
@@ -161,19 +162,22 @@ The resulting `ProductionInput` contains:
   column declared exactly zero;
 - constant 4-by-6 source and 2-by-6 target boundary selectors for the four
   source modes and two independent target modes, without double-counting the
-  extension already present in the nonzero frame column.
+  extension already present in the nonzero basis vector.
 
-A bounded call to `BuildRationalEpsilonLayerTransport[...,"PrepareOnly"->True]`
-accepts this record with dimensions `{2,4}` and shared boundary coordinates.
-No dense 45-by-45 connection is involved.
+A bounded call to
+`SolveRationalEpsilonDependentBlockByVariationOfConstants[...,
+"PrepareOnly"->True]` accepts this record with dimensions `{2,4}` and shared
+boundary coordinates. No dense 45-by-45 connection is involved.
 
-The full symbolic-endpoint route is also exercised, not only prepared.  For
-demand `{{0,1},{0,2}}` it used three reconstruction primes plus a fresh
-validation prime, reconstructed six nonzero rational gauge functions at
-epsilon order zero, and produced accepted transport and lazy-operator
-records.  The reference build took about `0.05 s` after package load; the
-gauge, transport and operator occupied about `3.1 KB`, `37.7 KB` and
-`26.3 KB`, respectively.  Exact machine values and primes are stored in
+The full symbolic-path-endpoint calculation is also exercised, not only
+prepared. For requested outputs `{{0,1},{0,2}}` it used three reconstruction
+primes plus a fresh validation prime, reconstructed six nonzero rational
+functions in the off-diagonal basis-transformation block at epsilon order
+zero, and produced a validated solution and lazy iterated-integral
+coefficient operator. The reference build took about `0.05 s` after package
+load; the off-diagonal basis-transformation block, solution, and coefficient
+operator occupied about `3.1 KB`, `37.7 KB` and `26.3 KB`, respectively.
+Exact machine values and primes are stored in
 `ProductionInput["FullRunEvidence"]`.
 
 ## Junction to the accepted z-path operator
@@ -194,31 +198,35 @@ the regular base `z=1/2`, whereas the junction is singular.
 The smallest connector should consume a junction record with:
 
 1. the exact 43-by-N source mode map and 2-by-N target-mode data at the soft
-   point, including the local exponents and sheet/direction;
-2. an accepted interior operator ABI that can return a requested source or
-   target word coefficient without materializing all words;
-3. the symbolic `HByOrderPairs`, evaluated locally only after its principal
-   and finite terms are multiplied by the required source Frobenius jets;
+   limit, including the local exponents and root-sign/direction prescription;
+2. an accepted interior coefficient operator that can return a requested
+   source or target iterated-integral coefficient without enumerating every
+   letter sequence;
+3. the symbolic off-diagonal basis-transformation coefficients, evaluated
+   locally only after their principal and finite terms are multiplied by the
+   required source Frobenius jets;
 4. the original Stage-3 coordinate keys, carried through unchanged.
 
 Its operation is a tangentially regularized, order-by-order triangular solve
 for the 293 base constants at `z=1/2`, followed by the existing lazy z-path
-action.  If `Z_q[w_z]` is a requested z-word map, `J_r` the regularized
-junction solve, and `P_s[w_p]` a p-word map, the composed sparse coefficient
+action. If `Z_q[l_z]` is a requested z-path iterated-integral coefficient,
+`J_r` the regularized junction solution, and `P_s[l_p]` a p-path
+iterated-integral coefficient, the composed sparse coefficient
 is
 
 ```text
 sum_(q+r+s=n) Z_q[w_z] . J_r . P_s[w_p].
 ```
 
-The word key should remain the ordered pair `{pWord,zWord}`.  Expanding it
-into shuffled one-path words is unnecessary and can cause combinatorial
-growth; the represented function is simply the product of the two segment
-integrals.  The connector must preserve the six (later inherited-extended)
+The key should remain the ordered pair
+`{pPathLetterSequence,zPathLetterSequence}`. Expanding this product into a
+sum of iterated integrals on a concatenated path is unnecessary and can cause
+combinatorial growth. The connector must preserve the six (later
+inherited-extended)
 Stage-3 boundary-coordinate keys instead of exposing the intermediate 293
-regular-base constants as new physical periods.
+regular-base constants as new physical boundary constants.
 
-The accepted z adapter already exposes the needed demand ABI:
+The accepted z adapter already exposes the needed requested-output interface:
 
 - source rows through `masterTransportCanonicalChenWordCoefficient` on its
   embedded 43-row source operator;
@@ -232,19 +240,21 @@ the full local `F25 -> G25=F25-H F_source` contraction and the inherited
 source modes.  A generic connector should require these as typed inputs; it
 must not silently treat `z=2p` as an ordinary base-point evaluation.
 
-## Accepted final-block gauge
+## Accepted final-block basis transformation
 
-The accepted endpoint specialization of `PhysicalGaugeByOrderPairs` acts
-only on zero modes 4 and 5.  In the recorded convention
+The accepted path-endpoint value of the physical-to-canonical
+master-integral map acts only on zero modes 4 and 5. In the recorded
+convention
 
 ```text
 I25 = T25 F25.
 ```
 
-The rational-layer path gauge subsequently writes `F25=G25+H F_source`;
+The rational-epsilon-dependent block solution subsequently writes
+`F25=G25+H F_source`;
 at its base point `H=0`, so `F25` and `G25` share boundary constants.
 
-the frame `V . diag(I3,T25,1)` remains separated into the same `5+1` normal
+the basis `V . diag(I3,T25,1)` remains separated into the same `5+1` normal
 eigenspaces.  Its lower-right zero-sector block is exactly
 
 ```text
@@ -285,30 +295,35 @@ rational in `eps`; their maximum numerator/denominator degrees are `2/1`.
 The exact sparse coupling records are in
 `Artifacts/CF303SixModeEndpointFrame.wl`.
 
-This kernel census describes the exact Levelt-frame connection; it is not a
+This kernel census describes the exact connection in the normal-residue
+eigenbasis; it is not a
 claim that the entire five-dimensional zero sector is already in one pure
-epsilon-form gauge.  Its exact-derivative coupling matrices need not commute
+epsilon-form basis. Its exact-derivative coupling matrices need not commute
 with the dlog matrices.  The isolated nonzero mode and the accepted `T25`
 target block are epsilon normalized as stated above; inherited particular
-forcing and any remaining rational-layer normalization are separate steps.
+forcing and any remaining rational-epsilon-dependent block normalization are
+separate steps.
 
 ## Construction and control
 
 `build_cf303_six_mode_endpoint_frame.wls` reads only the already reduced
-`CF303PhysicalSoftSixSystem.wl` and calls the package's public Levelt API.
-On the reference run, construction of the residue, projector, frame, and
+`CF303PhysicalSoftSixSystem.wl` and calls the package's public
+normal-residue-eigenbasis API. On the reference run, construction of the
+residue, projector, basis, and
 `Gamma` took 0.007 seconds; exact seven-kernel decomposition and recomposition
 took 0.010 seconds.  No 45-by-45 object and no subkernel is used.
 
 `Controls/t_cf303_six_mode_endpoint_frame.wls` independently recomputes the
 normal residue and `Gamma` from the six-mode source artifact.  It checks the
 rank-one spectral identities and independently calls
-`BuildEndpointLeveltModeConnection`, requiring the expected exponent sectors
+`TransformTangentialConnectionToNormalResidueEigenbasis`, requiring the
+expected exponent sectors
 `{{1,2,3,4,5},{6}}`, integer/regulator spectrum
 `{0,0,0,0,0,-2}+eps {0,0,0,0,0,-4}`, the stored `Gamma`, vanishing cross
 blocks, exact kernel recomposition and primitives, and the rational-epsilon
-coefficient contract.  It also rebuilds the accepted target frame through the
+coefficient contract. It also rebuilds the accepted target basis through the
 public API, checks the exact `T25` epsilon form, and checks the simultaneous
 normal/tangential normalization of the nonzero scalar mode.  Finally it
-rebuilds the production frame and requires the public rational-epsilon layer
-preparation to accept its exact source, target, incoming, and boundary data.
+rebuilds the production basis and requires the public
+rational-epsilon-dependent block preparation to accept its exact source,
+target, incoming, and boundary data.

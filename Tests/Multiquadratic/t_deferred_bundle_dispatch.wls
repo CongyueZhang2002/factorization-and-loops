@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
-(* A deferred bundle carries the nonzero forcing while the materialized
-   BBar slot is only a zero shape placeholder.  The in-frame dispatcher must
-   authenticate that bundle before zero-forcing and must include roots used
+(* A deferred bundle carries the nonzero inhomogeneity while the materialized
+   Inhomogeneity slot is only a zero shape placeholder.  The in-frame dispatcher must
+   authenticate that bundle before zero-inhomogeneity and must include roots used
    only by its DAG in the canonical root census.  Chartless root sets retain
    the direct-provider boundary, while bundle presence alone must not suppress
    a chart.  This test exercises those cheap dispatch boundaries. *)
@@ -11,8 +11,8 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-{forcingOf, validateBundle, currentRoots} = mq /@
-  {"blockEquationDeferredForcing", "blockEquationDeferredBundleValidate",
+{inhomogeneityOf, validateBundle, currentRoots} = mq /@
+  {"blockEquationDeferredInhomogeneity", "blockEquationDeferredBundleValidate",
    "transportChartCurrentRoots"};
 
 Clear[dbx, dby, dbe, dbcx, dbcy];
@@ -34,16 +34,16 @@ frame = Join[rawFrame, <|"Roots" -> permutedRoots,
 frameRoots = currentRoots[frame, variables];
 
 (* Two one-by-one diagonal blocks.  Every radical occurs only in the lower
-   off-diagonal forcing; the strip handed to the dispatcher below contains
-   none of them because its BBar is the provider placeholder. *)
+   off-diagonal inhomogeneity; the strip handed to the dispatcher below contains
+   none of them because its Inhomogeneity is the provider placeholder. *)
 connection = {
   {{0, 0}, {frameRoots[[2, "Root"]] + frameRoots[[3, "Root"]], 0}},
   {{0, 0}, {frameRoots[[1, "Root"]], 0}}
 };
 ranges = {{1}, {2}};
-bundle = forcingOf[connection, ranges, 2, 1, <||>, variables, epsilon,
+bundle = inhomogeneityOf[connection, ranges, 2, 1, <||>, variables, epsilon,
   "Output" -> "Bundle", "BundleRoots" -> frameRoots];
-FTAssert["D1 the nonzero forcing bundle is authenticated",
+FTAssert["D1 the nonzero inhomogeneity bundle is authenticated",
   Lookup[bundle, "Status", None] === "PreparedDeferredBundle" &&
     Lookup[validateBundle[bundle], "Status", None] === "BundleValid" &&
     AnyTrue[Lookup[bundle, "Jobs", {}],
@@ -51,36 +51,36 @@ FTAssert["D1 the nonzero forcing bundle is authenticated",
 
 zeroPair = {{{0}}, {{0}}};
 placeholderStrip = {zeroPair, zeroPair, zeroPair};
-dispatched = SolveEpsFormStripInFrame[placeholderStrip, variables, epsilon,
+dispatched = SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variables, epsilon,
   frame, "MultiquadraticDispatch" -> False,
   "MultiquadraticOptions" -> {"DeferredBundle" -> bundle},
   "Verbose" -> False];
 
-FTAssert["D2 an authenticated deferred forcing cannot become ZeroForcing",
-  Lookup[dispatched, "Method", None] =!= "ZeroForcing" &&
+FTAssert["D2 an authenticated deferred inhomogeneity cannot become ZeroInhomogeneity",
+  Lookup[dispatched, "Method", None] =!= "ZeroInhomogeneity" &&
     Lookup[dispatched, "Status", None] === "NoRationalStripChart" &&
     Lookup[dispatched, "MultiquadraticDispatch", None] === "Disabled"];
-FTAssert["D3 forcing-only roots join the canonical frame order",
+FTAssert["D3 inhomogeneity-only roots join the canonical frame order",
   Lookup[dispatched, "RootIndices", None] === {2, 3, 1} &&
     Lookup[dispatched, "RootSquares", None] === rootSquares];
 
 fakeChart = <|"Name" -> "MustNotConsumeAPlaceholder"|>;
 forcedChart = Block[{LookupCataloguedRationalizingParametrizationForRoots = Function[{squares, vars}, fakeChart]},
-  SolveEpsFormStripInFrame[placeholderStrip, variables, epsilon, frame,
+  SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variables, epsilon, frame,
     "MultiquadraticDispatch" -> False,
     "MultiquadraticOptions" -> {"DeferredBundle" -> bundle},
     "Verbose" -> False]];
 FTAssert["D4 bundle presence no longer suppresses an available chart",
   Lookup[forcedChart, "Status", None] === "ChartNotWellFormed"];
 
-ordinaryZero = SolveEpsFormStripInFrame[placeholderStrip, variables, epsilon,
+ordinaryZero = SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variables, epsilon,
   frame, "MultiquadraticDispatch" -> False, "Verbose" -> False];
 FTAssert["D5 a genuine zero strip without a bundle keeps the exact fast path",
   Lookup[ordinaryZero, "Status", None] === "Solved" &&
-    Lookup[ordinaryZero, "Method", None] === "ZeroForcing"];
+    Lookup[ordinaryZero, "Method", None] === "ZeroInhomogeneity"];
 
 mutated = ReplacePart[bundle, {"Jobs", 1, "Terms"} -> {{2, {1}}}];
-refused = SolveEpsFormStripInFrame[placeholderStrip, variables, epsilon,
+refused = SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variables, epsilon,
   frame, "MultiquadraticDispatch" -> False,
   "MultiquadraticOptions" -> {"DeferredBundle" -> mutated},
   "Verbose" -> False];

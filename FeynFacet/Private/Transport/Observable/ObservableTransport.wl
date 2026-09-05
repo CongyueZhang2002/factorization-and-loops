@@ -1,16 +1,20 @@
-(* Observable-only transport for two-variable epsilon-form families.
-   Small records are exact and materialized.  Large records retain the exact
-   operator chain lazily; an optional quotient automaton remains available
-   when a compressed rational realization is specifically requested. *)
+(* Requested-output iterated-integral coefficient operators for two-variable
+   dlog epsilon-form families.  The exact operator chain remains lazy; an
+   optional quotient representation is available for rational coefficients. *)
 
 (* Public symbols are Clear'ed, not ClearAll'ed: ClearAll also removes
    the usage messages FeynFacet.m defines before loading this file
    (found 2026-08-21). Clear still drops their definitions, so re-Get of
    this file stays clean. *)
-Clear[BuildObservableTransportManifest, FindObservableTransportPath,
-  BuildObservableTransportDemand, BuildObservableTransport,
-  ObservableTransportWordMap, ReconstructObservableTransportWordMaps,
-  AcceptedObservableTransportQ];
+Clear[FindRequestedOutputIteratedIntegralCoefficientInputFiles,
+  ClassifyRequestedOutputIteratedIntegralCoefficientInputs,
+  SelectValidatedFamilyDLogEpsilonFormInputs,
+  WriteRequestedOutputIteratedIntegralCoefficientInputSummary,
+  ChooseRegularBasePointAndFirstPathParameterScale,
+  ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs,
+  ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs,
+  ReconstructIteratedIntegralCoefficientMatricesForRequestedOutputs,
+  IteratedIntegralCoefficientOperatorForRequestedOutputsQ];
 ClearAll[
   observableTransportCancel,
   observableTransportCancelMatrix,
@@ -21,7 +25,6 @@ ClearAll[
   observableTransportLaurentMatricesTask,
   observableTransportLaurentRows,
   $observableTransportLaurentMethod,
-  $observableTransportLaurentJetRetired,
   $observableTransportLaurentDiagnostics,
   observableTransportLaurentEntrySeries,
   observableTransportLaurentRowHighs,
@@ -47,9 +50,12 @@ ClearAll[
   observableTransportSecondSegmentMaps,
   observableTransportFamilyName,
   observableTransportIntegralIndices,
+  observableTransportRequirementsReference,
+  observableTransportRequirementRows,
   observableTransportNonsingularQ,
   observableTransportFamilyFromFile,
   observableTransportWriteAtomic,
+  mapMasterIntegralCoefficientValuationsToRequestedRows,
   observableTransportCoefficientPresentationType,
   observableTransportIrreducibleDiagonalBlocks,
   observableTransportPointAdmissibleQ,
@@ -78,8 +84,8 @@ ClearAll[
    milestone is printed exactly as before and, when a driver has set
    $observableTransportMilestoneHook to a function, also handed to it as
    one string -- the driver appends it to its run log as it happens, so a
-   hang at any stage is visible before the cap fires (the watchdog saw the
-   CF259 run's log appear only at completion). *)
+   hang at any stage is visible before the cap fires (a production
+   watchdog otherwise saw the run log appear only at completion). *)
 $observableTransportMilestoneHook = None;
 observableTransportMilestone[args___] := (
   Print[args];
@@ -134,8 +140,8 @@ observableTransportIrreducibleDiagonalBlocks[___] :=
    2026-09-02, goal 9).  The fixed default samples are fine for rational
    families, but an algebraic (multiquadratic) record can have a letter
    or a declared root square that vanishes at one of them, and every
-   finite-field trial at that point is then rejected (CF259 probe 1:
-   SingularConstraintRankSample).  A sample is admissible when every
+   finite-field trial at that point is then rejected (measured production
+   probe: SingularConstraintRankSample).  A sample is admissible when every
    letter and every root square is a nonzero rational at the point.
    Samples are drawn from a fixed fraction grid, so the choice is
    deterministic and family-neutral; the caller keeps the defaults when
@@ -175,8 +181,8 @@ $observableTransportSampleFractions = {2/5, 3/5, 4/7, 3/11, 4/13, 2/9,
    ord(numerator) - ord(denominator) at eps = 0, read off the coefficient
    lists of Together's fraction (a common factor changes neither order),
    the first nonzero coefficient decided exactly (RootReduce).  No prime,
-   no lifting, no series: two earlier designs (p-adic roots) failed on
-   CF259 -- merged numeric radicands needed 7-13 residue conditions per
+   no lifting, no series: two earlier designs (p-adic roots) failed on a
+   three-root production record -- merged numeric radicands needed 7-13 residue conditions per
    trial, and hidden exact zeros of entries appear as p-adic noise at any
    finite precision (probe runs 1 and 3, 13:58 and 14:11).
    A specialization can only RAISE an order (a leading coefficient may
@@ -210,7 +216,7 @@ observableTransportCanonicalRadicals[expression_] := expression //.
    Anything outside that grammar (a radical left in a denominator, a
    nested radical) goes to RootReduce; a non-numeric coefficient is
    $Failed, never a guess.  RootReduce as the primary test was measured
-   too slow on CF259 (probe run 4, killed at the 120 s cap). *)
+   too slow on a large three-root record (killed at the 120 s cap). *)
 observableTransportAlgebraicZeroQ[value_] := Module[{canonical, monomialQ},
   If[value === 0, Return[True]];
   If[MatchQ[value, _Integer | _Rational | _Complex], Return[False]];
@@ -267,14 +273,14 @@ observableTransportEpsilonOrderAtPoint[expression_, eps_Symbol] := Module[
    anything else makes the bound -Infinity, i.e. the entry is evaluated
    exactly.  PolynomialQ/Exponent are C-level scans, so the cost is a few
    passes over the expanded numerators, not a walk over their leaves.
-   Measured on the largest CF259 inverse entries (3.6 MB, 118k leaves):
+   Measured on large production inverse entries (3.6 MB, 118k leaves):
    Together 0.6-2.3 s each; the bound lets all but the block's first
    candidate be skipped. *)
 $observableTransportExactSubexpressionLeafLimit = 4000;
 observableTransportEpsilonOrderLowerBound[expression_, eps_Symbol] := Module[
   {lower, upper, provablyNonzeroQ, exactSmall},
   provablyNonzeroQ[c_] := c =!= 0 && observableTransportAlgebraicZeroQ[c] === False;
-  (* a small non-polynomial subexpression (CF259: denominators that are
+  (* a small non-polynomial subexpression (measured denominators that are
      sums of quotients, ~200 leaves) gets its exact order from the Together
      route -- cheap at that size, and both a lower and an upper bound *)
   exactSmall[e_] := If[LeafCount[e] <= $observableTransportExactSubexpressionLeafLimit,
@@ -415,8 +421,8 @@ observableTransportGroupMinimumOrder[entries_List, eps_Symbol,
   boundSeconds = AbsoluteTime[] - boundSeconds;
   (* numeric ascending order: canonical Ordering sorts the DirectedInfinity
      expressions AFTER every integer, which put the -Infinity (unbounded)
-     entries last and let the ascending Break skip them (CF259 blocks 24
-     and 27 came out 2 instead of 0, 2026-09-02 17:45) *)
+     entries last and let the ascending Break skip them (two production
+     blocks came out 2 instead of 0, 2026-09-02 17:45). *)
   order = Ordering[bounds /. {-Infinity -> -10^9, Infinity -> 10^9}];
   Do[
     If[bounds[[i]] >= best, Break[]];
@@ -443,9 +449,10 @@ observableTransportGroupMinimumOrder[entries_List, eps_Symbol,
     "TruncatedSeconds" -> truncatedSeconds|>
 ];
 
-(* One trial: TMin and BlockLower of the record's gauge observed at one
-   rational point.  Same conventions as the exact gauge scan of
-   BuildObservableTransport, except that TMin is the true minimum (the
+(* One trial: TMin and BlockLower of the record's basis-transformation
+   matrices observed at one rational point.  Same conventions as the exact scan of
+   requested-output coefficient-operator constructor, except that TMin is
+   the true minimum (the
    scan caps it at 0, a conservative choice that the acceptance rule
    admits).  "Exhaustive" -> True evaluates every entry exactly (the
    cross-check of the bounded route). *)
@@ -719,8 +726,9 @@ observableTransportEpsilonValuationStatus[record_Association] := Module[
     "Certificate" -> certificate|>
 ];
 
-(* The result-level binding checked by AcceptedObservableTransportQ: the
-   valuations the transport USED are the ones its certificate names. *)
+(* The result-level binding checked by the requested-output operator
+   predicate: the retained epsilon bounds are the ones named by their
+   certificate. *)
 observableTransportEpsilonValuationCertificateBoundQ[source_, certificate_,
     valuations_] := AssociationQ[valuations] && AssociationQ[certificate] &&
   IntegerQ[Lookup[valuations, "TMin", Missing[]]] &&
@@ -730,8 +738,9 @@ observableTransportEpsilonValuationCertificateBoundQ[source_, certificate_,
       observableTransportEpsilonValuationCertificateShapeQ[certificate,
         valuations["TMin"], valuations["BlockLower"]] &&
       TrueQ[Lookup[certificate, "DefiningDataRevalidated", False]],
-    source === "ComputedFromGauge",
-      Lookup[certificate, "Status", None] === "ExactGaugeValuationScan" &&
+    source === "ComputedFromBasisTransformationMatrix",
+      Lookup[certificate, "Status", None] ===
+        "ExactBasisTransformationEpsilonValuationScan" &&
       TrueQ[Lookup[certificate, "Accepted", False]] &&
       TrueQ[Lookup[certificate, "Exact", False]] &&
       Lookup[certificate, "Probabilistic", True] === False &&
@@ -807,28 +816,20 @@ observableTransportWriteAtomic[value_, file_String, format_: Automatic] :=
    family map and the family sort order are options; their defaults name
    no campaign prefix (only the canonical-family token) and the driver
    script passes the project's own patterns explicitly. *)
-Options[BuildObservableTransportManifest] = {
-  "Card" -> None,
-  "ReportFile" -> Automatic,
+Options[FindRequestedOutputIteratedIntegralCoefficientInputFiles] = {
   "DifferentialFilePattern" -> "*.wl",
   "EpsFormFilePattern" -> "*.wl",
-  "FamilyFromFileName" -> Automatic,
-  "FamilySortKey" -> Identity
+  "FamilyFromFileName" -> Automatic
 };
 
-BuildObservableTransportManifest[
+FindRequestedOutputIteratedIntegralCoefficientInputFiles[
     epsilonFormDirectories : {__String},
-    differentialSystemDirectory_String, valuationsFile_String,
-    manifestFile_String, OptionsPattern[]] := Module[
+    differentialSystemDirectory_String, OptionsPattern[]] := Module[
   {directories, differentialFiles, familyFromFile, candidates,
-   candidateRows, grouped, selected = <||>, rejected = <||>,
-   duplicates = <||>, missing, family, records, certifiedRecords,
-   card, reportFile, rows, report, differentialPattern, epsFormPattern,
-   familySortKey},
+   candidateRows, differentialPattern, epsFormPattern},
   directories = ExpandFileName /@ epsilonFormDirectories;
   If[! AllTrue[directories, DirectoryQ] ||
-      ! DirectoryQ[differentialSystemDirectory] ||
-      ! FileExistsQ[valuationsFile],
+      ! DirectoryQ[differentialSystemDirectory],
     Return[<|"Status" -> "InputPathMissing"|>]];
   differentialPattern = OptionValue["DifferentialFilePattern"];
   epsFormPattern = OptionValue["EpsFormFilePattern"];
@@ -836,8 +837,6 @@ BuildObservableTransportManifest[
     Return[<|"Status" -> "InvalidFilePatternOption"|>]];
   familyFromFile = Replace[OptionValue["FamilyFromFileName"],
     Automatic -> observableTransportFamilyFromFile];
-  familySortKey = Replace[OptionValue["FamilySortKey"],
-    Automatic -> Identity];
   differentialFiles = SortBy[
     FileNames[differentialPattern, differentialSystemDirectory],
     FileBaseName];
@@ -856,57 +855,171 @@ BuildObservableTransportManifest[
         Infinity]}],
     {priority, Length[directories]}], 1];
   candidateRows = Cases[candidates, {priority_Integer, file_String} :>
-    Module[{name, record},
+    Module[{name},
       name = familyFromFile[file];
       If[! StringQ[name] || ! KeyExistsQ[differentialFiles, name],
         Nothing,
-        record = Quiet[Check[Get[file], $Failed]];
         <|"Family" -> name, "Priority" -> priority,
-          "File" -> ExpandFileName[file],
-          "Validated" -> ValidatedFamilyDLogEpsilonFormQ[record],
-          "Exact" -> ExactlyValidatedFamilyDLogEpsilonFormQ[record]|>]
+          "FamilyDLogEpsilonFormFile" -> ExpandFileName[file]|>]
     ]];
+  <|"Status" ->
+      "RequestedOutputIteratedIntegralCoefficientInputFilesFound",
+    "DifferentialSystemDirectory" ->
+      ExpandFileName[differentialSystemDirectory],
+    "DifferentialFilePattern" -> differentialPattern,
+    "EpsilonFormDirectories" -> directories,
+    "EpsFormFilePattern" -> epsFormPattern,
+    "DifferentialFamilyCount" -> Length[differentialFiles],
+    "DifferentialSystemFilesByFamily" -> differentialFiles,
+    "FamilyDLogEpsilonFormCandidateFiles" -> candidateRows|>
+];
+
+FindRequestedOutputIteratedIntegralCoefficientInputFiles[___] :=
+  <|"Status" ->
+    "RequestedOutputIteratedIntegralCoefficientInputFileArgumentsNotWellFormed"|>;
+
+ClassifyRequestedOutputIteratedIntegralCoefficientInputs[
+    inputFiles_Association] := Module[
+  {candidateRows, classifiedRows},
+  If[Lookup[inputFiles, "Status", None] =!=
+      "RequestedOutputIteratedIntegralCoefficientInputFilesFound" ||
+      ! AssociationQ[Lookup[inputFiles,
+        "DifferentialSystemFilesByFamily", None]] ||
+      ! ListQ[Lookup[inputFiles,
+        "FamilyDLogEpsilonFormCandidateFiles", None]],
+    Return[<|"Status" ->
+      "RequestedOutputIteratedIntegralCoefficientInputFileInventoryRequired"|>]];
+  candidateRows = inputFiles["FamilyDLogEpsilonFormCandidateFiles"];
+  classifiedRows = Map[Function[candidate, Module[{record},
+      record = FamilyArtifactRead[
+        candidate["FamilyDLogEpsilonFormFile"]];
+      Join[candidate, <|
+        "Validated" -> ValidatedFamilyDLogEpsilonFormQ[record],
+        "ExactlyValidated" ->
+          ExactlyValidatedFamilyDLogEpsilonFormQ[record]|>]
+    ]], candidateRows];
+  Join[KeyDrop[inputFiles,
+      {"Status", "FamilyDLogEpsilonFormCandidateFiles"}], <|
+    "Status" ->
+      "RequestedOutputIteratedIntegralCoefficientInputsClassified",
+    "ClassifiedFamilyDLogEpsilonFormCandidates" -> classifiedRows|>]
+];
+
+ClassifyRequestedOutputIteratedIntegralCoefficientInputs[___] :=
+  <|"Status" ->
+    "RequestedOutputIteratedIntegralCoefficientInputClassificationArgumentsNotWellFormed"|>;
+
+Options[SelectValidatedFamilyDLogEpsilonFormInputs] = {
+  "Card" -> None,
+  "FamilySortKey" -> Identity
+};
+
+SelectValidatedFamilyDLogEpsilonFormInputs[
+    classified_Association, valuationsFile_String,
+    OptionsPattern[]] := Module[
+  {differentialFiles, candidateRows, grouped, selected = <||>,
+   rejected = <||>, duplicates = <||>, missing, family, records,
+   verifiedRecords, card, familySortKey, familyOrder,
+   selectedInputs},
+  If[Lookup[classified, "Status", None] =!=
+      "RequestedOutputIteratedIntegralCoefficientInputsClassified" ||
+      ! FileExistsQ[valuationsFile],
+    Return[<|"Status" ->
+      "ClassifiedRequestedOutputIteratedIntegralCoefficientInputsAndValuationsRequired"|>]];
+  differentialFiles = Lookup[classified,
+    "DifferentialSystemFilesByFamily", <||>];
+  candidateRows = Lookup[classified,
+    "ClassifiedFamilyDLogEpsilonFormCandidates", {}];
+  If[! AssociationQ[differentialFiles] || ! ListQ[candidateRows],
+    Return[<|"Status" ->
+      "ClassifiedRequestedOutputIteratedIntegralCoefficientInputsAndValuationsRequired"|>]];
+  card = OptionValue["Card"];
+  If[card =!= None && (! StringQ[card] || ! FileExistsQ[card]),
+    Return[<|"Status" ->
+      "RequestedOutputIteratedIntegralCoefficientInputCardMissing",
+      "Card" -> card|>]];
+  familySortKey = Replace[OptionValue["FamilySortKey"],
+    Automatic -> Identity];
   grouped = GroupBy[candidateRows, #Family &];
   Do[
     records = SortBy[Lookup[grouped, family, {}],
-      {#Priority &, #File &}];
-    certifiedRecords = Select[records, TrueQ[#Validated] &];
-    If[certifiedRecords === {},
+      {#Priority &, #FamilyDLogEpsilonFormFile &}];
+    verifiedRecords = Select[records, TrueQ[#Validated] &];
+    If[verifiedRecords === {},
       If[records =!= {}, AssociateTo[rejected, family -> records]],
-      AssociateTo[selected, family -> First[certifiedRecords]];
-      If[Length[certifiedRecords] > 1,
-        AssociateTo[duplicates, family -> Rest[certifiedRecords]]]],
+      AssociateTo[selected, family -> First[verifiedRecords]];
+      If[Length[verifiedRecords] > 1,
+        AssociateTo[duplicates, family -> Rest[verifiedRecords]]]],
     {family, Keys[differentialFiles]}];
   missing = Select[Keys[differentialFiles], ! KeyExistsQ[selected, #] &];
-  card = OptionValue["Card"];
-  If[card =!= None && (! StringQ[card] || ! FileExistsQ[card]),
-    Return[<|"Status" -> "TransportCardMissing", "Card" -> card|>]];
-  rows = Prepend[
-    Table[{family, selected[family]["File"],
-      differentialFiles[family], ExpandFileName[valuationsFile],
-      If[card === None, "", ExpandFileName[card]]},
-      {family, SortBy[Keys[selected], familySortKey]}],
+  familyOrder = SortBy[Keys[selected], familySortKey];
+  selectedInputs = Association@Table[family -> <|
+      "Family" -> family,
+      "FamilyDLogEpsilonFormFile" ->
+        selected[family]["FamilyDLogEpsilonFormFile"],
+      "FamilyDifferentialSystemFile" -> differentialFiles[family],
+      "MasterIntegralCoefficientValuationsFile" ->
+        ExpandFileName[valuationsFile],
+      "CardFile" -> If[card === None, None, ExpandFileName[card]],
+      "ExactlyValidated" -> TrueQ[
+        selected[family]["ExactlyValidated"]]|>,
+    {family, familyOrder}];
+  <|"Status" -> "ValidatedFamilyDLogEpsilonFormInputsSelected",
+    "SelectionCompleteness" -> If[missing === {}, "Complete", "Incomplete"],
+    "DifferentialFamilyCount" -> Length[differentialFiles],
+    "ValidatedFamilyCount" -> Length[selectedInputs],
+    "ExactlyValidatedFamilyCount" -> Count[
+      Values[selectedInputs], item_ /; TrueQ[item["ExactlyValidated"]]],
+    "FamiliesWithoutValidatedInputs" -> SortBy[missing, familySortKey],
+    "SelectedInputsByFamily" -> selectedInputs,
+    "RejectedCandidatesByFamily" -> rejected,
+    "AdditionalValidatedCandidatesByFamily" -> duplicates|>
+];
+
+SelectValidatedFamilyDLogEpsilonFormInputs[___] :=
+  <|"Status" ->
+    "ValidatedFamilyDLogEpsilonFormInputSelectionArgumentsNotWellFormed"|>;
+
+Options[WriteRequestedOutputIteratedIntegralCoefficientInputSummary] = {
+  "SummaryFile" -> Automatic
+};
+
+WriteRequestedOutputIteratedIntegralCoefficientInputSummary[
+    selection_Association, inputTableFile_String,
+    OptionsPattern[]] := Module[
+  {selected, rows, summaryFile, result},
+  If[Lookup[selection, "Status", None] =!=
+      "ValidatedFamilyDLogEpsilonFormInputsSelected" ||
+      ! AssociationQ[Lookup[selection, "SelectedInputsByFamily", None]],
+    Return[<|"Status" ->
+      "ValidatedFamilyDLogEpsilonFormInputSelectionRequired"|>]];
+  selected = selection["SelectedInputsByFamily"];
+  rows = Prepend[Map[Function[input,
+      {input["Family"], input["FamilyDLogEpsilonFormFile"],
+       input["FamilyDifferentialSystemFile"],
+       input["MasterIntegralCoefficientValuationsFile"],
+       Replace[input["CardFile"], None -> ""]}], Values[selected]],
     {"family", "epsilon_form", "differential_system", "valuations",
       "card"}];
-  observableTransportWriteAtomic[rows, manifestFile, "TSV"];
-  report = <|
-    "Status" -> If[missing === {}, "CompleteCertifiedInventory",
-      "IncompleteCertifiedInventory"],
-    "DifferentialFamilyCount" -> Length[differentialFiles],
-    "CertifiedFamilyCount" -> Length[selected],
-    "MissingFamilies" -> SortBy[missing, familySortKey],
-    "Selected" -> selected,
-    "RejectedCandidates" -> rejected,
-    "AdditionalCertifiedCandidates" -> duplicates,
-    "Manifest" -> ExpandFileName[manifestFile]
-  |>;
-  reportFile = Replace[OptionValue["ReportFile"],
-    Automatic :> FileNameJoin[{DirectoryName[ExpandFileName[manifestFile]],
-      "transport_inventory.wl"}]];
-  If[reportFile =!= None,
-    observableTransportWriteAtomic[report, reportFile]];
-  report
+  observableTransportWriteAtomic[rows, inputTableFile, "TSV"];
+  summaryFile = Replace[OptionValue["SummaryFile"],
+    Automatic :> FileNameJoin[{
+      DirectoryName[ExpandFileName[inputTableFile]],
+      "requested_output_iterated_integral_coefficient_input_summary.wl"}]];
+  result = Join[selection, <|
+    "Status" ->
+      "RequestedOutputIteratedIntegralCoefficientInputSummaryWritten",
+    "InputTableFile" -> ExpandFileName[inputTableFile],
+    "SummaryFile" -> If[summaryFile === None, None,
+      ExpandFileName[summaryFile]]|>];
+  If[summaryFile =!= None,
+    observableTransportWriteAtomic[result, summaryFile]];
+  result
 ];
+
+WriteRequestedOutputIteratedIntegralCoefficientInputSummary[___] :=
+  <|"Status" ->
+    "RequestedOutputIteratedIntegralCoefficientInputSummaryArgumentsNotWellFormed"|>;
 
 observableTransportFamilyName[integral_] := Module[{arguments, family},
   arguments = Quiet[Check[List @@ integral, {}]];
@@ -925,6 +1038,110 @@ observableTransportIntegralIndices[integral_] := Module[{arguments},
     arguments[[2]], Missing["NoIndices"]]
 ];
 
+(* A persisted coefficient operator must locate the requirements artifact that
+   fixed its retained epsilon orders.  The caller therefore supplies that
+   artifact reference; it is not synthesized from the in-memory record. *)
+observableTransportRequirementsReference[requirements_Association,
+    reference_] := Module[{inputReferences},
+  inputReferences = Lookup[requirements,
+    "MathematicalInputReferences", Missing[]];
+  If[AssociationQ[reference] &&
+      Lookup[reference, "DataType", None] ===
+        "MasterIntegralEpsilonOrderRequirements" &&
+      Lookup[reference, "SchemaVersion", None] === 2 &&
+      StringQ[Lookup[reference, "RelativePath", None]] &&
+      StringLength[reference["RelativePath"]] > 0 &&
+      AssociationQ[inputReferences] &&
+      Lookup[reference, "MathematicalInputReferences", Missing[]] ===
+        inputReferences,
+    reference,
+    Missing["MasterIntegralEpsilonOrderRequirementsReferenceUnavailable"]]
+];
+observableTransportRequirementsReference[___] :=
+  Missing["MasterIntegralEpsilonOrderRequirementsReferenceUnavailable"];
+
+(* Resolve the typed master-integral descriptors back to rows of the original
+   physical basis.  A persisted V2 family dlog epsilon form has already absorbed
+   its block permutation into BasisTransformationMatrix, so converting an
+   original row to its position in the block ordering would select the wrong
+   physical master whenever that ordering is nontrivial. *)
+observableTransportRequirementRows[record_Association,
+    requirements_Association] := Module[
+  {family, basis, inputs, valuationData, valuationEntries,
+   valuationByIndex, requirementEntries, rows = {}, missing = {}, index,
+   valuationEntry, master, masterFamily, powers, matches, pairs},
+  If[! TrueQ[FeynFacet`MasterIntegralEpsilonOrderRequirementsQ[
+        requirements]],
+    Return[<|"Status" ->
+      "MasterIntegralEpsilonOrderRequirementsInvalid"|>]];
+  family = Lookup[record, "Family", Missing["NoFamily"]];
+  basis = Lookup[record, "OriginalMasterIntegralBasis",
+    Missing["OriginalMasterIntegralBasisRequired"]];
+  inputs = Lookup[requirements, "MathematicalInputData", <||>];
+  valuationData = Lookup[inputs,
+    "HardFunctionMasterCoefficientEpsilonValuations", <||>];
+  valuationEntries = Lookup[valuationData, "Entries", Missing[]];
+  requirementEntries = Lookup[requirements, "Entries", Missing[]];
+  If[! StringQ[family] || ! ListQ[basis] || basis === {} ||
+      ! ListQ[valuationEntries] || ! ListQ[requirementEntries],
+    Return[<|"Status" ->
+      "MasterIntegralEpsilonOrderRequirementRowMappingInputsInvalid"|>]];
+  valuationByIndex = Association[
+    (#1["MasterIntegralIndex"] -> #1) & /@ valuationEntries];
+  Do[
+    index = entry["MasterIntegralIndex"];
+    valuationEntry = Lookup[valuationByIndex, index,
+      Missing["MasterIntegralCoefficientValuationMissing"]];
+    If[MissingQ[valuationEntry],
+      AppendTo[missing, <|"MasterIntegralIndex" -> index,
+        "Reason" -> "MasterIntegralCoefficientValuationMissing"|>];
+      Continue[]];
+    master = Lookup[valuationEntry, "MasterIntegral", <||>];
+    masterFamily = Lookup[master, "Family", Missing[]];
+    powers = Lookup[master, "PropagatorPowers", Missing[]];
+    If[masterFamily =!= family, Continue[]];
+    matches = Flatten@Position[basis, integral_ /;
+      observableTransportFamilyName[integral] === masterFamily &&
+        observableTransportIntegralIndices[integral] === powers, {1}];
+    If[Length[matches] =!= 1,
+      AppendTo[missing, <|"MasterIntegralIndex" -> index,
+        "MasterIntegral" -> master,
+        "MatchingOriginalPhysicalRows" -> matches,
+        "Reason" -> If[matches === {},
+          "MasterIntegralNotInOriginalMasterIntegralBasis",
+          "MasterIntegralAmbiguousInOriginalMasterIntegralBasis"]|>],
+      AppendTo[rows, <|
+        "MasterIntegralIndex" -> index,
+        "MasterIntegral" -> master,
+        "OriginalPhysicalRow" -> First[matches],
+        "RequiredMasterIntegralEpsilonOrders" ->
+          entry["RequiredMasterIntegralEpsilonOrders"]|>]],
+    {entry, requirementEntries}];
+  If[missing =!= {},
+    Return[<|"Status" -> "MasterIntegralRequirementRowMappingFailed",
+      "Family" -> family, "Failures" -> missing|>]];
+  If[rows === {},
+    Return[<|"Status" -> "NoMasterIntegralEpsilonOrderRequirementsForFamily",
+      "Family" -> family|>]];
+  If[! DuplicateFreeQ[Lookup[rows, "OriginalPhysicalRow"]],
+    Return[<|"Status" -> "MasterIntegralRequirementRowMappingFailed",
+      "Family" -> family,
+      "Reason" -> "MultipleRequirementEntriesResolveToOneOriginalPhysicalRow",
+      "MasterIntegralRowRequirements" -> rows|>]];
+  pairs = Sort@DeleteDuplicates@Flatten[
+    Table[{order, row["OriginalPhysicalRow"]}, {row, rows},
+      {order, row["RequiredMasterIntegralEpsilonOrders"]}], 1];
+  <|
+    "Status" -> "MasterIntegralEpsilonOrderRequirementsMappedToOriginalPhysicalRows",
+    "Family" -> family,
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> pairs,
+    "MinimumRetainedMasterIntegralEpsilonOrder" -> Min[pairs[[All, 1]]],
+    "MasterIntegralRowRequirements" -> rows
+  |>
+];
+observableTransportRequirementRows[___] := <|"Status" ->
+  "MasterIntegralEpsilonOrderRequirementRowMappingArgumentsNotWellFormed"|>;
+
 observableTransportNonsingularQ[expressions_List, rules_List] :=
   AllTrue[expressions, Function[expression,
     Module[{value = Quiet[Check[Together[expression /. rules], $Failed]]},
@@ -939,10 +1156,10 @@ observableTransportNonsingularQ[expressions_List, rules_List] :=
 observableTransportRecordRegularQ[record_Association, rules_List] :=
   AllTrue[
     DeleteCases[Flatten[{
-      Lookup[record, "TTotal", {}],
-      Lookup[record, "TTotalInverse", {}],
-      Lookup[record, "EpsFormX", {}],
-      Lookup[record, "EpsFormY", {}]
+      Lookup[record, "BasisTransformationMatrix", {}],
+      Lookup[record, "CachedInverseBasisTransformationMatrix", {}],
+      Lookup[record, "Letters", {}],
+      Lookup[record, "ConstantResidueMatrices", {}]
     }], 0],
     Function[expression,
       Module[{value = Quiet[Check[Together[expression /. rules], $Failed]]},
@@ -954,19 +1171,21 @@ observableTransportRecordRegularQ[record_Association, rules_List] :=
     ]
   ];
 
-Options[FindObservableTransportPath] = {
+Options[ChooseRegularBasePointAndFirstPathParameterScale] = {
   "Candidates" -> Automatic
 };
 
-FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
+ChooseRegularBasePointAndFirstPathParameterScale[
+    record_Association, OptionsPattern[]] := Module[
   {variables, letters, presentationType, fractions, candidates, selected,
    admissibleQ, coefficientPresentation, rootSquares, automaticCandidatesQ,
    baseCandidates, targetCandidates, rationalSquareQ,
    splitBaseQ, splitSelected, target},
-  variables = Lookup[record, "Variables", Missing[]];
+  variables = Lookup[record, "CoefficientVariables", Missing[]];
   letters = Lookup[record, "Letters", Missing[]];
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! ListQ[letters],
-    Return[<|"Status" -> "PathInputNotWellFormed"|>]
+    Return[<|"Status" ->
+      "RegularBasePointSelectionInputsNotWellFormed"|>]
   ];
   fractions = {1/4, 1/3, 1/5, 2/7, 3/8, 2/5, 3/7, 3/11,
     4/11, 5/13};
@@ -974,7 +1193,7 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
   candidates = Replace[OptionValue["Candidates"], Automatic ->
     Select[Tuples[fractions, 3], #[[1]] =!= #[[3]] &]];
   If[! MatchQ[candidates, {{_, _, _} ..}],
-    Return[<|"Status" -> "InvalidPathCandidates"|>]
+    Return[<|"Status" -> "InvalidRegularBasePointCandidates"|>]
   ];
   (* round 4: a record whose field cannot be resolved is refused here,
      not silently treated as rational *)
@@ -1038,14 +1257,15 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
       Missing["NoNonsingularPath"]],
     splitSelected];
   If[MissingQ[selected],
-    <|"Status" -> "NoNonsingularRationalPath"|>,
+    <|"Status" -> "NoRegularRationalBasePointAndPathParameterScale"|>,
     <|
-      "Status" -> "ExactPathData",
+      "Status" ->
+        "RegularBasePointAndFirstPathParameterScaleSelected",
       "FirstVariable" -> variables[[1]],
       "SecondVariable" -> variables[[2]],
       "FirstBase" -> selected[[1]],
       "SecondBase" -> selected[[2]],
-      "FirstTargetSample" -> selected[[3]],
+      "FirstPathParameterScale" -> selected[[3]] - selected[[1]],
       "BranchStatement" ->
         "The exact transport map is retained in the polynomial dlog " <>
         "alphabet. Physical analytic continuation is fixed separately."
@@ -1053,87 +1273,94 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
   ]
 ];
 
-Options[BuildObservableTransportDemand] = {
-  "HardFunctionOrders" -> {0},
-  "SafetyOrders" -> 1,
-  "MasterValuation" -> 0,
-  "Path" -> Automatic
+ChooseRegularBasePointAndFirstPathParameterScale[___] :=
+  <|"Status" ->
+    "RegularBasePointSelectionArgumentsNotWellFormed"|>;
+
+Options[mapMasterIntegralCoefficientValuationsToRequestedRows] = {
+  "RequestedHardFunctionEpsilonOrders" -> {0},
+  "AdditionalRetainedEpsilonOrders" -> 1,
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
+  "RegularBasePointAndFirstPathParameterScale" -> Automatic
 };
 
-BuildObservableTransportDemand[record_Association,
+(* Compatibility bridge for the two live campaign drivers that still read the
+   pre-V2 valuation-list artifact.  New mathematical callers pass a validated
+   MasterIntegralEpsilonOrderRequirements record directly to the constructor.
+   Even on this bridge the persisted V2 basis transformation acts in the
+   original physical row order. *)
+mapMasterIntegralCoefficientValuationsToRequestedRows[record_Association,
     familySystem_Association, valuations_List, OptionsPattern[]] := Module[
-  {family, basis, permutation, hardOrders, safety, masterValuation,
+  {family, basis, hardOrders, additionalOrders, minimumOrder,
    path, familyValuations, rows = {}, missing = {}, pairs, originalRow,
-   recordRow, maximumOrder},
+   maximumOrder},
 
   family = Lookup[record, "Family", Missing["NoFamily"]];
-  basis = Lookup[familySystem, "BlockBasis", Missing["NoBasis"]];
-  permutation = Flatten[Lookup[record, "Blocks", Missing["NoBlocks"]]];
+  basis = Lookup[familySystem, "OriginalMasterIntegralBasis",
+    Missing["NoBasis"]];
   hardOrders = Sort@DeleteDuplicates@Flatten@{
-    OptionValue["HardFunctionOrders"]};
-  safety = OptionValue["SafetyOrders"];
-  masterValuation = OptionValue["MasterValuation"];
-  path = OptionValue["Path"];
+    OptionValue["RequestedHardFunctionEpsilonOrders"]};
+  additionalOrders = OptionValue["AdditionalRetainedEpsilonOrders"];
+  minimumOrder =
+    OptionValue["MinimumRetainedMasterIntegralEpsilonOrder"];
+  path = OptionValue["RegularBasePointAndFirstPathParameterScale"];
   If[! StringQ[family] || ! ListQ[basis] ||
-      ! VectorQ[permutation, IntegerQ] ||
       ! VectorQ[hardOrders, IntegerQ] || hardOrders === {} ||
-      ! IntegerQ[safety] || safety < 0 || ! IntegerQ[masterValuation],
-    Return[<|"Status" -> "InvalidObservableDemandInput"|>]
+      ! IntegerQ[additionalOrders] || additionalOrders < 0 ||
+      ! IntegerQ[minimumOrder],
+    Return[<|"Status" ->
+      "RequiredMasterIntegralEpsilonOrderInputsNotWellFormed"|>]
   ];
 
   familyValuations = Select[valuations,
     AssociationQ[#] && Lookup[#, "Family", None] === family &&
       ListQ[Lookup[#, "Indices", None]] &&
       IntegerQ[Lookup[#, "Valuation", None]] &];
-  Do[
+  Scan[
+    Function[item,
       originalRow = FirstPosition[basis,
         integral_ /;
           observableTransportFamilyName[integral] === family &&
-          observableTransportIntegralIndices[integral] ===
-            item["Indices"],
+          observableTransportIntegralIndices[integral] === item["Indices"],
         Missing["NotInFamilyBasis"], {1}];
       If[MissingQ[originalRow],
         AppendTo[missing, <|"Valuation" -> item,
           "Reason" -> "MasterNotInFamilyBasis"|>],
         originalRow = First[originalRow];
-        recordRow = FirstPosition[permutation, originalRow,
-          Missing["NotInRecordPermutation"], {1}];
-        If[MissingQ[recordRow],
-          AppendTo[missing,
-            <|"Valuation" -> item, "OriginalRow" -> originalRow,
-              "Reason" -> "MasterNotInRecordPermutation"|>],
-          maximumOrder = Max[hardOrders] - item["Valuation"] + safety;
-          If[maximumOrder >= masterValuation,
-            AppendTo[rows, <|"Valuation" -> item["Valuation"],
-              "OriginalRow" -> originalRow,
-              "RecordRow" -> First[recordRow],
-              "Orders" -> Range[masterValuation, maximumOrder]|>]
-        ]
-      ]
-    ],
-      {item, familyValuations}];
+        maximumOrder = Max[hardOrders] - item["Valuation"] +
+          additionalOrders;
+        If[maximumOrder >= minimumOrder,
+          AppendTo[rows, <|"Valuation" -> item["Valuation"],
+            "OriginalPhysicalRow" -> originalRow,
+            "Orders" -> Range[minimumOrder, maximumOrder]|>]]]],
+    familyValuations];
   If[missing =!= {},
-    Return[<|"Status" -> "ObservableDemandMappingFailed",
+    Return[<|"Status" -> "MasterIntegralRowMappingFailed",
       "Family" -> family, "Missing" -> missing|>]
   ];
   If[rows === {},
-    Return[<|"Status" -> "NoNonzeroMasterCoefficientDemand",
+    Return[<|"Status" -> "NoRequiredMasterIntegralEpsilonOrders",
       "Family" -> family|>]
   ];
   pairs = Sort@DeleteDuplicates@Flatten[
-    Table[{order, row["RecordRow"]}, {row, rows},
+    Table[{order, row["OriginalPhysicalRow"]}, {row, rows},
       {order, row["Orders"]}], 1];
   <|
-    "Status" -> "ExactObservableDemand",
+    "Status" ->
+      "MasterIntegralCoefficientValuationsMappedToRequestedRows",
     "Family" -> family,
-    "PhysicalDemandPairs" -> pairs,
-    "PhysicalValuation" -> masterValuation,
-    "HardFunctionOrders" -> hardOrders,
-    "SafetyOrders" -> safety,
-    "MasterRows" -> rows,
-    "Path" -> path
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> pairs,
+    "MinimumRetainedMasterIntegralEpsilonOrder" -> minimumOrder,
+    "RequestedHardFunctionEpsilonOrders" -> hardOrders,
+    "AdditionalRetainedEpsilonOrders" -> additionalOrders,
+    "MasterIntegralRowRequirements" -> rows,
+    "RegularBasePointAndFirstPathParameterScale" -> path
   |>
 ];
+
+mapMasterIntegralCoefficientValuationsToRequestedRows[___] :=
+  <|"Status" ->
+    "RequiredMasterIntegralEpsilonOrderArgumentsNotWellFormed"|>;
 
 observableTransportSlotKey[{order_, component_}] :=
   ToString[Unevaluated[{order, component}], InputForm];
@@ -1149,8 +1376,7 @@ observableTransportEpsilonOrder[x_, eps_] :=
 
    "Series" (default since round 4, 2026-09-02, agent L): ONE Series call
    per entry, to the highest order that entry's row is read at, the
-   coefficients read off the SeriesData.  Measured on real CF259 entries
-   (Design/PrivateOverhaul_2026-09-01_evidence/round4/L_modular_laurent_route.md):
+   coefficients read off the SeriesData.  Measured on production entries:
    the canonical coefficients are IDENTICAL (SameQ) to the former route's,
    at 1.4x (500 KB entries) to 30x (10 KB entries) lower cost -- the former
    route recomputed the series once per order and then paid a far more
@@ -1163,19 +1389,9 @@ observableTransportEpsilonOrder[x_, eps_] :=
    range, see observableTransportLaurentRowHighs); orders above a row's
    cap are stored as 0 and never read -- both consumers assert that.
 
-   "SeriesCoefficient": the former route (SeriesCoefficient per entry and
-   order), kept for comparison.
-
-   "Jet" is RETIRED (round 6, 2026-09-02): the epsilon-jet route (compile
-   each entry once into an eps-polynomial numerator/denominator, division
-   recurrence) was measured pathological on nested-quotient entries
-   (agent L, round4/L_modular_laurent_route.md: the compile of CF259 entry
-   (42,20) does not finish in 30 s; the 21-minute rejection of 05:05 was
-   the same effect) and lives in Private_Backup/ObservableTransportJet.wl
-   with its test; selecting it answers $observableTransportLaurentJetRetired. *)
+   "SeriesCoefficient": the comparison route (SeriesCoefficient per entry
+   and order). *)
 $observableTransportLaurentMethod = "Series";
-$observableTransportLaurentJetRetired = <|"Status" -> "RouteRetired",
-  "Route" -> "Laurent jet", "Replacement" -> "Series"|>;
 
 
 (* One Series call per entry (route "Series").  Returns the coefficient
@@ -1231,8 +1447,6 @@ observableTransportLaurentRows[matrix_, eps_, {low_Integer, high_Integer},
   caps = If[rowHighs === Automatic, ConstantArray[high, Length[indices]],
     Min[high, #] & /@ rowHighs[[indices]]];
   Which[
-   $observableTransportLaurentMethod === "Jet",
-    Return[$observableTransportLaurentJetRetired, Module],
    $observableTransportLaurentMethod === "Series",
     entryCoefficients[entry_, cap_] := Module[{coefficients},
       If[cap < low, Return[ConstantArray[0, high - low + 1], Module]];
@@ -1249,13 +1463,15 @@ observableTransportLaurentRows[matrix_, eps_, {low_Integer, high_Integer},
     rows = MapThread[Function[{row, cap},
         Map[entryCoefficients[#, cap] &, Normal[matrix[[row]]]]],
       {indices, caps}],
-   True,
+   $observableTransportLaurentMethod === "SeriesCoefficient",
     (* the former route, per entry and order, up to the row's cap *)
     rows = MapThread[Function[{row, cap},
         Map[Function[entry, PadRight[Table[observableTransportCancel[
             SeriesCoefficient[entry, {eps, 0, order}]], {order, low, cap}],
           high - low + 1, 0]], Normal[matrix[[row]]]]],
-      {indices, caps}]
+      {indices, caps}],
+   True,
+    Return[$Failed, Module]
   ];
   Association@Table[order -> rows[[All, All, order - low + 1]],
     {order, low, high}]
@@ -1284,8 +1500,9 @@ observableTransportLaurentMatrices[m_, eps_,
   {matrix = Normal[m], dimensions, helperCount, chunks, payloadFile,
    codes, handle, local, results, mergeDiagnostics},
   $observableTransportLaurentDiagnostics = <||>;
-  If[$observableTransportLaurentMethod === "Jet",
-    Return[$observableTransportLaurentJetRetired, Module]];
+  If[! MemberQ[{"Series", "SeriesCoefficient"},
+      $observableTransportLaurentMethod],
+    Return[$Failed, Module]];
   dimensions = Quiet[Check[Dimensions[matrix], {}]];
   If[Length[dimensions] =!= 2,
     Return[Association@Table[order -> Map[
@@ -1893,16 +2110,21 @@ observableTransportCompactDualAutomaton[residues_List, demanded_,
       ConstantArray[zeroTerminal, maximumWeight]];
     transitions = ConstantArray[{}, maximumWeight];
     Return[<|
-      "Status" -> "ModularCompactAutomatonAccepted",
-      "Orientation" -> "DualObservableRows",
-      "RequestedMaximumWeight" -> maximumWeight,
-      "ObservableRankByExactWeight" -> ranks,
+      "Status" ->
+        "CompressedIteratedIntegralCoefficientOperatorValidated",
+      "Orientation" -> "RequestedOutputDualRows",
+      "MaximumIteratedIntegralWeight" -> maximumWeight,
+      "RequestedOutputDualRowRankByIteratedIntegralWeight" -> ranks,
       "InitialCoordinates" -> initialCoordinates,
-      "ObservableTransitionsByWeight" -> transitions,
+      "RequestedOutputDualTransitionMatricesByIteratedIntegralWeight" ->
+        transitions,
       "TerminalContractionsByExactWeight" -> terminals,
       "FinalBoundaryEmbedding" -> finalEmbedding,
       "CoordinateCertificates" -> coordinateCertificates,
-      "Probabilistic" -> True|>, Module]
+      "Validation" -> <|
+        "Method" -> "ProbabilisticFiniteFieldSampling",
+        "Passed" -> True, "Exact" -> False,
+        "Probabilistic" -> True|>|>, Module]
   ];
 
   Do[
@@ -1933,7 +2155,7 @@ observableTransportCompactDualAutomaton[residues_List, demanded_,
         SparseArray[{}, {0, stateDimension}], Join @@ products];
       key = "weight-" <> IntegerString[weight + 1, 10, 3];
       If[TrueQ[verbose], observableTransportMilestone[
-        "Observable compact quotient ", key, ": candidates ",
+        "Requested-output compact quotient ", key, ": candidates ",
         Dimensions[candidates], ", current rank ", currentRank]];
       basisRecord = rowBasis[candidates, key];
       If[! AssociationQ[basisRecord] ||
@@ -1959,16 +2181,21 @@ observableTransportCompactDualAutomaton[residues_List, demanded_,
   ];
 
   <|
-    "Status" -> "ModularCompactAutomatonAccepted",
-    "Orientation" -> "DualObservableRows",
-    "RequestedMaximumWeight" -> maximumWeight,
-    "ObservableRankByExactWeight" -> ranks,
+    "Status" ->
+      "CompressedIteratedIntegralCoefficientOperatorValidated",
+    "Orientation" -> "RequestedOutputDualRows",
+    "MaximumIteratedIntegralWeight" -> maximumWeight,
+    "RequestedOutputDualRowRankByIteratedIntegralWeight" -> ranks,
     "InitialCoordinates" -> initialCoordinates,
-    "ObservableTransitionsByWeight" -> transitions,
+    "RequestedOutputDualTransitionMatricesByIteratedIntegralWeight" ->
+      transitions,
     "TerminalContractionsByExactWeight" -> terminals,
     "FinalBoundaryEmbedding" -> finalEmbedding,
     "CoordinateCertificates" -> coordinateCertificates,
-    "Probabilistic" -> True
+    "Validation" -> <|
+      "Method" -> "ProbabilisticFiniteFieldSampling",
+      "Passed" -> True, "Exact" -> False,
+      "Probabilistic" -> True|>
   |>
 ];
 
@@ -2066,32 +2293,36 @@ observableTransportSecondSegmentMaps[firstMaps_List, matrices_List,
     "ScalarCountsByWeight" -> scalarCounts|>
 ];
 
-Options[BuildObservableTransport] = {
-  "MaximumWeight" -> Automatic,
+Options[ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs] = {
+  "MaximumIteratedIntegralWeight" -> Automatic,
+  "RegularBasePointAndFirstPathParameterScale" -> Automatic,
+  "MasterIntegralEpsilonOrderRequirementsReference" -> Automatic,
   "ClosureSteps" -> Automatic,
   "RankSamples" -> Automatic,
   "ResidueSamples" -> Automatic,
-  "BoundaryEvolution" -> Automatic,
+  "BoundaryConstraintSubspaceRepresentation" -> Automatic,
   "MovingKernelLeafLimit" -> 2000,
-  "WordRepresentation" -> Automatic,
-  "MaterializedWordLimit" -> 4096,
+  "IteratedIntegralCoefficientRepresentation" -> Automatic,
   "CoordinateBackend" -> Automatic,
   "CoordinateCacheDirectory" -> Automatic,
   "ReconstructionThreads" -> Automatic,
   "ValidationPrimeCount" -> 2,
   "ValidationPointsPerPrime" -> 1,
-  "GaugeConstantRules" -> Automatic,
+  "BasisNormalizationParameterRules" -> Automatic,
   "DiagnosticDirectory" -> None,
   "Verbose" -> False
 };
 
-BuildObservableTransport[record_Association, demand_Association,
+ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+    record_Association, demand_Association,
     OptionsPattern[]] := Catch@Module[
   {status, variables, eps, dimension, ranges, tTotal, tInverse,
+   typedRequirementsQ, demandData, familySystemReference,
+   requirementsReference, referenceFields,
    epsConnections, letters, physicalDemandPairs, physicalRows,
    physicalOrders, valuation,
    path, firstVariable, secondVariable, firstBase, secondBase,
-   firstTargetSample, tau, rankSamples, automatonRankSamples,
+   firstPathParameterScale, tau, rankSamples, automatonRankSamples,
    residueSamples, valuationRecord, valuationSource, valuationStatus,
    valuationCertificate, sampleExhaustion, tmin,
    blockLower, rowLower, blockOfRow, pathRules, tangent,
@@ -2105,7 +2336,8 @@ BuildObservableTransport[record_Association, demand_Association,
    baseStageStart,
    closureRecord, closureInitialSpanCertificate, closureInitialSpanMethod,
    closureStabilizationCertificate, closureStabilizationMethod,
-   constraintLeafCount, boundaryEvolution, movingKernelLeafLimit,
+   constraintLeafCount, boundaryConstraintSubspaceRepresentation,
+   movingKernelLeafLimit,
    boundaryKernel, baseConstraintMatrix, baseBoundaryKernel,
    extendedFHigh, extendedSlots, extendedPositions, extendedBoundarySlots,
    newBoundarySlots, transportBoundary, baseBoundaryEmbedding,
@@ -2126,16 +2358,17 @@ BuildObservableTransport[record_Association, demand_Association,
    firstKernelRecord,
    liftedResidues,
    pathActiveLetters, firstKernelIndices, firstKernelMethod,
-   maximumWeight, wordRecord, wordRepresentation, materializedWordLimit,
-   wordCountBound, compactAutomaton, operatorAutomaton, coordinateOptions,
+   maximumWeight, wordRepresentation, compactAutomaton,
+   operatorAutomaton, coordinateOptions,
    liftedSecond, boundaryDerivative, inducedRhs, pivotRows, pivotSquare,
    secondEvolutionConnection, inducedResidual, kernelRecord,
    secondActiveLetters,
-   secondRecord, verbose, start, recordExactQ, recordCertifiedQ,
+   verbose, start, recordExactQ, recordCertifiedQ,
    recordTransportReadyQ, computedDLogQ, epsFormRepresentation,
    compactDLogActiveIndices, compactDLogConnection,
    compactResidueSupport, firstSupport, stabilized,
-   presentationType, gaugeConstants, gaugeConstantRules, resultStatus,
+   presentationType, basisNormalizationParameters,
+   basisNormalizationParameterRules, resultStatus, validationMethod,
    probabilisticCertificates, structuralProbabilisticCertificates,
    algebraicRootRecords, rankFailure},
 
@@ -2165,13 +2398,15 @@ BuildObservableTransport[record_Association, demand_Association,
   epsFormRepresentation = "ConstantResidueDLog";
   presentationType = observableTransportCoefficientPresentationType[record];
   If[! MemberQ[{"Rational", "SquareRootGeneratorsAndQuadraticRelations"}, presentationType],
-    Return[<|"Status" -> "ObservableTransportCoefficientPresentationMissingOrInvalid",
+    Return[<|"Status" ->
+      "RequestedOutputCoefficientOperatorPresentationMissingOrInvalid",
       "CoefficientPresentationType" -> presentationType|>, Module]
   ];
   computedDLogQ[value_] := AssociationQ[value] &&
     Lookup[value, "Status", None] === "ComputedDLogResidues" &&
     TrueQ[Lookup[value, "Valid", False]] &&
-    Lookup[value, "Purpose", None] === "ObservableTransportInput" &&
+    Lookup[value, "Purpose", None] ===
+      "RequestedOutputIteratedIntegralCoefficientOperatorInput" &&
     Lookup[value, "Variables", Missing[]] === variables &&
     Lookup[value, "Regulator", Missing[]] === eps &&
     Lookup[value, "Dimension", Missing[]] === dimension &&
@@ -2215,34 +2450,39 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
   (* Some historical canonicalizers left Mathematica-generated integration
      constants C[i] as arbitrary nonzero row/column normalizations in TTotal.
-     They are pure gauge and otherwise enlarge Q(x,y) by spurious parameters.
+     They are basis-normalization freedoms and otherwise enlarge Q(x,y) by
+     spurious parameters.
      Fix them deterministically before transport; record the choice so the
      associated boundary-coordinate convention is explicit. *)
-  gaugeConstants = SortBy[DeleteDuplicates[Cases[
+  basisNormalizationParameters = SortBy[DeleteDuplicates[Cases[
     {tTotal, tInverse,
       If[recordTransportReadyQ,
         {recordDLog["Letters"], recordDLog["Residues"]},
         epsConnections], letters},
     HoldPattern[System`C[_Integer]], Infinity]], ToString[#, InputForm] &];
-  gaugeConstantRules = Replace[OptionValue["GaugeConstantRules"], {
-    Automatic -> Thread[gaugeConstants -> Range[Length[gaugeConstants]]],
+  basisNormalizationParameterRules = Replace[
+    OptionValue["BasisNormalizationParameterRules"], {
+    Automatic -> Thread[basisNormalizationParameters ->
+      Range[Length[basisNormalizationParameters]]],
     None -> {}}];
-  If[! MatchQ[gaugeConstantRules, {(_Rule) ...}] ||
-      ! AllTrue[Last /@ gaugeConstantRules,
+  If[! MatchQ[basisNormalizationParameterRules, {(_Rule) ...}] ||
+      ! AllTrue[Last /@ basisNormalizationParameterRules,
         MatchQ[#, _Integer | _Rational] && ! TrueQ[# === 0] &] ||
-      Complement[First /@ gaugeConstantRules, gaugeConstants] =!= {},
-    Return[<|"Status" -> "InvalidGaugeConstantRules",
-      "GaugeConstants" -> gaugeConstants|>, Module]
+      Complement[First /@ basisNormalizationParameterRules,
+        basisNormalizationParameters] =!= {},
+    Return[<|"Status" -> "InvalidBasisNormalizationParameterRules",
+      "BasisNormalizationParameters" -> basisNormalizationParameters|>, Module]
   ];
-  If[gaugeConstantRules =!= {},
-    tTotal = tTotal /. gaugeConstantRules;
-    tInverse = tInverse /. gaugeConstantRules;
+  If[basisNormalizationParameterRules =!= {},
+    tTotal = tTotal /. basisNormalizationParameterRules;
+    tInverse = tInverse /. basisNormalizationParameterRules;
     recordDLog = Join[recordDLog, <|
-      "Letters" -> (recordDLog["Letters"] /. gaugeConstantRules),
+      "Letters" -> (recordDLog["Letters"] /.
+        basisNormalizationParameterRules),
       "Residues" -> (recordDLog["Residues"] /.
-        gaugeConstantRules)|>];
-    epsConnections = epsConnections /. gaugeConstantRules;
-    letters = letters /. gaugeConstantRules
+        basisNormalizationParameterRules)|>];
+    epsConnections = epsConnections /. basisNormalizationParameterRules;
+    letters = letters /. basisNormalizationParameterRules
   ];
 
   (* A constant-residue dlog record is already the computational form needed
@@ -2280,34 +2520,45 @@ BuildObservableTransport[record_Association, demand_Association,
     SparseArray[If[positions === {}, {}, Thread[positions -> 1]],
       {dimension, dimension}]
   ];
-  If[verbose, observableTransportMilestone["Observable transport input preparation: ",
+  If[verbose, observableTransportMilestone[
+    "Requested-output coefficient-operator input preparation: ",
     Round[AbsoluteTime[] - start, 0.1], " s"]];
 
-  physicalDemandPairs = Lookup[demand, "PhysicalDemandPairs", Automatic];
-  If[physicalDemandPairs === Automatic,
-    physicalRows = Lookup[demand, "PhysicalRows", All];
-    If[physicalRows === All, physicalRows = Range[dimension]];
-    physicalOrders = Sort@DeleteDuplicates@Flatten@{
-      Lookup[demand, "PhysicalOrders", Missing[]]};
-    physicalDemandPairs = Flatten[
-      Table[{order, row}, {order, physicalOrders}, {row, physicalRows}], 1],
-    physicalDemandPairs = Sort@DeleteDuplicates[physicalDemandPairs];
+  typedRequirementsQ = Lookup[demand, "DataType", None] ===
+    "MasterIntegralEpsilonOrderRequirements";
+  demandData = If[typedRequirementsQ,
+    observableTransportRequirementRows[record, demand], demand];
+  If[typedRequirementsQ && Lookup[demandData, "Status", None] =!=
+      "MasterIntegralEpsilonOrderRequirementsMappedToOriginalPhysicalRows",
+    Return[demandData, Module]];
+  physicalDemandPairs = Lookup[demandData,
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs", Missing[]];
+  If[ListQ[physicalDemandPairs],
+    physicalDemandPairs = Sort@DeleteDuplicates[physicalDemandPairs]];
+  If[MatchQ[physicalDemandPairs, {{_Integer, _Integer} ..}],
     physicalRows = DeleteDuplicates[physicalDemandPairs[[All, 2]]];
-    physicalOrders = Sort@DeleteDuplicates[physicalDemandPairs[[All, 1]]]
-  ];
-  valuation = Lookup[demand, "PhysicalValuation", 0];
+    physicalOrders = Sort@DeleteDuplicates[physicalDemandPairs[[All, 1]]]];
+  valuation = Lookup[demandData,
+    "MinimumRetainedMasterIntegralEpsilonOrder", 0];
   If[! MatchQ[physicalDemandPairs, {{_Integer, _Integer} ..}] ||
       ! VectorQ[physicalRows, IntegerQ] ||
       ! AllTrue[physicalRows, 1 <= # <= dimension &] ||
       ! VectorQ[physicalOrders, IntegerQ] || physicalOrders === {} ||
       ! IntegerQ[valuation],
-    Return[<|"Status" -> "InvalidPhysicalDemand"|>, Module]
+    Return[<|"Status" ->
+      "RequestedMasterIntegralEpsilonOrderAndRowPairsNotWellFormed"|>,
+      Module]
   ];
 
-  path = Lookup[demand, "Path", Automatic];
-  If[path === Automatic, path = FindObservableTransportPath[record]];
+  path = Replace[
+    OptionValue["RegularBasePointAndFirstPathParameterScale"],
+    Automatic :> Lookup[demandData,
+      "RegularBasePointAndFirstPathParameterScale", Automatic]];
+  If[path === Automatic,
+    path = ChooseRegularBasePointAndFirstPathParameterScale[record]];
   If[AssociationQ[path] &&
-      Lookup[path, "Status", None] === "ExactPathData",
+      Lookup[path, "Status", None] ===
+        "RegularBasePointAndFirstPathParameterScaleSelected",
     path = KeyDrop[path, "Status"]];
   If[! AssociationQ[path],
     Return[<|"Status" -> "PathDataRequired"|>, Module]
@@ -2319,12 +2570,51 @@ BuildObservableTransport[record_Association, demand_Association,
   secondVariable = First@DeleteCases[variables, firstVariable];
   firstBase = Lookup[path, "FirstBase", Missing[]];
   secondBase = Lookup[path, "SecondBase", Missing[]];
-  firstTargetSample = Lookup[path, "FirstTargetSample", Missing[]];
-  If[MemberQ[{firstBase, secondBase, firstTargetSample}, _Missing],
+  firstPathParameterScale = Lookup[path,
+    "FirstPathParameterScale", Missing[]];
+  If[MemberQ[{firstBase, secondBase, firstPathParameterScale}, _Missing],
     Return[<|"Status" -> "PathDataRequired",
-      "Required" -> {"FirstBase", "SecondBase", "FirstTargetSample"}|>,
+      "Required" -> {"FirstBase", "SecondBase",
+        "FirstPathParameterScale"}|>,
       Module]
   ];
+  If[typedRequirementsQ,
+    familySystemReference = Lookup[
+      Lookup[record, "BlockDecomposition", <||>],
+      "FamilyDifferentialSystemReference", Missing[]];
+    requirementsReference = observableTransportRequirementsReference[
+      demand,
+      Replace[
+        OptionValue["MasterIntegralEpsilonOrderRequirementsReference"],
+        Automatic :> Lookup[demand, "Reference", Missing[]]]];
+    If[! AssociationQ[familySystemReference] ||
+        Lookup[familySystemReference, "DataType", None] =!=
+          "FamilyDifferentialSystem" ||
+        Lookup[familySystemReference, "SchemaVersion", None] =!= 2 ||
+        Lookup[familySystemReference, "Family", None] =!=
+          Lookup[record, "Family", Missing[]] ||
+        ! StringQ[Lookup[familySystemReference, "RelativePath", None]] ||
+        StringLength[familySystemReference["RelativePath"]] === 0,
+      Return[<|"Status" ->
+        "FamilyDifferentialSystemReferenceMissingOrInvalid"|>, Module]];
+    If[! AssociationQ[requirementsReference] ||
+        Lookup[requirementsReference, "DataType", None] =!=
+          "MasterIntegralEpsilonOrderRequirements" ||
+        Lookup[requirementsReference, "SchemaVersion", None] =!= 2 ||
+        ! StringQ[Lookup[requirementsReference, "RelativePath", None]] ||
+        StringLength[requirementsReference["RelativePath"]] === 0 ||
+        Lookup[requirementsReference, "MathematicalInputReferences",
+          Missing[]] =!= Lookup[demand, "MathematicalInputReferences",
+          Missing[]],
+      Return[<|"Status" ->
+        "MasterIntegralEpsilonOrderRequirementsReferenceInvalid"|>, Module]];
+    referenceFields = <|
+      "FamilyDifferentialSystemReference" -> familySystemReference,
+      "MasterIntegralEpsilonOrderRequirementsReference" ->
+        requirementsReference,
+      "MasterIntegralEpsilonOrderRequirementRowMapping" ->
+        demandData["MasterIntegralRowRequirements"]|>,
+    referenceFields = <||>];
   tau = Unique["observablePath"];
   rankSamples = Replace[OptionValue["RankSamples"], Automatic -> {
       {tau -> 2/5, secondVariable -> 3/11},
@@ -2333,8 +2623,9 @@ BuildObservableTransport[record_Association, demand_Association,
     }];
   automatonRankSamples = {
     {firstVariable -> firstBase, secondVariable -> secondBase},
-    Join[{firstVariable -> firstTargetSample}, First[rankSamples]],
-    Join[{firstVariable -> (firstBase + firstTargetSample)/2},
+    Join[{firstVariable -> firstBase + firstPathParameterScale},
+      First[rankSamples]],
+    Join[{firstVariable -> firstBase + firstPathParameterScale/2},
       Last[rankSamples]]
   };
   residueSamples = Replace[OptionValue["ResidueSamples"], Automatic -> {
@@ -2348,8 +2639,8 @@ BuildObservableTransport[record_Association, demand_Association,
      malformed or mismatched valuations are refused with the typed
      status of observableTransportEpsilonValuationStatus, and the accept
      predicate requires the certificate again on the result.  A record
-     without valuations keeps the exact gauge scan (not a transport-ready
-     record, which never materializes the full gauge). *)
+     without valuations keeps the exact basis-transformation scan (not a
+     transport-ready record, which never materializes the full matrix). *)
   valuationRecord = Lookup[record, "TransportEpsilonValuations",
     Missing["NotAvailable"]];
   If[! MissingQ[valuationRecord],
@@ -2375,8 +2666,9 @@ BuildObservableTransport[record_Association, demand_Association,
             Flatten[tInverse[[ranges[[block]], All]]], Infinity]},
         If[orders === {}, 0, Min[orders]]],
       {block, Length[ranges]}];
-    valuationSource = "ComputedFromGauge";
-    valuationCertificate = <|"Status" -> "ExactGaugeValuationScan",
+    valuationSource = "ComputedFromBasisTransformationMatrix";
+    valuationCertificate = <|
+      "Status" -> "ExactBasisTransformationEpsilonValuationScan",
       "Accepted" -> True, "Exact" -> True, "Probabilistic" -> False,
       "TMin" -> tmin, "BlockLower" -> blockLower|>
   ];
@@ -2389,14 +2681,15 @@ BuildObservableTransport[record_Association, demand_Association,
   If[! FreeQ[rowLower, _Missing] || MemberQ[blockOfRow, 0],
     Return[<|"Status" -> "BlockRangesDoNotCoverFamily"|>, Module]
   ];
-  If[verbose, observableTransportMilestone["Observable transport epsilon valuations: ",
+  If[verbose, observableTransportMilestone[
+    "Requested-output coefficient operator epsilon bounds: ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative; source ",
     valuationSource]];
 
   pathRules = {
-    firstVariable -> firstBase + tau (firstTargetSample - firstBase)
+    firstVariable -> firstBase + tau firstPathParameterScale
   };
-  tangent = firstTargetSample - firstBase;
+  tangent = firstPathParameterScale;
   (* algebraic records: keep the default rank/residue samples only where
      every letter and root square is a nonzero rational; otherwise draw
      admissible ones from the fraction grid (observableTransportAdmissibleSamples).
@@ -2418,7 +2711,8 @@ BuildObservableTransport[record_Association, demand_Association,
           {t, $observableTransportSampleFractions}, {c, $observableTransportSampleFractions}], 1];
         admissibleRank = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
           rankPoint, candidatesRank, Length[rankSamples]];
-        If[verbose, observableTransportMilestone["Observable transport rank samples replaced for the algebraic record: ",
+        If[verbose, observableTransportMilestone[
+          "Requested-output coefficient-operator rank samples replaced for the algebraic record: ",
           Length[admissibleRank], " admissible of ", Length[candidatesRank], " candidates"]];
         If[Length[admissibleRank] < Length[rankSamples],
           sampleExhaustion = <|"Status" -> "AdmissibleSamplesExhausted",
@@ -2429,8 +2723,10 @@ BuildObservableTransport[record_Association, demand_Association,
       If[sampleExhaustion === None,
         automatonRankSamples = {
           {firstVariable -> firstBase, secondVariable -> secondBase},
-          Join[{firstVariable -> firstTargetSample}, First[rankSamples]],
-          Join[{firstVariable -> (firstBase + firstTargetSample)/2}, Last[rankSamples]]};
+          Join[{firstVariable -> firstBase + firstPathParameterScale},
+            First[rankSamples]],
+          Join[{firstVariable -> firstBase + firstPathParameterScale/2},
+            Last[rankSamples]]};
         residueAdmissible = Select[residueSamples,
           observableTransportPointAdmissibleQ[lettersHere, rootSquaresHere, Thread[variables -> #]] &];
         If[Length[residueAdmissible] < Length[residueSamples],
@@ -2438,7 +2734,8 @@ BuildObservableTransport[record_Association, demand_Association,
             {a, $observableTransportSampleFractions}, {b, $observableTransportSampleFractions}], 1];
           residueAdmissible = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
             Thread[variables -> #] &, candidatesResidue, Length[residueSamples]];
-          If[verbose, observableTransportMilestone["Observable transport residue samples replaced for the algebraic record: ",
+          If[verbose, observableTransportMilestone[
+            "Requested-output coefficient-operator residue samples replaced for the algebraic record: ",
             Length[residueAdmissible]]];
           If[Length[residueAdmissible] < Length[residueSamples],
             sampleExhaustion = <|"Status" -> "AdmissibleSamplesExhausted",
@@ -2505,7 +2802,8 @@ BuildObservableTransport[record_Association, demand_Association,
          boundaryPositions[observableTransportSlotKey[slot]]} -> 1,
       {slot, boundarySlots}],
     {Length[slots], Length[boundarySlots]}];
-  If[verbose, observableTransportMilestone["Observable transport structural support: ",
+  If[verbose, observableTransportMilestone[
+    "Requested-output coefficient-operator structural support: ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
   (* Both physical maps use the same Laurent expansion of TTotal.  Build
      the union of their order ranges once; the former two-pass route could
@@ -2532,7 +2830,8 @@ BuildObservableTransport[record_Association, demand_Association,
       "TMin" -> tmin, "ValuationSource" -> valuationSource,
       "EntryCount" -> $observableTransportLaurentDiagnostics[
         "ValuationBelowRange"]|>, Module]];
-  If[verbose, observableTransportMilestone["Observable transport Laurent extraction: ",
+  If[verbose, observableTransportMilestone[
+    "Requested-output coefficient-operator Laurent extraction: ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative; method ",
     $observableTransportLaurentMethod, "; orders ", {tmin, tLaurentHigh},
     "; row caps ", Counts[Clip[rowHighs, {tmin - 1, tLaurentHigh}]],
@@ -2563,7 +2862,8 @@ BuildObservableTransport[record_Association, demand_Association,
   forbiddenMap = If[forbiddenRows === {},
     SparseArray[{}, {0, Length[slots]}],
     Normal[forbiddenRows] /. pathRules];
-  If[verbose, observableTransportMilestone["Observable transport forbidden map: ",
+  If[verbose, observableTransportMilestone[
+    "Requested-output coefficient-operator constraint map: ",
     Dimensions[forbiddenMap], "; slots ", Length[slots],
     "; boundary slots ", Length[boundarySlots], "; ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
@@ -2609,7 +2909,8 @@ BuildObservableTransport[record_Association, demand_Association,
       closureRecord["StabilizationCertificate"];
     closureStabilizationMethod =
       closureRecord["StabilizationMethod"];
-    If[verbose, observableTransportMilestone["Observable transport first covariant closure: ",
+    If[verbose, observableTransportMilestone[
+      "Requested-output coefficient-operator first covariant closure: ",
       closureHistory, "; ", Round[AbsoluteTime[] - start, 0.1],
       " s cumulative"]];
     constraintMatrix = observableTransportCancelMatrix[
@@ -2629,7 +2930,7 @@ BuildObservableTransport[record_Association, demand_Association,
        rejection counts from the finite-field sampler) and, when
        "DiagnosticDirectory" names a directory, dumps the failing state so
        the step can be reproduced offline instead of by rerunning the
-       whole transport (CF259 probe 1 spent 25 minutes reaching it). *)
+       whole construction (one production probe spent 25 minutes reaching it). *)
     rankFailure[reason_] := Module[{directory = OptionValue["DiagnosticDirectory"], dump},
       dump = <|"Status" -> "ConstraintRankFailureDump",
         "Reason" -> reason, "Family" -> Lookup[record, "Family", None],
@@ -2657,7 +2958,7 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
 
   (* Small symbolic kernels are an efficient moving coordinate system.  For
-     complicated constraints they can explode (CF230: a 25 KB constraint
+     complicated constraints they can explode (measured: a 25 KB constraint
      serialized as a 498 MB kernel).  Above a structural leaf threshold,
      evolve the sparse Laurent state itself and impose the kernel only at the
      constant base point. *)
@@ -2667,15 +2968,21 @@ BuildObservableTransport[record_Association, demand_Association,
   If[! IntegerQ[movingKernelLeafLimit] || movingKernelLeafLimit < 0,
     Return[<|"Status" -> "InvalidMovingKernelLeafLimit"|>, Module]
   ];
-  boundaryEvolution = Replace[OptionValue["BoundaryEvolution"],
+  boundaryConstraintSubspaceRepresentation = Replace[
+    OptionValue["BoundaryConstraintSubspaceRepresentation"],
     Automatic -> If[constraintRank === 0 ||
       constraintLeafCount <= movingKernelLeafLimit,
-      "MovingKernel", "AmbientBasePoint"]];
-  If[! MemberQ[{"MovingKernel", "AmbientBasePoint"}, boundaryEvolution],
-    Return[<|"Status" -> "InvalidBoundaryEvolution"|>, Module]
+      "MovingNullspaceBasis", "AmbientSpaceWithBasePointConstraints"]];
+  If[! MemberQ[{"MovingNullspaceBasis",
+        "AmbientSpaceWithBasePointConstraints"},
+      boundaryConstraintSubspaceRepresentation],
+    Return[<|"Status" ->
+      "InvalidBoundaryConstraintSubspaceRepresentation"|>, Module]
   ];
-  If[verbose, observableTransportMilestone["Observable transport boundary evolution: ",
-    boundaryEvolution, "; constraint leaves ", constraintLeafCount,
+  If[verbose, observableTransportMilestone[
+    "Boundary-constraint subspace representation: ",
+    boundaryConstraintSubspaceRepresentation,
+    "; constraint leaves ", constraintLeafCount,
     "; moving-kernel limit ", movingKernelLeafLimit, "; constraint rank ",
     constraintRank, "; ", Round[AbsoluteTime[] - start, 0.1],
     " s cumulative"]];
@@ -2690,7 +2997,7 @@ BuildObservableTransport[record_Association, demand_Association,
   extendedBoundarySlots = Select[extendedSlots,
     #[[1]] >= rowLower[[#[[2]]]] &];
   newBoundarySlots = Complement[extendedBoundarySlots, boundarySlots];
-  If[boundaryEvolution === "MovingKernel",
+  If[boundaryConstraintSubspaceRepresentation === "MovingNullspaceBasis",
     secondClosureHistory = {};
     secondClosureInitialSpanCertificate = Missing["NotRequired"];
     secondClosureInitialSpanMethod = "NotRequired";
@@ -2765,20 +3072,21 @@ BuildObservableTransport[record_Association, demand_Association,
     secondClosureStabilizationMethod =
       secondClosureRecord["StabilizationMethod"];
     If[verbose, observableTransportMilestone[
-      "Observable transport base constraint cancellation start: ",
+      "Requested-output coefficient-operator base constraint cancellation start: ",
       Dimensions[extendedConstraintMatrix]]];
     baseStageStart = AbsoluteTime[];
     baseConstraintMatrix = If[Length[extendedConstraintMatrix] === 0, {},
       observableTransportCancelMatrix[
         Normal[extendedConstraintMatrix] /. secondVariable -> secondBase]];
     If[verbose, observableTransportMilestone[
-      "Observable transport base constraint cancellation: ",
+      "Requested-output coefficient-operator base constraint cancellation: ",
       Round[AbsoluteTime[] - baseStageStart, 0.1], " s"]];
     baseStageStart = AbsoluteTime[];
     baseBoundaryKernel = If[Length[extendedConstraintMatrix] === 0,
       IdentityMatrix[Length[extendedSlots]],
       observableTransportKernel[baseConstraintMatrix]];
-    If[verbose, observableTransportMilestone["Observable transport base kernel: ",
+    If[verbose, observableTransportMilestone[
+      "Requested-output coefficient-operator base nullspace: ",
       Round[AbsoluteTime[] - baseStageStart, 0.1], " s; dimensions ",
       Dimensions[baseBoundaryKernel]]];
     baseStageStart = AbsoluteTime[];
@@ -2789,7 +3097,8 @@ BuildObservableTransport[record_Association, demand_Association,
             baseConstraintMatrix . baseBoundaryKernel]),
       Return[<|"Status" -> "BoundaryBaseKernelIdentityFailed"|>, Module]
     ];
-    If[verbose, observableTransportMilestone["Observable transport base kernel replay: ",
+    If[verbose, observableTransportMilestone[
+      "Requested-output coefficient-operator base-nullspace replay: ",
       Round[AbsoluteTime[] - baseStageStart, 0.1], " s"]];
     baseBoundaryEmbedding = baseBoundaryKernel;
     terminalEmbedding = baseBoundaryEmbedding
@@ -2821,7 +3130,8 @@ BuildObservableTransport[record_Association, demand_Association,
       "Consumer" -> "DemandedMap", "Detail" -> laurentOverrun|>, Module]];
   demandedMap = If[demandedRows === {},
     SparseArray[{}, {0, Length[extendedSlots]}], demandedRows];
-  If[verbose, observableTransportMilestone["Observable transport demanded map: ",
+  If[verbose, observableTransportMilestone[
+    "Requested-output coefficient operator initial map: ",
     Dimensions[demandedMap], "; extended slots ", Length[extendedSlots],
     "; transport boundary ", Dimensions[transportBoundary],
     "; base coordinates ", Dimensions[baseBoundaryEmbedding][[2]], "; ",
@@ -2910,7 +3220,7 @@ BuildObservableTransport[record_Association, demand_Association,
   (* Round 9 (T, 2026-09-03): an exact certificate that verified the dlog
      identity on its letters but left the constant residues unreconstructed
      ("Residues" -> Missing["NotReconstructed"]: the exact certification
-     route on CF265/CF305) gets them reconstructed modularly on those same
+     route for some production systems) gets them reconstructed modularly on those same
      letters, with the identity, the letters' independence and the
      eps-linearity checked at every prime and a fresh-prime validation --
      a certified finite-field route (probabilistic, typed at every step).
@@ -2946,7 +3256,7 @@ BuildObservableTransport[record_Association, demand_Association,
         "ReconstructionCertificate" ->
           certificateLetterReconstruction["Certificate"]|>;
       If[TrueQ[OptionValue["Verbose"]], observableTransportMilestone[
-        "Observable transport first-kernel residues reconstructed on ",
+        "Requested-output coefficient-operator first-path residues reconstructed on ",
         Length[certificateDLog["Letters"]], " certificate letters: primes ",
         certificateLetterReconstruction["Certificate"]["Primes"],
         ", fresh prime ",
@@ -2988,13 +3298,16 @@ BuildObservableTransport[record_Association, demand_Association,
   firstKernelMethod = firstKernelRecord["Method"];
   liftedResidues = observableTransportLiftResidues[
     firstKernelRecord["Matrices"], extendedSlots];
-  maximumWeight = Replace[OptionValue["MaximumWeight"],
+  maximumWeight = Replace[
+    OptionValue["MaximumIteratedIntegralWeight"],
     Automatic -> extendedFHigh - flow];
   If[! IntegerQ[maximumWeight] || maximumWeight < 0,
-    Return[<|"Status" -> "InvalidMaximumWeight"|>, Module]
+    Return[<|"Status" ->
+      "InvalidMaximumIteratedIntegralWeight"|>, Module]
   ];
 
-  If[boundaryEvolution === "AmbientBasePoint" &&
+  If[boundaryConstraintSubspaceRepresentation ===
+      "AmbientSpaceWithBasePointConstraints" &&
       residueRecordUsableQ[residueRecord],
     (* The certified residues supply the transport kernels below.  Retain the
        unsplit connection only for the finite-field invariance test; no
@@ -3003,17 +3316,19 @@ BuildObservableTransport[record_Association, demand_Association,
     liftedSecond = ambientLiftedSecond;
     secondEvolutionConnection = Missing["CertifiedDLogResiduesUsed"],
 
-    secondConnection = If[boundaryEvolution === "AmbientBasePoint",
+    secondConnection = If[boundaryConstraintSubspaceRepresentation ===
+        "AmbientSpaceWithBasePointConstraints",
       ambientSecondConnection,
       observableTransportCancelMatrix[
         (epsConnections[[FirstPosition[
             variables, secondVariable][[1]]]]/eps) /.
           firstVariable -> firstBase]];
-    liftedSecond = If[boundaryEvolution === "AmbientBasePoint",
+    liftedSecond = If[boundaryConstraintSubspaceRepresentation ===
+        "AmbientSpaceWithBasePointConstraints",
       ambientLiftedSecond,
       First@observableTransportLiftResidues[
         {secondConnection}, extendedSlots]];
-    If[boundaryEvolution === "MovingKernel",
+    If[boundaryConstraintSubspaceRepresentation === "MovingNullspaceBasis",
     boundaryDerivative = D[Normal[transportBoundary], secondVariable];
     inducedRhs = observableTransportCancelMatrix[
       liftedSecond . transportBoundary - boundaryDerivative];
@@ -3036,7 +3351,8 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
   secondActiveLetters = {};
   kernelRecord = Which[
-    boundaryEvolution === "AmbientBasePoint" &&
+    boundaryConstraintSubspaceRepresentation ===
+        "AmbientSpaceWithBasePointConstraints" &&
         residueRecordUsableQ[residueRecord],
       secondActiveLetters = Select[
         Range[Length[residueRecord["Letters"]]],
@@ -3067,7 +3383,8 @@ BuildObservableTransport[record_Association, demand_Association,
     Return[kernelRecord, Module]
   ];
   ambientInvarianceCertificate = Missing["NotRequired"];
-  If[boundaryEvolution === "AmbientBasePoint" && constraintRank > 0,
+  If[boundaryConstraintSubspaceRepresentation ===
+      "AmbientSpaceWithBasePointConstraints" && constraintRank > 0,
     ambientInvarianceCertificate = If[
       presentationType === "SquareRootGeneratorsAndQuadraticRelations",
       observableTransportModularAlgebraicCovariantSubspaceInclusion[
@@ -3174,59 +3491,50 @@ BuildObservableTransport[record_Association, demand_Association,
               {"Prime", "TrainingPoints", "ValidationPoints", "DLogRank",
                "AllSheetsPerPoint"}] & /@
             Lookup[familyCertificate, "IdentityPoints", {}])|>]]];
-  materializedWordLimit = OptionValue["MaterializedWordLimit"];
-  If[! IntegerQ[materializedWordLimit] || materializedWordLimit < 1,
-    Return[<|"Status" -> "InvalidMaterializedWordLimit"|>, Module]
-  ];
-  wordCountBound = observableTransportWordCountBound[
-    Length[liftedResidues], Length[kernelRecord["Matrices"]],
-    maximumWeight, materializedWordLimit];
-  wordRepresentation = Replace[OptionValue["WordRepresentation"],
-    Automatic -> If[wordCountBound > materializedWordLimit,
-      "OperatorAutomaton", "MaterializedWords"]];
-  If[! MemberQ[{"MaterializedWords", "OperatorAutomaton",
-      "CompactAutomaton"},
+  wordRepresentation = Replace[
+    OptionValue["IteratedIntegralCoefficientRepresentation"],
+    Automatic -> "IteratedIntegralCoefficientOperatorForRequestedOutputs"];
+  If[! MemberQ[{
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+      "CompressedIteratedIntegralCoefficientOperator"},
       wordRepresentation],
-    Return[<|"Status" -> "InvalidWordRepresentation"|>, Module]
+    Return[<|"Status" ->
+      "InvalidIteratedIntegralCoefficientRepresentation"|>, Module]
   ];
-  If[wordRepresentation === "CompactAutomaton" &&
+  If[wordRepresentation ===
+      "CompressedIteratedIntegralCoefficientOperator" &&
       presentationType =!= "Rational",
-    Return[<|"Status" -> "CompactAutomatonRequiresRationalField",
+    Return[<|"Status" ->
+      "CompressedIteratedIntegralCoefficientOperatorRequiresRationalField",
       "CoefficientPresentationType" -> presentationType|>, Module]
   ];
-  If[verbose, observableTransportMilestone["Observable transport word representation: ",
-    wordRepresentation, "; materialized upper bound ", wordCountBound,
-    "; limit ", materializedWordLimit]];
+  If[verbose, observableTransportMilestone[
+    "Iterated-integral coefficient representation: ",
+    wordRepresentation]];
 
   Which[
-   wordRepresentation === "OperatorAutomaton",
+   wordRepresentation ===
+       "IteratedIntegralCoefficientOperatorForRequestedOutputs",
     operatorAutomaton = <|
-      "Status" -> "ExactOperatorAutomaton",
-      "Orientation" -> "DemandedRowsActFromLeft",
-      "RequestedMaximumWeight" -> maximumWeight,
-      "InitialDemandMap" -> demandedMap,
-      "FirstAlphabetIndices" -> firstKernelIndices,
-      "FirstOperatorMatrices" -> liftedResidues,
-      "FirstBoundaryOperator" -> transportBoundary,
-      "SecondAlphabetIndices" ->
+      "Status" -> "IteratedIntegralCoefficientOperatorConstructed",
+      "Orientation" -> "RequestedMasterIntegralRowsActFromLeft",
+      "MaximumIteratedIntegralWeight" -> maximumWeight,
+      "InitialRequestedOutputMap" -> demandedMap,
+      "FirstPathSegmentAlphabetLetterIndices" -> firstKernelIndices,
+      "FirstPathSegmentOperatorMatrices" -> liftedResidues,
+      "FirstPathSegmentBoundaryMap" -> transportBoundary,
+      "SecondPathSegmentAlphabetLetterIndices" ->
         Range[Length[kernelRecord["Matrices"]]],
-      "SecondOperatorMatrices" -> kernelRecord["Matrices"],
+      "SecondPathSegmentOperatorMatrices" -> kernelRecord["Matrices"],
       "FinalBoundaryEmbedding" -> terminalEmbedding|>;
-    compactAutomaton = Missing["OperatorAutomatonRepresentation"];
-    wordRecord = <|
-      "Maps" -> Missing["OperatorAutomatonNotMaterialized"],
-      "StateCountsByWeight" -> Missing["OperatorAutomatonNotEnumerated"],
-      "MapCountsByWeight" -> Missing["OperatorAutomatonNotEnumerated"]|>;
-    secondRecord = <|
-      "Maps" -> Missing["OperatorAutomatonNotMaterialized"],
-      "MapCountsByWeight" -> Missing["OperatorAutomatonNotEnumerated"]|>;
-    resultStatus = If[structuralProbabilisticCertificates =!= <||>,
-      "ModularlyVerifiedObservableTransport",
-      "ExactObservableTransport"];
+    compactAutomaton = Missing[
+      "CompressedIteratedIntegralCoefficientOperatorNotSelected"];
     probabilisticCertificates = structuralProbabilisticCertificates,
 
-   wordRepresentation === "CompactAutomaton",
-    operatorAutomaton = Missing["CompactAutomatonRepresentation"];
+   wordRepresentation ===
+       "CompressedIteratedIntegralCoefficientOperator",
+    operatorAutomaton = Missing[
+      "ExactIteratedIntegralCoefficientOperatorNotSelected"];
     coordinateOptions = <|
       "CoordinateBackend" -> OptionValue["CoordinateBackend"],
       "CoordinateCacheDirectory" ->
@@ -3241,63 +3549,52 @@ BuildObservableTransport[record_Association, demand_Association,
       verbose];
     If[! AssociationQ[compactAutomaton] ||
         Lookup[compactAutomaton, "Status", None] =!=
-          "ModularCompactAutomatonAccepted",
+          "CompressedIteratedIntegralCoefficientOperatorValidated",
       Return[If[AssociationQ[compactAutomaton], compactAutomaton,
-        <|"Status" -> "CompactAutomatonConstructionFailed"|>], Module]
+        <|"Status" ->
+          "CompressedIteratedIntegralCoefficientOperatorConstructionFailed"|>],
+        Module]
     ];
     compactAutomaton = Join[compactAutomaton, <|
-      "FirstAlphabetIndices" -> firstKernelIndices,
-      "SecondAlphabetIndices" ->
+      "FirstPathSegmentAlphabetLetterIndices" -> firstKernelIndices,
+      "SecondPathSegmentAlphabetLetterIndices" ->
         Range[Length[kernelRecord["Matrices"]]],
-      "SecondKernelMatrices" -> kernelRecord["Matrices"]|>];
-    wordRecord = <|
-      "Maps" -> Missing["CompactAutomatonNotMaterialized"],
-      "StateCountsByWeight" ->
-        compactAutomaton["ObservableRankByExactWeight"],
-      "MapCountsByWeight" -> Missing["CompactAutomatonNotEnumerated"]|>;
-    secondRecord = <|
-      "Maps" -> Missing["CompactAutomatonNotMaterialized"],
-      "MapCountsByWeight" -> Missing["CompactAutomatonNotEnumerated"]|>;
-    resultStatus = "ModularlyVerifiedObservableTransport";
+      "SecondPathSegmentOperatorMatrices" ->
+        kernelRecord["Matrices"]|>];
     probabilisticCertificates = Join[
       structuralProbabilisticCertificates, <|
       "CoordinateReconstructionFreshModular" -> True,
       "CoordinateSystems" ->
         compactAutomaton["CoordinateCertificates"],
       "AmbientBoundaryInvariance" ->
-        ambientInvarianceCertificate|>],
-
-   True,
-    operatorAutomaton = Missing["MaterializedWordRepresentation"];
-    wordRecord = observableTransportWordMaps[
-      liftedResidues, transportBoundary, demandedMap, maximumWeight];
-    wordRecord["Maps"] = ({firstKernelIndices[[#[[1]]]], #[[2]]} &) /@
-      wordRecord["Maps"];
-    secondRecord = observableTransportSecondSegmentMaps[
-      wordRecord["Maps"], kernelRecord["Matrices"], terminalEmbedding,
-      maximumWeight];
-    compactAutomaton = Missing["MaterializedWordRepresentation"];
-    resultStatus = If[structuralProbabilisticCertificates =!= <||>,
-      "ModularlyVerifiedObservableTransport",
-      "ExactObservableTransport"];
-    probabilisticCertificates = structuralProbabilisticCertificates
+        ambientInvarianceCertificate|>]
   ];
 
-  <|
+  resultStatus =
+    "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated";
+  validationMethod = If[probabilisticCertificates === <||>,
+    "DeterministicSymbolic", "ProbabilisticFiniteFieldSampling"];
+
+  Join[<|
+    "DataType" ->
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    "SchemaVersion" -> 2,
     "Status" -> resultStatus,
     "Family" -> Lookup[record, "Family", Missing[]],
-    "Variables" -> variables,
-    "Regulator" -> eps,
+    "CoefficientVariables" -> variables,
+    "DimensionalRegulator" -> eps,
     "CoefficientPresentationType" -> presentationType,
-    "PhysicalRows" -> physicalLabels,
-    "PhysicalDemandPairs" -> physicalDemandPairs,
-    "PhysicalValuation" -> valuation,
-    "Path" -> <|
+    "RequestedMasterIntegralEpsilonOrderAndRowPairs" ->
+      physicalDemandPairs,
+    "NonzeroRequestedMasterIntegralEpsilonOrderAndRowPairs" ->
+      physicalLabels,
+    "MinimumRetainedMasterIntegralEpsilonOrder" -> valuation,
+    "RegularBasePointAndFirstPathParameterScale" -> <|
       "FirstVariable" -> firstVariable,
       "SecondVariable" -> secondVariable,
       "FirstBase" -> firstBase,
       "SecondBase" -> secondBase,
-      "FirstTargetSample" -> firstTargetSample|>,
+      "FirstPathParameterScale" -> firstPathParameterScale|>,
     "BoundarySlots" -> boundarySlots,
     "BoundaryConstraintMatrix" -> constraintMatrix,
     "BoundaryAmbientSlots" -> extendedSlots,
@@ -3305,9 +3602,11 @@ BuildObservableTransport[record_Association, demand_Association,
       secondVariable -> secondBase},
     "BoundaryKernelAtBase" -> baseBoundaryKernel,
     "BoundaryBaseEmbedding" -> baseBoundaryEmbedding,
-    "BoundaryEvolutionMethod" -> boundaryEvolution,
+    "BoundaryConstraintSubspaceRepresentation" ->
+      boundaryConstraintSubspaceRepresentation,
     "BoundaryConstraintLeafCount" -> constraintLeafCount,
-    "GaugeConstantRules" -> gaugeConstantRules,
+    "BasisNormalizationParameterRules" ->
+      basisNormalizationParameterRules,
     "TransportEpsilonValuationSource" -> valuationSource,
     "TransportEpsilonValuations" -> <|
       "TMin" -> tmin, "BlockLower" -> blockLower|>,
@@ -3322,34 +3621,32 @@ BuildObservableTransport[record_Association, demand_Association,
       secondClosureInitialSpanMethod,
     "SecondBoundaryClosureStabilizationMethod" ->
       secondClosureStabilizationMethod,
-    "FirstSegmentKernelMethod" -> firstKernelMethod,
-    "FirstSegmentKernels" -> firstKernelRecord["Kernels"],
-    "FirstSegmentKernelMatrices" -> firstKernelRecord["Matrices"],
-    "DLogLetters" -> If[AssociationQ[residueRecord],
+    "FirstPathSegmentKernelMethod" -> firstKernelMethod,
+    "FirstPathSegmentIteratedIntegralKernels" ->
+      firstKernelRecord["Kernels"],
+    "FirstPathSegmentKernelCoefficientMatrices" ->
+      firstKernelRecord["Matrices"],
+    "Letters" -> If[AssociationQ[residueRecord],
       residueRecord["Letters"], {}],
-    "DLogResidues" -> If[AssociationQ[residueRecord],
+    "ConstantResidueMatrices" -> If[AssociationQ[residueRecord],
       residueRecord["Residues"], {}],
-    "FirstSegmentActiveLetters" -> pathActiveLetters,
-    "FirstSegmentStateSpace" -> If[
-      boundaryEvolution === "MovingKernel",
+    "FirstPathSegmentActiveLetterIndices" -> pathActiveLetters,
+    "FirstPathSegmentStateSpace" -> If[
+      boundaryConstraintSubspaceRepresentation === "MovingNullspaceBasis",
       "MovingBoundaryCoordinates", "ExtendedLaurentSlots"],
-    "WordRepresentation" -> wordRepresentation,
-    "MaterializedWordCountUpperBound" -> wordCountBound,
-    "ExactOperatorAutomaton" -> operatorAutomaton,
-    "CompactTransportAutomaton" -> compactAutomaton,
-    "FirstSegmentWordMaps" -> wordRecord["Maps"],
-    "FirstSegmentStateCountsByWeight" -> wordRecord["StateCountsByWeight"],
-    "FirstSegmentMapCountsByWeight" -> wordRecord["MapCountsByWeight"],
-    "SecondSegmentKernels" -> kernelRecord["Kernels"],
-    "SecondSegmentKernelMatrices" -> kernelRecord["Matrices"],
-    "SecondSegmentActiveLetters" -> secondActiveLetters,
-    "SecondSegmentKernelMethod" -> Lookup[kernelRecord, "Method",
+    "IteratedIntegralCoefficientRepresentation" -> wordRepresentation,
+    "ExactIteratedIntegralCoefficientOperator" -> operatorAutomaton,
+    "CompressedIteratedIntegralCoefficientOperator" -> compactAutomaton,
+    "SecondPathSegmentIteratedIntegralKernels" ->
+      kernelRecord["Kernels"],
+    "SecondPathSegmentKernelCoefficientMatrices" ->
+      kernelRecord["Matrices"],
+    "SecondPathSegmentActiveLetterIndices" -> secondActiveLetters,
+    "SecondPathSegmentKernelMethod" -> Lookup[kernelRecord, "Method",
       "RationalKernelDecomposition"],
-    "SecondSegmentStateSpace" -> If[
-      boundaryEvolution === "MovingKernel",
+    "SecondPathSegmentStateSpace" -> If[
+      boundaryConstraintSubspaceRepresentation === "MovingNullspaceBasis",
       "MovingBoundaryCoordinates", "ExtendedLaurentSlots"],
-    "TwoSegmentWordMaps" -> secondRecord["Maps"],
-    "TwoSegmentMapCountsByWeight" -> secondRecord["MapCountsByWeight"],
     "FamilyInputRoute" -> Which[
       recordExactQ, "Exact",
       recordCertifiedQ, "Certified",
@@ -3379,7 +3676,7 @@ BuildObservableTransport[record_Association, demand_Association,
         Lookup[firstKernelRecord, "Status", None] === "Exact"]],
       "FirstKernelIdentityCertified" -> TrueQ[Lookup[firstKernelRecord,
         "IdentityCertified", Lookup[firstKernelRecord, "Identity", False]]],
-      "BoundaryEvolution" -> True,
+      "BoundaryConstraintSubspaceValidated" -> True,
       "SecondKernelIdentity" ->
         TrueQ[Lookup[kernelRecord, "Identity", False]],
       "SecondKernelIdentityExact" -> TrueQ[Lookup[kernelRecord,
@@ -3387,14 +3684,18 @@ BuildObservableTransport[record_Association, demand_Association,
       "SecondKernelIdentityCertified" -> TrueQ[Lookup[kernelRecord,
         "IdentityCertified", Lookup[kernelRecord, "Identity", False]]]|>,
     "ProbabilisticCertificates" -> probabilisticCertificates,
-    "MaximumWeight" -> maximumWeight,
-    "Seconds" -> AbsoluteTime[] - start
-  |>
+    "MaximumIteratedIntegralWeight" -> maximumWeight,
+    "Validation" -> <|
+      "Method" -> validationMethod,
+      "Passed" -> True,
+      "Exact" -> (validationMethod === "DeterministicSymbolic"),
+      "Probabilistic" ->
+        (validationMethod === "ProbabilisticFiniteFieldSampling")|>
+  |>, referenceFields]
 ];
 
-(* Keep the formal and production acceptance predicates distinct.  An exact
-   materialized record retains the historical status; a compact record is
-   accepted only when every quotient system has fresh modular evidence. *)
+(* A compressed operator is accepted only when every quotient-coordinate
+   system has fresh finite-field evidence. *)
 (* Round 9 (T, 2026-09-03): the probabilistic certificate of first-kernel
    residues reconstructed on an exact certificate's letters (a rational
    field family whose exact certifier left "Residues" ->
@@ -3465,19 +3766,83 @@ observableTransportReconstructedResidueCertificateQ[certificate_] :=
   Lookup[certificate, "Mismatches", -1] === 0;
 observableTransportReconstructedResidueCertificateQ[___] := False;
 
-AcceptedObservableTransportQ[result_] := Module[
-  {status, certificates, probabilistic, systems, requiredExact,
+IteratedIntegralCoefficientOperatorForRequestedOutputsQ[result_] :=
+ Module[
+  {status, validation, validationMethod, certificates, probabilistic,
+   systems, requiredExact,
    representation, boundaryMethod, constraintRank, coordinateRequired,
    ambientRequired, structuralRequired, coordinateAccepted, ambientAccepted,
    structuralAccepted, structuralRequirements, dlogRequired, dlogAccepted,
    firstKernelIdentityExact, secondKernelIdentityExact, automaton,
+   familySystemReference, requirementsReference, rowMapping, mappedPairs,
    coordinateCertificateQ, ambientCertificateQ, operatorAutomatonQ,
-   dlogCertificateQ, compactAutomatonQ, materializedWordsQ},
+   dlogCertificateQ, compactAutomatonQ},
   If[! AssociationQ[result], Return[False]];
   status = Lookup[result, "Status", None];
+  validation = Lookup[result, "Validation", <||>];
+  validationMethod = Lookup[validation, "Method", None];
+  If[Lookup[result, "DataType", None] =!=
+        "IteratedIntegralCoefficientOperatorForRequestedOutputs" ||
+      Lookup[result, "SchemaVersion", None] =!= 2 ||
+      status =!=
+        "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated" ||
+      ! AssociationQ[validation] ||
+      ! TrueQ[Lookup[validation, "Passed", False]] ||
+      ! MemberQ[{"DeterministicSymbolic",
+          "ProbabilisticFiniteFieldSampling"}, validationMethod] ||
+      ! TrueQ[Lookup[validation, "Exact", False] ===
+        (validationMethod === "DeterministicSymbolic")] ||
+      ! TrueQ[Lookup[validation, "Probabilistic", False] ===
+        (validationMethod === "ProbabilisticFiniteFieldSampling")],
+    Return[False]];
+  If[Xor[KeyExistsQ[result, "FamilyDifferentialSystemReference"],
+      KeyExistsQ[result,
+        "MasterIntegralEpsilonOrderRequirementsReference"]],
+    Return[False]];
+  If[KeyExistsQ[result, "FamilyDifferentialSystemReference"],
+    familySystemReference = result["FamilyDifferentialSystemReference"];
+    requirementsReference =
+      result["MasterIntegralEpsilonOrderRequirementsReference"];
+    rowMapping = Lookup[result,
+      "MasterIntegralEpsilonOrderRequirementRowMapping", Missing[]];
+    If[! AssociationQ[familySystemReference] ||
+        Lookup[familySystemReference, "DataType", None] =!=
+          "FamilyDifferentialSystem" ||
+        Lookup[familySystemReference, "SchemaVersion", None] =!= 2 ||
+        Lookup[familySystemReference, "Family", None] =!=
+          Lookup[result, "Family", Missing[]] ||
+        ! StringQ[Lookup[familySystemReference, "RelativePath", None]] ||
+        StringLength[familySystemReference["RelativePath"]] === 0 ||
+        ! AssociationQ[requirementsReference] ||
+        Lookup[requirementsReference, "DataType", None] =!=
+          "MasterIntegralEpsilonOrderRequirements" ||
+        Lookup[requirementsReference, "SchemaVersion", None] =!= 2 ||
+        ! StringQ[Lookup[requirementsReference, "RelativePath", None]] ||
+        StringLength[requirementsReference["RelativePath"]] === 0 ||
+        ! AssociationQ[Lookup[requirementsReference,
+          "MathematicalInputReferences", Missing[]]] ||
+        ! ListQ[rowMapping] || rowMapping === {} ||
+        ! AllTrue[rowMapping, AssociationQ[#] &&
+            IntegerQ[Lookup[#, "MasterIntegralIndex", None]] &&
+            AssociationQ[Lookup[#, "MasterIntegral", None]] &&
+            IntegerQ[Lookup[#, "OriginalPhysicalRow", None]] &&
+            Lookup[#, "OriginalPhysicalRow", 0] >= 1 &&
+            MatchQ[Lookup[#,
+              "RequiredMasterIntegralEpsilonOrders", None],
+              {__Integer}] &] ||
+        ! DuplicateFreeQ[Lookup[rowMapping, "OriginalPhysicalRow"]],
+      Return[False]];
+    mappedPairs = Sort@DeleteDuplicates@Flatten[
+      Table[{order, row["OriginalPhysicalRow"]}, {row, rowMapping},
+        {order, row["RequiredMasterIntegralEpsilonOrders"]}], 1];
+    If[mappedPairs =!= Lookup[result,
+          "RequestedMasterIntegralEpsilonOrderAndRowPairs", Missing[]] ||
+        Lookup[result, "MinimumRetainedMasterIntegralEpsilonOrder",
+          Missing[]] =!= Min[mappedPairs[[All, 1]]],
+      Return[False]]];
   certificates = Lookup[result, "Certificates", <||>];
   requiredExact = {"BoundaryBaseKernel", "FirstKernelIdentity",
-    "BoundaryEvolution", "SecondKernelIdentity",
+    "BoundaryConstraintSubspaceValidated", "SecondKernelIdentity",
     "TransportEpsilonValuationsBound"};
   If[! AssociationQ[certificates] ||
       ! TrueQ[Lookup[certificates, "FamilyInputAccepted", False]] ||
@@ -3492,12 +3857,16 @@ AcceptedObservableTransportQ[result_] := Module[
       Lookup[result, "TransportEpsilonValuationCertificate", Missing[]],
       Lookup[result, "TransportEpsilonValuations", Missing[]]],
     Return[False]];
-  representation = Lookup[result, "WordRepresentation", None];
-  boundaryMethod = Lookup[result, "BoundaryEvolutionMethod", None];
+  representation = Lookup[result,
+    "IteratedIntegralCoefficientRepresentation", None];
+  boundaryMethod = Lookup[result,
+    "BoundaryConstraintSubspaceRepresentation", None];
   constraintRank = Lookup[result, "ConstraintRank", Missing[]];
-  If[! MemberQ[{"MaterializedWords", "OperatorAutomaton",
-        "CompactAutomaton"}, representation] ||
-      ! MemberQ[{"MovingKernel", "AmbientBasePoint"}, boundaryMethod] ||
+  If[! MemberQ[{
+        "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+        "CompressedIteratedIntegralCoefficientOperator"}, representation] ||
+      ! MemberQ[{"MovingNullspaceBasis",
+          "AmbientSpaceWithBasePointConstraints"}, boundaryMethod] ||
       ! IntegerQ[constraintRank] || constraintRank < 0 ||
       ! MemberQ[{"NoConstraints", "Structural", "FreshModular"},
         Lookup[result, "DualClosureInitialSpanMethod", None]] ||
@@ -3566,15 +3935,22 @@ AcceptedObservableTransportQ[result_] := Module[
      secondAlphabet, secondMatrices, finalEmbedding, firstDimension,
      secondDimension},
     If[! AssociationQ[value] ||
-        Lookup[value, "Status", None] =!= "ExactOperatorAutomaton",
+        Lookup[value, "Status", None] =!=
+          "IteratedIntegralCoefficientOperatorConstructed",
       Return[False, Module]];
-    maximumWeight = Lookup[value, "RequestedMaximumWeight", Missing[]];
-    initial = Lookup[value, "InitialDemandMap", Missing[]];
-    firstAlphabet = Lookup[value, "FirstAlphabetIndices", Missing[]];
-    firstMatrices = Lookup[value, "FirstOperatorMatrices", Missing[]];
-    firstBoundary = Lookup[value, "FirstBoundaryOperator", Missing[]];
-    secondAlphabet = Lookup[value, "SecondAlphabetIndices", Missing[]];
-    secondMatrices = Lookup[value, "SecondOperatorMatrices", Missing[]];
+    maximumWeight = Lookup[value,
+      "MaximumIteratedIntegralWeight", Missing[]];
+    initial = Lookup[value, "InitialRequestedOutputMap", Missing[]];
+    firstAlphabet = Lookup[value,
+      "FirstPathSegmentAlphabetLetterIndices", Missing[]];
+    firstMatrices = Lookup[value,
+      "FirstPathSegmentOperatorMatrices", Missing[]];
+    firstBoundary = Lookup[value,
+      "FirstPathSegmentBoundaryMap", Missing[]];
+    secondAlphabet = Lookup[value,
+      "SecondPathSegmentAlphabetLetterIndices", Missing[]];
+    secondMatrices = Lookup[value,
+      "SecondPathSegmentOperatorMatrices", Missing[]];
     finalEmbedding = Lookup[value, "FinalBoundaryEmbedding", Missing[]];
     If[! IntegerQ[maximumWeight] || maximumWeight < 0 ||
         ! MatrixQ[initial] || ! MatrixQ[firstBoundary] ||
@@ -3602,17 +3978,29 @@ AcceptedObservableTransportQ[result_] := Module[
      secondAlphabet, secondMatrices, finalEmbedding, boundaryDimension},
     If[! AssociationQ[value] ||
         Lookup[value, "Status", None] =!=
-          "ModularCompactAutomatonAccepted" ||
-        Lookup[value, "Orientation", None] =!= "DualObservableRows",
+          "CompressedIteratedIntegralCoefficientOperatorValidated" ||
+        Lookup[Lookup[value, "Validation", <||>], "Method", None] =!=
+          "ProbabilisticFiniteFieldSampling" ||
+        ! TrueQ[Lookup[Lookup[value, "Validation", <||>],
+          "Passed", False]] ||
+        Lookup[value, "Orientation", None] =!=
+          "RequestedOutputDualRows",
       Return[False, Module]];
-    maximumWeight = Lookup[value, "RequestedMaximumWeight", Missing[]];
-    ranks = Lookup[value, "ObservableRankByExactWeight", Missing[]];
+    maximumWeight = Lookup[value,
+      "MaximumIteratedIntegralWeight", Missing[]];
+    ranks = Lookup[value,
+      "RequestedOutputDualRowRankByIteratedIntegralWeight", Missing[]];
     initial = Lookup[value, "InitialCoordinates", Missing[]];
-    firstAlphabet = Lookup[value, "FirstAlphabetIndices", Missing[]];
-    transitions = Lookup[value, "ObservableTransitionsByWeight", Missing[]];
+    firstAlphabet = Lookup[value,
+      "FirstPathSegmentAlphabetLetterIndices", Missing[]];
+    transitions = Lookup[value,
+      "RequestedOutputDualTransitionMatricesByIteratedIntegralWeight",
+      Missing[]];
     terminals = Lookup[value, "TerminalContractionsByExactWeight", Missing[]];
-    secondAlphabet = Lookup[value, "SecondAlphabetIndices", Missing[]];
-    secondMatrices = Lookup[value, "SecondKernelMatrices", Missing[]];
+    secondAlphabet = Lookup[value,
+      "SecondPathSegmentAlphabetLetterIndices", Missing[]];
+    secondMatrices = Lookup[value,
+      "SecondPathSegmentOperatorMatrices", Missing[]];
     finalEmbedding = Lookup[value, "FinalBoundaryEmbedding", Missing[]];
     If[! IntegerQ[maximumWeight] || maximumWeight < 0 ||
         ! VectorQ[ranks, IntegerQ[#] && # >= 0 &] ||
@@ -3640,21 +4028,21 @@ AcceptedObservableTransportQ[result_] := Module[
       {AllTrue[secondMatrices, MatrixQ[#] &&
           Dimensions[#] === {boundaryDimension, boundaryDimension} &]}]
   ];
-  materializedWordsQ[value_] := ListQ[value] && AllTrue[value,
-    MatchQ[#, {_List, _List, _?MatrixQ}] &];
-  If[representation === "OperatorAutomaton",
-    automaton = Lookup[result, "ExactOperatorAutomaton", Missing[]];
+  If[representation ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    automaton = Lookup[result,
+      "ExactIteratedIntegralCoefficientOperator", Missing[]];
     If[! operatorAutomatonQ[automaton], Return[False]]
   ];
-  If[representation === "CompactAutomaton",
-    automaton = Lookup[result, "CompactTransportAutomaton", Missing[]];
+  If[representation === "CompressedIteratedIntegralCoefficientOperator",
+    automaton = Lookup[result,
+      "CompressedIteratedIntegralCoefficientOperator", Missing[]];
     If[! compactAutomatonQ[automaton], Return[False]]
   ];
-  If[representation === "MaterializedWords" &&
-      ! materializedWordsQ[Lookup[result, "TwoSegmentWordMaps", Missing[]]],
-    Return[False]];
-  coordinateRequired = representation === "CompactAutomaton";
-  ambientRequired = boundaryMethod === "AmbientBasePoint" &&
+  coordinateRequired = representation ===
+    "CompressedIteratedIntegralCoefficientOperator";
+  ambientRequired = boundaryMethod ===
+      "AmbientSpaceWithBasePointConstraints" &&
     IntegerQ[constraintRank] && constraintRank > 0;
   structuralRequirements = {
     {"DualClosureInitialSpanMethod", "DualClosureInitialSpan"},
@@ -3672,12 +4060,12 @@ AcceptedObservableTransportQ[result_] := Module[
     "SecondKernelIdentityExact",
     Lookup[certificates, "SecondKernelIdentity", False]]];
   dlogRequired = ! firstKernelIdentityExact || ! secondKernelIdentityExact;
-  If[status === "ExactObservableTransport",
+  If[validationMethod === "DeterministicSymbolic",
     Return[TrueQ[Lookup[certificates,
         "FamilyEpsilonFormExact", False]] &&
       ! coordinateRequired && ! ambientRequired &&
-      ! structuralRequired && ! dlogRequired]];
-  If[status =!= "ModularlyVerifiedObservableTransport", Return[False]];
+      ! structuralRequired && ! dlogRequired &&
+      Lookup[result, "ProbabilisticCertificates", <||>] === <||>]];
   probabilistic = Lookup[result, "ProbabilisticCertificates", <||>];
   If[! AssociationQ[probabilistic], Return[False]];
   systems = Lookup[probabilistic, "CoordinateSystems", {}];
@@ -3707,123 +4095,144 @@ AcceptedObservableTransportQ[result_] := Module[
       dlogRequired)
 ];
 
-ObservableTransportWordMap[result_Association, firstWord_List,
-    secondWord_List] := Module[
-  {representation, materialized, automaton, firstAlphabet, secondAlphabet,
+ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+    result_Association, firstPathSegmentLetterIndices_List,
+    secondPathSegmentLetterIndices_List] := Module[
+  {representation, automaton, firstAlphabet, secondAlphabet,
    firstPositions, secondPositions, maximumWeight, initial, transitions,
    terminals, firstMatrices, firstBoundary, secondMatrices,
-   finalEmbedding, map, position, wordStatus},
-  representation = Lookup[result, "WordRepresentation",
-    "MaterializedWords"];
-  If[! AcceptedObservableTransportQ[result],
-    Return[<|"Status" -> "ObservableTransportNotAccepted"|>]
+   finalEmbedding, map, position, validation},
+  representation = Lookup[result,
+    "IteratedIntegralCoefficientRepresentation", None];
+  If[! IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      result],
+    Return[<|"Status" ->
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsRequired"|>]
   ];
-  wordStatus = If[Lookup[result, "Status", None] ===
-      "ExactObservableTransport", "ExactWordMap",
-    "ModularlyVerifiedWordMap"];
-  If[representation === "MaterializedWords",
-    materialized = SelectFirst[
-      Lookup[result, "TwoSegmentWordMaps", {}],
-      MatchQ[#, {firstWord, secondWord, _?MatrixQ}] &,
-      Missing["WordMapNotPresent"]];
-    Return[If[MissingQ[materialized],
-      <|"Status" -> "WordMapNotAvailable", "FirstWord" -> firstWord,
-        "SecondWord" -> secondWord|>,
-      <|"Status" -> wordStatus, "Source" -> "MaterializedWords",
-        "MatrixArithmeticExact" -> True,
-        "FirstWord" -> firstWord, "SecondWord" -> secondWord,
-        "Map" -> materialized[[3]]|>]]
-  ];
+  validation = result["Validation"];
 
-  If[representation === "OperatorAutomaton",
-    automaton = Lookup[result, "ExactOperatorAutomaton", Missing[]];
+  If[representation ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    automaton = Lookup[result,
+      "ExactIteratedIntegralCoefficientOperator", Missing[]];
     If[! AssociationQ[automaton] ||
         Lookup[automaton, "Status", None] =!=
-          "ExactOperatorAutomaton",
-      Return[<|"Status" -> "OperatorAutomatonNotAvailable"|>]
+          "IteratedIntegralCoefficientOperatorConstructed",
+      Return[<|"Status" ->
+        "ExactIteratedIntegralCoefficientOperatorNotAvailable"|>]
     ];
-    maximumWeight = automaton["RequestedMaximumWeight"];
-    If[Length[firstWord] + Length[secondWord] > maximumWeight,
-      Return[<|"Status" -> "WordExceedsRequestedWeight",
-        "RequestedMaximumWeight" -> maximumWeight|>]
+    maximumWeight = automaton["MaximumIteratedIntegralWeight"];
+    If[Length[firstPathSegmentLetterIndices] +
+        Length[secondPathSegmentLetterIndices] > maximumWeight,
+      Return[<|"Status" ->
+        "LetterIndexSequencesExceedRequestedWeight",
+        "MaximumIteratedIntegralWeight" -> maximumWeight|>]
     ];
-    firstAlphabet = automaton["FirstAlphabetIndices"];
-    secondAlphabet = automaton["SecondAlphabetIndices"];
+    firstAlphabet =
+      automaton["FirstPathSegmentAlphabetLetterIndices"];
+    secondAlphabet =
+      automaton["SecondPathSegmentAlphabetLetterIndices"];
     firstPositions = FirstPosition[firstAlphabet, #, Missing[]] & /@
-      firstWord;
+      firstPathSegmentLetterIndices;
     secondPositions = FirstPosition[secondAlphabet, #, Missing[]] & /@
-      secondWord;
+      secondPathSegmentLetterIndices;
     If[AnyTrue[Join[firstPositions, secondPositions], MissingQ],
-      Return[<|"Status" -> "WordUsesUnknownKernel",
-        "FirstWord" -> firstWord, "SecondWord" -> secondWord|>]
+      Return[<|"Status" ->
+        "IteratedIntegralIndexSequenceContainsUnknownLetterIndex",
+        "FirstPathSegmentLetterIndices" -> firstPathSegmentLetterIndices,
+        "SecondPathSegmentLetterIndices" ->
+          secondPathSegmentLetterIndices|>]
     ];
     firstPositions = First /@ firstPositions;
     secondPositions = First /@ secondPositions;
-    map = automaton["InitialDemandMap"];
-    firstMatrices = automaton["FirstOperatorMatrices"];
+    map = automaton["InitialRequestedOutputMap"];
+    firstMatrices = automaton["FirstPathSegmentOperatorMatrices"];
     Do[map = map . firstMatrices[[position]],
       {position, firstPositions}];
-    firstBoundary = automaton["FirstBoundaryOperator"];
+    firstBoundary = automaton["FirstPathSegmentBoundaryMap"];
     map = map . firstBoundary;
-    secondMatrices = automaton["SecondOperatorMatrices"];
+    secondMatrices = automaton["SecondPathSegmentOperatorMatrices"];
     Do[map = map . secondMatrices[[position]],
       {position, secondPositions}];
     finalEmbedding = automaton["FinalBoundaryEmbedding"];
     map = map . finalEmbedding;
-    Return[<|"Status" -> wordStatus,
-      "Source" -> "OperatorAutomaton", "Canonicalized" -> False,
+    Return[<|
+      "DataType" -> "IteratedIntegralCoefficientMatrix",
+      "SchemaVersion" -> 2,
+      "Status" -> "IteratedIntegralCoefficientMatrixComputed",
+      "Source" ->
+        "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+      "Canonicalized" -> False,
       "MatrixArithmeticExact" -> True,
-      "FirstWord" -> firstWord, "SecondWord" -> secondWord,
-      "Map" -> map|>]
+      "FirstPathSegmentLetterIndices" -> firstPathSegmentLetterIndices,
+      "SecondPathSegmentLetterIndices" ->
+        secondPathSegmentLetterIndices,
+      "IteratedIntegralCoefficientMatrix" -> map,
+      "Validation" -> validation|>]
   ];
 
-  automaton = Lookup[result, "CompactTransportAutomaton", Missing[]];
+  automaton = Lookup[result,
+    "CompressedIteratedIntegralCoefficientOperator", Missing[]];
   If[! AssociationQ[automaton] ||
       Lookup[automaton, "Status", None] =!=
-        "ModularCompactAutomatonAccepted",
-    Return[<|"Status" -> "CompactAutomatonNotAvailable"|>]
+        "CompressedIteratedIntegralCoefficientOperatorValidated",
+    Return[<|"Status" ->
+      "CompressedIteratedIntegralCoefficientOperatorNotAvailable"|>]
   ];
-  maximumWeight = automaton["RequestedMaximumWeight"];
-  If[Length[firstWord] + Length[secondWord] > maximumWeight,
-    Return[<|"Status" -> "WordExceedsRequestedWeight",
-      "RequestedMaximumWeight" -> maximumWeight|>]
+  maximumWeight = automaton["MaximumIteratedIntegralWeight"];
+  If[Length[firstPathSegmentLetterIndices] +
+      Length[secondPathSegmentLetterIndices] > maximumWeight,
+    Return[<|"Status" -> "LetterIndexSequencesExceedRequestedWeight",
+      "MaximumIteratedIntegralWeight" -> maximumWeight|>]
   ];
-  firstAlphabet = automaton["FirstAlphabetIndices"];
-  secondAlphabet = automaton["SecondAlphabetIndices"];
+  firstAlphabet = automaton["FirstPathSegmentAlphabetLetterIndices"];
+  secondAlphabet = automaton["SecondPathSegmentAlphabetLetterIndices"];
   firstPositions = FirstPosition[firstAlphabet, #, Missing[]] & /@
-    firstWord;
+    firstPathSegmentLetterIndices;
   secondPositions = FirstPosition[secondAlphabet, #, Missing[]] & /@
-    secondWord;
+    secondPathSegmentLetterIndices;
   If[AnyTrue[Join[firstPositions, secondPositions], MissingQ],
-    Return[<|"Status" -> "WordUsesUnknownKernel",
-      "FirstWord" -> firstWord, "SecondWord" -> secondWord|>]
+    Return[<|"Status" ->
+      "IteratedIntegralIndexSequenceContainsUnknownLetterIndex",
+      "FirstPathSegmentLetterIndices" -> firstPathSegmentLetterIndices,
+      "SecondPathSegmentLetterIndices" ->
+        secondPathSegmentLetterIndices|>]
   ];
   firstPositions = First /@ firstPositions;
   secondPositions = First /@ secondPositions;
   initial = automaton["InitialCoordinates"];
-  transitions = automaton["ObservableTransitionsByWeight"];
+  transitions = automaton[
+    "RequestedOutputDualTransitionMatricesByIteratedIntegralWeight"];
   terminals = automaton["TerminalContractionsByExactWeight"];
-  If[Length[firstWord] + 1 > Length[terminals],
-    Return[<|"Status" -> "WordMapNotAvailable"|>]
+  If[Length[firstPathSegmentLetterIndices] + 1 > Length[terminals],
+    Return[<|"Status" ->
+      "IteratedIntegralCoefficientMatrixNotAvailable"|>]
   ];
   map = initial;
   Do[
     map = map . transitions[[position, firstPositions[[position]]]],
-    {position, Length[firstWord]}];
-  map = map . terminals[[Length[firstWord] + 1]];
-  secondMatrices = automaton["SecondKernelMatrices"];
+    {position, Length[firstPathSegmentLetterIndices]}];
+  map = map . terminals[[Length[firstPathSegmentLetterIndices] + 1]];
+  secondMatrices = automaton["SecondPathSegmentOperatorMatrices"];
   Do[map = map . secondMatrices[[position]], {position, secondPositions}];
   finalEmbedding = automaton["FinalBoundaryEmbedding"];
   map = map . finalEmbedding;
-  <|"Status" -> "ModularlyVerifiedWordMap",
-    "Source" -> "CompactAutomaton", "FirstWord" -> firstWord,
-    "SecondWord" -> secondWord, "Map" -> map|>
+  <|
+    "DataType" -> "IteratedIntegralCoefficientMatrix",
+    "SchemaVersion" -> 2,
+    "Status" -> "IteratedIntegralCoefficientMatrixComputed",
+    "Source" -> "CompressedIteratedIntegralCoefficientOperator",
+    "FirstPathSegmentLetterIndices" -> firstPathSegmentLetterIndices,
+    "SecondPathSegmentLetterIndices" -> secondPathSegmentLetterIndices,
+    "IteratedIntegralCoefficientMatrix" -> map,
+    "Validation" -> validation|>
 ];
 
-ObservableTransportWordMap[___] :=
-  <|"Status" -> "ObservableTransportWordInputsNotWellFormed"|>;
+ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[___] :=
+  <|"Status" ->
+    "IteratedIntegralCoefficientMatrixInputsNotWellFormed"|>;
 
-Options[ReconstructObservableTransportWordMaps] = {
+Options[ReconstructIteratedIntegralCoefficientMatricesForRequestedOutputs] = {
   "CoordinateBackend" -> "Ratracer",
   "CoordinateCacheDirectory" -> Automatic,
   "CoordinateKey" -> Automatic,
@@ -3837,74 +4246,93 @@ Options[ReconstructObservableTransportWordMaps] = {
   "Verbose" -> False
 };
 
-ReconstructObservableTransportWordMaps[result_Association,
-    wordPairs_List, OptionsPattern[]] := Module[
-  {variables, samples, words, matrices, dimensions, rowCount, joined,
+ReconstructIteratedIntegralCoefficientMatricesForRequestedOutputs[
+    result_Association, letterIndexSequencePairs_List,
+    OptionsPattern[]] := Module[
+  {variables, samples, coefficientMatrixRecords, matrices, dimensions,
+   rowCount, joined,
    reconstruction, reconstructed, records, representation, automaton,
    maximumWeight, firstAlphabet, secondAlphabet, firstPositions,
    secondPositions, firstMatrices, secondMatrices, firstBoundary,
    finalEmbedding, firstState, secondState},
-  If[! AcceptedObservableTransportQ[result],
-    Return[<|"Status" -> "ObservableTransportNotAccepted"|>]];
+  If[! IteratedIntegralCoefficientOperatorForRequestedOutputsQ[result],
+    Return[<|"Status" ->
+      "IteratedIntegralCoefficientOperatorForRequestedOutputsRequired"|>]];
   If[Lookup[result, "CoefficientPresentationType", "Rational"] =!= "Rational",
     Return[<|"Status" -> "RationalCoefficientPresentationRequired"|>]];
-  If[! MatchQ[wordPairs, {{_List, _List} ...}],
-    Return[<|"Status" -> "ObservableWordBatchInvalid"|>]];
-  If[wordPairs === {},
+  If[! MatchQ[letterIndexSequencePairs, {{_List, _List} ...}],
     Return[<|"Status" ->
-      "ModularlyReconstructedObservableWordMaps",
-      "Accepted" -> True, "WordMaps" -> {},
-      "ModularCertificate" -> <|"Status" -> "StructuralEmptyBatch",
-        "Accepted" -> True, "Probabilistic" -> False,
-        "Exact" -> True|>|>]];
-  variables = Lookup[result, "Variables", Missing[]];
+      "IteratedIntegralIndexSequencePairBatchNotWellFormed"|>]];
+  If[letterIndexSequencePairs === {},
+    Return[<|
+      "DataType" -> "IteratedIntegralCoefficientMatrixBatch",
+      "SchemaVersion" -> 2,
+      "Status" ->
+        "IteratedIntegralCoefficientMatricesForRequestedOutputsReconstructed",
+      "IteratedIntegralCoefficientMatrixRecords" -> {},
+      "Validation" -> <|"Method" -> "DeterministicSymbolic",
+        "Passed" -> True, "Exact" -> True,
+        "Probabilistic" -> False|>|>]];
+  variables = Lookup[result, "CoefficientVariables", Missing[]];
   If[! MatchQ[variables, {_Symbol, _Symbol}],
     Return[<|"Status" -> "TwoVariableRecordRequired"|>]];
-  representation = Lookup[result, "WordRepresentation", None];
-  If[representation === "OperatorAutomaton",
-    automaton = result["ExactOperatorAutomaton"];
-    maximumWeight = automaton["RequestedMaximumWeight"];
-    firstAlphabet = automaton["FirstAlphabetIndices"];
-    secondAlphabet = automaton["SecondAlphabetIndices"];
-    If[AnyTrue[wordPairs,
+  representation = Lookup[result,
+    "IteratedIntegralCoefficientRepresentation", None];
+  If[representation ===
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+    automaton = result["ExactIteratedIntegralCoefficientOperator"];
+    maximumWeight = automaton["MaximumIteratedIntegralWeight"];
+    firstAlphabet =
+      automaton["FirstPathSegmentAlphabetLetterIndices"];
+    secondAlphabet =
+      automaton["SecondPathSegmentAlphabetLetterIndices"];
+    If[AnyTrue[letterIndexSequencePairs,
         Length[#[[1]]] + Length[#[[2]]] > maximumWeight ||
         ! AllTrue[#[[1]], MemberQ[firstAlphabet, #] &] ||
         ! AllTrue[#[[2]], MemberQ[secondAlphabet, #] &] &],
-      Return[<|"Status" -> "ObservableWordBatchUsesUnknownKernel"|>]];
+      Return[<|"Status" ->
+        "IteratedIntegralIndexSequencePairBatchContainsUnknownLetterIndex"|>]];
     firstPositions = AssociationThread[firstAlphabet,
       Range[Length[firstAlphabet]]];
     secondPositions = AssociationThread[secondAlphabet,
       Range[Length[secondAlphabet]]];
-    firstMatrices = automaton["FirstOperatorMatrices"];
-    secondMatrices = automaton["SecondOperatorMatrices"];
-    firstBoundary = automaton["FirstBoundaryOperator"];
+    firstMatrices = automaton["FirstPathSegmentOperatorMatrices"];
+    secondMatrices = automaton["SecondPathSegmentOperatorMatrices"];
+    firstBoundary = automaton["FirstPathSegmentBoundaryMap"];
     finalEmbedding = automaton["FinalBoundaryEmbedding"];
-    firstState[{}] = automaton["InitialDemandMap"];
-    firstState[word_List] := firstState[word] =
-      firstState[Most[word]] .
-        firstMatrices[[firstPositions[Last[word]]]];
-    secondState[firstWord_List, {}] :=
-      secondState[firstWord, {}] = firstState[firstWord] . firstBoundary;
-    secondState[firstWord_List, secondWord_List] /; secondWord =!= {} :=
-      secondState[firstWord, secondWord] =
-        secondState[firstWord, Most[secondWord]] .
-          secondMatrices[[secondPositions[Last[secondWord]]]];
+    firstState[{}] = automaton["InitialRequestedOutputMap"];
+    firstState[letterIndices_List] := firstState[letterIndices] =
+      firstState[Most[letterIndices]] .
+        firstMatrices[[firstPositions[Last[letterIndices]]]];
+    secondState[firstLetterIndices_List, {}] :=
+      secondState[firstLetterIndices, {}] =
+        firstState[firstLetterIndices] . firstBoundary;
+    secondState[firstLetterIndices_List,
+        secondLetterIndices_List] /; secondLetterIndices =!= {} :=
+      secondState[firstLetterIndices, secondLetterIndices] =
+        secondState[firstLetterIndices, Most[secondLetterIndices]] .
+          secondMatrices[[secondPositions[Last[secondLetterIndices]]]];
     matrices = (secondState[#[[1]], #[[2]]] . finalEmbedding) & /@
-      wordPairs,
-    words = FeynFacet`ObservableTransportWordMap[
-        result, #[[1]], #[[2]]] & /@ wordPairs;
-    If[! AllTrue[words, MemberQ[{"ExactWordMap",
-            "ModularlyVerifiedWordMap"}, Lookup[#, "Status", None]] &],
-      Return[<|"Status" -> "ObservableWordMaterializationFailed",
-        "Failures" -> Select[words,
-          ! MemberQ[{"ExactWordMap", "ModularlyVerifiedWordMap"},
-            Lookup[#, "Status", None]] &]|>]];
-    matrices = Lookup[words, "Map"]
+      letterIndexSequencePairs,
+    coefficientMatrixRecords =
+      ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+          result, #[[1]], #[[2]]] & /@ letterIndexSequencePairs;
+    If[! AllTrue[coefficientMatrixRecords,
+        Lookup[#, "Status", None] ===
+          "IteratedIntegralCoefficientMatrixComputed" &],
+      Return[<|"Status" ->
+        "IteratedIntegralCoefficientMatrixComputationFailed",
+        "Failures" -> Select[coefficientMatrixRecords,
+          Lookup[#, "Status", None] =!=
+            "IteratedIntegralCoefficientMatrixComputed" &]|>]];
+    matrices = Lookup[coefficientMatrixRecords,
+      "IteratedIntegralCoefficientMatrix"]
   ];
   dimensions = Dimensions /@ matrices;
   If[Length[DeleteDuplicates[dimensions]] =!= 1 ||
       Length[First[dimensions]] =!= 2,
-    Return[<|"Status" -> "ObservableWordMatrixShapesDiffer"|>]];
+    Return[<|"Status" ->
+      "IteratedIntegralCoefficientMatrixShapesDiffer"|>]];
   rowCount = First[First[dimensions]];
   joined = Join @@ (Normal /@ matrices);
   samples = Replace[OptionValue["RankSamples"], Automatic ->
@@ -3928,22 +4356,33 @@ ReconstructObservableTransportWordMaps[result_Association,
       Lookup[reconstruction, "Status", None] =!=
         "ModularMatrixReconstructionAccepted",
     Return[If[AssociationQ[reconstruction], reconstruction,
-      <|"Status" -> "ObservableWordReconstructionFailed"|>]]];
+      <|"Status" ->
+        "IteratedIntegralCoefficientMatrixReconstructionFailed"|>]]];
   reconstructed = reconstruction["Matrix"];
   records = MapIndexed[
-    {#1[[1]], #1[[2]], reconstructed[[
-      (First[#2] - 1) rowCount + Range[rowCount], All]]} &,
-    wordPairs];
-  <|"Status" -> "ModularlyReconstructedObservableWordMaps",
-    "Accepted" -> True,
-    "Probabilistic" -> TrueQ[Lookup[
-      reconstruction["ModularCertificate"], "Probabilistic", False]],
-    "Canonicalized" -> True, "WordMaps" -> records,
-    "ModularCertificate" -> reconstruction["ModularCertificate"]|>
+    <|"FirstPathSegmentLetterIndices" -> #1[[1]],
+      "SecondPathSegmentLetterIndices" -> #1[[2]],
+      "IteratedIntegralCoefficientMatrix" -> reconstructed[[
+        (First[#2] - 1) rowCount + Range[rowCount], All]]|> &,
+    letterIndexSequencePairs];
+  <|
+    "DataType" -> "IteratedIntegralCoefficientMatrixBatch",
+    "SchemaVersion" -> 2,
+    "Status" ->
+      "IteratedIntegralCoefficientMatricesForRequestedOutputsReconstructed",
+    "Canonicalized" -> True,
+    "IteratedIntegralCoefficientMatrixRecords" -> records,
+    "Validation" -> <|
+      "Method" -> "ProbabilisticFiniteFieldSampling",
+      "Passed" -> True,
+      "Exact" -> False,
+      "Probabilistic" -> True,
+      "Certificate" -> reconstruction["ModularCertificate"]|>|>
 ];
 
-ReconstructObservableTransportWordMaps[___] :=
-  <|"Status" -> "ObservableWordBatchInputsNotWellFormed"|>;
+ReconstructIteratedIntegralCoefficientMatricesForRequestedOutputs[___] :=
+  <|"Status" ->
+    "IteratedIntegralCoefficientMatrixBatchInputsNotWellFormed"|>;
 
 (* Public entry to the epsilon-valuation certifier (round 4, 2026-09-02):
    one-line wrappers only; the machinery is observableTransportCertifyEpsilonValuations

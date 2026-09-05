@@ -102,8 +102,9 @@ kernelSetup[ks_List] := If[ks =!= {}, ParallelEvaluate[(Off[OptionValue::optnf];
    Quit[c_: 0] := Throw[{"EXIT", c}, "KernelPoolExit"];
    Protect[Exit, Quit];), ks]];
 kernelPreload[ks_List] := If[ks =!= {} && TrueQ[preload],
-   ParallelEvaluate[If[Names["FeynFacet`TransportFamily"] === {},
-     Quiet[Get["/home/maxzhang/factorization-and-loops/Addon/Load/LoadFACET.wl"], General::shdw]], ks]];
+   With[{loader = FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]},
+     ParallelEvaluate[If[Names["FeynFacet`FamilyArtifactRead"] === {},
+       Quiet[Get[loader], General::shdw]], ks]]];
 kernelDefs[ks_List] := If[ks =!= {}, With[{f = poolRunFile}, ParallelEvaluate[Get[f], ks]]];
 kernelSetup[Kernels[]];
 If[TrueQ[preload],

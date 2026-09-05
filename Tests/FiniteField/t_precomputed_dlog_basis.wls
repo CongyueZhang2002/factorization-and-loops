@@ -6,8 +6,8 @@ $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
-prepare = FeynFacet`Private`finiteFieldStripPrepare;
-definingInput = FeynFacet`Private`finiteFieldStripDefiningInput;
+prepare = FeynFacet`Private`finiteFieldOffDiagonalBlockPrepare;
+definingInput = FeynFacet`Private`finiteFieldOffDiagonalBlockDefiningInput;
 
 Clear[tx, ty, te];
 strip = {
@@ -15,7 +15,7 @@ strip = {
   {{{0}}, {{0}}},
   {{{1}}, {{0}}}
 };
-record = <|"Strip" -> strip, "Variables" -> {tx, ty},
+record = <|"OffDiagonalBlockEquation" -> strip, "Variables" -> {tx, ty},
   "Regulator" -> te|>;
 dlogRecords = {
   <|"Letter" -> tx, "OneForm" -> {1/tx, 0}|>,
@@ -32,36 +32,36 @@ storedAlphabet = {1 + tx};
 storedDenominator = 1 + tx;
 modular = <|
   "Prime" -> 1000003, "UnresolvedCoordinates" -> {},
-  "GaugeUnknownCount" -> 1, "FreeResidueCount" -> 1,
-  "GaugeNumeratorDegrees" -> {0, 0}, "NormalizationColumns" -> {},
-  "GaugeSupport" -> {{0, 0}}, "SampleCount" -> 1,
+  "OffDiagonalBasisTransformationUnknownCount" -> 1, "FreeResidueCount" -> 1,
+  "OffDiagonalBasisTransformationNumeratorDegrees" -> {0, 0}, "NormalizationColumns" -> {},
+  "OffDiagonalBasisTransformationNumeratorSupport" -> {{0, 0}}, "SampleCount" -> 1,
   "CertificationMode" -> "HeldOut", "Alphabet" -> storedAlphabet,
-  "GaugeDenominator" -> storedDenominator,
+  "OffDiagonalBasisTransformationDenominator" -> storedDenominator,
   "Interpolations" -> {zeroCoordinate, zeroCoordinate}|>;
-lifted = FeynFacet`ReconstructEpsFormStrip[record, {modular},
+lifted = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[record, {modular},
   "KernelCount" -> 1, "ExactCheck" -> False];
 legacyOptionRecord = Join[record, <|
-  "ExtraLetters" -> {1 + tx}, "GaugeDenominatorFactor" -> 1 + tx|>];
+  "ExtraLetters" -> {1 + tx}, "OffDiagonalBasisTransformationDenominatorFactor" -> 1 + tx|>];
 legacyOptionModular = Join[KeyDrop[modular,
-    {"Alphabet", "GaugeDenominator"}], <|
+    {"Alphabet", "OffDiagonalBasisTransformationDenominator"}], <|
   "FreeResidueCount" -> 3,
   "Interpolations" -> ConstantArray[zeroCoordinate, 4]|>];
-legacyOptionLifted = FeynFacet`ReconstructEpsFormStrip[
+legacyOptionLifted = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[
   legacyOptionRecord, {legacyOptionModular},
   "KernelCount" -> 1, "ExactCheck" -> False];
 explicitOptionModular = Join[legacyOptionModular, <|
   "Prime" -> 1000033,
   "Alphabet" -> {tx, ty, 1 + tx},
-  "GaugeDenominator" -> 1 + tx|>];
-mixedSchemaLifted = FeynFacet`ReconstructEpsFormStrip[
+  "OffDiagonalBasisTransformationDenominator" -> 1 + tx|>];
+mixedSchemaLifted = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[
   legacyOptionRecord, {legacyOptionModular, explicitOptionModular},
   "KernelCount" -> 1, "ExactCheck" -> False];
 conflictingOptionModular = Join[explicitOptionModular, <|
   "Prime" -> 1000037, "Alphabet" -> {tx, ty}|>];
-mixedSchemaConflict = Quiet[FeynFacet`ReconstructEpsFormStrip[
+mixedSchemaConflict = Quiet[FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[
   legacyOptionRecord, {legacyOptionModular, conflictingOptionModular},
   "KernelCount" -> 1, "ExactCheck" -> False],
-  FeynFacet`ReconstructEpsFormStrip::data];
+  FeynFacet`ReconstructOffDiagonalBasisTransformationBlock::data];
 
 checks = <|
   "AutomaticPreparation" -> AssociationQ[automatic],
@@ -79,15 +79,15 @@ checks = <|
     precomputed["DefiningInput"]["DLogOneForms"] === dlogRecords,
   "LiftUsesStoredAlphabet" -> AssociationQ[lifted] &&
     lifted["Alphabet"] === storedAlphabet,
-  "LiftUsesStoredGaugeDenominator" -> AssociationQ[lifted] &&
-    lifted["GaugeDenominator"] === storedDenominator &&
-    lifted["GaugeDenominatorDegrees"] === {1, 0},
+  "LiftUsesStoredOffDiagonalBasisTransformationDenominator" -> AssociationQ[lifted] &&
+    lifted["OffDiagonalBasisTransformationDenominator"] === storedDenominator &&
+    lifted["OffDiagonalBasisTransformationDenominatorDegrees"] === {1, 0},
   "LegacyLiftReplaysRecordAnsatz" -> AssociationQ[legacyOptionLifted] &&
     legacyOptionLifted["Alphabet"] === {tx, ty, 1 + tx} &&
-    legacyOptionLifted["GaugeDenominator"] === 1 + tx,
+    legacyOptionLifted["OffDiagonalBasisTransformationDenominator"] === 1 + tx,
   "CompatibleMixedSchemaLift" -> AssociationQ[mixedSchemaLifted] &&
     mixedSchemaLifted["Alphabet"] === {tx, ty, 1 + tx} &&
-    mixedSchemaLifted["GaugeDenominator"] === 1 + tx,
+    mixedSchemaLifted["OffDiagonalBasisTransformationDenominator"] === 1 + tx,
   "ConflictingMixedSchemaRejected" -> mixedSchemaConflict === $Failed
 |>; 
 

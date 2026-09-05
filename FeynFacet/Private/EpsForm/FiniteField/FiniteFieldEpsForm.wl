@@ -1,4 +1,4 @@
-(* Exact lifting and verification of simultaneous finite-field strip gauges. *)
+(* Exact lifting and verification of simultaneous finite-field offDiagonalBlockEquation basisTransformationBlocks. *)
 
 (* SymbolQ is not a Wolfram Language builtin. Without this definition
    the record guards below returned unevaluated, never fired, and a
@@ -11,13 +11,13 @@ SymbolQ[x_] := MatchQ[x, _Symbol];
    the usage messages FeynFacet.m defines before loading this file
    (found 2026-08-21). Clear still drops their definitions, so re-Get of
    this file stays clean. *)
-Clear[NormalizeEpsFormAffineSample, ReconstructEpsFormStrip, VerifyEpsFormStrip];
+Clear[NormalizeEpsFormAffineSample, ReconstructOffDiagonalBasisTransformationBlock, VerifyOffDiagonalBasisTransformationBlock];
 ClearAll[
   epsFormFiniteFieldRationalReconstruct,
   epsFormFiniteFieldCombineLists,
   epsFormFiniteFieldCombineCoordinate,
   epsFormFiniteFieldImageQ,
-  epsFormFiniteFieldGaugeDenominator,
+  epsFormFiniteFieldOffDiagonalBasisTransformationDenominator,
   epsFormFiniteFieldPaddedCoordinate
 ];
 
@@ -26,22 +26,22 @@ NormalizeEpsFormAffineSample::shape =
 NormalizeEpsFormAffineSample::singular =
   "The selected nullspace-coordinate block is singular modulo `1`.";
 
-ReconstructEpsFormStrip::record =
-  "The record must contain a valid two-variable Strip, Variables, and Regulator.";
-ReconstructEpsFormStrip::data =
+ReconstructOffDiagonalBasisTransformationBlock::record =
+  "The record must contain a valid two-variable OffDiagonalBlock, Variables, and Regulator.";
+ReconstructOffDiagonalBasisTransformationBlock::data =
   "The modular interpolation records are incomplete or mutually inconsistent.";
-ReconstructEpsFormStrip::dlog =
+ReconstructOffDiagonalBasisTransformationBlock::dlog =
   "The lifted solution is not a dlog form: `1`.";
-ReconstructEpsFormStrip::modulus =
+ReconstructOffDiagonalBasisTransformationBlock::modulus =
   "The combined modulus is too small for unique rational reconstruction.";
-ReconstructEpsFormStrip::check =
-  "The reconstructed gauge does not satisfy both exact Pfaffian equations.";
+ReconstructOffDiagonalBasisTransformationBlock::check =
+  "The reconstructed basisTransformationBlock does not satisfy both exact Pfaffian equations.";
 
-VerifyEpsFormStrip::record = ReconstructEpsFormStrip::record;
-VerifyEpsFormStrip::solution =
-  "The solution must contain Gauge, Alphabet, and ResidueMatrices with compatible dimensions.";
+VerifyOffDiagonalBasisTransformationBlock::record = ReconstructOffDiagonalBasisTransformationBlock::record;
+VerifyOffDiagonalBasisTransformationBlock::solution =
+  "The solution must contain OffDiagonalBasisTransformationBlock, Alphabet, and ResidueMatrices with compatible dimensions.";
 
-Options[VerifyEpsFormStrip] = {
+Options[VerifyOffDiagonalBasisTransformationBlock] = {
   "KernelCount" -> Automatic,
   (* "Exact": both Pfaffian identities as rational-function identities
      (Together on every entry; 16-60 s on a hard block).  "Numerical"
@@ -53,7 +53,7 @@ Options[VerifyEpsFormStrip] = {
   "Points" -> 2
 };
 
-Options[ReconstructEpsFormStrip] = Join[Options[VerifyEpsFormStrip],
+Options[ReconstructOffDiagonalBasisTransformationBlock] = Join[Options[VerifyOffDiagonalBasisTransformationBlock],
   {"ExactCheck" -> True}];
 
 NormalizeEpsFormAffineSample[
@@ -140,7 +140,7 @@ epsFormFiniteFieldCombineCoordinate[data_List, moduli_List] := Module[
    the CRT; $Failed when the per-prime degree records disagree (the
    callers' typed "CRT failed" case).  Round 4 (2026-09-02): the two
    production lifts, diagonalBlockLiftFunction (DiagonalBlockEpsForm.wl)
-   and finiteFieldGaugePullBackLift (FiniteFieldGaugePullBack.wl),
+   and finiteFieldBasisTransformationReexpressionLift (FiniteFieldBasisTransformationReexpression.wl),
    prepare their input here and lift with modularLift instead of
    spelling out CRT + rational reconstruction + image check. *)
 epsFormFiniteFieldPaddedCoordinate[data_List] := Module[
@@ -164,14 +164,14 @@ epsFormFiniteFieldPaddedCoordinate[data_List] := Module[
 epsFormFiniteFieldImageQ[integer_Integer, rational_, modulus_Integer] :=
   TrueQ[modularImageQ[integer, rational, modulus]];
 
-epsFormFiniteFieldGaugeDenominator[bbar_List, variables_List] := Module[
+epsFormFiniteFieldOffDiagonalBasisTransformationDenominator[inhomogeneity_List, variables_List] := Module[
   {factorPairs, factors, powers},
   factorPairs = Flatten[
     Function[entry,
       Module[{denominator = Denominator[Together[entry]]},
         If[denominator === 1, {},
           Select[Rest[FactorList[denominator]],
-            ! NumericQ[First[#]] &]]]] /@ Flatten[bbar],
+            ! NumericQ[First[#]] &]]]] /@ Flatten[inhomogeneity],
     1];
   If[factorPairs === {}, Return[1]];
   factors = DeleteDuplicates[factorPairs[[All, 1]], SameQ];
@@ -184,42 +184,42 @@ epsFormFiniteFieldGaugeDenominator[bbar_List, variables_List] := Module[
       Last[#] > 1 && ! FreeQ[First[#], Alternatives @@ variables] &])
 ];
 
-VerifyEpsFormStrip[record_Association, solution_Association,
+VerifyOffDiagonalBasisTransformationBlock[record_Association, solution_Association,
     OptionsPattern[]] := Module[
-  {strip, variables, epsilon, e, c, bbar, gauge, alphabet,
+  {offDiagonalBlockEquation, variables, epsilon, e, c, inhomogeneity, basisTransformationBlock, alphabet,
    residueMatrices, dimensions, dlog, residuals, entries, kernelCount,
    launched = {}, checkedEntries, seconds, identitiesZero,
    lettersEpsilonFree, residuesKinematicsFree, residuesEpsilonFree,
    dlogForm, canonical, numericalQ, points, pointOK, prime},
   If[! And @@ (KeyExistsQ[record, #] & /@
-      {"Strip", "Variables", "Regulator"}) ||
+      {"OffDiagonalBlockEquation", "Variables", "Regulator"}) ||
       ! MatchQ[record["Variables"], {_, _}] ||
       ! SymbolQ[record["Regulator"]] ||
-      ! epsFormStripShapeQ[record["Strip"]],
-    Message[VerifyEpsFormStrip::record]; Return[$Failed]];
+      ! offDiagonalBlockShapeQ[record["OffDiagonalBlockEquation"]],
+    Message[VerifyOffDiagonalBasisTransformationBlock::record]; Return[$Failed]];
   If[! And @@ (KeyExistsQ[solution, #] & /@
-      {"Gauge", "Alphabet", "ResidueMatrices"}),
-    Message[VerifyEpsFormStrip::solution]; Return[$Failed]];
-  strip = record["Strip"];
+      {"OffDiagonalBasisTransformationBlock", "Alphabet", "ResidueMatrices"}),
+    Message[VerifyOffDiagonalBasisTransformationBlock::solution]; Return[$Failed]];
+  offDiagonalBlockEquation = record["OffDiagonalBlockEquation"];
   variables = record["Variables"];
   epsilon = record["Regulator"];
-  {e, c, bbar} = strip;
-  gauge = solution["Gauge"];
+  {e, c, inhomogeneity} = offDiagonalBlockEquation;
+  basisTransformationBlock = solution["OffDiagonalBasisTransformationBlock"];
   alphabet = solution["Alphabet"];
   residueMatrices = solution["ResidueMatrices"];
-  dimensions = Dimensions[bbar[[1]]];
-  If[Dimensions[gauge] =!= dimensions ||
+  dimensions = Dimensions[inhomogeneity[[1]]];
+  If[Dimensions[basisTransformationBlock] =!= dimensions ||
       Length[residueMatrices] =!= Length[alphabet] ||
       ! AllTrue[residueMatrices, Dimensions[#] === dimensions &],
-    Message[VerifyEpsFormStrip::solution]; Return[$Failed]];
+    Message[VerifyOffDiagonalBasisTransformationBlock::solution]; Return[$Failed]];
   (* Structural conditions (Codex audit 2026-08-21, scoped to the
-     pipeline contract on 2026-08-21 evening).  The strip solver's product
+     pipeline contract on 2026-08-21 evening).  The offDiagonalBlockEquation solver's product
      is a DLOG FORM: regulator-free letters and residues free of both
      kinematic variables; the regulator may still appear in the residues
      -- the sector driver removes it afterwards with CANONICA's
      TransformDlogToEpsForm and the family certifier demands the
-     epsilon-factorized result (CF254's certified record was built from
-     exactly such strips).  The two dlog conditions are checked BEFORE the
+     epsilon-factorized result (a certified production record was built
+     from exactly such off-diagonal blocks).  The two dlog conditions are checked BEFORE the
      expensive unspecialized Together pass; regulator-freedom of the
      residues is reported separately as the canonical-form statement. *)
   lettersEpsilonFree = FreeQ[alphabet, epsilon];
@@ -246,8 +246,8 @@ VerifyEpsFormStrip[record_Association, solution_Association,
     Together[D[Log[alphabet[[a]]], variables[[mu]]]],
     {a, Length[alphabet]}, {mu, 2}];
   residuals = Table[
-    D[gauge, variables[[mu]]] -
-      epsilon (e[[mu]].gauge - gauge.c[[mu]]) - bbar[[mu]] +
+    D[basisTransformationBlock, variables[[mu]]] -
+      epsilon (e[[mu]].basisTransformationBlock - basisTransformationBlock.c[[mu]]) - inhomogeneity[[mu]] +
       epsilon Sum[residueMatrices[[a]] dlog[[a, mu]],
         {a, Length[alphabet]}],
     {mu, 2}];
@@ -304,7 +304,7 @@ VerifyEpsFormStrip[record_Association, solution_Association,
   canonical = dlogForm && residuesEpsilonFree;
   <|
     (* the literal differential-identity result is kept separate from the
-       structural conditions; the strip acceptance is DLogFormCertified,
+       structural conditions; the offDiagonalBlockEquation acceptance is DLogFormCertified,
        the epsilon-form statement is CanonicalEpsFormCertified *)
     "ExactPfaffianResidualsZero" -> identitiesZero,
     "ExactPfaffianIdentitiesZero" -> identitiesZero,
@@ -322,41 +322,41 @@ VerifyEpsFormStrip[record_Association, solution_Association,
   |>
 ];
 
-ReconstructEpsFormStrip[record_Association, modularData_List,
+ReconstructOffDiagonalBasisTransformationBlock[record_Association, modularData_List,
     OptionsPattern[]] := Module[
-  {strip, variables, epsilon, e, c, bbar, primes, coordinateCount,
+  {offDiagonalBlockEquation, variables, epsilon, e, c, inhomogeneity, primes, coordinateCount,
    combinedModulus, combined, liftedPairs, liftedVector,
-   coefficientChecks, numeratorDegrees, gaugeDenominator,
-   gaugeDenominatorDegrees, dimensions, upperDimension, lowerDimension,
-   gaugeUnknownCount, residueCount, alphabet, residueMatrices, gauge,
+   coefficientChecks, numeratorDegrees, offDiagonalBasisTransformationDenominator,
+   offDiagonalBasisTransformationDenominatorDegrees, dimensions, upperDimension, lowerDimension,
+   offDiagonalBasisTransformationUnknownCount, residueCount, alphabet, residueMatrices, basisTransformationBlock,
    columnIndex, result, verification, liftingSeconds, support, heldOutQ,
-   storedGaugeDenominators, storedAlphabets,
-   historicalGaugeDenominator, effectiveGaugeDenominators,
+   storedOffDiagonalBasisTransformationDenominators, storedAlphabets,
+   historicalOffDiagonalBasisTransformationDenominator, effectiveOffDiagonalBasisTransformationDenominators,
    historicalAlphabet, effectiveAlphabets},
   If[! And @@ (KeyExistsQ[record, #] & /@
-      {"Strip", "Variables", "Regulator"}) ||
+      {"OffDiagonalBlockEquation", "Variables", "Regulator"}) ||
       ! MatchQ[record["Variables"], {_, _}] ||
       ! SymbolQ[record["Regulator"]] ||
-      ! epsFormStripShapeQ[record["Strip"]],
-    Message[ReconstructEpsFormStrip::record]; Return[$Failed]];
+      ! offDiagonalBlockShapeQ[record["OffDiagonalBlockEquation"]],
+    Message[ReconstructOffDiagonalBasisTransformationBlock::record]; Return[$Failed]];
   If[modularData === {} || ! AllTrue[modularData, AssociationQ] ||
       AnyTrue[modularData,
         Lookup[#, "UnresolvedCoordinates", {1}] =!= {} &],
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
   primes = Lookup[modularData, "Prime", Missing["Prime"]];
   If[! DuplicateFreeQ[primes] || ! AllTrue[primes, PrimeQ] ||
       ! AllTrue[Subsets[primes, {2}], CoprimeQ @@ # &] ||
       Length[DeleteDuplicates[Lookup[modularData,
-        "GaugeUnknownCount"]]] =!= 1 ||
+        "OffDiagonalBasisTransformationUnknownCount"]]] =!= 1 ||
       Length[DeleteDuplicates[Lookup[modularData,
         "FreeResidueCount"]]] =!= 1 ||
       Length[DeleteDuplicates[Lookup[modularData,
-        "GaugeNumeratorDegrees"]]] =!= 1 ||
+        "OffDiagonalBasisTransformationNumeratorDegrees"]]] =!= 1 ||
       Length[DeleteDuplicates[Lookup[modularData,
         "NormalizationColumns"]]] =!= 1 ||
       Length[DeleteDuplicates[Length /@
         Lookup[modularData, "Interpolations"]]] =!= 1,
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
   (* A2: a held-out-certified interpolation carries the deterministic
      point requirement as metadata only; its certificates are the
      unseen-prime residual and the exact check below *)
@@ -370,7 +370,7 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
             Lookup[#, "UniquenessPointRequirement", Infinity]) & /@
           data["Interpolations"]],
       modularData]],
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
   coordinateCount = Length[First[modularData]["Interpolations"]];
   combinedModulus = Times @@ primes;
   combined = Table[
@@ -378,7 +378,7 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
       modularData[[All, "Interpolations", coordinate]], primes],
     {coordinate, coordinateCount}];
   If[MemberQ[combined, $Failed],
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
   {liftingSeconds, liftedPairs} = AbsoluteTiming[
     Map[
       Function[data,
@@ -392,7 +392,7 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
         |>],
       combined]];
   If[! FreeQ[liftedPairs, $Failed],
-    Message[ReconstructEpsFormStrip::modulus]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::modulus]; Return[$Failed]];
   coefficientChecks = MapThread[
     Function[{integers, rationals},
       And[
@@ -411,46 +411,46 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
       ]],
     {combined, liftedPairs}];
   If[! And @@ coefficientChecks,
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
-  strip = record["Strip"];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
+  offDiagonalBlockEquation = record["OffDiagonalBlockEquation"];
   variables = record["Variables"];
   epsilon = record["Regulator"];
-  {e, c, bbar} = strip;
+  {e, c, inhomogeneity} = offDiagonalBlockEquation;
   liftedVector = Together[
       FromDigits[Reverse[#NumeratorCoefficients], epsilon]/
         FromDigits[Reverse[#DenominatorCoefficients], epsilon]] & /@
     liftedPairs;
-  numeratorDegrees = First[modularData]["GaugeNumeratorDegrees"];
+  numeratorDegrees = First[modularData]["OffDiagonalBasisTransformationNumeratorDegrees"];
   (* New modular artifacts carry the mathematical ansatz that generated
      their coordinates.  In particular, a widened denominator or a
-     precomputed/extra dlog basis cannot be reconstructed from the raw strip.
+     precomputed/extra dlog basis cannot be reconstructed from the raw offDiagonalBlockEquation.
      All-old artifacts retain the historical derivation.  In a mixed set,
      legacy artifacts inherit that same value, so an explicit new value is
      accepted only when it agrees with the historical ansatz. *)
-  historicalGaugeDenominator =
-    epsFormFiniteFieldGaugeDenominator[bbar, variables] *
-      Lookup[record, "GaugeDenominatorFactor", 1];
-  storedGaugeDenominators = Lookup[modularData, "GaugeDenominator",
-    Missing["GaugeDenominator"]];
-  effectiveGaugeDenominators = Replace[storedGaugeDenominators,
-    _Missing -> historicalGaugeDenominator, {1}];
-  If[Length[DeleteDuplicates[effectiveGaugeDenominators]] =!= 1,
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
-  gaugeDenominator = First[effectiveGaugeDenominators];
-  gaugeDenominatorDegrees = Exponent[gaugeDenominator, #] & /@ variables;
-  dimensions = Dimensions[bbar[[1]]];
+  historicalOffDiagonalBasisTransformationDenominator =
+    epsFormFiniteFieldOffDiagonalBasisTransformationDenominator[inhomogeneity, variables] *
+      Lookup[record, "OffDiagonalBasisTransformationDenominatorFactor", 1];
+  storedOffDiagonalBasisTransformationDenominators = Lookup[modularData, "OffDiagonalBasisTransformationDenominator",
+    Missing["OffDiagonalBasisTransformationDenominator"]];
+  effectiveOffDiagonalBasisTransformationDenominators = Replace[storedOffDiagonalBasisTransformationDenominators,
+    _Missing -> historicalOffDiagonalBasisTransformationDenominator, {1}];
+  If[Length[DeleteDuplicates[effectiveOffDiagonalBasisTransformationDenominators]] =!= 1,
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
+  offDiagonalBasisTransformationDenominator = First[effectiveOffDiagonalBasisTransformationDenominators];
+  offDiagonalBasisTransformationDenominatorDegrees = Exponent[offDiagonalBasisTransformationDenominator, #] & /@ variables;
+  dimensions = Dimensions[inhomogeneity[[1]]];
   {upperDimension, lowerDimension} = dimensions;
-  (* A3: the gauge numerator support (list of {px, py}); older modular
+  (* A3: the basisTransformationBlock numerator support (list of {px, py}); older modular
      data without the key used the full rectangle *)
-  support = Lookup[First[modularData], "GaugeSupport",
+  support = Lookup[First[modularData], "OffDiagonalBasisTransformationNumeratorSupport",
     Flatten[Table[{px, py}, {px, 0, numeratorDegrees[[1]]},
       {py, 0, numeratorDegrees[[2]]}], 1]];
-  If[Length[DeleteDuplicates[Lookup[modularData, "GaugeSupport",
-      Missing["GaugeSupport"]]]] =!= 1,
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
-  gaugeUnknownCount = upperDimension lowerDimension Length[support];
+  If[Length[DeleteDuplicates[Lookup[modularData, "OffDiagonalBasisTransformationNumeratorSupport",
+      Missing["OffDiagonalBasisTransformationNumeratorSupport"]]]] =!= 1,
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
+  offDiagonalBasisTransformationUnknownCount = upperDimension lowerDimension Length[support];
   historicalAlphabet =
-    With[{base = epsFormStripAlphabet[strip, variables, epsilon]},
+    With[{base = offDiagonalBlockAlphabet[offDiagonalBlockEquation, variables, epsilon]},
       If[base === $Failed, $Failed,
         DeleteDuplicates[Join[base,
           Flatten[{Lookup[record, "ExtraLetters", {}]}]]]]];
@@ -458,40 +458,40 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
   effectiveAlphabets = Replace[storedAlphabets,
     _Missing -> historicalAlphabet, {1}];
   If[Length[DeleteDuplicates[effectiveAlphabets]] =!= 1,
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
   alphabet = First[effectiveAlphabets];
   If[alphabet === $Failed || ! ListQ[alphabet],
-    Message[ReconstructEpsFormStrip::record]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::record]; Return[$Failed]];
   residueCount = Length[alphabet] upperDimension lowerDimension;
-  If[gaugeUnknownCount =!= First[modularData]["GaugeUnknownCount"] ||
+  If[offDiagonalBasisTransformationUnknownCount =!= First[modularData]["OffDiagonalBasisTransformationUnknownCount"] ||
       residueCount =!= First[modularData]["FreeResidueCount"] ||
-      Length[liftedVector] =!= gaugeUnknownCount + residueCount,
-    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+      Length[liftedVector] =!= offDiagonalBasisTransformationUnknownCount + residueCount,
+    Message[ReconstructOffDiagonalBasisTransformationBlock::data]; Return[$Failed]];
   columnIndex[i_, j_, k_] :=
     ((i - 1) lowerDimension + (j - 1)) Length[support] + k;
-  gauge = Table[
+  basisTransformationBlock = Table[
     Sum[liftedVector[[columnIndex[i, j, k]]]
         variables[[1]]^support[[k, 1]] variables[[2]]^support[[k, 2]],
-      {k, Length[support]}]/gaugeDenominator,
+      {k, Length[support]}]/offDiagonalBasisTransformationDenominator,
     {i, upperDimension}, {j, lowerDimension}];
   residueMatrices = ArrayReshape[
-    Drop[liftedVector, gaugeUnknownCount],
+    Drop[liftedVector, offDiagonalBasisTransformationUnknownCount],
     {Length[alphabet], upperDimension, lowerDimension}];
   result = <|
     "Status" -> "Reconstructed",
     "Method" -> "SimultaneousFiniteFieldPDE",
-    "Gauge" -> gauge,
+    "OffDiagonalBasisTransformationBlock" -> basisTransformationBlock,
     "Alphabet" -> alphabet,
     "ResidueMatrices" -> residueMatrices,
     "Primes" -> primes,
     "CombinedModulus" -> combinedModulus,
     "NormalizationColumns" ->
       First[modularData]["NormalizationColumns"],
-    "GaugeDenominator" -> gaugeDenominator,
-    "GaugeDenominatorDegrees" -> gaugeDenominatorDegrees,
-    "GaugeNumeratorDegrees" -> numeratorDegrees,
-    "GaugeSupport" -> support,
-    "GaugeSupportCount" -> Length[support],
+    "OffDiagonalBasisTransformationDenominator" -> offDiagonalBasisTransformationDenominator,
+    "OffDiagonalBasisTransformationDenominatorDegrees" -> offDiagonalBasisTransformationDenominatorDegrees,
+    "OffDiagonalBasisTransformationNumeratorDegrees" -> numeratorDegrees,
+    "OffDiagonalBasisTransformationNumeratorSupport" -> support,
+    "OffDiagonalBasisTransformationNumeratorSupportCount" -> Length[support],
     "CoefficientLiftChecks" -> coefficientChecks,
     "LiftingSeconds" -> liftingSeconds
   |>;
@@ -505,15 +505,15 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
     "ResiduesEpsFree" -> FreeQ[residueMatrices, epsilon]|>];
   If[! TrueQ[OptionValue["ExactCheck"]],
     Return[Join[result, <|"Status" -> "LiftedUnverified"|>]]];
-  verification = VerifyEpsFormStrip[record, result,
+  verification = VerifyOffDiagonalBasisTransformationBlock[record, result,
     "KernelCount" -> OptionValue["KernelCount"]];
   If[AssociationQ[verification] &&
       Lookup[verification, "StructuralFailureReasons", {}] =!= {},
-    Message[ReconstructEpsFormStrip::dlog,
+    Message[ReconstructOffDiagonalBasisTransformationBlock::dlog,
       verification["StructuralFailureReasons"]]; Return[$Failed]];
   If[! AssociationQ[verification] ||
       ! TrueQ[verification["DLogFormCertified"]],
-    Message[ReconstructEpsFormStrip::check]; Return[$Failed]];
+    Message[ReconstructOffDiagonalBasisTransformationBlock::check]; Return[$Failed]];
   Join[KeyDrop[result, "LiftedVector"], KeyDrop[verification, "Residuals"],
     <|"Status" -> "Solved", "ExactDLog" -> True|>]
 ];

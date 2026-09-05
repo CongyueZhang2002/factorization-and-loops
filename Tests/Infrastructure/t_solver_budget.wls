@@ -19,8 +19,8 @@
        the same result as the same fixture solved without the option:
        the same status, the same mathematical payload key by key, and the
        expectation the existing suite already records for that fixture
-       (Tests/FiniteField/t_finite_field_strip_solve.wls: ExactPfaffianResidualsZero
-       and DLogFormCertified; Tests/Multiquadratic/t_multiquadratic_strip_solve.wls:
+       (Tests/FiniteField/t_finite_field_off_diagonal_block_solve.wls: ExactPfaffianResidualsZero
+       and DLogFormCertified; Tests/Multiquadratic/t_multiquadratic_off_diagonal_block_solve.wls:
        terminal status "ModularConsistent", never "Solved", the exact
        lift equal to the known coefficient vector).
 
@@ -37,9 +37,9 @@
 
    The fixtures are the ones the existing finite-field and multiquadratic
    suites use: the synthetic 1x1 strip of
-   Tests/FiniteField/t_finite_field_strip_solve.wls (the
+   Tests/FiniteField/t_finite_field_off_diagonal_block_solve.wls (the
    FACET_AUTOMATED_FINITE_FIELD_TEST record) and the rank-1 1x1
-   constructed block of Tests/Multiquadratic/t_multiquadratic_strip_solve.wls. *)
+   constructed block of Tests/Multiquadratic/t_multiquadratic_off_diagonal_block_solve.wls. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -50,9 +50,9 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 report[label_, value_] := Print["     ", label, ": ", Short[value, 4]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-solveMultiquadratic = mq["solveEpsFormStripMultiquadratic"];
-multiquadraticRootOrder = mq["multiquadraticStripRootOrder"];
-multiquadraticPrepare = mq["multiquadraticStripPrepare"];
+solveMultiquadratic = mq["solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"];
+multiquadraticRootOrder = mq["multiquadraticOffDiagonalBlockRootOrder"];
+multiquadraticPrepare = mq["multiquadraticOffDiagonalBlockPrepare"];
 
 (* the stage vocabulary the two engines may name; a BudgetExhausted
    result outside it is a defect, not a pass *)
@@ -64,18 +64,19 @@ finiteFieldStages = {"Entry", "SupportLearningCycle", "SupportCensus",
    themselves, so an expired budget stops at the screen it was running
    instead of surviving until "Preparation" *)
 multiquadraticStages = {"Entry", "IntegrabilityScreen", "Preparation",
-  "GaugeScreen", "GaugeScreenLadder", "ModularSampling",
+  "OffDiagonalBasisTransformationBlockScreen", "OffDiagonalBasisTransformationBlockScreenLadder", "ModularSampling",
   "HeldOutGuard", "BranchCertificate", "ExactLift"};
-(* multiquadraticStripPrepare became cooperatively deadline-aware on
+(* multiquadraticOffDiagonalBlockPrepare became cooperatively deadline-aware on
    2026-08-25 (until then it was the one stage of this engine a sector
    budget could not stop: a mission measured 51 minutes inside a
    first-call prepare on CF300 sector 12 with no way out).  Its interior
    boundaries name themselves "Preparation:<substage>", so the stage
    vocabulary admits that form as well as the bare "Preparation" the
    entry gate still uses. *)
-multiquadraticPrepareSubstages = {"Entry", "RootOrder", "ForcingChannels",
-  "CandidateLetters", "GaugeDenominator", "ABIPayload", "CompileTensor"};
-(* multiquadraticStripCompile became cooperatively deadline-aware on
+multiquadraticPrepareSubstages = {"Entry", "RootOrder", "InhomogeneityChannels",
+  "CandidateLetters", "OffDiagonalBasisTransformationDenominator",
+  "DefiningData", "CompileTensor"};
+(* multiquadraticOffDiagonalBlockCompile became cooperatively deadline-aware on
    2026-08-25 (Codex 14:30: the public path checked the budget only
    AFTER compile returned, so a multi-minute symbolic compile could not
    be stopped).  Its boundaries name themselves "Compilation:<substage>"
@@ -83,7 +84,7 @@ multiquadraticPrepareSubstages = {"Entry", "RootOrder", "ForcingChannels",
    "Substage" key rather than in the stage name, which is what keeps
    this vocabulary closed. *)
 multiquadraticCompileSubstages = {"Entry", "Core", "OneForms",
-  "GaugeDenominator"};
+  "OffDiagonalBasisTransformationDenominator"};
 multiquadraticStageQ[stage_] := StringQ[stage] &&
   (MemberQ[multiquadraticStages, stage] ||
     (StringStartsQ[stage, "Preparation:"] &&
@@ -121,13 +122,13 @@ Clear[xSynthetic, ySynthetic, epsSynthetic];
 syntheticRecord = <|
   "Variables" -> {xSynthetic, ySynthetic},
   "Regulator" -> epsSynthetic,
-  "Strip" -> {
+  "OffDiagonalBlockEquation" -> {
     {{{1}}, {{0}}},
     {{{0}}, {{0}}},
     {{{1 - epsSynthetic xSynthetic}}, {{0}}}
   }
 |>;
-(* exactly the option set Tests/FiniteField/t_finite_field_strip_solve.wls uses for
+(* exactly the option set Tests/FiniteField/t_finite_field_off_diagonal_block_solve.wls uses for
    its automated solve, so the comparison is against a recorded
    expectation and not a fresh one *)
 (* enlarged 2026-08-27: the round-3 port made the fixture solve in
@@ -147,10 +148,10 @@ finiteFieldOptions = {
   "Verbose" -> False};
 
 {baselineSeconds, finiteFieldBaseline} = AbsoluteTiming[
-  FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+  FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
     Sequence @@ finiteFieldOptions]];
 {infinitySeconds, finiteFieldInfinity} = AbsoluteTiming[
-  FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+  FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
     Sequence @@ finiteFieldOptions, "Deadline" -> Infinity]];
 
 check["finite field: the fixture solves without the option (the existing suite's expectation)",
@@ -163,8 +164,8 @@ check["finite field: Deadline -> Infinity solves the fixture the same way",
     TrueQ[finiteFieldInfinity["DLogFormCertified"]]];
 (* the mathematical payload, key by key; the timing fields differ by
    construction and are excluded by name *)
-finiteFieldPayloadKeys = {"Status", "Method", "Gauge", "Alphabet",
-  "ResidueMatrices", "GaugeNumeratorDegrees", "GaugeDenominatorDegrees",
+finiteFieldPayloadKeys = {"Status", "Method", "OffDiagonalBasisTransformationBlock", "Alphabet",
+  "ResidueMatrices", "OffDiagonalBasisTransformationNumeratorDegrees", "OffDiagonalBasisTransformationDenominatorDegrees",
   "LettersEpsFree", "ResiduesKinematicsFree", "ExactDLog",
   "DLogFormCertified", "ExactPfaffianResidualsZero", "Primes",
   "SelectedNumeratorDegreeOffset", "SelectedSupportShell",
@@ -180,7 +181,7 @@ report["finite field baseline / Deadline -> Infinity seconds",
   Round[{baselineSeconds, infinitySeconds}, 0.01]];
 
 {expirySeconds, finiteFieldExpired} = AbsoluteTiming[
-  FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+  FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
     Sequence @@ finiteFieldOptions,
     "Deadline" -> AbsoluteTime[] + 0.01]];
 check["finite field: an expired deadline returns Status BudgetExhausted",
@@ -208,22 +209,23 @@ report["finite field expiry", KeyTake[finiteFieldExpired,
 report["finite field expiry wall seconds", Round[expirySeconds, 0.01]];
 
 check["finite field: a malformed deadline is a typed refusal, not a crash",
-  Lookup[FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+  Lookup[FeynFacet`SolveOffDiagonalBasisTransformationBlockFiniteField[syntheticRecord,
     Sequence @@ finiteFieldOptions, "Deadline" -> "soon"],
     "Status", None] === "InvalidDeadline"];
 
 (* ------------------------------------------------------------------ *)
 (* Fixture 2: the rank-1 constructed multiquadratic block               *)
 (* ------------------------------------------------------------------ *)
-(* the construction is the one of Tests/Multiquadratic/t_multiquadratic_strip_solve.wls:
+(* the construction is the one of Tests/Multiquadratic/t_multiquadratic_off_diagonal_block_solve.wls:
    the block is BUILT from a known gauge and known residues written in
    the solver's own ansatz basis, so the expectation is recorded, not
    discovered here *)
 
 Clear[x, y, eps, v, w, cx, cy];
 frame = BuildSquareRootGeneratorsAndQuadraticRelations[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
-check["the rank-three multiquadratic frame is exact",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame"];
+check["the three square-root generator relations are exact",
+  AssociationQ[frame] && frame["Status"] ===
+    "SquareRootGeneratorRelationsVerified"];
 
 dlog[letter_] := {D[Log[letter], x], D[Log[letter], y]};
 letters = {x, y, 1 - x - y};
@@ -235,16 +237,16 @@ diagonalForm[residues_List] := Table[
 canonicalRoots[indices_] := Module[
   {order = multiquadraticRootOrder[frame, {x, y}, indices, eps]},
   If[Lookup[order, "Status", None] =!= "StableRootOrder", $Failed,
-    Lookup[order["Roots"], "Root", {}]]];
+    Lookup[order["Roots"], "Generator", {}]]];
 gradeFactor[grade_, roots_] :=
   Product[If[BitGet[grade, k - 1] === 1, roots[[k]], 1], {k, Length[roots]}];
-buildGauge[coefficients_, dimensions_, roots_] := Table[
+buildOffDiagonalBasisTransformationBlock[coefficients_, dimensions_, roots_] := Table[
   Sum[coefficients[[i, j, grade + 1, monomial]]
       x^support[[monomial, 1]] y^support[[monomial, 2]] gradeFactor[grade, roots]/
       denominator,
     {grade, 0, 2^Length[roots] - 1}, {monomial, Length[support]}],
   {i, dimensions[[1]]}, {j, dimensions[[2]]}];
-buildForcing[e_, c_, gauge_, residues_] := Table[
+buildInhomogeneity[e_, c_, gauge_, residues_] := Table[
   Map[Together, Sum[residues[[a]] eps oneForms[[a, mu]], {a, Length[letters]}] +
     D[gauge, {x, y}[[mu]]] - eps (e[[mu]] . gauge - gauge . c[[mu]]), {2}],
   {mu, 2}];
@@ -264,13 +266,13 @@ mqIndices = {1}; mqDimensions = {1, 1}; mqSeed = 202;
 mqRoots = canonicalRoots[mqIndices];
 mqCoefficients = randomCoefficients[mqDimensions, 2^Length[mqIndices], mqSeed];
 mqResidues = randomResidues[mqDimensions, mqSeed + 1];
-mqGauge = buildGauge[mqCoefficients, mqDimensions, mqRoots];
+multiquadraticOffDiagonalBasisTransformationBlock = buildOffDiagonalBasisTransformationBlock[mqCoefficients, mqDimensions, mqRoots];
 mqE = randomDiagonal[mqDimensions[[1]], mqSeed + 2];
 mqC = randomDiagonal[mqDimensions[[2]], mqSeed + 3];
 mqRecord = <|"Family" -> "BUDGET_RANK1_1x1", "Sector" -> 4,
   "LowerSector" -> 2, "Variables" -> {x, y}, "Regulator" -> eps,
-  "Strip" -> {mqE, mqC, buildForcing[mqE, mqC, mqGauge, mqResidues]}|>;
-mqOptions = {"OneForms" -> oneForms, "GaugeDenominator" -> denominator,
+  "OffDiagonalBlockEquation" -> {mqE, mqC, buildInhomogeneity[mqE, mqC, multiquadraticOffDiagonalBasisTransformationBlock, mqResidues]}|>;
+mqOptions = {"OneForms" -> oneForms, "OffDiagonalBasisTransformationDenominator" -> denominator,
   "Support" -> support};
 
 {mqBaselineSeconds, mqBaseline} = AbsoluteTiming[
@@ -301,7 +303,7 @@ mqComparable[result_] := Module[{copy, reconstruction, plan},
     reconstruction["ConstrainedEliminationPlan"] = KeyTake[plan,
       {"Status", "UnknownCount", "EquationCount", "Rank", "Nullity",
        "NormalizationColumns", "PivotColumns", "FreeColumns",
-       "PivotSignature", "LayoutFingerprint", "ProviderFingerprint",
+       "PivotSignature",
        "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
        "PlanDiscoveryBackendThreads", "PilotPrime", "PilotReplayMethod",
        "PilotParticularResidualZero", "PilotNullspaceResidualZero"}]];
@@ -311,7 +313,7 @@ check["multiquadratic: Deadline -> Infinity changes no payload key",
   AssociationQ[mqBaseline] && AssociationQ[mqInfinity] &&
     mqComparable[mqBaseline] === mqComparable[mqInfinity]];
 (* the recorded expectations of the unpinned case in
-   Tests/Multiquadratic/t_multiquadratic_strip_solve.wls: the nullity is exactly the
+   Tests/Multiquadratic/t_multiquadratic_off_diagonal_block_solve.wls: the nullity is exactly the
    constant-gauge freedom, every sign branch has zero residual, and the
    direct rows agree with the split-sign assembly *)
 check["multiquadratic: Deadline -> Infinity keeps the unpinned expectations",
@@ -378,16 +380,16 @@ check["multiquadratic prepare: a malformed deadline is a typed refusal",
     "Status", None] === "InvalidDeadline"];
 report["multiquadratic prepare expiry", KeyTake[mqPrepareExpired,
   {"Stage", "Elapsed", "Family", "Sector", "LowerSector", "RootCount",
-   "ForcingChannelsDone", "LetterCount", "SupportSize"}]];
+   "InhomogeneityChannelsDone", "LetterCount", "SupportSize"}]];
 
 (* the COMPILE stage, cooperatively deadline-aware since 2026-08-25: its
    typed stop must be shape-compatible with every other stop of this
    engine for the same reason prepare's is *)
 mqPreparation = multiquadraticPrepare[mqRecord, frame];
 mqCompileExpired = If[Lookup[mqPreparation, "Status", None] ===
-    "PreparedMultiquadraticStripV1",
-  FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
-    "PreparationValidated" -> True, "Deadline" -> AbsoluteTime[] - 1],
+    "PreparedMultiquadraticOffDiagonalBlockV1",
+  FeynFacet`Private`multiquadraticOffDiagonalBlockCompile[mqPreparation,
+    "Deadline" -> AbsoluteTime[] - 1],
   <|"Status" -> "PreparationFailed"|>];
 check["multiquadratic compile: an expired deadline is a typed \
 BudgetExhausted naming a Compilation substage",
@@ -400,15 +402,15 @@ partial-progress identifiers",
 check["multiquadratic compile: Deadline -> Infinity is byte-identical to \
 passing no option",
   Module[{withOption, without},
-    withOption = FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
-      "PreparationValidated" -> True, "Deadline" -> Infinity];
-    without = FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
-      "PreparationValidated" -> True];
+    withOption = FeynFacet`Private`multiquadraticOffDiagonalBlockCompile[mqPreparation,
+      "Deadline" -> Infinity];
+    without = FeynFacet`Private`multiquadraticOffDiagonalBlockCompile[
+      mqPreparation];
     SameQ[KeyDrop[withOption, "CompileStatistics"],
       KeyDrop[without, "CompileStatistics"]]]];
 check["multiquadratic compile: a malformed deadline is a typed refusal",
-  Lookup[FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
-    "PreparationValidated" -> True, "Deadline" -> "soon"], "Status", None] ===
+  Lookup[FeynFacet`Private`multiquadraticOffDiagonalBlockCompile[mqPreparation,
+    "Deadline" -> "soon"], "Status", None] ===
     "InvalidDeadline"];
 report["multiquadratic compile expiry", KeyTake[mqCompileExpired,
   {"Stage", "Elapsed", "Family", "Sector", "LowerSector", "RootCount",

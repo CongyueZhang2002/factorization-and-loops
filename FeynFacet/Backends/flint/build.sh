@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 # Build the eight native backends:
 #   bin/flint_modular_solve   CFFA4V1/CFFA4X1 fixed-square multi-RHS solver
-#                             (SampleEpsFormStripAffine "Backend" -> "FLINT";
+#                             (ComputeOffDiagonalBlockFiniteFieldImage "Backend" -> "FLINT";
 #                             Codex round-2 A4 prototype, 2026-08-21)
 #   bin/flint_affine_rref     CFFR1V1/CFFR1X1 rectangular affine-RREF adapter
 #                             ("PlanDiscoveryBackend" -> "FLINTAffineRREF";
-#                             Codex xhigh audit 2026-08-23, PROTOCOL_CFFR1.md;
-#                             source SHA256 11f4d337ace94efad2d3736edd5094d7
-#                             091f5ce4f0ec5be9646a1bd52c5617cd)
+#                             PROTOCOL_CFFR1.md)
 #   bin/flint_sparse_eval     MQSE1P2/MQSE1Q1/MQSE1X1 batched factored-sparse
 #                             rational evaluator for split branches
 #   bin/flint_row_assemble    MQRA1V1/MQRA1X1 multiquadratic row assembler

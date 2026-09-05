@@ -2279,14 +2279,13 @@ finiteFieldRationalize[expression_, context_Association] := Catch[
 
 (* --- exact descend from the root ring back to physical variables ---
 
-   Ported from the 2026-08-08 hadronic-simplification study
-   (Codex/Documentation/HadronicCoefficientSimplification_2026-08-08/
-   scripts/NNLOInvariantRootRing.wl).
+   Ported from an audited 2026-08-08 hadronic-simplification study.
 
    finiteFieldRationalize lifts an additive entry into Q(physical)[root].
    That lift must stay transient: FireFly probes the black box in the
    variables it is handed, and a root variable doubles the effective
-   degree of its invariant (measured: ~100-fold probe inflation at NNLO,
+   degree of its invariant (measured: ~100-fold probe inflation on a
+   large production reconstruction,
    WORKLOG 2026-08-11).  The trace is therefore emitted in the physical
    variables, and the lift is undone here - entry by entry, before
    anything is written.
@@ -3775,7 +3774,7 @@ finiteFieldBuildTrace[
     }
   ];
   (* RunProcess cannot launch a process with thousands of arguments
-     (measured: 100 fine, 4400 returns no result), and one NNLO trace
+     (measured: 100 fine, 4400 returns no result), and one large trace
      names 2203 expression files. Route the command through a script;
      the OS itself handles the argv fine (proven from a shell). *)
   Module[{script},

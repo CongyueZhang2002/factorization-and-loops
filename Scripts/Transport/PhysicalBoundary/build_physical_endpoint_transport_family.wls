@@ -14,7 +14,8 @@ Module[
     $AllowInternet = False;
     $HistoryLength = 0;
     repositoryRoot = DirectoryName[ExpandFileName[$InputFileName], 4];
-    If[DownValues[FeynFacet`ObservableTransportWordMap] === {},
+    If[DownValues[
+        FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs] === {},
       Get[FileNameJoin[{repositoryRoot, "Addon", "Load", "LoadFACET.wl"}]]];
     Get[FileNameJoin[{repositoryRoot, "Scripts", "Transport",
       "PhysicalBoundaryCampaignAdapter.wl"}]];
@@ -63,9 +64,10 @@ Module[
                 First[id] === Lookup[modeMap, "Family"], Last[id], id]],
           Nothing, id -> <|"Status" -> "KnownZero"|>]]],
         Lookup[modeMap, "Modes", {}]], Nothing];
-    connectionDataSource = "ObservableTransport";
-    If[! ListQ[Lookup[transport, "DLogLetters", Missing[]]] ||
-        ! ListQ[Lookup[transport, "DLogResidues", Missing[]]],
+    connectionDataSource =
+      "IteratedIntegralCoefficientOperatorForRequestedOutputs";
+    If[! ListQ[Lookup[transport, "Letters", Missing[]]] ||
+        ! ListQ[Lookup[transport, "ConstantResidueMatrices", Missing[]]],
       If[! FileExistsQ[formFile],
         Print[family, " certified dlog data missing"];
         Throw[$Failed, missionTag]];
@@ -74,9 +76,9 @@ Module[
         "DLog", Missing[]];
       If[! AssociationQ[dlog] || ! TrueQ[Lookup[dlog, "Valid", False]] ||
           Lookup[dlog, "Variables", Missing[]] =!=
-            Lookup[transport, "Variables", Missing[]] ||
+            Lookup[transport, "CoefficientVariables", Missing[]] ||
           Lookup[dlog, "Regulator", Missing[]] =!=
-            Lookup[transport, "Regulator", Missing[]] ||
+            Lookup[transport, "DimensionalRegulator", Missing[]] ||
           ! ListQ[Lookup[dlog, "Letters", Missing[]]] ||
           ! ListQ[Lookup[dlog, "Residues", Missing[]]] ||
           Length[dlog["Letters"]] =!= Length[dlog["Residues"]] ||
@@ -86,8 +88,8 @@ Module[
             Dimensions[#] === {dlog["Dimension"], dlog["Dimension"]} &],
         Print[family, " certified dlog data are incompatible"];
         Throw[$Failed, missionTag]];
-      transport = Join[transport, <|"DLogLetters" -> dlog["Letters"],
-        "DLogResidues" -> dlog["Residues"]|>];
+      transport = Join[transport, <|"Letters" -> dlog["Letters"],
+        "ConstantResidueMatrices" -> dlog["Residues"]|>];
       connectionDataSource = "CertifiedEpsilonFormDLog"];
     started = AbsoluteTime[];
     binding =
@@ -107,7 +109,9 @@ Module[
       binding["GradesByWeight"]];
     result = Join[binding, <|
       "CampaignRecordStatus" -> "PhysicalEndpointTransportAcceptedV1",
-      "SourceFiles" -> <|"ObservableTransport" -> transportFile,
+      "SourceFiles" -> <|
+        "IteratedIntegralCoefficientOperatorForRequestedOutputs" ->
+          transportFile,
         "BoundaryModeMap" -> modeFile,
         "EpsilonForm" -> If[connectionDataSource ===
           "CertifiedEpsilonFormDLog", formFile, None]|>,

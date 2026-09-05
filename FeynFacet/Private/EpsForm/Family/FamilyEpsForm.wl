@@ -27,8 +27,26 @@ ClearAll[
   familyEpsFormDiagonalBlocks,
   familyEpsFormRegulatorRootFrames,
   familyEpsFormSquareRootRecords,
-  familyEpsFormDegreeData, familyEpsFormEvaluate, familyEpsFormIdentitiesAtPoints
+  familyEpsFormDegreeData, familyEpsFormEvaluate,
+  familyEpsFormIdentitiesAtPoints, familyDLogEpsilonFormV2Q
 ];
+
+(* A persisted family dlog epsilon form is a complete V2 mathematical record,
+   not the non-persisted result returned by the validator.  This schema boundary is
+   deliberately structural: the defining equation is validated once, by
+   ValidateFamilyDLogEpsilonForm, before the script-side constructor writes the
+   complete record. *)
+familyDLogEpsilonFormV2Q[record_Association] :=
+  Lookup[record, "DataType", None] === "FamilyDLogEpsilonForm" &&
+    Lookup[record, "SchemaVersion", None] === 2 &&
+    Lookup[record, "Status", None] ===
+      "FamilyDLogEpsilonFormValidated" &&
+    ContainsAll[Keys[record], {
+      "Family", "CoefficientPresentation", "CoefficientVariables",
+      "DimensionalRegulator", "OriginalMasterIntegralBasis",
+      "BlockDecomposition", "BasisTransformationMatrix", "Letters",
+      "ConstantResidueMatrices", "Validation"}];
+familyDLogEpsilonFormV2Q[_] := False;
 
 (* Diagonal-block list normalization. Two layouts exist in shipped
    records: plain index lists {{i..}..}, and annotated pairs
@@ -268,8 +286,8 @@ ValidateFamilyDLogEpsilonForm[record_Association, system_Association,
     normalizedSystem = masterTransportNormalize[system, regulator,
       Join[sourceVariables, variables]];
     If[MemberQ[{"RandomPoints", "Modular"}, OptionValue["IdentityMethod"]] && ! TrueQ[OptionValue["SymbolicPullBack"]],
-      (* No symbolic re-expression (it was ~80 s of a 146 s validation on
-         CF231, 2026-08-22): the transformed connection is evaluated at each
+      (* No symbolic re-expression (it was about 80 s of a 146 s production
+         validation): the transformed connection is evaluated at each
          point by the chain rule, Ax = Av d_x v + Aw d_x w, on the source
          connection at the mapped point; source flatness is tested in the
          source variables at random points *)
@@ -414,11 +432,17 @@ ValidateFamilyDLogEpsilonForm[record_Association, system_Association,
               OptionValue["MultiquadraticPivotSignatureQuorum"],
             "PivotSignaturePilotPrimes" ->
               OptionValue["MultiquadraticPivotPilotPrimes"]]],
+        candidateLetters = Lookup[normalizedRecord, "Letters", Automatic];
         familyCertificateModular[epsilonForm, transformation, inverse,
           variables, regulator, sourceConnection,
           If[AssociationQ[lazy], sourceVariables, variables], lazy,
           "Points" -> OptionValue["ModularPoints"],
-          "Primes" -> OptionValue["ModularPrimes"]]]]];
+          "Primes" -> OptionValue["ModularPrimes"],
+          "CandidateLetters" -> candidateLetters,
+          (* Production acceptance is the declared finite-field test.  An
+             additional characteristic-zero point repeated the same matrix
+             identities symbolically and contradicted that contract. *)
+          "CharacteristicZeroGuard" -> False]]]];
     If[! (AssociationQ[finiteFieldData] &&
         KeyExistsQ[finiteFieldData,
           "ConnectionTransformationEquation"]),
@@ -609,6 +633,8 @@ ValidateFamilyDLogEpsilonForm[record_Association, system_Association,
 
   If[! checksPassed,
     Return[<|
+      "DataType" -> "FamilyDLogEpsilonFormValidationResult",
+      "SchemaVersion" -> 2,
       "Status" -> "FamilyDLogEpsilonFormValidationFailed",
       "Family" -> Lookup[normalizedRecord, "Family", Missing["NotGiven"]],
       "Validation" -> validation,
@@ -626,9 +652,9 @@ ValidateFamilyDLogEpsilonForm[record_Association, system_Association,
       "JacobianDeterminant" -> 1|>,
     presentationData];
   outputBase = <|
-    "DataType" -> "FamilyDLogEpsilonForm",
+    "DataType" -> "FamilyDLogEpsilonFormValidationResult",
     "SchemaVersion" -> 2,
-    "Status" -> "FamilyDLogEpsilonFormValidated",
+    "Status" -> "FamilyDLogEpsilonFormValidationPassed",
     "Family" -> Lookup[normalizedRecord, "Family", Missing["NotGiven"]],
     "CoefficientPresentation" -> outputPresentation,
     "CoefficientVariables" -> variables,
@@ -657,10 +683,7 @@ ExactlyValidatedFamilyDLogEpsilonFormQ[record_Association] := Module[
    residuals},
   conditions = Lookup[validation, "Conditions", <||>];
   residuals = Lookup[validation, "CharacteristicZeroResiduals", <||>];
-  Lookup[record, "DataType", None] === "FamilyDLogEpsilonForm" &&
-    Lookup[record, "SchemaVersion", None] === 2 &&
-    Lookup[record, "Status", None] ===
-      "FamilyDLogEpsilonFormValidated" &&
+  familyDLogEpsilonFormV2Q[record] &&
     AssociationQ[validation] && AssociationQ[conditions] &&
     TrueQ[Lookup[validation, "Exact", False]] &&
     ! TrueQ[Lookup[validation, "Probabilistic", True]] &&
@@ -695,10 +718,7 @@ ValidatedFamilyDLogEpsilonFormQ[record_Association] := Module[
         IntegerQ[Lookup[evidence, "Points", None]] &&
         Lookup[evidence, "Points", 0] > 0,
     _, False];
-  Lookup[record, "DataType", None] === "FamilyDLogEpsilonForm" &&
-    Lookup[record, "SchemaVersion", None] === 2 &&
-    Lookup[record, "Status", None] ===
-      "FamilyDLogEpsilonFormValidated" &&
+  familyDLogEpsilonFormV2Q[record] &&
     AssociationQ[validation] && AssociationQ[conditions] &&
     ! TrueQ[Lookup[validation, "Exact", True]] &&
     TrueQ[Lookup[validation, "Probabilistic", False]] &&

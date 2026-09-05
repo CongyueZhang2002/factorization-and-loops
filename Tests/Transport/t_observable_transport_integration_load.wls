@@ -6,23 +6,32 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 checks = <|
   "BuildLoaded" ->
-    Length[DownValues[FeynFacet`BuildObservableTransport]] === 1,
+    Length[DownValues[
+      FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs]] === 1,
   "CompactBuilderLoaded" ->
     Length[DownValues[
       FeynFacet`Private`observableTransportCompactDualAutomaton]] === 1,
   "AcceptancePredicateLoaded" ->
-    Length[DownValues[FeynFacet`AcceptedObservableTransportQ]] === 1,
-  "WordAccessorLoaded" ->
-    Length[DownValues[FeynFacet`ObservableTransportWordMap]] === 2,
+    Length[DownValues[
+      FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ]] === 1,
+  "CoefficientMatrixAccessorLoaded" ->
+    Length[DownValues[
+      FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs]] === 2,
   "FinalReconstructionLoaded" ->
     Length[DownValues[
-      FeynFacet`ReconstructObservableTransportWordMaps]] === 2,
+      FeynFacet`ReconstructIteratedIntegralCoefficientMatricesForRequestedOutputs]] === 2,
   "FiniteFieldRowBasisLoaded" ->
     Length[DownValues[
       FeynFacet`Private`observableTransportModularRowBasis]] === 1,
-  "AutomaticWordRepresentationOption" ->
-    MemberQ[Options[FeynFacet`BuildObservableTransport],
-      "WordRepresentation" -> Automatic]
+  "AutomaticCoefficientRepresentationOption" ->
+    MemberQ[Options[
+      FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs],
+      "IteratedIntegralCoefficientRepresentation" -> Automatic],
+  "RemovedPublicHeadsAbsent" -> And @@
+    (System`Names["FeynFacet`" <> #] === {} & /@
+      {"BuildObservableTransport", "AcceptedObservableTransportQ",
+       "ObservableTransportWordMap",
+       "ReconstructObservableTransportWordMaps"})
 |>;
 
 Print[InputForm[checks]];

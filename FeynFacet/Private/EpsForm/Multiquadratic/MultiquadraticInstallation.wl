@@ -1,18 +1,18 @@
-(* Conversion of a reconstructed provider-backed multiquadratic strip into
+(* Conversion of a reconstructed provider-backed multiquadratic offDiagonalBlockEquation into
    the compact off-diagonal basis-transformation result.  This layer solves
    nothing: it checks the reconstructed mathematical data, active dlog
    support, and independent residual evidence before publishing an
    installable object. *)
 
-ClearAll[$multiquadraticStripInstallationSchema,
-  multiquadraticStripInstallFailure,
-  multiquadraticStripInstallationEvidence,
-  multiquadraticStripBuildInstallableSolution];
+ClearAll[$multiquadraticOffDiagonalBlockInstallationSchema,
+  multiquadraticOffDiagonalBlockInstallFailure,
+  multiquadraticOffDiagonalBlockInstallationEvidence,
+  multiquadraticOffDiagonalBlockBuildInstallableSolution];
 
-$multiquadraticStripInstallationSchema =
+$multiquadraticOffDiagonalBlockInstallationSchema =
   "InstallableMultiquadraticDLogV1";
 
-multiquadraticStripInstallFailure[status_String,
+multiquadraticOffDiagonalBlockInstallFailure[status_String,
     detail_Association : <||>] :=
   Join[<|"Status" -> status,
     "Module" -> "MultiquadraticInstallation"|>, detail];
@@ -20,7 +20,7 @@ multiquadraticStripInstallFailure[status_String,
 (* Accept either an exact generic residual or provider-backed fresh images.
    Pointwise independence is recomputed from the concrete prime, regulator
    and kinematic points; implementation identities are irrelevant. *)
-multiquadraticStripInstallationEvidence[evidence_Association,
+multiquadraticOffDiagonalBlockInstallationEvidence[evidence_Association,
     reconstruction_Association, minimumPrimes_Integer?Positive,
     minimumImages_Integer?Positive] := Module[
   {status, checks, trainingKeys, validationKeys, validationPrimes,
@@ -31,7 +31,7 @@ multiquadraticStripInstallationEvidence[evidence_Association,
       "Certificate" -> "ExactResidual", "Exact" -> True,
       "ValidationPrimeCount" -> 0, "ValidationImageCount" -> 0|>]];
   If[status =!= "FreshProviderResidualZero",
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
   checks = Lookup[evidence, "Checks", None];
   trainingKeys = Lookup[reconstruction, "TrainingImageKeys", None];
@@ -39,14 +39,14 @@ multiquadraticStripInstallationEvidence[evidence_Association,
   If[! MatchQ[checks, {__Association}] || ! ListQ[trainingKeys] ||
       ! DuplicateFreeQ[trainingKeys] ||
       ! VectorQ[samplePrimes, PrimeQ],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
   keyValidQ[key_] := ListQ[key] && Length[key] === 3 &&
     PrimeQ[key[[1]]] &&
     MatchQ[key[[2]], _Integer | _Rational] &&
     MatchQ[key[[3]], {_Integer, _Integer}];
   If[! AllTrue[trainingKeys, keyValidQ],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
   checkValidQ[item_Association] := Module[
     {prime, regulatorValue, points, keys, expectedKeys},
@@ -65,7 +65,7 @@ multiquadraticStripInstallationEvidence[evidence_Association,
     keys === expectedKeys && AllTrue[keys, keyValidQ]
   ];
   If[! AllTrue[checks, checkValidQ],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
   validationKeys = Flatten[Lookup[checks, "ValidationImageKeys", {}], 1];
   validationPrimes = DeleteDuplicates[Lookup[checks, "Prime"]];
@@ -78,7 +78,7 @@ multiquadraticStripInstallationEvidence[evidence_Association,
       ! AllTrue[validationPrimes, Function[prime,
         Count[validationKeys,
           key_ /; key[[1]] === prime] >= minimumImages]],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
   <|"Status" -> "InstallationEvidenceAccepted",
     "Certificate" -> "NumericalResidual", "Exact" -> False,
@@ -86,22 +86,22 @@ multiquadraticStripInstallationEvidence[evidence_Association,
     "ValidationImageCount" -> Length[validationKeys],
     "ValidationPrimes" -> validationPrimes|>
 ];
-multiquadraticStripInstallationEvidence[___] :=
-  multiquadraticStripInstallFailure["InvalidInstallationEvidence"];
+multiquadraticOffDiagonalBlockInstallationEvidence[___] :=
+  multiquadraticOffDiagonalBlockInstallFailure["InvalidInstallationEvidence"];
 
-Options[multiquadraticStripBuildInstallableSolution] = {
+Options[multiquadraticOffDiagonalBlockBuildInstallableSolution] = {
   "MinimumUnseenPrimes" -> 2,
   "MinimumImagesPerPrime" -> 3
 };
 
-multiquadraticStripBuildInstallableSolution[
+multiquadraticOffDiagonalBlockBuildInstallableSolution[
     preparation_Association, reconstruction_Association,
     active_Association,
     evidence_Association,
     dimensions : {_Integer?Positive, _Integer?Positive},
     OptionsPattern[]] := Module[
-  {minimumPrimes, minimumImages, variables, epsilon, vector, gauge,
-   allResidues, gaugeChannels, unpacked, preparationForms,
+  {minimumPrimes, minimumImages, variables, epsilon, vector, basisTransformationBlock,
+   allResidues, offDiagonalBasisTransformationBlockComponents, unpacked, preparationForms,
    computedIndices, indices,
    records, forms, residues, letters, zeroEntryQ, zeroMatrixQ,
    payloadEqualQ,
@@ -110,25 +110,25 @@ multiquadraticStripBuildInstallableSolution[
   minimumImages = OptionValue["MinimumImagesPerPrime"];
   If[! IntegerQ[minimumPrimes] || minimumPrimes < 1 ||
       ! IntegerQ[minimumImages] || minimumImages < 1,
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "InvalidInstallationEvidenceThresholds"]]];
   If[Lookup[reconstruction, "Status", None] =!=
       "ReconstructedRegulatorDependenceV1",
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "RegulatorReconstructionUnavailable"]]];
   variables = Lookup[reconstruction, "Variables", None];
   epsilon = Lookup[reconstruction, "Regulator", None];
   vector = Lookup[reconstruction, "Vector", None];
-  gauge = Lookup[reconstruction, "Gauge", None];
+  basisTransformationBlock = Lookup[reconstruction, "OffDiagonalBasisTransformationBlock", None];
   allResidues = Lookup[reconstruction, "Residues", None];
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! SymbolQ[epsilon] ||
-      ! VectorQ[vector] || ! MatrixQ[gauge] ||
-      Dimensions[gauge] =!= dimensions || ! ListQ[allResidues] ||
+      ! VectorQ[vector] || ! MatrixQ[basisTransformationBlock] ||
+      Dimensions[basisTransformationBlock] =!= dimensions || ! ListQ[allResidues] ||
       ! AllTrue[allResidues,
         MatrixQ[#1] && Dimensions[#1] === dimensions &] ||
       ! FreeQ[allResidues, Alternatives @@ variables] ||
       ! StringQ[Lookup[reconstruction, "Provider", None]],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "ReconstructedSolutionShapeInvalid"]]];
 
   (* The vector is the reconstructed mathematical object; the basis-
@@ -137,30 +137,30 @@ multiquadraticStripBuildInstallableSolution[
      preparation layout.  Re-derive those views at the installation boundary
      instead of trusting separately supplied fields from a stale or mutated
      reconstruction record. *)
-  If[! multiquadraticStripPreparationValidQ[preparation] ||
+  If[! multiquadraticOffDiagonalBlockPreparationValidQ[preparation] ||
       Lookup[preparation, "Variables", None] =!= variables ||
       Lookup[preparation, "Regulator", None] =!= epsilon ||
       Lookup[preparation, "Dimensions", None] =!= dimensions,
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "InstallationPreparationMismatch"]]];
-  unpacked = multiquadraticStripUnpackVector[preparation, vector];
+  unpacked = multiquadraticOffDiagonalBlockUnpackVector[preparation, vector];
   If[Lookup[unpacked, "Status", None] =!=
       "UnpackedMultiquadraticSolution",
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "ReconstructedVectorUnpackFailed"]]];
-  gaugeChannels = Lookup[reconstruction, "GaugeChannels", None];
+  offDiagonalBasisTransformationBlockComponents = Lookup[reconstruction, "OffDiagonalBasisTransformationBlockComponents", None];
   payloadEqualQ[left_, right_] := ListQ[left] && ListQ[right] &&
     Dimensions[left] === Dimensions[right] && Quiet[Check[
       AllTrue[Flatten[left - right],
         TrueQ[Numerator[Together[#1]] === 0] &], False]];
-  If[! payloadEqualQ[gauge, unpacked["Gauge"]] ||
-      ! payloadEqualQ[gaugeChannels, unpacked["GaugeChannels"]] ||
+  If[! payloadEqualQ[basisTransformationBlock, unpacked["OffDiagonalBasisTransformationBlock"]] ||
+      ! payloadEqualQ[offDiagonalBasisTransformationBlockComponents, unpacked["OffDiagonalBasisTransformationBlockComponents"]] ||
       ! payloadEqualQ[allResidues, unpacked["Residues"]],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "ReconstructionPayloadMismatch", <|
-        "GaugeExactlyEqual" -> payloadEqualQ[gauge, unpacked["Gauge"]],
-        "GaugeChannelsExactlyEqual" ->
-          payloadEqualQ[gaugeChannels, unpacked["GaugeChannels"]],
+        "OffDiagonalBasisTransformationBlockExactlyEqual" -> payloadEqualQ[basisTransformationBlock, unpacked["OffDiagonalBasisTransformationBlock"]],
+        "OffDiagonalBasisTransformationBlockComponentsExactlyEqual" ->
+          payloadEqualQ[offDiagonalBasisTransformationBlockComponents, unpacked["OffDiagonalBasisTransformationBlockComponents"]],
         "ResiduesExactlyEqual" ->
           payloadEqualQ[allResidues, unpacked["Residues"]]|>]]];
   preparationForms = Lookup[preparation, "OneForms", None];
@@ -169,7 +169,7 @@ multiquadraticStripBuildInstallableSolution[
         "ActivePotentialCertificationV1" ||
       ! TrueQ[Lookup[active, "Certified", False]] ||
       KeyExistsQ[active, "Pending"],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "ActivePotentialCertificationUnavailable"]]];
   zeroEntryQ[value_] := Quiet[Check[
     TrueQ[Numerator[Together[value]] === 0], False]];
@@ -189,12 +189,12 @@ multiquadraticStripBuildInstallableSolution[
       ! SameQ[residues, allResidues[[indices]]] ||
       ! ListQ[preparationForms] ||
       ! payloadEqualQ[forms, preparationForms[[indices]]],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "ActiveSupportPayloadMismatch"]]];
   If[! AllTrue[forms, MatchQ[#1, {_, _}] &] ||
       ! AllTrue[residues,
         MatrixQ[#1] && Dimensions[#1] === dimensions &],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "ActiveSupportShapeInvalid", <|
         "ExpectedMatrixDimensions" -> dimensions,
         "OneFormShapes" -> (Dimensions /@ forms),
@@ -213,10 +213,10 @@ multiquadraticStripBuildInstallableSolution[
   If[MemberQ[letters, _Missing] || ! FreeQ[letters, epsilon] ||
       ! FreeQ[forms, epsilon] ||
       ! And @@ MapThread[potentialValidQ, {records, forms}],
-    Return[multiquadraticStripInstallFailure[
+    Return[multiquadraticOffDiagonalBlockInstallFailure[
       "ActiveDLogPayloadUncertified"]]];
 
-  acceptedEvidence = multiquadraticStripInstallationEvidence[evidence,
+  acceptedEvidence = multiquadraticOffDiagonalBlockInstallationEvidence[evidence,
     reconstruction, minimumPrimes, minimumImages];
   If[Lookup[acceptedEvidence, "Status", None] =!=
       "InstallationEvidenceAccepted", Return[acceptedEvidence]];
@@ -224,8 +224,8 @@ multiquadraticStripBuildInstallableSolution[
     Missing["DeferredToFamilyCertificate"]];
   <|"Status" -> "Solved",
     "Method" -> "DirectMultiquadraticFiniteField",
-    "SolutionContract" -> $multiquadraticStripInstallationSchema,
-    "Gauge" -> gauge,
+    "SolutionContract" -> $multiquadraticOffDiagonalBlockInstallationSchema,
+    "OffDiagonalBasisTransformationBlock" -> basisTransformationBlock,
     "Alphabet" -> letters,
     "ResidueMatrices" -> residues,
     "OneForms" -> forms,
@@ -250,5 +250,5 @@ multiquadraticStripBuildInstallableSolution[
       {"Method", "SamplePrimes", "UnseenPrimes", "RegulatorValues",
        "NormalizationColumns", "DegreeHistogram"}]|>
 ];
-multiquadraticStripBuildInstallableSolution[___] :=
-  multiquadraticStripInstallFailure["InvalidInstallationArguments"];
+multiquadraticOffDiagonalBlockBuildInstallableSolution[___] :=
+  multiquadraticOffDiagonalBlockInstallFailure["InvalidInstallationArguments"];

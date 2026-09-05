@@ -3,7 +3,7 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Get[FileNameJoin[{root, "Scripts", "DifferentialEquations",
   "CoefficientPresentationV2.wl"}]];
 
-Clear[a, b, c, d, delta, master];
+Clear[a, b, c, d, delta, master, internalX, internalY];
 
 system = <|
   "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
@@ -36,6 +36,16 @@ squareRoots =
         "SquareRootGeneratorsAndQuadraticRelations",
       "SourceRadicands" -> radicands|>,
     "CoefficientVariables" -> {c, d}];
+
+internalSquareRoots = FeynFacet`Private`rekeyCoefficientPresentation[
+  squareRoots, {internalX, internalY}, {internalX, internalY}];
+renamePotential = Sqrt[First[radicands]];
+renameConnection = <|
+  "Av" -> {{D[renamePotential, a]}},
+  "Aw" -> {{D[renamePotential, b]}}|>;
+renamePullback = FeynFacet`Private`masterTransportPullBackSystem[
+  renameConnection, squareRoots,
+  "SourceVariables" -> {a, b}, "FlatnessCheck" -> False];
 
 badCatalog =
   FeynFacetCampaign`DifferentialEquations`ConstructCoefficientPresentationV2[
@@ -75,6 +85,23 @@ tests = <|
         "SquareRootGeneratorsAndQuadraticRelations" &&
       Length[squareRoots["SquareRootGenerators"]] === 3 &&
       TrueQ[squareRoots["QuadraticRelationVerification", "Verified"]],
+  "PureRenameSquareRootPresentationCanUseOneInternalVariablePair" ->
+    internalSquareRoots["Status"] ===
+        "SquareRootGeneratorRelationsVerified" &&
+      internalSquareRoots["SourceVariables"] ===
+        {internalX, internalY} &&
+      internalSquareRoots["CoefficientVariables"] ===
+        {internalX, internalY} &&
+      internalSquareRoots["SourceToCoefficientVariableRules"] ===
+        {internalX -> internalX, internalY -> internalY},
+  "PureVariableRenameDoesNotRationallyResimplifyTheConnection" ->
+    renamePullback["Status"] === "OK" &&
+      renamePullback["Ax"] ===
+        (renameConnection["Av"] /. {a -> c, b -> d}) &&
+      renamePullback["Ay"] ===
+        (renameConnection["Aw"] /. {a -> c, b -> d}) &&
+      renamePullback["Certificate", "ChainRule"] ===
+        "Pure variable rename with identity differential pullback",
   "AllConstructedRecordsPassTheIndependentPredicate" ->
     And @@ (FeynFacetCampaign`DifferentialEquations`CoefficientPresentationV2Q[
           #, {a, b}] & /@

@@ -12,10 +12,9 @@
    after square-class independence has been established separately.  Nothing
    in this file promotes formal sign changes to Galois automorphisms.
 
-   Source: Exchange/Codex/2026-08-22/04_triple_root_campaign/
-   TripleRootAlgebra.wl (Codex, audited).  Semantics are preserved
-   exactly; only the names are rehoused in FeynFacet`Private` and the
-   two rank-0 fixes named in the promotion handoff are made explicit.
+   This module promotes an audited prototype while preserving its
+   semantics; only the names are rehoused in FeynFacet`Private` and the
+   two rank-0 fixes found during promotion are made explicit.
 
    Ordering is mathematical data, not an implementation detail.  Grade mask bit i
    always denotes declared generator i, so the caller -- not this file --
@@ -59,7 +58,7 @@ multiquadraticHadamardMatrix[rank_Integer?NonNegative] :=
    leaves a rational coefficient vector unreduced and every later
    comparison against a genuine field element is then false.  This port
    fails closed instead: a caller reduces its rationals first (the
-   strip module's multiquadraticStripModRational does exactly that).
+   off-diagonal block equation module's multiquadraticOffDiagonalBlockModRational does exactly that).
    Deviation from TripleRootAlgebra.wl line 32; no result that was
    correct there changes. *)
 multiquadraticIntegerDataQ[values_] :=
@@ -160,8 +159,8 @@ multiquadraticProjectSignChangeImages[
 
 (* p = 3 (mod 4) only; the returned representative is the raw
    exponentiation, NOT the smaller of the two roots.  The sign
-   representative is part of the ABI: see the differential test
-   against FamilyRowGaugeFiniteField.wl, which normalizes instead. *)
+   representative is part of the data-layout contract: see the differential test
+   against FamilyRowBasisTransformationFiniteField.wl, which normalizes instead. *)
 (* one implementation (Core/ModularArithmetic.wl, overhaul 2026-09-02):
    the former definition existed only for p == 3 (mod 4); every odd prime
    is now admissible (Tonelli-Shanks for p == 1 (mod 4)), which removes
@@ -558,9 +557,9 @@ transportChartRadicalBases[expr_] := Module[{raw},
 (* ------------------------------------------------------------------ *)
 (*  Square classes and the denesting of nested radical bases            *)
 (* ------------------------------------------------------------------ *)
-(* WHY (2026-08-24, CF303).  The syntactic matcher below classifies a
-   radical only when its radicand IS a declared root square.  The CF303
-   family connection carries radicands that are declared squares times a
+(* WHY (2026-08-24).  The syntactic matcher below classifies a radical
+   only when its radicand IS a declared root square.  A production
+   connection carries radicands that are declared squares times a
    NESTED radical, e.g.
 
      q2 (u + v Sqrt[q1]),  u = 1+2x+x^2+2xy+y^2, v = 1+x+y,
@@ -677,7 +676,7 @@ transportChartSquareClassData[expr_, rootBases_List] := Module[
    variables of the presentation; the algorithm itself is
    variable-agnostic and treats any other symbol (the regulator, say) as
    a coefficient-ring parameter.  RootIndices and InnerRootIndices are
-   retained only as a private compatibility ABI for internal callers. *)
+   retained only as a private compatibility data-layout contract for internal callers. *)
 transportChartDenestRadicalBase[base_, roots_List, variables_List] := Module[
   {rootBases, symbols, substitute, reduceRules, reduce, toRatio, zeroQ,
    ratio, num, den, normal, list, numeric, sign, n, d, k, m, hPoly, rFree,
@@ -931,7 +930,7 @@ transportChartRootIndices[expr_, roots_List] := Module[
      multiquadratic port's census differential, 2026-08-23) *)
   matches[base_] := Flatten[Position[rootBases, candidate_ /;
     TrueQ[Together[base - candidate] === 0], {1}, Heads -> False]];
-  (* Generator grade masks are a private ABI: discovery order can change
+  (* Generator grade masks are a private data-layout contract: discovery order can change
      when an algebraically identical expression is reordered.  Keep the
      declared generator order so channel 2^i always names the same generator. *)
   indices = Sort[DeleteDuplicates[Flatten[matches /@ radicals]]];
@@ -1003,12 +1002,21 @@ rekeyCoefficientPresentation[input_Association,
         Thread[sourceVariables -> sourceVariables],
       "DifferentialPullbackMatrix" -> IdentityMatrix[2],
       "JacobianDeterminant" -> 1|>]];
-  identityVariableMapQ = sourceVariables === targetVariables &&
-    Lookup[presentation, "SourceVariables", None] ===
-      Lookup[presentation, "CoefficientVariables", None] &&
-    Lookup[presentation, "SourceToCoefficientVariableRules", None] ===
-      Thread[Lookup[presentation, "SourceVariables", {}] ->
-        Lookup[presentation, "SourceVariables", {}]];
+  (* A square-root presentation commonly records a pure coordinate rename,
+     for example {v->x,w->y}.  Re-keying both sides to one internal symbol
+     pair is still the same identity map; requiring the old source and
+     coefficient symbols themselves to coincide incorrectly rejected that
+     operation. *)
+  identityVariableMapQ = sourceVariables === targetVariables && Switch[kind,
+    "RationalizingParametrization",
+      Lookup[presentation, "SourceVariableSubstitution", None] ===
+        Thread[Lookup[presentation, "SourceVariables", {}] ->
+          Lookup[presentation, "ParametrizingVariables", {}]],
+    "SquareRootGeneratorsAndQuadraticRelations",
+      Lookup[presentation, "SourceToCoefficientVariableRules", None] ===
+        Thread[Lookup[presentation, "SourceVariables", {}] ->
+          Lookup[presentation, "CoefficientVariables", {}]],
+    _, False];
   If[Length[DeleteDuplicates[SymbolName /@
         Join[sourceVariables, targetVariables]]] =!= 4 &&
       ! identityVariableMapQ,
@@ -1182,7 +1190,7 @@ coefficientPresentationSquareRootsInVariables[input_Association,
    out of a radical (Sqrt[N/4] evaluates to Sqrt[N]/2, Sqrt[4 N] to
    2 Sqrt[N]), so after a chart pullback the surviving base is c^2 times
    the pulled-back root square for some positive rational c.  MEASURED
-   2026-08-24 on the CF259 rows 1..16 truncation in KallenQ4a: the two
+   2026-08-24 on a production truncation in KallenQ4a: the two
    bases were exactly 4 and 16 times the declared squares (the chart's
    own root images carry denominators 2 t and 4 t), the branch rule
    matched neither, and FactorFamilyRegulatorDependenceInFrame refused a
@@ -1226,17 +1234,17 @@ transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
 (* ------------------------------------------------------------------ *)
 (*  Comparison in the displayed quadratic-relation quotient            *)
 (* ------------------------------------------------------------------ *)
-(* WHY (2026-08-25, CF303 off-diagonal block {17,12}).  Every acceptance
-   test of the in-frame strip construction below reduced to
+(* WHY (2026-08-25, measured production off-diagonal block).  Every acceptance
+   test of the in-frame off-diagonal block equation construction below reduced to
    Together[lhs - rhs] === 0.  Together is canonical on RATIONAL entries
    only; on entries that still carry a radical it compares two
    non-canonical forms, so an exactly equal pair is reported UNEQUAL --
    the documented trap of this repository.  MEASURED that night: the
-   {17,12} gauge round trip rejected all four branch choices although the
+   {17,12} basis-transformation block round trip rejected all four branch choices although the
    objects were exactly equal, because one coordinate-map image carried a
    NESTED radical the branch substitution above cannot match (it matches
    only rational-square multiples of a declared root square), so radicals
-   survived into the comparison.  A generic rational 1x1 gauge reproduced
+   survived into the comparison.  A generic rational 1x1 basis-transformation block reproduced
    the rejection, which is what proves the defect is in the comparison
    layer and not in any solved object.
 

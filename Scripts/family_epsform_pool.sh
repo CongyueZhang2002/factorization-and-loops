@@ -19,16 +19,20 @@
 # contexts, basis pollution -- BuildBasis::length on cert_CF385) survives
 # into the next family.  Cost: one FACET preload per mission (~seconds)
 # against multi-minute solves.
-# Usage: family_epsform_pool.sh <output-root> <pooldir> <nkernels> <family> [family ...]
+# Usage: family_epsform_pool.sh <output-root> <pooldir> <nkernels>
+#        <v2-input-table.tsv> <family> [family ...]
 # Env:   FACET_CPU_LIST (default 0,1,6,7,8,9,18,19 = the P-cores),
 #        FACET_RATIONAL_MAPLE_BUDGET (default 300), FACET_SECTOR_BUDGET (1800),
-#        FACET_FAMILY_DATA_DIRECTORY and FACET_CLASS_FORM_DIRECTORY
+#        FACET_VALIDATED_FAMILY_DLOG_EPSILON_FORM_DIRECTORY
 # Progress: Scripts/tworoot_status.sh <output-root>
 set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-out="$1"; pool="$2"; nk="$3"; shift 3; families=("$@")
-R="$root/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical"
-certified="${FACET_CERTIFIED_DIR:-$R/FamilyEpsFormsCertified}"   # override for tests
+if (( $# < 5 )); then
+  echo "Usage: family_epsform_pool.sh <output-root> <pooldir> <nkernels> <v2-input-table.tsv> <family> [family ...]" >&2
+  exit 64
+fi
+out="$1"; pool="$2"; nk="$3"; input_table="$4"; shift 4; families=("$@")
+certified="${FACET_VALIDATED_FAMILY_DLOG_EPSILON_FORM_DIRECTORY:-$out/validated}"
 export POOL="$pool"
 export FACET_TASK_BROKER="$pool"
 export FACET_KERNEL_COUNT=1
@@ -39,10 +43,45 @@ export FACET_RATIONAL_MAPLE_BUDGET="${FACET_RATIONAL_MAPLE_BUDGET:-300}"
 export FACET_CHECK_LEVEL="${FACET_CHECK_LEVEL:-Production}"
 sector_budget="${FACET_SECTOR_BUDGET:-1800}"
 cpus="${FACET_CPU_LIST:-0,1,6,7,8,9,18,19}"
-family_data_directory="${FACET_FAMILY_DATA_DIRECTORY:-$R}"
-class_form_directory="${FACET_CLASS_FORM_DIRECTORY:-}"
 export FACET_MQ_NATIVE_THREADS="${FACET_MQ_NATIVE_THREADS:-8}"
 (( nk < 1 )) && { echo "need at least 1 subkernel"; exit 64; }
+if [[ ! -f "$input_table" ]]; then
+  echo "V2 input table does not exist: $input_table" >&2
+  exit 66
+fi
+
+resolve_input_path() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *) printf '%s/%s' "$root" "$1" ;;
+  esac
+}
+
+declare -A differential_system_files=()
+declare -A block_decomposition_files=()
+declare -A coefficient_presentation_files=()
+declare -A diagonal_form_directories=()
+while IFS=$'\t' read -r input_family differential_system_file \
+    block_decomposition_file coefficient_presentation_file \
+    diagonal_form_directory extra; do
+  [[ -z "$input_family" || "$input_family" == \#* ]] && continue
+  if [[ -n "${extra:-}" || -z "$differential_system_file" ||
+        -z "$block_decomposition_file" || -z "$coefficient_presentation_file" ||
+        -z "$diagonal_form_directory" ]]; then
+    echo "malformed V2 input row for $input_family" >&2
+    exit 64
+  fi
+  differential_system_files["$input_family"]="$(resolve_input_path "$differential_system_file")"
+  block_decomposition_files["$input_family"]="$(resolve_input_path "$block_decomposition_file")"
+  coefficient_presentation_files["$input_family"]="$(resolve_input_path "$coefficient_presentation_file")"
+  diagonal_form_directories["$input_family"]="$(resolve_input_path "$diagonal_form_directory")"
+done < "$input_table"
+for family in "${families[@]}"; do
+  if [[ -z "${differential_system_files[$family]:-}" ]]; then
+    echo "family $family has no row in $input_table" >&2
+    exit 66
+  fi
+done
 # families in flight: leave two helpers for the task broker when there are
 # enough subkernels; with 1-2 subkernels families run one at a time and the
 # broker simply finds no free helper (it then computes locally)
@@ -86,8 +125,12 @@ run_family() {   # submit and wait for one validated family result
   mkdir -p "$out/$family"
   ln -sfn "$pool/logs/$mission.log" "$out/$family/run.log"
   local worker_arguments=(
-    "$family" "$out/$family" "$sector_budget" standard 30 ""
-    "$family_data_directory" "$class_form_directory"
+    "$family" "$out/$family"
+    "${differential_system_files[$family]}"
+    "${block_decomposition_files[$family]}"
+    "${coefficient_presentation_files[$family]}"
+    "${diagonal_form_directories[$family]}"
+    "$sector_budget" standard 30
   )
   if ! FACET_RESOURCE_GROUP="$family" FACET_RESOURCE_ROLE=family \
       "$root/Scripts/kpsubmit.sh" "$mission" \
@@ -101,7 +144,7 @@ run_family() {   # submit and wait for one validated family result
   printf '%s\tsolving\t%s\t-\t-\tmission %s\n' "$family" \
     "$(date --iso-8601=seconds)" "$mission" >> "$status"
   "$root/Scripts/kpwait.sh" "$mission" 259200 > "$out/${family}_solve.status" 2>&1
-  local record="$out/$family/family_epsform_$family.wl"
+  local record="$out/$family/FamilyDLogEpsilonForm.wl"
   if ! grep -q '"Status" -> "OK"' "$out/${family}_solve.status" || [[ ! -f "$record" ]]; then
     printf '%s\tsolve-failed\t-\t%s\t%d\t%s\n' "$family" "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" \
       "$(grep -o '"Status" -> "[A-Z0-9]*"' "$out/${family}_solve.status" | head -1)" >> "$status"; return 1
@@ -111,7 +154,7 @@ run_family() {   # submit and wait for one validated family result
       "$family" "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" >> "$status"
     return 1
   fi
-  local destination="$certified/family_epsform_$family.wl"
+  local destination="$certified/FamilyDLogEpsilonForm_${family}.wl"
   local partial="$destination.partial-$BASHPID"
   if ! cp "$record" "$partial" || ! mv -f "$partial" "$destination"; then
     printf '%s\tinstallation-failed\t-\t%s\t%d\t%s\n' "$family" \

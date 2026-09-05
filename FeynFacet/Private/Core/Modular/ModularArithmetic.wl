@@ -12,8 +12,8 @@
                                  (epsFormFiniteFieldCombineLists, hence
                                  ...CombineCoordinate and every lift built
                                  on it: DiagonalBlockEpsForm.wl,
-                                 FiniteFieldGaugePullBack.wl,
-                                 MultiquadraticStripSolve.wl)
+                                 FiniteFieldBasisTransformationReexpression.wl,
+                                 MultiquadraticOffDiagonalBlockReconstruction.wl)
      modularImageQ               FiniteFieldEpsForm.wl
                                  (epsFormFiniteFieldImageQ)
      modularSquareRoot(s)        MultiquadraticAlgebra.wl
@@ -23,27 +23,27 @@
                                  (familyCertMQSquareRoot),
                                  ObservableTransportFiniteField.wl, and
                                  through multiquadraticSquareRoots both
-                                 screens of MultiquadraticStripSolve.wl
+                                 screens of MultiquadraticOffDiagonalBlockScreens.wl
                                  (which carried their own (p+1)/4
                                  exponentiation until 2026-09-02)
      modularResidueQ             the split-point test of
-                                 MultiquadraticStripSolve.wl at every
+                                 MultiquadraticOffDiagonalBlockSolve.wl at every
                                  sampling, preflight and sign-transform
                                  site (the inline JacobiSymbol idiom is
                                  gone from that file)
-     modularPrimes               FiniteFieldStripSolve.wl
-                                 (finiteFieldStripReservePrimes)
+     modularPrimes               FiniteFieldOffDiagonalBlockSolve.wl
+                                 (finiteFieldOffDiagonalBlockReservePrimes)
      modularLift                 no production caller yet.
                                  diagonalBlockLiftFunction
                                  (DiagonalBlockEpsForm.wl) and the
                                  coefficient lift of
-                                 FiniteFieldGaugePullBack.wl ARE this
+                                 FiniteFieldBasisTransformationReexpression.wl ARE this
                                  composition (CRT, reconstruction at the
                                  product modulus, image check at every
                                  prime) on their padded coefficient
                                  lists; wiring them is reported to the
                                  owner of those files.  The regulator
-                                 lift of MultiquadraticStripSolve.wl is
+                                 lift of MultiquadraticOffDiagonalBlockReconstruction.wl is
                                  NOT this function: it reports the
                                  position of every unreconstructible
                                  coefficient, which drives its
@@ -51,7 +51,7 @@
 
    Production bodies deliberately retained (also documented in the
    consumer's header):
-     - MultiquadraticStripSolve.wl evaluates a radicand at a point as an
+     - MultiquadraticOffDiagonalBlockSolve.wl evaluates a radicand at a point as an
        exact rational (Together) and reduces it once; a literal-by-
        literal reduction refuses a coefficient denominator divisible by
        p even when it cancels, and the solver needs the reduced
@@ -245,9 +245,9 @@ modularImageQ[___] := $Failed;
    Status (round 4, 2026-09-02): no production caller yet.  The
    production lifts are this composition written out --
    diagonalBlockLiftFunction (DiagonalBlockEpsForm.wl) and the
-   coefficient lift of FiniteFieldGaugePullBack.wl on padded
+   coefficient lift of FiniteFieldBasisTransformationReexpression.wl on padded
    coefficient lists, both reported for wiring -- except the regulator
-   lift of multiquadraticStripReconstructRegulator, which must report
+   lift of multiquadraticOffDiagonalBlockReconstructRegulator, which must report
    WHICH coefficients failed to reconstruct ("UnresolvedCoefficient-
    Locations" drives its prime-schedule extension) and therefore keeps
    its own loop over the same primitives. *)
@@ -393,11 +393,11 @@ modularResidueQ[___] := $Failed;
    2^(bits-1): 49 million NextPrime steps at bits = 31, eight minutes
    of kernel time for a call whose answer is "no".  The budget is a
    typed failure, not a silent truncation, and it is far above any
-   real schedule (the strip solver takes eleven primes).
+   real schedule (the off-diagonal block solver takes eleven primes).
 
    Options
      "Exclude"      primes to skip (a reserve prime must stay unseen,
-                    as in finiteFieldStripReservePrimes)
+                    as in finiteFieldOffDiagonalBlockReservePrimes)
      "Residue3Mod4" True keeps only p == 3 (mod 4), the multiquadratic
                     ABI's square-root path
      "Avoid"        integers none of which may vanish mod p -- the

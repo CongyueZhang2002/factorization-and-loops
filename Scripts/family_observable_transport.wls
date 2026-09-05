@@ -9,8 +9,9 @@ arguments = Rest[$ScriptCommandLine];
 If[! MemberQ[{4, 5}, Length[arguments]],
   Print[
     "Usage: family_observable_transport.wls " <>
-    "<epsilon-form.wl> <differential-system.wl> <valuations.wl> " <>
-    "<output.wl> [transport-card.wl]"
+    "<epsilon-form.wl> <differential-system.wl> " <>
+    "<requirements-or-legacy-valuations.wl> " <>
+    "<output.wl> [coefficient-operator-options.wl]"
   ];
   Exit[64]
 ];
@@ -20,7 +21,8 @@ If[! MemberQ[{4, 5}, Length[arguments]],
 cardFile = If[Length[arguments] === 5, arguments[[5]], None];
 
 (* Run log (round 7, 2026-09-02): <output>.log next to the output file,
-   opened at start; every stage milestone of the transport's Verbose path
+   opened at start; every stage milestone of the coefficient operator's
+   Verbose path
    (FeynFacet`Private`$observableTransportMilestoneHook) and every driver
    milestone is appended AS IT HAPPENS with a wall-clock stamp and the
    seconds since start -- one OpenAppend/WriteString/Close per line, so
@@ -53,6 +55,15 @@ loadAssociation[file_, description_] := Module[{value},
   value
 ];
 
+repositoryRelativePath[file_String] := Module[{rootParts, fileParts},
+  rootParts = FileNameSplit[ExpandFileName[repositoryRoot]];
+  fileParts = FileNameSplit[ExpandFileName[file]];
+  If[Length[fileParts] > Length[rootParts] &&
+      Take[fileParts, Length[rootParts]] === rootParts,
+    FileNameJoin[Drop[fileParts, Length[rootParts]]],
+    $Failed]
+];
+
 writeAtomic[value_, file_] := Module[{directory, temporary},
   directory = DirectoryName[file];
   If[! DirectoryQ[directory],
@@ -63,17 +74,9 @@ writeAtomic[value_, file_] := Module[{directory, temporary},
   RenameFile[temporary, file, OverwriteTarget -> True]
 ];
 
-acceptedTransportQ[value_] :=
-  TrueQ[FeynFacet`AcceptedObservableTransportQ[value]];
-
-If[FileExistsQ[outputFile],
-  existing = Quiet[Check[Get[outputFile], $Failed]];
-  If[acceptedTransportQ[existing],
-    Print[Lookup[existing, "Family", "family"],
-      " exact observable transport already exists"];
-    Exit[0]
-  ]
-];
+validatedCoefficientOperatorQ[value_] :=
+  TrueQ[FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+    value]];
 
 epsilonForm = loadAssociation[epsilonFormFile, "Epsilon-form record"];
 runLog["epsilon-form record loaded: " <> ToString[Lookup[epsilonForm, "Family", None]] <>
@@ -81,19 +84,52 @@ runLog["epsilon-form record loaded: " <> ToString[Lookup[epsilonForm, "Family", 
 differentialSystem =
   loadAssociation[differentialSystemFile, "Differential system"];
 valuations = Quiet[Check[Get[valuationsFile], $Failed]];
-If[! ListQ[valuations],
-  Print["Valuation record is not a List: ", valuationsFile];
+typedRequirementsQ = TrueQ[
+  FeynFacet`MasterIntegralEpsilonOrderRequirementsQ[valuations]];
+If[! typedRequirementsQ && ! ListQ[valuations],
+  Print["Requested-output specification is neither a validated " <>
+    "MasterIntegralEpsilonOrderRequirements record nor a legacy " <>
+    "valuation List: ", valuationsFile];
   Exit[65]
+];
+requirementsReference = If[typedRequirementsQ,
+  With[{relativePath = repositoryRelativePath[valuationsFile]},
+    If[relativePath === $Failed,
+      Print["The requirements artifact must be inside the repository so " <>
+        "its V2 reference has a RelativePath: ", valuationsFile];
+      Exit[65]
+    ];
+    <|
+      "RelativePath" -> relativePath,
+      "DataType" -> "MasterIntegralEpsilonOrderRequirements",
+      "SchemaVersion" -> 2,
+      "MathematicalInputReferences" ->
+        valuations["MathematicalInputReferences"]|>],
+  Automatic];
+If[FileExistsQ[outputFile],
+  existing = Quiet[Check[Get[outputFile], $Failed]];
+  If[validatedCoefficientOperatorQ[existing] &&
+      (! typedRequirementsQ ||
+        (KeyExistsQ[existing, "FamilyDifferentialSystemReference"] &&
+          KeyExistsQ[existing,
+            "MasterIntegralEpsilonOrderRequirementsReference"])),
+    Print[Lookup[existing, "Family", "family"],
+      " validated requested-output coefficient operator already exists"];
+    Exit[0]
+  ]
 ];
 
 card = If[cardFile === None, <||>,
-  loadAssociation[cardFile, "Observable-transport card"]];
-hardFunctionOrders = Lookup[card, "HardFunctionOrders", {0}];
-safetyOrders = Lookup[card, "SafetyOrders", 1];
-masterValuation = Lookup[card, "MasterValuation", 0];
-path = Lookup[card, "Path", Automatic];
-wordRepresentation = Lookup[card, "WordRepresentation", Automatic];
-materializedWordLimit = Lookup[card, "MaterializedWordLimit", 4096];
+  loadAssociation[cardFile, "Coefficient-operator options"]];
+hardFunctionOrders = Lookup[card,
+  "RequestedHardFunctionEpsilonOrders", {0}];
+safetyOrders = Lookup[card, "AdditionalRetainedEpsilonOrders", 1];
+masterValuation = Lookup[card,
+  "MinimumRetainedMasterIntegralEpsilonOrder", 0];
+path = Lookup[card,
+  "RegularBasePointAndFirstPathParameterScale", Automatic];
+wordRepresentation = Lookup[card,
+  "IteratedIntegralCoefficientRepresentation", Automatic];
 coordinateBackend = Lookup[card, "CoordinateBackend", Automatic];
 coordinateCacheDirectory = Lookup[card, "CoordinateCacheDirectory",
   outputFile <> ".coordinates"];
@@ -106,27 +142,36 @@ validationPointsPerPrime = Lookup[card,
   "ValidationPointsPerPrime", 1];
 diagnosticDirectory = Lookup[card, "DiagnosticDirectory", None];
 
-demand = FeynFacet`BuildObservableTransportDemand[
-  epsilonForm,
-  differentialSystem,
-  valuations,
-  "HardFunctionOrders" -> hardFunctionOrders,
-  "SafetyOrders" -> safetyOrders,
-  "MasterValuation" -> masterValuation,
-  "Path" -> path
-];
-If[Lookup[demand, "Status", None] =!= "ExactObservableDemand",
+demand = If[typedRequirementsQ, valuations,
+  FeynFacet`Private`mapMasterIntegralCoefficientValuationsToRequestedRows[
+    epsilonForm,
+    differentialSystem,
+    valuations,
+    "RequestedHardFunctionEpsilonOrders" -> hardFunctionOrders,
+    "AdditionalRetainedEpsilonOrders" -> safetyOrders,
+    "MinimumRetainedMasterIntegralEpsilonOrder" -> masterValuation,
+    "RegularBasePointAndFirstPathParameterScale" -> path]];
+If[! typedRequirementsQ && Lookup[demand, "Status", None] =!=
+      "MasterIntegralCoefficientValuationsMappedToRequestedRows",
   runLog["demand construction failed: " <> ToString[Lookup[demand, "Status", None]]];
-  Print["Observable-demand construction failed: ", InputForm[demand]];
+  Print["Requested-row mapping failed: ", InputForm[demand]];
   Exit[1]
-];
-runLog["demand built: " <> ToString[Length[Lookup[demand, "PhysicalDemandPairs", {}]]] <>
-  " demanded (order,row) pairs; transport starting"];
+  ];
+runLog[If[typedRequirementsQ,
+  "validated master-integral epsilon-order requirements loaded; " <>
+    "coefficient-operator construction starting",
+  "requested rows mapped: " <> ToString[Length[Lookup[demand,
+      "RequestedMasterIntegralEpsilonOrderAndRowPairs", {}]]] <>
+    " requested (epsilon order,row) pairs; " <>
+    "coefficient-operator construction starting"]];
 
 start = AbsoluteTime[];
-result = FeynFacet`BuildObservableTransport[epsilonForm, demand,
-  "WordRepresentation" -> wordRepresentation,
-  "MaterializedWordLimit" -> materializedWordLimit,
+result = FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+  epsilonForm, demand,
+  "RegularBasePointAndFirstPathParameterScale" -> path,
+  "MasterIntegralEpsilonOrderRequirementsReference" ->
+    requirementsReference,
+  "IteratedIntegralCoefficientRepresentation" -> wordRepresentation,
   "CoordinateBackend" -> coordinateBackend,
   "CoordinateCacheDirectory" -> coordinateCacheDirectory,
   "ReconstructionThreads" -> reconstructionThreads,
@@ -135,17 +180,23 @@ result = FeynFacet`BuildObservableTransport[epsilonForm, demand,
   "DiagnosticDirectory" -> diagnosticDirectory,
   "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]];
 If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
-  alternateRecord = Join[epsilonForm,
-    <|"Variables" -> Reverse[epsilonForm["Variables"]]|>];
-  alternatePath = FeynFacet`FindObservableTransportPath[alternateRecord];
+  alternateRecord = Join[epsilonForm, <|"CoefficientVariables" ->
+    Reverse[epsilonForm["CoefficientVariables"]]|>];
+  alternatePath =
+    FeynFacet`ChooseRegularBasePointAndFirstPathParameterScale[alternateRecord];
   If[AssociationQ[alternatePath] &&
-      Lookup[alternatePath, "Status", None] === "ExactPathData",
+      Lookup[alternatePath, "Status", None] ===
+        "RegularBasePointAndFirstPathParameterScaleSelected",
     Print["Primary path boundary subspace is not invariant; retrying " <>
       "once with the variable order reversed"];
-    demand = Join[demand, <|"Path" -> alternatePath|>];
-    result = Join[FeynFacet`BuildObservableTransport[epsilonForm, demand,
-      "WordRepresentation" -> wordRepresentation,
-      "MaterializedWordLimit" -> materializedWordLimit,
+    path = alternatePath;
+    result = Join[
+      FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
+      epsilonForm, demand,
+      "RegularBasePointAndFirstPathParameterScale" -> path,
+      "MasterIntegralEpsilonOrderRequirementsReference" ->
+        requirementsReference,
+      "IteratedIntegralCoefficientRepresentation" -> wordRepresentation,
       "CoordinateBackend" -> coordinateBackend,
       "CoordinateCacheDirectory" -> coordinateCacheDirectory,
       "ReconstructionThreads" -> reconstructionThreads,
@@ -156,19 +207,21 @@ If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
       <|"PrimaryPathStatus" -> "BoundarySubspaceNotInvariant"|>]
   ]
 ];
-runLog["transport returned: " <> ToString[Lookup[result, "Status", None]] <>
+runLog["coefficient operator returned: " <>
+  ToString[Lookup[result, "Status", None]] <>
   " after " <> ToString[Round[AbsoluteTime[] - start, 0.1]] <> " s; accepted " <>
-  ToString[acceptedTransportQ[result]]];
-If[! acceptedTransportQ[result],
-  runLog["transport failed: " <> ToString[Lookup[result, "Status", None]]];
-  Print["Observable transport failed: ",
+  ToString[validatedCoefficientOperatorQ[result]]];
+If[! validatedCoefficientOperatorQ[result],
+  runLog["coefficient-operator construction failed: " <>
+    ToString[Lookup[result, "Status", None]]];
+  Print["Requested-output coefficient operator failed: ",
     InputForm[KeyTake[result, {"Status", "Reason", "Certificates",
       "Diagnostics", "RankSampleCount", "DiagnosticDirectory"}]]];
   Exit[1]
 ];
 
-result = Join[result, <|
-  "Demand" -> demand,
+result = Join[result,
+  If[typedRequirementsQ, <||>, <|"Demand" -> demand|>], <|
   "SourceFiles" -> <|
     "EpsilonForm" -> ExpandFileName[epsilonFormFile],
     "DifferentialSystem" -> ExpandFileName[differentialSystemFile],
@@ -180,8 +233,10 @@ result = Join[result, <|
 writeAtomic[result, outputFile];
 runLog["result written: " <> outputFile <> " (" <> ToString[FileByteCount[outputFile]] <> " bytes)"];
 
-Print[result["Family"], " observable transport (", result["Status"], "): ",
-  Length[result["PhysicalDemandPairs"]], " demanded (order,row) pairs, ",
+Print[result["Family"], " requested-output coefficient operator (",
+  result["Status"], "): ",
+  Length[result["RequestedMasterIntegralEpsilonOrderAndRowPairs"]],
+  " requested (epsilon order,row) pairs, ",
   result["BoundaryCoordinates"], " boundary coordinates, maximum weight ",
-  result["MaximumWeight"], ", ",
+  result["MaximumIteratedIntegralWeight"], ", ",
   Round[result["TotalSeconds"], 0.01], " s"];

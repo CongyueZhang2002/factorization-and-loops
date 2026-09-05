@@ -1,8 +1,5 @@
-(* Overhaul 2026-09-02: AcceptedObservableTransportQ (branch tip fc6792f7, 02:43)
-   requires the certificate key FamilyInputAccepted, which BuildObservableTransport
-   writes; the synthetic records of this test predate that key and were
-   refused wholesale (ObservableTransportNotAccepted).  The key is added
-   to every synthetic certificate; nothing else changes. *)
+(* Reconstruct a requested batch while retaining its two path-segment
+   letter-index sequences explicitly. *)
 #!/usr/bin/env wolframscript
 
 $HistoryLength = 0;
@@ -17,37 +14,60 @@ first = {{1, 2}, {0, 1}};
 second = {{2, 0}, {1, 1}};
 final = {{1}, {3}};
 exactCertificates = <|
-  "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True, "BoundaryBaseKernel" -> True,
-  "FirstKernelIdentity" -> True, "BoundaryEvolution" -> True,
+  "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True,
+  "TransportEpsilonValuationsBound" -> True,
+  "BoundaryBaseKernel" -> True,
+  "FirstKernelIdentity" -> True,
+  "BoundaryConstraintSubspaceValidated" -> True,
   "SecondKernelIdentity" -> True|>;
+valuationCertificate = <|
+  "Status" -> "ExactBasisTransformationEpsilonValuationScan",
+  "Accepted" -> True, "Probabilistic" -> False, "Exact" -> True,
+  "TMin" -> 0, "BlockLower" -> {0}|>;
 transport = <|
-  "Status" -> "ExactObservableTransport",
-  "Variables" -> {u, v}, "CoefficientField" -> "Rational",
-  "WordRepresentation" -> "OperatorAutomaton",
-  "BoundaryEvolutionMethod" -> "MovingKernel", "ConstraintRank" -> 0,
+  "DataType" -> "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+  "SchemaVersion" -> 2,
+  "Status" ->
+    "IteratedIntegralCoefficientOperatorForRequestedOutputsValidated",
+  "CoefficientVariables" -> {u, v},
+  "CoefficientPresentationType" -> "Rational",
+  "IteratedIntegralCoefficientRepresentation" ->
+    "IteratedIntegralCoefficientOperatorForRequestedOutputs",
+  "BoundaryConstraintSubspaceRepresentation" -> "MovingNullspaceBasis",
+  "ConstraintRank" -> 0,
   "DualClosureInitialSpanMethod" -> "NoConstraints",
   "DualClosureStabilizationMethod" -> "NoConstraints",
   "SecondBoundaryClosureInitialSpanMethod" -> "NotRequired",
   "SecondBoundaryClosureStabilizationMethod" -> "NotRequired",
-  "ExactOperatorAutomaton" -> <|
-    "Status" -> "ExactOperatorAutomaton",
-    "RequestedMaximumWeight" -> 2,
-    "InitialDemandMap" -> initial,
-    "FirstAlphabetIndices" -> {17},
-    "FirstOperatorMatrices" -> {first},
-    "FirstBoundaryOperator" -> IdentityMatrix[2],
-    "SecondAlphabetIndices" -> {29},
-    "SecondOperatorMatrices" -> {second},
+  "TransportEpsilonValuationSource" ->
+    "ComputedFromBasisTransformationMatrix",
+  "TransportEpsilonValuationCertificate" -> valuationCertificate,
+  "TransportEpsilonValuations" -> <|"TMin" -> 0, "BlockLower" -> {0}|>,
+  "ExactIteratedIntegralCoefficientOperator" -> <|
+    "Status" -> "IteratedIntegralCoefficientOperatorConstructed",
+    "MaximumIteratedIntegralWeight" -> 2,
+    "InitialRequestedOutputMap" -> initial,
+    "FirstPathSegmentAlphabetLetterIndices" -> {17},
+    "FirstPathSegmentOperatorMatrices" -> {first},
+    "FirstPathSegmentBoundaryMap" -> IdentityMatrix[2],
+    "SecondPathSegmentAlphabetLetterIndices" -> {29},
+    "SecondPathSegmentOperatorMatrices" -> {second},
     "FinalBoundaryEmbedding" -> final|>,
-  "Certificates" -> exactCertificates|>;
+  "Certificates" -> exactCertificates,
+  "ProbabilisticCertificates" -> <||>,
+  "Validation" -> <|"Method" -> "DeterministicSymbolic",
+    "Passed" -> True, "Exact" -> True,
+    "Probabilistic" -> False|>|>;
 
-wordPairs = {{{}, {}}, {{17}, {29}}};
+letterIndexSequencePairs = {{{}, {}}, {{17}, {29}}};
 expected = Lookup[
-    FeynFacet`ObservableTransportWordMap[transport, #[[1]], #[[2]]],
-    "Map"] & /@ wordPairs;
+    FeynFacet`ComputeIteratedIntegralCoefficientMatrixForRequestedOutputs[
+      transport, #[[1]], #[[2]]],
+    "IteratedIntegralCoefficientMatrix"] & /@ letterIndexSequencePairs;
 cache = CreateDirectory[];
-reconstructed = FeynFacet`ReconstructObservableTransportWordMaps[
-  transport, wordPairs,
+reconstructed =
+  FeynFacet`ReconstructIteratedIntegralCoefficientMatricesForRequestedOutputs[
+  transport, letterIndexSequencePairs,
   "CoordinateCacheDirectory" -> cache,
   "CoordinateKey" -> "two-word-public-integration",
   "ReconstructionThreads" -> Automatic,
@@ -55,25 +75,30 @@ reconstructed = FeynFacet`ReconstructObservableTransportWordMaps[
   "ValidationPointsPerPrime" -> 1,
   "ValidationSeed" -> 7701];
 actual = If[AssociationQ[reconstructed],
-  Last /@ Lookup[reconstructed, "WordMaps", {}], {}];
+  Lookup[Lookup[reconstructed,
+    "IteratedIntegralCoefficientMatrixRecords", {}],
+    "IteratedIntegralCoefficientMatrix"], {}];
 
-FTAssert["the public final-word batch uses modular reconstruction",
+FTAssert["the public coefficient-matrix batch uses modular reconstruction",
   Lookup[reconstructed, "Status", None] ===
-      "ModularlyReconstructedObservableWordMaps" &&
-    TrueQ[Lookup[reconstructed, "Accepted", False]] &&
-    TrueQ[Lookup[reconstructed, "Probabilistic", False]]];
-FTAssert["only final word matrices are reconstructed",
+      "IteratedIntegralCoefficientMatricesForRequestedOutputsReconstructed" &&
+    Lookup[reconstructed["Validation"], "Method", None] ===
+      "ProbabilisticFiniteFieldSampling" &&
+    TrueQ[Lookup[reconstructed["Validation"], "Passed", False]]];
+FTAssert["only requested coefficient matrices are reconstructed",
   Length[actual] === Length[expected] &&
     And @@ MapThread[
       And @@ Flatten[MapThread[TrueQ[Together[#1 - #2] === 0] &,
         {#1, #2}, 2]] &, {actual, expected}]];
 FTAssert["the final reconstruction has fresh full-row acceptance",
-  Lookup[reconstructed["ModularCertificate"], "Status", None] ===
+  Lookup[reconstructed["Validation", "Certificate"], "Status", None] ===
       "FreshModularIdentityAccepted" &&
-    TrueQ[Lookup[reconstructed["ModularCertificate"],
+    TrueQ[Lookup[reconstructed["Validation", "Certificate"],
       "AllComplementaryRowsChecked", False]] &&
-    reconstructed["ModularCertificate", "EvaluatedFreshTrialCount"] === 2 &&
-    reconstructed["ModularCertificate", "GeneratedFreshTrialCount"] === 10];
+    reconstructed["Validation", "Certificate",
+      "EvaluatedFreshTrialCount"] === 2 &&
+    reconstructed["Validation", "Certificate",
+      "GeneratedFreshTrialCount"] === 10];
 
 DeleteDirectory[cache, DeleteContents -> True];
 FTReport[];

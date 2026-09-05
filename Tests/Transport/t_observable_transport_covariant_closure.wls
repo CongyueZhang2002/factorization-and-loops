@@ -3,6 +3,7 @@
 $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
 identity = IdentityMatrix[5];
 rows = {
@@ -27,21 +28,32 @@ containment = If[
 eps = Symbol["Global`closureEpsilon"];
 y = Symbol["Global`closureY"];
 closureQ = x - 1/4 + y - 1/2;
-rankRecord = <|
-  "Status" -> "ExactEpsilonForm", "Family" -> "RankSampleToy",
-  "Variables" -> {x, y}, "Regulator" -> eps, "Dim" -> 1,
-  "Ranges" -> {{1}}, "TTotal" -> {{closureQ}},
-  "TTotalInverse" -> {{1/closureQ}}, "EpsFormX" -> eps {{0}},
-  "EpsFormY" -> eps {{0}}, "Letters" -> {},
-  "ChartRecord" -> <|"CoefficientField" -> "Rational"|>,
-  "GateVerdict" -> True, "GaugeIdentity" -> True, "Flatness" -> True,
-  "TTotalInvertible" -> True|>;
+rankSystem = <|
+  "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+  "Family" -> "RankSampleToy", "KinematicVariables" -> {x, y},
+  "DimensionalRegulator" -> eps,
+  "OriginalMasterIntegralBasis" -> {rankMaster["RankSampleToy", {1}]},
+  "ConnectionMatrices" ->
+    {{{D[closureQ, x]/closureQ}}, {{D[closureQ, y]/closureQ}}}|>;
+rankCandidate = <|
+  "Family" -> "RankSampleToy", "Variables" -> {x, y},
+  "Regulator" -> eps, "Ranges" -> {{1}}, "Blocks" -> {{1}},
+  "TTotal" -> {{closureQ}}, "TTotalInverse" -> {{1/closureQ}},
+  "EpsFormX" -> {{0}}, "EpsFormY" -> {{0}}|>;
+rankRecord = FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+  rankCandidate, rankSystem, <|
+    "RelativePath" -> "rank_sample_toy.wl",
+    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+    "Family" -> "RankSampleToy"|>, "IdentityMethod" -> "Symbolic"];
 rankDemand = <|
-  "PhysicalRows" -> {1}, "PhysicalOrders" -> {1},
-  "PhysicalValuation" -> 1,
-  "Path" -> <|"FirstVariable" -> x, "FirstBase" -> 1/4,
-    "SecondBase" -> 1/3, "FirstTargetSample" -> 1/3|>|>;
-rankSampleResult = FeynFacet`BuildObservableTransport[
+  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> {{1, 1}},
+  "MinimumRetainedMasterIntegralEpsilonOrder" -> 1,
+  "RegularBasePointAndFirstPathParameterScale" -> <|
+    "FirstVariable" -> x, "SecondVariable" -> y,
+    "FirstBase" -> 1/4, "SecondBase" -> 1/3,
+    "FirstPathParameterScale" -> 1/12|>|>;
+rankSampleResult =
+  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
   rankRecord, rankDemand,
   "RankSamples" -> {{y -> 1/2}, {y -> 1/2}, {y -> 1/2}}];
 
@@ -58,7 +70,8 @@ checks = <|
   "NonzeroConstraintCannotBecomeRankZero" ->
     Lookup[rankSampleResult, "Status", None] ===
       "SingularConstraintRankSample" &&
-    ! FeynFacet`AcceptedObservableTransportQ[rankSampleResult]
+    ! FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
+      rankSampleResult]
 |>;
 
 Print[InputForm[checks]];

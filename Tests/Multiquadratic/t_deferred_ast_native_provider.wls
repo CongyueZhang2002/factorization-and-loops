@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 
-(* The native deferred evaluator replaces only BBar.  E, C, Q, one-forms,
+(* The native deferred evaluator replaces only Inhomogeneity.  E, C, Q, one-forms,
    preflight and row assembly remain the package's existing provider path. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
@@ -9,17 +9,17 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, layoutBuilder, directProvider, attachDeferred, preflight,
-  nativeBatchEvaluator, assembleSample, forcingOf, solve,
+  nativeBatchEvaluator, assembleSample, inhomogeneityOf, solve,
   wideScheduleQ, presentationRoots, generatorExpression} = mq /@ {
-  "multiquadraticStripPrepare", "multiquadraticStripAssemblyLayout",
-  "multiquadraticStripDirectProvider",
-  "multiquadraticStripAttachDeferredPreparation",
-  "multiquadraticStripProviderPreflight",
-  "multiquadraticStripNativeDeferredEvaluateBatch",
-  "multiquadraticStripAssembleSample",
-  "blockEquationDeferredForcing",
-  "solveEpsFormStripMultiquadratic",
-  "multiquadraticStripWidePrimeScheduleQ",
+  "multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockAssemblyLayout",
+  "multiquadraticOffDiagonalBlockDirectProvider",
+  "multiquadraticOffDiagonalBlockAttachDeferredPreparation",
+  "multiquadraticOffDiagonalBlockProviderPreflight",
+  "multiquadraticOffDiagonalBlockNativeDeferredEvaluateBatch",
+  "multiquadraticOffDiagonalBlockAssembleSample",
+  "blockEquationDeferredInhomogeneity",
+  "solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators",
+  "multiquadraticOffDiagonalBlockWidePrimeScheduleQ",
   "coefficientPresentationSquareRootsInVariables",
   "squareRootRecordExpression"};
 
@@ -31,11 +31,11 @@ coefficientPresentation = BuildSquareRootGeneratorsAndQuadraticRelations[
 roots = presentationRoots[coefficientPresentation, {x, y}];
 zero11 = {{{0}}, {{0}}};
 (* Keep every declared root visible to the ordinary root census.  The native
-   source below supplies only the off-diagonal forcing. *)
+   source below supplies only the off-diagonal inhomogeneity. *)
 e = {{{Total[generatorExpression /@ roots]}}, {{0}}};
 record = <|"Family" -> "DEFERRED_AST_NATIVE_PROVIDER", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {x, y}, "Regulator" -> eps,
-  "Strip" -> {e, zero11, zero11}|>;
+  "OffDiagonalBlockEquation" -> {e, zero11, zero11}|>;
 
 expression = 7 + 5*Sqrt[x] + 11*Sqrt[y] + 13*Sqrt[1 + x + y] +
   17*Sqrt[x]*Sqrt[y] + 19*Sqrt[x]*Sqrt[1 + x + y] +
@@ -56,12 +56,12 @@ Put[<|"DeferredPreparation" ->
     <|"Preparation" -> sourcePreparation|>|>, sourceFile];
 
 prepared = prepare[record, coefficientPresentation, "RootIndices" -> {1, 2, 3},
-  "OneForms" -> {}, "GaugeDenominator" -> 1,
+  "OneForms" -> {}, "OffDiagonalBasisTransformationDenominator" -> 1,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "QuotientGrade"];
 layout = layoutBuilder[prepared];
 provider = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "QuotientGrade", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"]];
+  "OffDiagonalBasisTransformationDenominator" -> prepared["OffDiagonalBasisTransformationDenominator"]];
 provider = attachDeferred[provider, sourcePreparation, sourceFile];
 wrongSourcePreparation = ReplacePart[sourcePreparation,
   {Key["Records"], 1, Key["Terms"], 1, Key["Coefficient"]} -> 37];
@@ -77,12 +77,12 @@ derivativeBatch = nativeBatchEvaluator[provider, {point},
   "Derivatives" -> True];
 
 expectedGrades = {7, 5, 11, 17, 13, 19, 23, 29};
-expectedBBar = ArrayReshape[
+expectedInhomogeneity = ArrayReshape[
   Join[expectedGrades, Mod[2 expectedGrades, prime]], {2, 1, 1, 8}];
 FTAssert["native deferred provider emits the exact grade channels",
   Lookup[batch, "Status", None] ===
       "MultiquadraticNativeDeferredBatchV1" &&
-    batch["BBarBatch"] === {expectedBBar}];
+    batch["InhomogeneityBatch"] === {expectedInhomogeneity}];
 expectedDerivativeX = {0, 65, 0, 15, 63, 38, 56, 58};
 expectedDerivativeY = {0, 0, 75, 41, 63, 100, 63, 66};
 expectedDerivatives = ({ArrayReshape[Join[#1, Mod[2 #1, prime]],
@@ -90,15 +90,15 @@ expectedDerivatives = ({ArrayReshape[Join[#1, Mod[2 #1, prime]],
 FTAssert["native deferred provider differentiates the radical DAG exactly",
   Lookup[derivativeBatch, "Status", None] ===
       "MultiquadraticNativeDeferredDerivativeBatchV1" &&
-    derivativeBatch["BBarBatch"] === {expectedBBar} &&
-    derivativeBatch["BBarDerivativeBatch"] === expectedDerivatives];
+    derivativeBatch["InhomogeneityBatch"] === {expectedInhomogeneity} &&
+    derivativeBatch["InhomogeneityDerivativeBatch"] === expectedDerivatives];
 
 sample = assembleSample[layout, provider, 7, prime,
   "PointCount" -> 1, "MaximumAttempts" -> 1,
   "CandidatePoints" -> {{4, 9}}, "SplitPointsOnly" -> True];
 expectedRight = Flatten[Table[
-  expectedBBar[[mu, 1, 1, grade]], {grade, 8}, {mu, 2}]];
-FTAssert["provider sampler injects native BBar into the existing rows",
+  expectedInhomogeneity[[mu, 1, 1, grade]], {grade, 8}, {mu, 2}]];
+FTAssert["provider sampler injects native Inhomogeneity into the existing rows",
   Lookup[sample, "Status", None] ===
       "AssembledMultiquadraticSampleV1" &&
     sample["RightHandSide"] === expectedRight &&
@@ -113,7 +113,7 @@ connection = {
   {{0, 0}, {expression, 0}},
   {{0, 0}, {2 expression, 0}}
 };
-bundle = forcingOf[connection, {{1}, {2}}, 2, 1, <||>, {x, y}, eps,
+bundle = inhomogeneityOf[connection, {{1}, {2}}, 2, 1, <||>, {x, y}, eps,
   "Output" -> "Bundle", "BundleRoots" -> roots,
   "Progress" -> False];
 productionRecord = Join[record, <|"DeferredBundle" -> bundle|>];
@@ -121,8 +121,8 @@ productionFile = CreateTemporary[];
 Put[productionRecord, productionFile];
 
 constructorResult = Block[
-  {FeynFacet`Private`multiquadraticStripReconstructRegulator},
-  FeynFacet`Private`multiquadraticStripReconstructRegulator[
+  {FeynFacet`Private`multiquadraticOffDiagonalBlockReconstructRegulator},
+  FeynFacet`Private`multiquadraticOffDiagonalBlockReconstructRegulator[
       constructorPreparation_Association, constructorLayout_Association,
       constructorProvider_Association, ___] := Module[{constructorSample},
     constructorSample = assembleSample[constructorLayout,
@@ -148,10 +148,10 @@ constructorResult = Block[
     "DeferredBundle" -> bundle,
     "DeferredPreparationFile" -> productionFile,
     "RootIndices" -> {1, 2, 3}, "OneForms" -> {},
-    "GaugeDenominator" -> 1, "Support" -> {{0, 0}},
+    "OffDiagonalBasisTransformationDenominator" -> 1, "Support" -> {{0, 0}},
     "CoefficientProvider" -> "SplitBranch",
     "IntegrabilityScreen" -> False, "ScreenFirst" -> False,
-    "GaugeScreen" -> False, "DegreeOffsetLadder" -> None,
+    "OffDiagonalBasisTransformationBlockScreen" -> False, "DegreeOffsetLadder" -> None,
     "SamplePrimes" -> {prime}, "HeldOutPrime" -> 107,
     "RegulatorValues" -> {2}, "HeldOutRegulatorValue" -> 3,
     "Verbose" -> False]
@@ -171,7 +171,7 @@ Print["native deferred production-route telemetry: ", InputForm[<|
   "BundleCompositionSeconds" -> Lookup[constructorSample,
     "SplitSparseDeferredBundleCompositionSeconds",
     Missing["NotMeasured"]]|>]];
-FTAssert["production constructor attaches the bundle DAG and bypasses bundle BBar",
+FTAssert["production constructor attaches the bundle DAG and bypasses bundle Inhomogeneity",
   Lookup[bundle, "Status", None] === "PreparedDeferredBundle" &&
     AssociationQ[Lookup[bundle, "DeferredPreparation", None]] &&
     Lookup[constructorResult, "Status", None] ===

@@ -10,11 +10,25 @@ specialized material is grouped by purpose:
 
 ## Production entry points
 
+- V2 differential-equation stages:
+  `DifferentialEquations/build_family_differential_system_v2.wls` constructs
+  one explicit `FamilyDifferentialSystem`; then
+  `DifferentialEquations/build_family_differential_system_block_decomposition_v2.wls`
+  derives its strongly connected components and writes one validated
+  `FamilyDifferentialSystemBlockDecomposition`. Both accept absolute or
+  repository-root-relative mathematical input paths.
 - Full epsilon-form completion: `complete_family_epsforms.sh`
 - Family campaign and worker: `family_epsform_campaign.sh`,
-  `family_epsform_sector.wls` (finite-field route; the CANONICA/Maple driver is under Backup/)
-- Certification: `certify_family_epsform_campaign.wls`,
-  `certify_family_epsform_parallel.wls`, `certify_family_epsform_record.wls`
+  `family_epsform_pool.sh`, and `family_epsform_sector.wls`. The launchers
+  take a tab-separated table whose columns are the family and explicit paths
+  to its V2 `FamilyDifferentialSystem`, block decomposition, coefficient
+  presentation, and directory of validated diagonal-block dlog epsilon forms.
+  Paths may be absolute or repository-root-relative. The worker validates the
+  completed family equation and writes `FamilyDLogEpsilonForm.wl`; it never
+  discovers or translates the retired pre-V2 result tree.
+- Standalone validation of an explicitly supplied working result and V2
+  system remains available through `certify_family_epsform_record.wls`; the
+  production worker already performs this validation before writing output.
 - Observable and master transport: `complete_observable_transport.sh`
   (manifest + rounds; dispatches the standalone driver),
   `observable_transport_kernelpool_campaign.sh` (CANONICAL multi-family
