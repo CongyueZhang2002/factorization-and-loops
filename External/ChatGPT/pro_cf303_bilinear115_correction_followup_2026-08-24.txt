@@ -1,0 +1,42 @@
+Continue the existing **Assess Multiquadratic Pipeline** evaluation with its full history. This is a correction to the premise of the immediately preceding 20->18 inquiry, not a new standalone question.
+
+The previous conclusion was valid only after committing the whole sector-20 problem to the Kallen23 chart. A dependency-closed census of the actual CF303 20->18 strip in the source identity frame found:
+
+- the sector-20 diagonal E uses only root 3, sqrt(1-4 x y);
+- the sector-18 diagonal C is root-free;
+- the forcing B_20,18 uses only root 3;
+- roots 1 and 2 do not occur anywhere in this strip.
+
+Therefore we let the standardized per-strip solver choose a chart for exactly the active root set {3}. It selected Bilinear115,
+
+  x -> p,  y -> (1-u^2)/(4 p),  sqrt(1-4 x y) -> u,
+
+and solved the 2x2 -> 2x2 strip rationally. Exact result:
+
+- Status: CF303Sector2018Bilinear115SolvedV1
+- Method: RationalChart/Bilinear115/SimultaneousFiniteFieldAffinePDE
+- RootIndices: {3}
+- numerator support: 6 monomials initially, learned to 3
+- constrained rank/nullity: 48/4; learned rank/nullity: 40/0
+- construction primes 1000003, 2147483423, 2147483477 all held-out validated
+- unseen-prime residual at 2147483399: exactly zero
+- ExactDLog: True; alphabet length 7
+- exact frame certificate: coordinate composition, branch sign, gauge round trip, transformed-one-form pullback, source dlog, and aggregate Exact are all True
+- solve time: 0.595483 s
+- solution SHA256: 687cc3815fd18be7e3a5a9f4f9ad893e7062012366fdab66a33faea88681ef9f
+- summary SHA256: 2c7b2658dacf95af85970542f903a0da606865e89c6d8cf241c4c0ad8cf10952
+- package source was not modified.
+
+The earlier fixed-Kallen23 multiquadratic ansatz also failed under all tested degree offsets, alphabet closures, and 36 single denominator-factor enlargements. Those failures were an avoidable chart/ansatz mismatch, not an obstruction: the root-minimal Bilinear115 solve is an exact counterexample to treating k(R) as intrinsically necessary for this strip.
+
+Please reassess concisely but technically:
+
+A. Confirm the corrected principle: the coefficient field and chart should be selected from the dependency-closed assembled strip, not inherited from a chart chosen for the whole sector frontier. Odd grade in one fixed chart does not imply an intrinsic algebraic extension if the active source root set admits a rational chart.
+
+B. For continuing sector 20 downward, is the safe architecture to solve each assembled strip in a minimal chart, pull every gauge and dlog certificate back to the common source identity frame, assemble the next forcing there, re-run the exact root census, then choose the next chart? State the exact coherence checks needed when gauges from different charts enter one recurrence.
+
+C. Identify the first point at which triple-root arithmetic is genuinely unavoidable. Is the correct trigger that the dependency-closed assembled operator/forcing simultaneously contains a root set for which no catalogued birational chart rationalizes all active roots (after exact cancellations), rather than merely that different earlier strips used different roots?
+
+D. Given D_20,19=0, the exact D_20,18 above, A_18,17=0, and raw A_20,17=0, we infer D_20,17=0. For lower j, the assembled forcing is A_20,j - D_20,18 A_18,j until another nonzero D_20,k appears. Recommend a fail-closed sequential census/solve protocol and any low-cost invariant that detects an unsafe chart transition before launching a modular solve.
+
+Please explicitly distinguish mathematical necessity from a limitation of a fixed-chart implementation.

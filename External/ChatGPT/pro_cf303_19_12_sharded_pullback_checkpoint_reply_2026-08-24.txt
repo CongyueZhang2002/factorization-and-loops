@@ -1,0 +1,554 @@
+A. Row-sharded source pullback
+
+Yes. The sharded construction is theorem-level equivalent to the monolithic matrix pullback.
+
+Coordinate substitution, algebraic normalization, source radical decomposition, branch roundtrip, and equality of the chart/source gauge are all entrywise predicates. For a row partition
+
+{1,2,3,4}=I
+1
+	​
+
+⊔I
+2
+	​
+
+⊔I
+3
+	​
+
+,
+
+certifying every entry in every I
+s
+	​
+
+ certifies the complete matrix. The global valid-sheet set is correctly
+
+Σ
+global
+	​
+
+=
+s
+⋂
+	​
+
+Σ
+s
+	​
+
+.
+
+The subsequent full-matrix SameQ comparison with the monolithic oracle removes the remaining practical concern that the aggregator might have reordered or omitted entries.
+
+The global invariants that must remain in the aggregate manifest are:
+
+Exact partition: every row appears exactly once, with original row and column ordering restored.
+
+Common algebraic ABI: identical Kallen23 chart, inverse, root order, branch-label convention, constant field, and nested-radical normalizer.
+
+Common provenance: all shards refer to the same chart-gauge hash, source family frame, and solution hash.
+
+Common sheet: Σ
+global
+	​
+
+
+=∅, with one selected sheet recorded globally rather than independently per shard.
+
+Common generic open set: the product of all shard gauge/chart denominators is not identically zero; preferably record one exact generic point avoiding the complete union of exclusions.
+
+Differential compatibility: the same certified map must be used later for dD
+19,12
+	​
+
+, not merely for entrywise value substitution.
+
+There is no additional matrix determinant condition on D
+19,12
+	​
+
+: it is an off-diagonal gauge block inside a unipotent transformation, not itself the complete change-of-basis matrix.
+
+The row-sharded timing is therefore a valid certified optimization, not merely a heuristic parallelization.
+
+B. The 21→12 recurrence and imported channels
+
+The invariant recurrence should be stated using one accumulated pre-sector-21 connection 
+A
+:
+
+F
+21,12
+	​
+
+=
+A
+21,12
+	​
+
+−
+k=13
+∑
+20
+	​
+
+D
+21,k
+	​
+
+A
+k,12
+	​
+
+.
+	​
+
+
+Your expanded expression is correct provided
+
+B
+21,12
+base
+	​
+
+=
+A
+21,12
+	​
+
+
+and each displayed A
+k,12
+cur
+	​
+
+ equals the corresponding 
+A
+k,12
+	​
+
+.
+
+The nontrivial terms then reduce to the ones you listed because of the certified zeros:
+
+D
+20,12
+	​
+
+=D
+18,12
+	​
+
+=0,
+D
+21,17
+	​
+
+=D
+21,16
+	​
+
+=D
+21,13
+	​
+
+=0,
+
+and the 19→18→12 path vanishes because
+
+A
+18,12
+cur
+	​
+
+=0.
+One frame condition to check explicitly
+
+If the symbols A
+21,12
+	​
+
+, A
+21,15
+	​
+
+, and A
+21,14
+	​
+
+ in the expanded formula are raw blocks rather than blocks in the accumulated lower-sector frame, then right-action contributions such as
+
+A
+21,15
+	​
+
+D
+15,12
+	​
+
+,A
+21,14
+	​
+
+D
+14,12
+	​
+
+,
+
+and any other nonzero A
+21,k
+	​
+
+D
+k,12
+	​
+
+ must either be added or certified zero.
+
+The safest certificate is therefore not the expanded formula by itself, but
+
+B
+21,12
+base
+	​
+
+=
+exact
+A
+21,12
+	​
+
+.
+
+Similarly,
+
+A
+19,12
+cur
+	​
+
+=A
+19,12
+pre
+	​
+
++ϵ(E
+19
+	​
+
+D
+19,12
+	​
+
+−D
+19,12
+	​
+
+C
+12
+	​
+
+)−dD
+19,12
+	​
+
+
+is correct only when A
+19,12
+pre
+	​
+
+ already contains every earlier recursive contribution used when solving 19→12.
+
+Importing the pinned channel shards
+
+This is safe. There is no reason to decompose the 1.53-million-leaf source gauge again if every scalar shard has:
+
+Compose
+local
+	​
+
+∘Decompose
+local
+	​
+
+=id,
+Compose
+123
+	​
+
+∘Lift
+local→123
+	​
+
+∘Decompose
+local
+	​
+
+=id,
+
+with the fixed little-endian mask ABI and source hashes.
+
+The imported artifact must additionally certify:
+
+dLift(D
+19,12
+	​
+
+)=Lift(dD
+19,12
+	​
+
+),
+
+because A
+19,12
+cur
+	​
+
+ uses the derivative of the gauge.
+
+This is the same exact leafwise architecture endorsed by the earlier evidence ledger: retain the forcing as base + sum(products), decompose leaves separately, lift them into the global basis, and only then combine rational grade channels. 
+
+codex_overnight_optimization_tr…
+
+ The prior sidecar also required exact roundtrips before lifting each recursive product. 
+
+codex_overnight_optimization_tr…
+
+Smallest adequate independent check
+
+For the census, the following is sufficient:
+
+exhaustive, hash-bound recurrence-leaf manifest;
+
+exact local/global roundtrip of every imported leaf;
+
+exact XOR-grade assembly;
+
+exact final channel composition;
+
+exact equality to an independently assembled source recurrence, or an equivalent proof that the complete source leaf DAG maps homomorphically to the channel DAG;
+
+independent radical-classifier agreement.
+
+A compose/decompose roundtrip of the final channel object alone would be partly tautological. It becomes decisive only when the object being compared is the independently specified source recurrence.
+
+For the finished gauge, add:
+
+F
+21,12
+	​
+
++ϵ(E
+21
+	​
+
+D
+21,12
+	​
+
+−D
+21,12
+	​
+
+C
+12
+	​
+
+)−dD
+21,12
+	​
+
+=ϵ
+a
+∑
+	​
+
+R
+a
+	​
+
+dlogL
+a
+	​
+
+
+exactly in the source field, plus chart/source roundtrip, dlog potentials, and the cumulative unipotent row certificate.
+
+The monolithic direct-expression oracle is then adversarial redundancy, not a prerequisite.
+
+C. First genuine three-root pilot
+
+Attempt Kallen23 plus one residual quadratic root first, not the direct eight-grade identity-frame reconstruction.
+
+The certified field isomorphism has the form
+
+Q(x,y,ϵ)(r
+1
+	​
+
+,r
+2
+	​
+
+,r
+3
+	​
+
+)≅Q(p,q,ϵ)(R),R
+2
+=F(p,q),
+
+so this loses no possible gauge. It reduces the algebra from eight source grades to two chart grades.
+
+Kallen23 is the natural first pair chart here because:
+
+the large D
+19,12
+	​
+
+ gauge was originally reconstructed there;
+
+roots r
+1
+	​
+
+,r
+2
+	​
+
+ become rational;
+
+only the residual r
+3
+	​
+
+ grade remains;
+
+the already imported source channels can be mapped leafwise without recreating the monolithic source expression.
+
+Smallest decisive pilot
+
+Do not begin with a complete reconstruction. Run this bounded pilot:
+
+Exact field conversion
+
+Map the unique scalar operand DAG for
+
+E
+21
+	​
+
+,C
+12
+	​
+
+,F
+21,12
+	​
+
+
+into k(R) operand-locally.
+
+Require:
+
+R
+2
+=F,
+
+exact source/chart roundtrip, differential compatibility, no undeclared radical, and both R-branches.
+
+Because of the confirmed Kallen23 nested-radical defect, this gate must perform operand-local algebraic normalization before source roundtrip; Together alone is not an acceptable criterion.
+
+Transport one fixed ansatz space
+
+Use a source-defined support/one-form space and transport it through the field isomorphism. Do not compare independently guessed rectangle supports in the two representations.
+
+Common-image modular comparison
+
+At one good prime and regulator value, then one independent second image:
+
+assemble the rank-one system;
+
+assemble a small identity-frame eight-grade oracle on the same source points;
+
+compare equations after the exact field/sign transform;
+
+require identical consistency, rank, nullity, and constrained normalization.
+
+Record cost metrics
+
+Compare:
+
+compiled monomial counts;
+
+unknown count;
+
+exact expression bytes;
+
+accepted-point rate;
+
+one-image assembly wall.
+
+Since the grade count drops from eight to two, the pair-chart representation can tolerate approximately a fourfold increase in chart support before losing its basic unknown-count advantage:
+
+2N
+chart
+	​
+
+≲8N
+source
+	​
+
+⟺N
+chart
+	​
+
+≲4N
+source
+	​
+
+.
+
+This is only a preflight metric; actual residue and alphabet counts must also be included.
+
+Continue criterion
+
+Scale the rank-one route when:
+
+all exact field-map gates pass;
+
+two independent modular images have stable rank/nullity and normalization;
+
+the transported ansatz column space agrees with the identity-frame oracle;
+
+and the rank-one compiled system is materially smaller or faster.
+
+Failure criterion
+
+There are two different failure classes.
+
+Mathematical failure:
+
+the claimed map is not a differential-field isomorphism;
+
+the third root cannot be reduced to one squarefree residual generator;
+
+or a later exact divisor/de Rham calculation proves that the required forms are not algebraic dlogs.
+
+None is currently expected.
+
+Implementation no-go for Kallen23:
+
+operand-local normalization cannot be made fail-closed;
+
+chart support or expression swell exceeds the eight-grade cost enough to remove the two-grade advantage;
+
+or chart assembly is slower despite caching.
+
+An inconsistent finite ansatz is not by itself a failure of the pair-chart representation. Unless the source and chart ansatz spaces are proved equivalent, it is only another support/alphabet failure.
+
+The direct eight-grade solver should therefore remain the independent identity-frame oracle and fallback, not tonight’s first full pilot.
