@@ -1,3 +1,5 @@
+> Historical method record of the August 2026 hard-class attacks. Its budget and seat rules are void; the house rules are `AGENTS.md`.
+
 # HARD-CLASS TOOLKIT — a standard attack ladder for non-canonicalizable DE blocks
 
 `HardClassToolkit.wl`, driver `AttackClass[classData, opts]`.

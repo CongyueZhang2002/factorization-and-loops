@@ -1,3 +1,5 @@
+> Historical method record of the CANONICA class ladder, retired on 2026-09-02. The operational rules in section 5 (kernel counts, wait loops, check cadences) are void; the house rules are `AGENTS.md`.
+
 # Stage 1: canonicalization of the block lattice
 
 This is the fresh-agent operating manual for stage 1 of the

@@ -1,3 +1,5 @@
+> Historical: the `BoundaryPeriods/` evidence it cites moved to `Stale/DifferentialEquationData/2026-09-03_pre_v2/` on 2026-09-03; boundary data are now the V2 records of `Design/DifferentialEquationDataSchemaV2.md`.
+
 # Stage 3: boundary toolchain (measured; joint with Codex)
 
 Decided by the 2026-08-15 package survey (Design/Stage3PackageSurvey.md,

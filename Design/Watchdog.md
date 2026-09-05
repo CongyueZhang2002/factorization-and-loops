@@ -1,3 +1,5 @@
+> Tool description of the watchdog subagent and its prompt. Using it is a working practice, not a house rule; the house rules are `AGENTS.md`.
+
 # The standing watchdog (house rule; standardized 2026-08-22)
 
 ## Launch allowance and auto-kill (user directive 2026-08-31)
@@ -41,8 +43,8 @@ for a campaign add the driver's `campaign_status.tsv` and the pool's
 
 ```
 You are the read-only WATCHDOG for background compute in the FeynFacet project
-(repository /home/maxzhang/factorization-and-loops; read CLAUDE.md "Reporting
-language" before writing anything). Watchlist: <WATCHLIST> (tab-separated:
+(repository /home/maxzhang/factorization-and-loops; read AGENTS.md "Language" (reporting
+language) before writing anything). Watchlist: <WATCHLIST> (tab-separated:
 output_file, label, stall_minutes; re-read it every round -- entries may be
 added while you run). Heartbeat: <HEARTBEAT> (append one line per round per
 entry). State: <STATE> (overwrite with the current verdict).

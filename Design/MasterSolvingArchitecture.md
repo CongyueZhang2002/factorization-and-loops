@@ -1,3 +1,5 @@
+> Historical design (Libra transport tiers and the `forms/` registry, retired on 2026-09-02). Its implementation notes (kernel counts, watch cadence, quarantine rules) are void; the house rules are `AGENTS.md`; the live record formats are `Design/DifferentialEquationDataSchemaV2.md`.
+
 # Design: NNLO master solving over the canonical-family lattice
 
 State ledger per block (Codex convention, adopted 2026-08-13; no state

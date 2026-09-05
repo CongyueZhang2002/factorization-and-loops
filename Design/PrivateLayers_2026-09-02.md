@@ -1,3 +1,5 @@
+> Layout record as of 2026-09-02, kept for the overhaul evidence. The current folder layout and load order are the header of `FeynFacet/Private/LoadOrder.wl`.
+
 # FeynFacet/Private layer structure (overhaul 2026-09-02, goal 3)
 
 The package modules live in seven subfolders of `FeynFacet/Private/`,

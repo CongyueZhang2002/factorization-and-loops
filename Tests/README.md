@@ -35,6 +35,6 @@ recommended mode) and runs kernel-launching tests standalone.
   `p`): a leaked `p`, `m` or `q` becomes a numeric value inside a later
   mission's Kira coefficients.
 - Write `System`Names[...]`: after LoadFACET, a bare `Names` binds to the
-  empty `FeynCalc`Names` shadow (CLAUDE.md, Wolfram traps).
+  empty `FeynCalc`Names` shadow (AGENTS.md, Traps).
 - The pooled phase of `Scripts/run_tests_pool.sh` is a screen; a pooled
   failure is confirmed in a fresh standalone kernel before it counts.

@@ -1,3 +1,5 @@
+> Tool description of `Scripts/KernelPool.wls`. The resource numbers and the "rules of use" below are historical: resources are assigned per task by the user, and the house rules are `AGENTS.md`.
+
 # Design: the persistent KernelPool (2026-08-16)
 
 ## Problem
