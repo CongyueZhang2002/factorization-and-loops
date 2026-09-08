@@ -35,7 +35,7 @@ canonicalDirectory = FileNameJoin[{
   root, "ppHX_NLO", "Results", "UU_08_10_canonical"
 }];
 scratchDirectory = FileNameJoin[{
-  root, "Codex", "ppHX_NLO", "CanonicalIdempotence"
+  root, "ppHX_NLO", "Results", "CanonicalIdempotence"
 }];
 
 sourcePairFiles = Sort[FileNames["F*_C*.wl",

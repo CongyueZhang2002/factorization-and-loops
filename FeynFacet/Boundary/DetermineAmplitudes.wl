@@ -1,0 +1,102 @@
+
+(* Assemble independent physical coefficient equations, determine sufficient
+   epsilon orders, evaluate their integrals, and return a finite affine map. *)
+Begin["FeynFacet`Private`"];
+FeynFacet`DetermineBoundaryAmplitudes::usage="DetermineBoundaryAmplitudes[problem,opts] selects independent established physical coefficient equations, preserves the original amplitude Laurent bounds, derives sufficient integral orders and evaluates missing coefficients. The seed-to-amplitude maps are explicit input data.";
+Options[FeynFacet`DetermineBoundaryAmplitudes]={"IntegrationBackend"->Automatic,
+ "ScratchDirectory"->Automatic,"TimeLimit"->1800,"Verbose"->False,"GenericRankWitness"->Automatic};
+FeynFacet`DetermineBoundaryAmplitudes[problem_Association,OptionsPattern[]] := Catch[Module[
+ {base=problem["AmplitudeReduction"],equations=problem["PhysicalCoefficientEquations"],
+ definitions=problem["PhysicalBoundaryIntegralDefinitions"],toUnknown=Normal[problem["SeedAmplitudeToUnknownMatrix"]],
+ toInputs=Normal[problem["SeedAmplitudeToBoundaryInputMatrix"]],
+ requests=problem["RequestedAmplitudeCoefficients"],known=Lookup[problem,"EvaluatedBoundaryIntegrals",<||>],
+ eps,source,inputs,n,nb,seedCount,rows,ordered,selected={},samples={},rank=0,next,row,record,
+ projected,q,rhs,bound,result,plan,freePlan,range,value,available,missing,work,integrated=<||>,
+ witness=OptionValue["GenericRankWitness"],sample,verbose=OptionValue["Verbose"],oldCount,proofFlag},
+ eps=base["DimensionalRegulator"];source=base["SourceProblem"];inputs=base["BoundaryInputs"];
+ If[witness===Automatic,witness=eps->1/97];
+ If[!MatchQ[witness,_Rule]||First[witness]=!=eps,boundaryIntegrationFail["GenericRegulatorWitnessRequired"]];
+ n=base["OriginalUnknownAmplitudeCount"];nb=Length[inputs];seedCount=Length[toUnknown];
+ If[Dimensions[toUnknown]=!={seedCount,n}||Dimensions[toInputs]=!={seedCount,nb},
+  boundaryIntegrationFail["SeedAmplitudeMapsInvalid"]];
+ rows=Lookup[equations,"LeadingCoefficientRows",{}];
+ If[!ListQ[rows]||!AllTrue[rows,AssociationQ[#]&&Length[#["AmplitudeRow"]]===seedCount&&
+    KeyExistsQ[definitions,#["OriginalRow"]]&&TrueQ[Lookup[definitions[#["OriginalRow"]],"PhysicalLimitEstablished",False]]&],
+  boundaryIntegrationFail["EstablishedPhysicalCoefficientEquationsRequired"]];
+ ordered=SortBy[rows,Function[entry,With[{id=entry["OriginalRow"]},
+  If[KeyExistsQ[known,id],{0,LeafCount[known[id]["LaurentCoefficients"]]},
+   {1,LeafCount[definitions[id]["Terms"]]}]]]];
+ Do[
+  projected=Map[Cancel[Together[#]]&,record["AmplitudeRow"].toUnknown.base["FreeAmplitudeMatrix"]];
+  sample=projected/.witness;
+  If[!VectorQ[sample,NumericQ]||!FreeQ[sample,_Real|Indeterminate|_DirectedInfinity],
+   boundaryIntegrationFail["ExactAmplitudeRankSpecializationRequired"]];
+  next=MatrixRank[Append[samples,sample]];
+  If[next>rank,rank=next;AppendTo[samples,sample];AppendTo[selected,record]],
+ {record,ordered}];
+ If[selected==={},Return[Join[base,<|"PhysicalCoefficientRowsUsed"->{},"NewPhysicalIntegralCount"->0|>]]];
+ q=source["CoefficientMatrix"];rhs=source["RightHandSideMatrix"];oldCount=nb;
+ Do[
+  row=record["OriginalRow"];
+  bound=FeynFacet`DetermineIntegralLaurentBound[definitions[row]];
+  If[FailureQ[bound],Throw[bound,"BoundaryIntegration"]];
+  AppendTo[q,Map[Cancel[Together[#]]&,record["AmplitudeRow"].toUnknown]];
+  rhs=Append[Append[#,0]&/@rhs,Join[-record["AmplitudeRow"].toInputs,
+    ConstantArray[0,Length[inputs]-oldCount],{1}]];
+  AppendTo[inputs,<|"Index"->Length[inputs]+1,"LaurentLowerBound"->bound["LowerBound"],
+   "IntegralDefinition"->definitions[row],"OriginalRow"->row|>],
+ {record,selected}];
+ result=FeynFacet`ReduceBoundaryAmplitudeSystem[Join[source,<|"CoefficientMatrix"->q,"RightHandSideMatrix"->rhs,
+  "BoundaryInputLaurentLowerBounds"->Lookup[inputs,"LaurentLowerBound"]|>]];
+ If[FailureQ[result],Throw[result,"BoundaryIntegration"]];
+ If[result["ParticularSolutionCompatibility"]=!="AutomaticFromInputBounds",
+  boundaryIntegrationFail["BoundaryInputCompatibilityRequiresAdditionalRelations",<|"Reduction"->result|>]];
+ plan=FeynFacet`DetermineBoundaryIntegralOrders[<|"DimensionalRegulator"->eps,
+  "ReductionMatrix"->result["BoundaryInputMatrix"],"BoundaryIntegralLaurentLowerBounds"->Lookup[inputs,"LaurentLowerBound"]|>,requests];
+ If[FailureQ[plan],Throw[plan,"BoundaryIntegration"]];
+ Do[
+  row=inputs[[j,"OriginalRow"]];range=plan["BoundaryIntegralOrderRanges"][j];
+  If[range==={},Continue[]];
+  value=Lookup[known,row,Missing["NotEvaluated"]];
+  If[AssociationQ[value]&&Lookup[value,"IntegralDefinition",None]=!=definitions[row],
+   boundaryIntegrationFail["EvaluatedBoundaryIntegralDefinitionMismatch",<|"OriginalRow"->row|>]];
+  available=If[AssociationQ[value],Keys[Lookup[value,"LaurentCoefficients",<||>]],{}];
+  missing=Complement[Range@@range,available];
+  If[missing=!={},
+   If[TrueQ[verbose],Print["Evaluating physical boundary coefficient ",row," through ",range]];
+   work=OptionValue["ScratchDirectory"];
+   If[StringQ[work],work=FileNameJoin[{work,"coefficient_"<>ToString[row]}];
+    If[!DirectoryQ[work],CreateDirectory[work,CreateIntermediateDirectories->True]]];
+   value=FeynFacet`IntegrateEulerBoundaryIntegral[definitions[row],range,
+    "IntegrationBackend"->OptionValue["IntegrationBackend"],"ScratchDirectory"->work,
+    "TimeLimit"->OptionValue["TimeLimit"],"Verbose"->verbose]];
+  If[FailureQ[value]||!AssociationQ[value],boundaryIntegrationFail["PhysicalBoundaryIntegralEvaluationFailed",
+    <|"OriginalRow"->row,"Result"->value|>]];
+  inputs[[j]]=Join[inputs[[j]],<|"LaurentCoefficients"->value["LaurentCoefficients"],
+    "AnalyticExpression"->Lookup[value,"AnalyticExpression",Missing["LaurentSeriesOnly"]],
+    "PhysicalBoundaryIntegralEvaluated"->True|>];AssociateTo[integrated,row->value],
+ {j,oldCount+1,Length[inputs]}];
+ Do[
+  range=plan["BoundaryIntegralOrderRanges"][j];If[range==={},Continue[]];
+  If[KeyExistsQ[inputs[[j]],"AnalyticExpression"]&&!MatchQ[inputs[[j,"AnalyticExpression"]],_Missing],Continue[]];
+  available=Keys[Lookup[inputs[[j]],"LaurentCoefficients",<||>]];
+  missing=Complement[Range@@range,available];
+  If[missing=!={},boundaryIntegrationFail["PreviouslyDeterminedBoundaryInputOrdersUnavailable",
+    <|"BoundaryInputIndex"->j,"MissingOrders"->missing,"RequiredRange"->range|>]],
+ {j,oldCount}];
+ freePlan=If[result["RemainingUnknownAmplitudeCount"]===0,
+  <|"BoundaryIntegralOrderRanges"-><||>|>,
+  FeynFacet`DetermineBoundaryIntegralOrders[<|"DimensionalRegulator"->eps,
+   "ReductionMatrix"->result["FreeAmplitudeMatrix"],
+   "BoundaryIntegralLaurentLowerBounds"->result["FreeAmplitudeLaurentLowerBounds"]|>,requests]];
+ proofFlag=TrueQ[Lookup[problem,"PreviouslyDeterminedBoundaryInputsArePhysical",
+  Lookup[base,"AllBoundaryInputsPhysicallyDetermined",False]]];
+ Join[result,<|"BoundaryInputs"->inputs,"InputOrderDetermination"->plan,
+  "FreeAmplitudeOrderDetermination"->freePlan,"PhysicalCoefficientRowsUsed"->Lookup[selected,"OriginalRow"],
+  "NewPhysicalIntegralCount"->Length[selected],"GenericRankWitness"->witness,"EvaluatedBoundaryIntegrals"->integrated,
+  "AllBoundaryInputsPhysicallyDetermined"->proofFlag,
+  "PhysicalBoundaryValuesCompleteForStoredOrders"->(proofFlag&&result["RemainingUnknownAmplitudeCount"]===0),
+  "SeedAmplitudeToUnknownMatrix"->toUnknown,"SeedAmplitudeToBoundaryInputMatrix"->toInputs,
+  "Scope"->"Only the supplied established physical coefficient equations and requested epsilon coefficients are determined."|>]
+ ],"BoundaryIntegration"];
+End[];

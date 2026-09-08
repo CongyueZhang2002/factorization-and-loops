@@ -92,10 +92,10 @@ workspaceFiles = If[solveOK,
 assert["B. the solved Kira workspace is retained on disk",
   solveOK && DirectoryQ[solveData["ProjectDirectory"]] &&
     workspaceFiles =!= {} && AllTrue[workspaceFiles, FileExistsQ]];
-assert["B. the workspace lives under Codex/<process>/Kira",
+assert["B. the workspace lives under the process Kira directory",
   solveOK && StringContainsQ[
     solveData["ProjectRoot"],
-    FileNameJoin[{root, "Codex"}] <> $PathnameSeparator
+    FileNameJoin[{root, "ppHX_NLO", "Kira"}]
   ]];
 
 (* --- C. streaming import ---------------------------------------------- *)

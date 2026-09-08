@@ -1,0 +1,210 @@
+(* Reusable scalar endpoint continuation with invocation-local state. *)
+BeginPackage["ScalarEndpointDriver`"];
+RunScalarEndpointFamily::usage="RunScalarEndpointFamily[input,output] checkpoints one coefficient family's order plan, normal extension, projection and finite physical solution; it never exits the kernel.";
+ContinueScalarEndpointFromOrderPlan::usage="ContinueScalarEndpointFromOrderPlan[input,output] continues a saved sufficient order plan through normal Frobenius coefficients, projection and explicit physical scalar solution, without recomputing coefficient orders.";
+ReadScalarEndpointInput::usage="ReadScalarEndpointInput[path] reads a WL, WXF or JSON input.";
+WriteScalarEndpointArtifact::usage="WriteScalarEndpointArtifact[value,path] writes one artifact atomically.";
+ScalarEndpointFailureStatus::usage="ScalarEndpointFailureStatus[failure] distinguishes missing orders, unresolved coefficient classes, input and computation failures.";
+Begin["`Private`"];
+$driverRoot=DirectoryName[ExpandFileName[$InputFileName],3];
+$driverImplementation=Association@Table[path->Import[path,"Text"],
+ {path,DeleteDuplicates@Join[
+   {$driverRoot<>"/Scripts/Coefficients/ScalarEndpointDriver.wl",
+    $driverRoot<>"/FeynFacet/Algebra/RegulatorSeries.wl"},
+   Flatten[FileNames["*.wl",$driverRoot<>"/FeynFacet/"<>#,Infinity]&/@
+     {"Coefficients","Solutions","Boundary","DifferentialEquations/LocalAnalysis"}]]}];
+ReadScalarEndpointInput[path_String] := If[!FileExistsQ[path],
+ Failure["ScalarEndpointInputFileMissing",<|"Path"->path|>],
+ Switch[ToLowerCase[FileExtension[path]],"wxf",Import[path,"WXF"],
+  "json",Import[path,"RawJSON"],_,Block[{$Context="Global`"},Get[path]]]];
+ReadScalarEndpointInput[value_] := value;
+WriteScalarEndpointArtifact[value_,path_String] := Module[{tmp=path<>".partial",stream},
+ If[!DirectoryQ[DirectoryName[path]],CreateDirectory[DirectoryName[path],CreateIntermediateDirectories->True]];
+ If[ToLowerCase[FileExtension[path]]==="json",Export[tmp,value,"RawJSON"],
+  stream=OpenWrite[tmp,BinaryFormat->True];
+  BinaryWrite[stream,Normal[BinarySerialize[value,PerformanceGoal->"Size"]],"Byte"];Close[stream]];
+ RenameFile[tmp,path,OverwriteTarget->True];path];
+ScalarEndpointFailureStatus[failure_] := Module[{tags},
+ tags=Cases[{failure},Failure[tag_String,_]:>tag,Infinity];
+ Which[
+  MemberQ[tags,"ScalarEndpointFamilyTimeLimit"],"TIME_LIMIT",
+  MemberQ[tags,"ScalarEndpointFamilyAborted"],"ABORTED",
+  MemberQ[tags,"AcceptedEndpointSystemMissing"],"MISSING_ENDPOINT_SYSTEM",
+  AnyTrue[tags,MemberQ[{"CoefficientRemainderClassUnresolved",
+    "EndpointCoefficientTailSufficiencyNotEstablished"},#]&],"UNRESOLVED_COEFFICIENT_CLASS",
+  AnyTrue[tags,MemberQ[{"CoefficientOrdersMissing","PhysicalBoundaryInputOrdersUnavailable",
+    "PhysicalEndpointAmplitudeOrderMissing","TangentialFunctionOrderMissing",
+    "NormalizedEndpointCoefficientsInsufficient"},#]&],"MISSING_ORDERS",
+  AnyTrue[tags,MemberQ[{"ScalarEndpointInputFileMissing","ScalarEndpointFamilyInputInvalid",
+    "ScalarEndpointSourceInputInvalid","ActiveMasterOutsideEndpointSystem",
+    "CoefficientFamilyIdentityMismatch"},#]&],"INPUT_FAILURE",True,"COMPUTATION_FAILURE"]];
+Options[RunScalarEndpointFamily]={"Resume"->True,"TimeLimit"->Infinity,"Verbose"->True,
+ "ImplementationFiles"->Automatic,"PhysicalInputCache"-><||>};
+RunScalarEndpointFamily[inputValue_,outputValue_String,OptionsPattern[]] := Module[
+ {input,output=ExpandFileName[outputValue],started=AbsoluteTime[],stage="Input",
+  family="Unknown",result,fail,require,read,save,progress,checkpoint,restore,
+  endpointDirectory,endpoint,matching,bounds,sourceInput,coefficientInput,
+  construction,finiteDefinitions=None,classes=None,implementation,files,
+  mathematicalInput,previous,generation=1,completed=<||>,canReuse=False,
+  reused={},id,byMaster,ids,omitted,entries,request,plan,depth,projection,
+  physical,solution,summary,seconds=OptionValue["TimeLimit"],verbose=OptionValue["Verbose"],
+  physicalCache=OptionValue["PhysicalInputCache"]},
+ If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];
+ save[value_,name_]:=WriteScalarEndpointArtifact[value,output<>"/"<>name<>".wxf"];
+ progress[where_]:=(stage=where;WriteScalarEndpointArtifact[
+   <|"Family"->family,"Status"->"RUNNING","Stage"->stage,
+     "ElapsedSeconds"->AbsoluteTime[]-started|>,output<>"/progress.json"]);
+ fail[value_,where_]:=Throw[<|"Status"->ScalarEndpointFailureStatus[value],
+   "Stage"->where,"Failure"->value|>,"ScalarEndpointFamily"];
+ require[value_,where_]:=If[FailureQ[value]||!AssociationQ[value],
+   fail[If[FailureQ[value],value,Failure["ScalarEndpointSourceInputInvalid",<|"Value"->value|>]],where],value];
+ read[value_,where_]:=require[If[StringQ[value]&&AssociationQ[physicalCache]&&KeyExistsQ[physicalCache,value],
+   physicalCache[value],ReadScalarEndpointInput[value]],where];
+ checkpoint[name_,value_]:=(save[value,name];AssociateTo[completed,name->generation];
+   save[completed,"stage_completion"];value);
+ restore[name_]:=If[canReuse && Lookup[completed,name,None]===generation &&
+    FileExistsQ[output<>"/"<>name<>".wxf"],
+   With[{value=ReadScalarEndpointInput[output<>"/"<>name<>".wxf"]},
+    If[AssociationQ[value]&&!FailureQ[value],AppendTo[reused,name];value,Missing["Checkpoint"]]],Missing["Checkpoint"]];
+ result=CheckAbort[TimeConstrained[Catch[
+  If[!TrueQ[seconds===Infinity || NumericQ[seconds]&&seconds>0],
+   fail[Failure["ScalarEndpointFamilyInputInvalid",<|"TimeLimit"->seconds|>],stage]];
+  input=read[inputValue,stage];
+  family=ToString[Lookup[input,"Family","Unknown"]];
+  If[!StringQ[Lookup[input,"EndpointSystemDirectory",None]] || !KeyExistsQ[input,"CoefficientInput"],
+   fail[Failure["ScalarEndpointFamilyInputInvalid",<||>],stage]];
+  endpointDirectory=ExpandFileName[input["EndpointSystemDirectory"]];
+  coefficientInput=read[input["CoefficientInput"],"CoefficientInput"];
+  family=ToString[Lookup[coefficientInput,"Family","Unknown"]];
+  If[KeyExistsQ[input,"Family"] && ToString[input["Family"]]=!=family,
+   fail[Failure["CoefficientFamilyIdentityMismatch",<||>],"CoefficientInput"]];
+  If[!AllTrue[{"endpoint_system","boundary_basis_matching","laurent_bounds","input"},
+    FileExistsQ[endpointDirectory<>"/"<>#<>".wxf"]&],
+   fail[Failure["AcceptedEndpointSystemMissing",<|"Directory"->endpointDirectory|>],"EndpointInput"]];
+  endpoint=read[endpointDirectory<>"/endpoint_system.wxf","EndpointInput"];
+  matching=read[endpointDirectory<>"/boundary_basis_matching.wxf","EndpointInput"];
+  bounds=read[endpointDirectory<>"/laurent_bounds.wxf","EndpointInput"];
+  sourceInput=read[endpointDirectory<>"/input.wxf","EndpointInput"];
+  construction=read[Lookup[input,"PhysicalBoundaryConstruction",
+    Lookup[sourceInput,"PhysicalBoundaryConstruction",Missing["PhysicalBoundaryConstruction"]]],"PhysicalBoundaryInput"];
+  If[KeyExistsQ[input,"PhysicalBoundaryFiniteDefinitions"],
+   finiteDefinitions=read[input["PhysicalBoundaryFiniteDefinitions"],"PhysicalFiniteDefinitions"]];
+  If[KeyExistsQ[input,"CoefficientRemainderClasses"],classes=read[input["CoefficientRemainderClasses"],"CoefficientRemainderClasses"]];
+  files=OptionValue["ImplementationFiles"];
+  implementation=If[files===Automatic,$driverImplementation,
+   Association@Table[path->If[FileExistsQ[path],Import[path,"Text"],Missing["File"]],{path,files}]];
+  mathematicalInput=<|"Input"->input,"CoefficientInput"->coefficientInput,
+   "EndpointSystem"->endpoint,"BoundaryBasisMatching"->matching,"LaurentBounds"->bounds,
+   "PhysicalBoundaryConstruction"->construction,"PhysicalBoundaryFiniteDefinitions"->finiteDefinitions,
+   "CoefficientRemainderClasses"->classes,"Implementation"->implementation|>;
+  previous=If[FileExistsQ[output<>"/mathematical_input.wxf"],ReadScalarEndpointInput[output<>"/mathematical_input.wxf"],<||>];
+  canReuse=TrueQ[OptionValue["Resume"]] && AssociationQ[previous] && SameQ[Lookup[previous,"Data",None],mathematicalInput];
+  generation=If[canReuse,Lookup[previous,"Generation",1],If[AssociationQ[previous],Lookup[previous,"Generation",0]+1,1]];
+  If[canReuse && FileExistsQ[output<>"/stage_completion.wxf"],
+   completed=ReadScalarEndpointInput[output<>"/stage_completion.wxf"];If[!AssociationQ[completed],completed=<||>]];
+  save[<|"Generation"->generation,"Data"->mathematicalInput|>,"mathematical_input"];
+  save[input,"input"];save[completed,"stage_completion"];
+  progress["CoefficientOrders"];
+  id[value_]:=FeynFacet`Private`coefficientMasterID[value];
+  byMaster=AssociationThread[id/@coefficientInput["OriginalMasterIntegralBasis"],coefficientInput["CoefficientEntries"]];
+  ids=id/@endpoint["OriginalMasterIntegralBasis"];omitted=Complement[Keys[byMaster],ids];
+  If[!SubsetQ[Keys[byMaster],ids]||AnyTrue[omitted,byMaster[#]["Terms"]=!={}&],
+   fail[Failure["ActiveMasterOutsideEndpointSystem",<||>],"CoefficientAlignment"]];
+  entries=Lookup[byMaster,ids];
+  If[AssociationQ[classes],entries=Map[Function[entry,With[{master=id[entry["Master"]]},
+    If[KeyExistsQ[classes,master],Join[entry,<|"Terms"->Map[
+      If[#["Representation"]==="LaurentSeries",Join[#,<|"LaurentRemainderClass"->classes[master]|>],#]&,
+      entry["Terms"]]|>],entry]]],entries]];
+  request=Join[coefficientInput["Request"],KeyTake[coefficientInput,{"SourceCoefficientFile"}],KeyTake[input,{"ThroughOrder"}]];
+  plan=restore["order_requirements"];
+  If[MissingQ[plan],If[TrueQ[verbose],Print["Determining coefficient and normal orders."]];
+   plan=require[FeynFacet`DetermineMasterCoefficientEndpointOrders[entries,endpoint,bounds,request],stage];checkpoint["order_requirements",plan]];
+  If[plan["Status"]=!="SufficientOrdersDetermined",fail[Failure[plan["Status"],
+    KeyTake[plan,{"MissingCoefficientOrders","UnresolvedCoefficientRemainderClasses"}]],stage]];
+  depth=plan["MaximumNormalOrder"];progress["NormalFrobeniusCoefficients"];
+  result=restore["endpoint_system"];
+  If[!MissingQ[result],endpoint=result,
+   If[endpoint["MaximumNormalOrder"]<depth,endpoint=require[FeynFacet`ExtendTangentialEndpointSystem[endpoint,depth,"Verbose"->verbose],stage]];
+   checkpoint["endpoint_system",endpoint]];
+  progress["ScalarEndpointProjection"];projection=restore["scalar_projection"];
+  If[MissingQ[projection],If[TrueQ[verbose],Print["Projecting the scalar endpoint coefficients."]];
+   projection=require[FeynFacet`ConstructScalarEndpointProjection[plan,endpoint,bounds],stage];checkpoint["scalar_projection",projection]];
+  progress["FiniteScalarEndpointSolution"];solution=restore["scalar_endpoint_solution"];
+  If[MissingQ[solution],physical=<|"BoundaryBasisMatching"->matching,
+    "AmplitudeLaurentLowerBounds"->construction["AmplitudeLaurentLowerBounds"],
+    "AmplitudeCoefficients"-><|"PhysicalBoundaryConstruction"->construction|>|>;
+   If[AssociationQ[finiteDefinitions],AssociateTo[physical,"FiniteDefinitions"->finiteDefinitions]];
+   solution=require[FeynFacet`ConstructScalarEndpointSolution[projection,endpoint,
+    <|"ThroughOrder"->request["ThroughOrder"],"TangentialBasePoint"->matching["TangentialBasePoint"],
+      "PhysicalBoundaryValues"->physical|>,"Verbose"->verbose],stage];checkpoint["scalar_endpoint_solution",solution]];
+  <|"Status"->"ExplicitPhysicalScalarEndpointCoefficients","Family"->family,
+    "MasterCount"->Length[entries],"NormalOrder"->depth,"ThroughOrder"->request["ThroughOrder"],
+    "EndpointTermCount"->Length[solution["EndpointTerms"]],
+    "UnknownConstantCount"->Length[solution["RequiredInitialConstantCoefficients"]]|>,"ScalarEndpointFamily"],seconds,
+  <|"Status"->"TIME_LIMIT","Stage"->stage,"Failure"->Failure["ScalarEndpointFamilyTimeLimit",<|"Seconds"->seconds|>]|>],
+  <|"Status"->"ABORTED","Stage"->stage,"Failure"->Failure["ScalarEndpointFamilyAborted",<||>]|>];
+ If[!AssociationQ[result],result=<|"Status"->"COMPUTATION_FAILURE","Stage"->stage,
+   "Failure"->Failure["ScalarEndpointDriverDidNotReturnResult",<|"Value"->result|>]|>];
+ summary=Join[result,<|"Family"->family,"ElapsedSeconds"->AbsoluteTime[]-started,
+   "ReusedStages"->reused,"Generation"->generation|>];save[summary,"summary"];
+ If[summary["Status"]=!="ExplicitPhysicalScalarEndpointCoefficients",save[summary,"failure"]];
+ WriteScalarEndpointArtifact[KeyTake[summary,{"Status","Family","Stage","MasterCount","NormalOrder",
+   "ThroughOrder","EndpointTermCount","UnknownConstantCount","ElapsedSeconds","ReusedStages","Generation"}],output<>"/summary.json"];
+ WriteScalarEndpointArtifact[KeyTake[summary,{"Status","Family","Stage","ElapsedSeconds","ReusedStages","Generation"}],output<>"/progress.json"];
+ summary
+];
+
+Options[ContinueScalarEndpointFromOrderPlan]={"Verbose"->True,"TimeLimit"->Infinity};
+ContinueScalarEndpointFromOrderPlan[inputValue_,outputValue_String,OptionsPattern[]]:=Module[
+ {input,output=ExpandFileName[outputValue],plan,endpoint,bounds,matching,construction,physical,
+  projection,solution,result,stage="Input",started=AbsoluteTime[],family,save,require,read,progress},
+ If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];
+ save[x_,name_]:=WriteScalarEndpointArtifact[x,output<>"/"<>name<>".wxf"];
+ require[x_]:=If[FailureQ[x]||!AssociationQ[x],Throw[If[FailureQ[x],x,
+   Failure["ScalarEndpointSourceInputInvalid",<||>]],"ContinueScalarEndpoint"],x];
+ read[x_]:=require[ReadScalarEndpointInput[x]];
+ progress[x_]:=(stage=x;WriteScalarEndpointArtifact[<|"Family"->family,"Stage"->stage,
+   "Status"->"RUNNING","ElapsedSeconds"->AbsoluteTime[]-started|>,output<>"/progress.json"]);
+ result=TimeConstrained[Catch[
+  input=read[inputValue];family=Lookup[input,"Family","Unknown"];save[input,"input"];
+  plan=read[input["OrderPlan"]];endpoint=read[Lookup[input,"EndpointSystem",
+    input["EndpointSystemDirectory"]<>"/endpoint_system.wxf"]];
+  matching=read[input["EndpointSystemDirectory"]<>"/boundary_basis_matching.wxf"];
+  bounds=read[input["EndpointSystemDirectory"]<>"/laurent_bounds.wxf"];
+  construction=read[input["PhysicalBoundaryConstruction"]];
+  If[Lookup[plan,"DataType",None]=!="MasterCoefficientEndpointOrders"||
+    Lookup[plan,"Status",None]=!="SufficientOrdersDetermined"||
+    !TrueQ[Lookup[plan,"NormalDepthSufficientForTargetOrder",False]]||
+    KeyTake[plan,{"NormalVariable","DimensionalRegulator","OriginalMasterIntegralBasis","NormalGaugeMatrix"}]=!=
+      KeyTake[endpoint,{"NormalVariable","DimensionalRegulator","OriginalMasterIntegralBasis","NormalGaugeMatrix"}],
+   Throw[Failure["SufficientOrderPlanForThisEndpointRequired",<||>],"ContinueScalarEndpoint"]];
+  save[plan,"order_requirements"];
+  progress["NormalFrobeniusCoefficients"];
+  If[endpoint["MaximumNormalOrder"]<plan["MaximumNormalOrder"],
+   endpoint=require[FeynFacet`ExtendTangentialEndpointSystem[endpoint,plan["MaximumNormalOrder"],
+     "Verbose"->OptionValue["Verbose"]]]];save[endpoint,"endpoint_system"];
+  progress["ScalarEndpointProjection"];
+  projection=require[FeynFacet`ConstructScalarEndpointProjection[plan,endpoint,bounds]];save[projection,"scalar_projection"];
+  progress["FiniteScalarEndpointSolution"];
+  physical=<|"BoundaryBasisMatching"->matching,"AmplitudeLaurentLowerBounds"->construction["AmplitudeLaurentLowerBounds"],
+    "AmplitudeCoefficients"-><|"PhysicalBoundaryConstruction"->construction|>|>;
+  solution=require[FeynFacet`ConstructScalarEndpointSolution[projection,endpoint,<|
+    "ThroughOrder"->plan["ThroughOrder"],"TangentialBasePoint"->matching["TangentialBasePoint"],
+    "PhysicalBoundaryValues"->physical|>,"Verbose"->OptionValue["Verbose"]]];
+  If[BinaryDeserialize[BinarySerialize[solution,PerformanceGoal->"Size"]]=!=solution,
+   Throw[Failure["ScalarSolutionRoundTripMismatch",<||>],"ContinueScalarEndpoint"]];
+  save[solution,"scalar_endpoint_solution"];
+  <|"Status"->"ExplicitPhysicalScalarEndpointCoefficients","Family"->family,
+    "NormalOrder"->plan["MaximumNormalOrder"],"ThroughOrder"->plan["ThroughOrder"],
+    "EndpointTermCount"->Length[solution["EndpointTerms"]],
+    "UnknownConstantCount"->Length[solution["RequiredInitialConstantCoefficients"]]|>,
+ "ContinueScalarEndpoint"],OptionValue["TimeLimit"],Failure["ScalarEndpointFamilyTimeLimit",<||>]];
+ If[FailureQ[result],result=<|"Status"->ScalarEndpointFailureStatus[result],"Family"->family,"Stage"->stage,"Failure"->result|>];
+ result=Join[result,<|"ElapsedSeconds"->AbsoluteTime[]-started|>];save[result,"summary"];
+ If[result["Status"]=!="ExplicitPhysicalScalarEndpointCoefficients",save[result,"failure"]];
+ WriteScalarEndpointArtifact[KeyDrop[result,"Failure"],output<>"/summary.json"];
+ WriteScalarEndpointArtifact[KeyDrop[result,"Failure"],output<>"/progress.json"];
+ result
+];
+End[];
+EndPackage[];

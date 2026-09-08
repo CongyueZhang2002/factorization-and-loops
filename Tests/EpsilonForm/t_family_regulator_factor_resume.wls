@@ -24,6 +24,7 @@
    extracted from Scripts/family_epsform_sector.wls, never copied. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 pass = 0; fail = 0;
 check[label_, ok_] := (If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]]);
@@ -206,10 +207,10 @@ check["the persisted connection is the exact conjugate of the input",
 (* ---- (b) the second invocation must not re-enter the factorizer ---- *)
 factorizerEntries = 0;
 secondResult = Block[{FeynFacet`FactorFamilyRegulatorDependence,
-    FeynFacet`FactorFamilyRegulatorDependenceInFrame},
+    FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation},
   FeynFacet`FactorFamilyRegulatorDependence[___] :=
     (factorizerEntries++; <|"Status" -> "TestStandInMustNotBeCalled"|>);
-  FeynFacet`FactorFamilyRegulatorDependenceInFrame[___] :=
+  FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[___] :=
     (factorizerEntries++; <|"Status" -> "TestStandInMustNotBeCalled"|>);
   Global`factorTruncated[1]];
 check["a second invocation returns False (nothing applied)",

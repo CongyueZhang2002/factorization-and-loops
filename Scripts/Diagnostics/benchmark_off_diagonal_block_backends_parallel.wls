@@ -24,6 +24,7 @@ If[Length[$ScriptCommandLine] < 3,
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 loader = FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}];
 Get[loader];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 outdir = ExpandFileName[$ScriptCommandLine[[2]]];
 fixtureFiles = ExpandFileName /@ $ScriptCommandLine[[3 ;;]];
@@ -43,8 +44,8 @@ Print["BENCH-PARALLEL jobs=", Length[jobs]];
 
 launched = Quiet[LaunchKernels[Min[8, Length[jobs]]]];
 Print["BENCH-PARALLEL launched ", Length[launched], " subkernels"];
-With[{file = loader},
-  ParallelEvaluate[(Quiet[Get[file]];), launched]];
+With[{file = loader, additions = FeynFacet`Private`$feynFacetAdditionalLoadFiles},
+  ParallelEvaluate[(Quiet[Get[file]; Scan[Get,additions]];), launched]];
 
 runJob[job_Association] := Module[
   {fixture, offDiagonalBlockEquation, variables, regulator, tag, backend,

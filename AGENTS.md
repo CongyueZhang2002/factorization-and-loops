@@ -5,47 +5,36 @@ collinear factorization and reverse unitarity: process cards -> diagrams ->
 cut-aware IBP reduction (Kira) -> master integrals from their differential
 equations (epsilon form, solution along paths, boundary data) -> endpoint
 expansion -> assembly of the hard function. The process enters only through
-its cards; the current application is pp -> h X (`ppHX_NLO/`,
-`ppHX_NNLO_DoubleReal/`).
+its cards. 
 
-Read first: `STATUS.md` (current state),
-`Design/DifferentialEquationDataSchemaV2.md` (record formats and the
-acceptance statement each record carries),
-`Design/FinishedTransportContract_2026-09-03.md` (when a family counts as
-solved).
+Read `STATUS.md` for current state
 
 ## Layout
 
-- `FeynFacet/` the package; `Private/<Layer>/` holds the modules in the
-  order of `Private/LoadOrder.wl`; `Private_Backup/` is retired code,
-  never loaded.
+- `FeynFacet/` is the active package, organized by mathematical responsibility;
+  read `FeynFacet/README.md`. `Kernel/Modules.wl` explicitly lists the symbolic,
+  optional epsilon-form and standalone solution modules. Retired code is in
+  `Archive/RetiredCode/FeynFacet/`, outside loading and active source scans.
 - `Scripts/` drivers and launchers; `Tests/` the tests; each has a README.
 - `<process>/Cards/` process definitions; `<process>/Results/` generated
-  mathematical data; `Stale/` pre-V2 data, evidence only, never an input.
-- `Design/` method records; `Exchange/`, `Goals/` correspondence and goals.
-- Scratch lives in the session scratchpad, never in the tree.
+  mathematical data; `Stale/` retains only the old-result removal notice.
+- `Design/` current methods; `Goals/README.md` current roadmap;
+  `Archive/History/` superseded plans and correspondence.
+- `Codex/` Pro consultation bridge state; `Tests/Support/` independent test
+  implementations. Upstream reduction/reconstruction data stays with its process.
+- Persistent computed outputs and validation records live in <process>/Results;
+  Kira workspaces live in <process>/Kira. Do not write result trees under Codex,
+  Design, Scripts or Examples. Scratch is temporary and removed after retained
+  results are saved in the process folder.
 - `~/FACET` is the frozen legacy tree, read-only.
 
-## Rules
+## Tips
 
-1. A result is reported only when everything it depends on (inputs,
-   transformations, certificates) is in the tree under `Results/` and is
-   found by repository-relative path. Nothing that exists only in a
-   scratchpad is a result.
-2. Kill processes by verified PID only, never by name pattern.
-3. Never edit a script that is running, and never rewrite a file a running
-   loop reads; append to it.
-4. A production campaign (multi-family batch, overnight run, hours of
-   compute) starts only on the user's explicit go to a concrete proposal
-   naming scope and cost. Small probes inside an assigned task need no go.
-5. Cheap scale first. A run whose cost is out of proportion to its input
-   is a defect: kill it and fix the cause, never wait it out.
-6. Never save, rewrite or export a `.nb` programmatically or through a
-   hidden FrontEnd. A notebook is edited only on the user's explicit
-   request, from a backup, with every FrontEnd closed.
+- If you feel getting stuck, ask chatgpt pro through `External/ChatGPT`, along with latest github link. It has higher reasoning budget. You can also ask it for review of plan/code/result. 
 
 ## Traps (each one cost real time)
 
+- Prevent using hashes if possibke, it often turned out to be counterproductive.
 - Regulator symbols differ per package (`eps`, `ep`, `Epsilon`,
   `CANONICA`eps`): normalize by `SymbolName` at every boundary, never by
   symbol identity.
@@ -57,6 +46,10 @@ solved).
   head before `Lookup` on a possibly-empty list.
 - `Return` inside `Do` discards results; `Module` initializers are not
   sequentially scoped; `Missing[] =!= None` in both directions.
+- On Wolfram 14.2, ClearAll inside Internal`InheritedBlock destroys saved definitions. Use Clear and explicit attribute/option assignments; test restoration. Runtime scopes must live outside contexts cleared by package entry files.
+- Parse reloadable runtime packages with BeginPackage so caller Global names cannot capture private locals. Uninstall native WSTP links inside InheritedBlock, before it restores caller definitions; Uninstall also removes installed functions. MPSolve needs its own -j 1 thread limit.
+- Do not initialize generic script/evaluation scopes with unlimited extra precision. N can chase relative digits of exact-zero Gamma/digamma combinations indefinitely; keep a finite extra-precision budget and use explicit working-precision/accuracy controls. AMFlow DESolver may choose its own setting inside its isolated scope.
+- FLINT 3.0.x generic complex-ball method tables initialize lazily without synchronization. Initialize gr_ctx_init_complex_acb before the first OpenMP region using polynomial operations.
 - `Put` is not atomic: write to a temporary file and `RenameFile`.
 - `Together` rationalizes square-root denominators and destroys
   algebraic-letter expressions.
@@ -81,69 +74,18 @@ Rules:
 
 1. One name per concept, fixed at first use and anchored to the literature;
    the same name in code, chat, plans, artifacts and agent briefs.
-2. Never physics vocabulary for scheduling or software concepts; no
-   metaphors in status reports: state the mechanism or the measured number.
-3. Never a stronger mathematical term than the code establishes: epsilon
-   factorization is not dlog epsilon form; a parametrization is not a
-   birational change of variables; a sign-change image is not a Galois
-   conjugate.
-4. A coding-only object gets a literal implementation name saying what it
-   stores or does, not an invented mathematical noun.
-5. Call an executed calculation a test and report its measured result;
-   state the acceptance criterion before saying it passed, otherwise
-   report the observed values without "pass". "Regression test" only for a
-   repetition of an established test after a code change. Every number is
-   marked measured or estimated.
 
-Banned words (word -> replacement): arm -> start; blocker -> the thing
-stopping X; cut, channel, current, propagate (operational) -> literal
-description; drain -> finish; fire -> starts; gate -> check or test; goal
-state -> the stated property has been verified; green, red -> passing,
-failing; in flight -> running; land, ship -> finished; lever -> option or
-change; meticulous -> drop it; post-mortem -> record of what happened;
-phase (operational) -> stage, batch, step; port -> carrying over;
-spawn -> start; suite -> test; wall (metaphor) -> the measured limit;
-wave -> batch.
+Banned words (word -> replacement): 
 
-Distinctions names must preserve:
-
-- `BasisTransformationMatrix` is a complete invertible change of
-  master-integral basis; a rectangular subblock is an
-  `OffDiagonalBasisTransformationBlock`, never a gauge.
-- `EpsilonFactorizedSystem`: the connection is proportional to epsilon.
-  `DLogEpsilonForm` additionally has constant matrices multiplying dlog
-  one-forms. A system with only epsilon-form diagonal blocks is described
-  exactly that way, not as a whole-family epsilon form. "Passed the exact
-  dlog epsilon-form check" means the transformed connection equals
-  `epsilon Sum_a R_a dlog(phi_a)` in both variables with constant `R_a`.
-- `RationalizingParametrization` does not imply a rational inverse.
-  `MultiquadraticFunctionFieldPresentation` and `GaloisConjugates` require
-  proven square-class independence; otherwise
-  `SquareRootGeneratorsAndQuadraticRelations` and
-  `SquareRootSignChangeImages`.
-- A candidate matrix of homogeneous solutions is accepted only after its
-  differential equation is validated; the public phrase is
-  `MatrixOfHomogeneousSolutions`.
-- `LocalExpansionPoint` is classified `OrdinaryPoint` or
-  `RegularSingularPoint`; a normal-residue eigenbasis is not a Levelt
-  basis unless the general Jordan/logarithmic construction is present.
-- `BoundaryConstantID`, `BoundaryFunctionID`, `FrobeniusModeID`,
-  `BoundaryIntegralID` and relations among them are distinct objects;
-  `BoundaryData` only as the standard collective term; no generic
-  "period" in the live API.
-- `FormalChenIteratedIntegral`, `IteratedIntegralLetterSequence`,
-  `IteratedIntegralIndexSequence` according to the stored object; a product
-  of integrals over path segments is not one integral over the
-  concatenated path unless Chen's deconcatenation is implemented.
-- `Materialize` only privately, for converting a lazy representation to an
-  explicit one; never `Manifest` for a mathematical object.
-
-Fixed descriptions: "constructing the off-diagonal basis-transformation
-blocks" (completing a block-triangular transformation); "diagonal-block
-epsilon forms" (stage-1 per-class results); "solving the differential
-equations along a path" (stage 2); "couplings" or Lee's "off-diagonal
-blocks" for `B_ij`; "diagonal block" = irreducible diagonal subsystem,
-"off-diagonal connection block (k,j)" = its coupling into lower block `j`;
-"single-root, two-root, triple-root batch"; "strip", "sector", "chart",
-"frame", "word", "gauge" (for a basis change) and unqualified "block" are
-retired from public prose and public names.
+arm -> start; 
+drain -> finish; 
+fire -> starts; 
+gate -> check or test;
+in flight -> running; 
+land, ship -> finished; 
+lever -> option orchange; 
+meticulous;
+post-mortem;
+port;
+spawn -> start; suite -> test; 
+wall (metaphor) -> the measured limit;

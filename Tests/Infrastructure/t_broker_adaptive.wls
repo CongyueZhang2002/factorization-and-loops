@@ -81,6 +81,7 @@ SetEnvironment["FACET_TASK_BROKER" -> ""];
 SetEnvironment["FACET_TASK_BROKER_MAX_HELPERS" -> "0"];
 SetEnvironment["FACET_BROKER_MINIMUM_SECONDS" -> ""];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -496,7 +497,7 @@ check["a malformed variable resolves to the built-in default",
    option still wins over it.  Reloading the private file is exactly how
    FeynFacet.m binds that default. *)
 loadPrivate[] := (BeginPackage["FeynFacet`"]; Begin["`Private`"];
-  Quiet[Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldOffDiagonalBlockSolve.wl"]],
+  Quiet[Get[FeynFacet`Private`feynFacetModuleFile["DifferentialEquations/EpsilonForm/Rational/OffDiagonalSolve.wl"]],
     General::shdw];
   End[]; Quiet[EndPackage[], General::shdw];);
 SetEnvironment["FACET_BROKER_MINIMUM_SECONDS" -> "2.5"];

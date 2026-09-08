@@ -44,6 +44,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 (* Print, not WriteString["stdout"]: a mission running on a kernel-pool
    subkernel has its Print output captured in the mission log, while a
@@ -74,7 +75,7 @@ messageOnQ[msg_] := Block[{$Messages = {}},
    before any third-party package joins $ContextPath.
 
    The rule list is built EXPLICITLY from the symbols actually present
-   (the HCTNormalize pattern of Scripts/HardClassToolkit.wl) rather than
+   (the HCTNormalize pattern of Archive/RetiredCode/FeynFacet/2026-09-06-repository-consolidation/Retired/Scripts/HardClassToolkit.wl) rather than
    as one inline
        expr /. (s_Symbol /; ... :> Symbol["Global`" <> SymbolName[s]])
    because the inline form was MEASURED, in this kernel and on this

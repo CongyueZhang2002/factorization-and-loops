@@ -1,0 +1,311 @@
+{
+  "RepositoryRoot": "/home/maxzhang/factorization-and-loops",
+  "PoolDirectory": "/tmp/feynfacet-overnight-20260906/pool",
+  "OutputDirectory": "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/Stage1And2_2026-09-06",
+  "ScratchDirectory": "/tmp/feynfacet-overnight-20260906/full-family-campaign",
+  "OrderRequirementsFile": "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/EpsilonOrders/HardFunctionBeforeEndpointIntegration.wl",
+  "SourceFiles": [
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/CanonicalRegistry.wxf",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/KiraStream/Manifest.wl",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Kira/UU_08_12_derivatives/kira_1/config/integralfamilies.yaml",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Kira/UU_08_12_derivatives/kira_1/config/kinematics.yaml"
+  ],
+  "DifferentialSystemArguments": [
+    "--canonical-registry",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/CanonicalRegistry.wxf",
+    "--master-integral-list",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/KiraStream/Manifest.wl",
+    "--integral-families",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Kira/UU_08_12_derivatives/kira_1/config/integralfamilies.yaml",
+    "--kinematics",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Kira/UU_08_12_derivatives/kira_1/config/kinematics.yaml",
+    "--variables",
+    "v,w",
+    "--regulator",
+    "eps",
+    "--invariants",
+    "ffecfp1,ffecfp2,ffecfp3",
+    "--flatness-method",
+    "finite-field"
+  ],
+  "MaximumConcurrentFamilies": 6,
+  "DifferentialSystemTimeLimitSeconds": 900,
+  "FiniteSolutionTimeLimitSeconds": 900,
+  "Families": [
+    {
+      "Family": "CF48"
+    },
+    {
+      "Family": "CF12"
+    },
+    {
+      "Family": "CF13"
+    },
+    {
+      "Family": "CF20"
+    },
+    {
+      "Family": "CF21"
+    },
+    {
+      "Family": "CF50"
+    },
+    {
+      "Family": "CF53"
+    },
+    {
+      "Family": "CF52"
+    },
+    {
+      "Family": "CF18"
+    },
+    {
+      "Family": "CF259"
+    },
+    {
+      "Family": "CF16"
+    },
+    {
+      "Family": "CF384"
+    },
+    {
+      "Family": "CF198"
+    },
+    {
+      "Family": "CF408"
+    },
+    {
+      "Family": "CF413"
+    },
+    {
+      "Family": "CF199"
+    },
+    {
+      "Family": "CF299"
+    },
+    {
+      "Family": "CF303",
+      "FiniteIntegrationPreparationFile": "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/DifferentialEquationDataV2/CF303/FiniteIntegrationPreparation.wl"
+    },
+    {
+      "Family": "CF231"
+    },
+    {
+      "Family": "CF305"
+    },
+    {
+      "Family": "CF407"
+    },
+    {
+      "Family": "CF56"
+    },
+    {
+      "Family": "CF57"
+    },
+    {
+      "Family": "CF124"
+    },
+    {
+      "Family": "CF197"
+    },
+    {
+      "Family": "CF207"
+    },
+    {
+      "Family": "CF209"
+    },
+    {
+      "Family": "CF211"
+    },
+    {
+      "Family": "CF230"
+    },
+    {
+      "Family": "CF248"
+    },
+    {
+      "Family": "CF26"
+    },
+    {
+      "Family": "CF269",
+      "DimensionalRecurrenceFile": "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/CF269/DimensionalRecurrence.wxf"
+    },
+    {
+      "Family": "CF311"
+    },
+    {
+      "Family": "CF33"
+    },
+    {
+      "Family": "CF88"
+    },
+    {
+      "Family": "CF91"
+    },
+    {
+      "Family": "CF123"
+    },
+    {
+      "Family": "CF226"
+    },
+    {
+      "Family": "CF23"
+    },
+    {
+      "Family": "CF24"
+    },
+    {
+      "Family": "CF249"
+    },
+    {
+      "Family": "CF260"
+    },
+    {
+      "Family": "CF265"
+    },
+    {
+      "Family": "CF267"
+    },
+    {
+      "Family": "CF301"
+    },
+    {
+      "Family": "CF308"
+    },
+    {
+      "Family": "CF385"
+    },
+    {
+      "Family": "CF67"
+    },
+    {
+      "Family": "CF71"
+    },
+    {
+      "Family": "CF1"
+    },
+    {
+      "Family": "CF2"
+    },
+    {
+      "Family": "CF205"
+    },
+    {
+      "Family": "CF213"
+    },
+    {
+      "Family": "CF215"
+    },
+    {
+      "Family": "CF217"
+    },
+    {
+      "Family": "CF218"
+    },
+    {
+      "Family": "CF240"
+    },
+    {
+      "Family": "CF253"
+    },
+    {
+      "Family": "CF258"
+    },
+    {
+      "Family": "CF262"
+    },
+    {
+      "Family": "CF264"
+    },
+    {
+      "Family": "CF27"
+    },
+    {
+      "Family": "CF300"
+    },
+    {
+      "Family": "CF321"
+    },
+    {
+      "Family": "CF34"
+    },
+    {
+      "Family": "CF360"
+    },
+    {
+      "Family": "CF371"
+    },
+    {
+      "Family": "CF388"
+    },
+    {
+      "Family": "CF415"
+    },
+    {
+      "Family": "CF420"
+    },
+    {
+      "Family": "CF97"
+    },
+    {
+      "Family": "CF98"
+    },
+    {
+      "Family": "CF201"
+    },
+    {
+      "Family": "CF204"
+    },
+    {
+      "Family": "CF210"
+    },
+    {
+      "Family": "CF212"
+    },
+    {
+      "Family": "CF232"
+    },
+    {
+      "Family": "CF236"
+    },
+    {
+      "Family": "CF254"
+    },
+    {
+      "Family": "CF263"
+    },
+    {
+      "Family": "CF3"
+    },
+    {
+      "Family": "CF319"
+    },
+    {
+      "Family": "CF390"
+    },
+    {
+      "Family": "CF393"
+    },
+    {
+      "Family": "CF404"
+    },
+    {
+      "Family": "CF416"
+    },
+    {
+      "Family": "CF429"
+    },
+    {
+      "Family": "CF68"
+    },
+    {
+      "Family": "CF69"
+    },
+    {
+      "Family": "CF86"
+    },
+    {
+      "Family": "CF90"
+    }
+  ]
+}

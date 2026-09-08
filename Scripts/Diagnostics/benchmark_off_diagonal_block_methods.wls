@@ -26,6 +26,7 @@ If[! DirectoryQ[outdir],
   CreateDirectory[outdir, CreateIntermediateDirectories -> True]];
 
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 records = FeynFacet`FamilyArtifactRead /@ files;
 If[! AllTrue[records, AssociationQ],
   Print["one or more records could not be read"];

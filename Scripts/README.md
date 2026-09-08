@@ -1,62 +1,77 @@
-# Script layout
+# Scripts
 
-General production and operational entry points remain directly under
-`Scripts/` so established commands and automation keep stable paths. More
-specialized material is grouped by purpose:
+[Transport/README.md](Transport/README.md) documents the general production path:
 
-- `Diagnostics/`: benchmarks, probes, ledgers, and read-only campaign analysis.
-- `HardClasses/`: historical hard-class derivations and reproducibility drivers.
-- `Backup/retired_routes_2026-09-02/`: the CANONICA/Maple eps-form drivers, the August transport sweep and the Libra research tooling, retired with their routes (see its README).
+```text
+integral definitions + coefficient demands
+  -> closed differential system
+  -> sufficient epsilon orders and explicit finite solution
+  -> numerical boundary coefficients and evaluation
+  -> physical coefficient density and delta/plus/regular distributions
+```
 
-## Production entry points
+[Coefficients/README.md](Coefficients/README.md) documents the final contraction,
+endpoint order planning and distribution assembly with explicit color factors.
 
-- V2 differential-equation stages:
-  `DifferentialEquations/build_family_differential_system_v2.wls` constructs
-  one explicit `FamilyDifferentialSystem`; then
-  `DifferentialEquations/build_family_differential_system_block_decomposition_v2.wls`
-  derives its strongly connected components and writes one validated
-  `FamilyDifferentialSystemBlockDecomposition`. Both accept absolute or
-  repository-root-relative mathematical input paths.
-- Full epsilon-form completion: `complete_family_epsforms.sh`
-- Family campaign and worker: `family_epsform_campaign.sh`,
-  `family_epsform_pool.sh`, and `family_epsform_sector.wls`. The launchers
-  take a tab-separated table whose columns are the family and explicit paths
-  to its V2 `FamilyDifferentialSystem`, block decomposition, coefficient
-  presentation, and directory of validated diagonal-block dlog epsilon forms.
-  Paths may be absolute or repository-root-relative. The worker validates the
-  completed family equation and writes `FamilyDLogEpsilonForm.wl`; it never
-  discovers or translates the retired pre-V2 result tree.
-- Standalone validation of an explicitly supplied working result and V2
-  system remains available through `certify_family_epsform_record.wls`; the
-  production worker already performs this validation before writing output.
-- Observable and master transport: `complete_observable_transport.sh`
-  (manifest + rounds; dispatches the standalone driver),
-  `observable_transport_kernelpool_campaign.sh` (CANONICAL multi-family
-  driver: one pool main + N subkernels, mission
-  `family_observable_transport_pool_mission.wls`),
-  `observable_transport_campaign.sh` (standalone: one wolframscript per
-  family, no pool -- only when no KernelPool can run or for one family),
-  `family_observable_transport.wls`, `complete_master_transport.sh`
-  (eps-form completion followed by the observable transport; the name
-  predates the retirement of the Libra `TransportFamily` route, which it
-  never calls)
-- Shared persistent kernel pool: `KernelPool.wls`, `kpsubmit.sh`, `kpwait.sh`,
-  `kpstatus.sh`, `watchdog_register.sh`
-- Test pool: `run_tests_pool.sh`
+## General DE and numerical drivers
 
-The differential-equation builders, reconstruction pipeline, campaign launchers,
-and small production utilities also stay at this level. `HardClassToolkit.wl`
-and `EpsilonGraded.wl` remain here because both general and historical drivers
-load them as shared source modules.
+- DifferentialEquations/build_family_differential_system_v2.wls builds the DE;
+  build_family_differential_system_block_decomposition_v2.wls finds its strongly
+  connected components.
+- Transport/solve_family_from_coefficient_orders.wls and
+  solve_master_integral_families.wls call the general finite constructor.
+- Transport/run_family_solution_campaign.py schedules families through
+  KernelPool with bounded concurrency.
+- Transport/evaluate_master_integral_solution.wls and its batch and Taylor
+  drivers evaluate the saved explicit solutions.
 
-## Conventions
+## Upstream reduction and reconstruction
 
-Categorized Wolfram scripts derive the repository root with
-`DirectoryName[ExpandFileName[$InputFileName], 3]`. Top-level scripts use their
-existing two-level ascent. Repository-internal callers and provenance strings
-should name the categorized path explicitly.
+canonicalize_and_stream.wls, canonicalize_trace_buckets.wls,
+compact_trace_columns.wls and stream_to_coefficients.wls prepare equivalent
+integral families and coefficient data. assemble_reconstruction.wls and
+verify_reconstruction_slice.wls assemble and check reconstructed coefficients.
+The reduce/regenerate pair drivers are example-process upstream operations,
+with input cards and workspaces documented in the process directories.
+Here integral-family canonicalization means equivalence under momentum
+relabeling; it is distinct from epsilon-form canonicalization of a DE.
 
-New family-specific experiments belong in `Exchange/`; add a script here only
-when it is reusable. Keep public production commands at `Scripts/` root. Move a
-stable entry point only as a deliberate compatibility migration with all callers
-and documentation updated in the same change.
+## Optional epsilon-form methods
+
+family_epsform_campaign.sh, family_epsform_pool.sh and
+complete_family_epsforms.sh call family_epsform_sector.wls with an explicit V2
+input table. certify_family_epsform_record.wls validates an explicit result.
+DifferentialEquations/build_diagonal_block_dlog_epsilon_form_v2.wls and
+rationalize_transport_chart_extension.wls expose optional general operations.
+EpsilonGraded.wl is a standalone scalar epsilon-graded method with its own
+mathematical tests.
+
+Canonicalization is optional for the finite solver. The rational epsilon-form
+diagnostic reports its tested ansatz and coefficient field; failure is not a
+general nonexistence theorem. FACET_CHECK_LEVEL controls driver checks and
+FACET_OBSTRUCTION_ANALYSIS_SECONDS bounds the optional diagnostic.
+
+## Operations and diagnostics
+
+KernelPool.wls, kpsubmit.sh, kpwait.sh and kpstatus.sh manage shared kernels.
+seat_run.sh, native_core_lease.sh and run_with_allowance.sh bound resource use.
+run_tests_pool.sh runs active tests. Diagnostics contains general benchmarks
+with explicit inputs, modular sampling support and a coefficient-valuation
+utility; it contains no old per-family campaign directory.
+
+Put new scratch runs outside the repository. Put reusable input examples in
+Examples or with the process. Current code goes here or in FeynFacet;
+completed research notes go to Archive/History.
+
+Retired drivers, duplicate wrappers, old migrations and historical class
+experiments are preserved in
+[the code backup](../Archive/RetiredCode/FeynFacet/2026-09-06-repository-consolidation/README.md).
+Backups are never loaded or discovered as active tests.
+
+## Finite density and saved-order checks
+
+`Coefficients/assemble_finite_master_density.wls` accepts `CoefficientWorkers -> 1..8` (default 1) and `EpsilonRemainderChecks -> True`. Independent coefficient expansions use a fresh owned pool; shared master definitions remain in the parent kernel. The default `CoefficientFunctionDirectory -> None` avoids writing and immediately rereading hundreds of redundant coefficient files. A caller may still explicitly request resumable coefficient files.
+
+`Coefficients/assemble_endpoint_subtracted_density.wls` accepts the same audit flag and writes assembly phase timings and an audit sidecar. Its `ColorDecomposition` request accepts `Workers -> 1..8`. Extracted factors must be independent of epsilon and the endpoint integration variable.
+
+`Validation/check_saved_epsilon_orders.wls` audits saved stage-3 or stage-4 coefficients from a manifest, with no integration. See [the omitted-epsilon guide](../Design/EpsilonRemainderChecks.md) for its contracts and limits.

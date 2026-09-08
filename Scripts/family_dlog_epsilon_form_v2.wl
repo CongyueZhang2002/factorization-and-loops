@@ -17,6 +17,9 @@
    OriginalMasterIntegralBasis in the order stored by the differential
    system; no execution-order field is needed in the result. *)
 
+Get[FileNameJoin[{DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]],
+  "FeynFacet", "EpsilonForm.m"}]];
+
 BeginPackage["FeynFacetCampaign`"];
 
 FamilyDifferentialSystemWorkingViewV2::usage =
@@ -166,12 +169,12 @@ BuildValidatedFamilyDLogEpsilonFormV2[
   inverseTransformation =
     validationResult["CachedInverseBasisTransformationMatrix"] .
       permutationMatrix;
-  blocks = validationResult["IrreducibleDiagonalBlocks"];
+  blocks = validationResult["DiagonalBlocksInCurrentBasis"];
   blockDecomposition = <|
     "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
     "SchemaVersion" -> 2,
     "FamilyDifferentialSystemReference" -> systemReference,
-    "IrreducibleDiagonalBlocks" -> blocks|>;
+    "DiagonalBlocksInCurrentBasis" -> blocks|>;
   validation = validationResult["Validation"];
   retained = KeyTake[validationResult,
     {"Family", "CoefficientPresentation", "CoefficientVariables",

@@ -5,6 +5,7 @@ If[Length[$ScriptCommandLine] < 5,
 
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
 {outputDirectory, differentialDirectory} =

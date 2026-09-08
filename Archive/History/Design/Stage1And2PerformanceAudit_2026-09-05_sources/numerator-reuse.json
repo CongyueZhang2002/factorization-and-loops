@@ -1,0 +1,13 @@
+{
+	"Scope":"Synthetic isolated numerator fitting; 32 outputs can represent four entries in an eight-dimensional square-root algebra. Not a family speedup measurement.",
+	"SupportCount":81,
+	"PointCount":89,
+	"OutputCount":32,
+	"EpsilonFibreCount":12,
+	"ExistingSeconds":0.157356,
+	"ReusableFunctionSetupSeconds":0.715263,
+	"ReusableFunctionFitsSeconds":3.1238e-2,
+	"BatchedSetupSeconds":7.776e-3,
+	"BatchedFitAndCheckSeconds":2.3196e-2,
+	"SameCoefficientsAndAllResidualsZero":true
+}

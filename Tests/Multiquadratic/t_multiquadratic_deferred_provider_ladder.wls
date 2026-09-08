@@ -8,6 +8,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {inhomogeneityOf, validateBundle, solve} = mq /@ {

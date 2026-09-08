@@ -1,11 +1,12 @@
 # Differential-equation data schema V2
 
-This is the live schema for the master-integral differential-equation flow.
-It is a clean break from the generated V1 artifacts.  V1 data is preserved in
-a dated `Stale` directory and is not an interface that new code must support.
+This is the live schema for upstream differential systems and local boundary data.
+Explicit finite solutions use schema version 3, described in section 9.
+It is a clean break from the generated V1 artifacts. Obsolete V1 run data was
+removed on 2026-09-06; only explicitly required regression fixtures were retained.
 
-The schema uses mathematical roles rather than workflow nicknames.  Every
-generated record begins with
+The schema uses mathematical roles rather than workflow nicknames.  Each upstream
+record begins with
 
 ```wl
 "DataType" -> "...",
@@ -142,11 +143,14 @@ Galois group unless square-class independence is separately established.
   "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
   "SchemaVersion" -> 2,
   "FamilyDifferentialSystemReference" -> <|...|>,
-  "IrreducibleDiagonalBlocks" -> {{...}, ...}
+  "DiagonalBlocksInCurrentBasis" -> {{...}, ...}
 |>
 ```
 
-The ordered row lists are authoritative.  A permutation or contiguous block
+The ordered row lists are authoritative. These are strongly connected components
+of the dependency graph in the supplied basis. They are indecomposable under
+basis permutations; no irreducibility under general basis transformations is
+asserted.  A permutation or contiguous block
 range may be computed and cached privately, but is not a second source of
 truth.  No downstream stage reconstructs block ordering from file names or
 association order.
@@ -197,9 +201,17 @@ matrices are authoritative.  A stored transformed connection block is an
 optional `CachedTransformedOffDiagonalConnectionBlock`, not a second
 definition of the result.
 
-A finite-ansatz failure is `OffDiagonalBlockAnsatzInconsistency`.  The phrase
-`OffDiagonalBlockDLogEpsilonFormObstructionCertificate` is reserved for an
-ansatz-independent no-go result.
+A finite-ansatz failure is `OffDiagonalBlockAnsatzInconsistency`.
+The phrase `OffDiagonalBlockDLogEpsilonFormObstructionCertificate` requires
+a characteristic-zero proof with explicit scope: coefficient field,
+fixed diagonal connections and inhomogeneity, target one-forms, allowed
+residue constants and regulator dependence. Eliminating the transformation
+from the integrability equation removes its degree/denominator ansatz, but
+does not remove the fixed-target or fixed-basis restrictions. A sampled
+finite-field rank defect alone is diagnostic evidence. A claim under every
+admissible basis additionally requires a basis-invariant obstruction or a
+proved completeness argument. See the
+[2026-09-06 audit](Stage1CostsAndEpsilonFormCriteria_2026-09-06.md).
 
 ## 6. Family assembly
 
@@ -269,7 +281,11 @@ input, not output of the differential-equation solver:
 |>
 ```
 
-Together with the requested hard-function epsilon range, they determine
+Together with requested hard-function orders they give upper demands. For
+finite ranges, supply MasterIntegralLaurentLowerBounds, indexed by global
+MasterIntegralIndex, or use the third argument of
+DeriveMasterIntegralEpsilonOrderRequirements. Its validation distinguishes
+UpperBoundsOnly from FiniteEpsilonOrderRanges:
 
 ```wl
 <|
@@ -288,7 +304,11 @@ Together with the requested hard-function epsilon range, they determine
 
 A coefficient valuation is not itself a requested master-integral order.  For
 example, a coefficient with valuation `v` can contribute to hard-function
-order `n` through the master-integral coefficient of order `n-v`.
+order `n` through all master coefficients from a justified lower bound L
+through `n-v`, since higher terms of the hard coefficient multiply lower
+terms of the master integral. A known zero has valuation Infinity and requires
+no coefficients. Earlier Missing["ZeroColumn"] inputs are normalized to this
+mathematical convention.
 
 ## 8. Local solutions, boundary data, and evolution
 
@@ -302,7 +322,8 @@ A local differential-equation result is represented by
   "LocalExpansionPoint" -> <|...|>,
   "PointType" -> "OrdinaryPoint" | "RegularSingularPoint",
   "LocalVariable" -> rho,
-  "ConnectionResidue" -> R,
+  "EpsilonNormalizedConnectionResidue" -> R,
+  "ResidueConvention" -> "R=Res(connection/eps); LocalSolution=H(rho,eps).rho^(eps R).c",
   "TruncatedLocalPrefactor" -> H,
   "RetainedLocalOrders" -> {...},
   "RetainedEpsilonOrders" -> {...},
@@ -311,7 +332,8 @@ A local differential-equation result is represented by
 |>
 ```
 
-The connection residue and local prefactor are mathematical data.  A choice
+Here R is the residue after dividing the connection by epsilon; the full
+connection residue is eps R. The normalized residue and local prefactor are mathematical data.  A choice
 of implementation backend is computation metadata and does not belong here.
 
 A boundary domain is explicit:
@@ -398,139 +420,69 @@ boundary constants.  This coefficient matrix is not the complete
 Frobenius/Levelt embedding: a solution with resonant logarithms must separately
 retain the required normal powers, logarithmic powers, and epsilon orders.
 
-The square tangential evolution is represented without duplicating expanded
-coefficient formulas:
+The former letter-sequence evolution and singular matching operator formats
+are archived. They are not current production interfaces. Local Frobenius
+structure and an induced boundary-function DE do not determine a normalized
+connection to an ordinary point or select physical constants.
 
-```wl
-<|
-  "DataType" -> "TangentialBoundaryEvolutionOperator",
-  "SchemaVersion" -> 2,
-  "BoundaryFunctionIDs" -> {...},
-  "BoundaryFunctionToTangentialBasePointBoundaryConstantIDs" -> {...},
-  "TangentialBasePoint" -> <|...|>,
-  "TangentialPath" -> <|...|>,
-  "EvolutionOperatorEpsilonValuation" -> emin,
-  "EpsilonOrderWindow" -> {emin, emax},
-  "EvolutionOperatorIteratedIntegralCoefficientMapsByEpsilonOrder" ->
-    <|n -> <|iteratedIntegralLetterSequence -> matrix, ...|>, ...|>,
-  "EvolutionConvention" -> "c(t,eps)=U(t,t0;eps).c(t0,eps)",
-  "Status" -> "TangentialBoundaryEvolutionOperatorValidated",
-  "Validation" -> <|...|>
-|>
-```
+The intended connection uses the same finite-solution constructor for the
+tangential DE and an explicit, correctly truncated matching transformation.
+General regularized singular matching, path composition and branch continuation
+in that format remain unfinished. Their former implementations, including
+epsilon-order propagation through the old maps, are preserved in
+[the retirement backup](../Archive/RetiredCode/FeynFacet/2026-09-06-production-consolidation/README.md).
 
-Composing this operator with a requested-output solution map whose columns are
-boundary-function epsilon coefficients produces a
-`BoundaryConstantToMasterIntegralSolutionMap`. Its term records retain the
-tangential-boundary iterated-integral letter sequence as a separate path
-segment; no unresolved function of the tangential variables remains.
+## 9. Explicit solutions
 
-A full regularized evolution from a singular boundary to an interior base
-point is stored only when it is actually constructed:
+The finite-solution format supersedes the earlier completion contract in
+this section. See [FiniteMasterIntegralSolutions.md](FiniteMasterIntegralSolutions.md)
+for its schema version 3 and executable interface. Upstream differential
+systems and boundary intermediates still use version 2.
 
-```wl
-<|
-  "DataType" -> "RegularizedBoundaryToBasePointEvolutionOperator",
-  "SchemaVersion" -> 2,
-  "DifferentialSystemReference" -> <|...|>,
-  "BoundaryDomain" -> <|...|>,
-  "BasePoint" -> <|...|>,
-  "Path" -> <|...|>,
-  "RegularizationPrescription" -> <|...|>,
-  "EpsilonOrders" -> {...},
-  "EvolutionOperatorCoefficients" -> <|...|>,
-  "Status" -> "RegularizedBoundaryToBasePointEvolutionOperatorValidated",
-  "Validation" -> <|...|>
-|>
-```
+A MasterIntegralSolution contains explicit finite integral definitions,
+finite arithmetic definitions and every requested coefficient. Its initial
+constants are I(X0,epsilon) at a fixed ordinary point and are independent of
+all kinematic variables. Physical boundary values are not required to solve
+the DE up to those constants.
 
-A rectangular, demand-pruned map is not called an evolution operator or
-transport matrix.  It is a private
-`IteratedIntegralCoefficientOperatorForRequestedOutputs` until requested
-entries are constructed.
+The old ordered coefficient-operator products and their constructors are
+retired. Their format cannot pass `MasterIntegralSolutionQ` and is not a solved DE.
 
-## 9. Master-integral solutions
+A future physical-region result must additionally fix the initial constants,
+physical region and analytic continuation. This is distinct from the finite
+DE solution up to constants. Undetermined functions on a positive-dimensional
+boundary must not be relabelled as constants.
 
-The public solution has one data type.  Coverage of requested coefficients and
-determination of boundary data are independent properties:
+## 10. Artifact flow
 
-```wl
-<|
-  "DataType" -> "MasterIntegralSolution",
-  "SchemaVersion" -> 2,
-  "FamilyDifferentialSystemReference" -> <|...|>,
-  "MasterIntegralEpsilonOrderRequirementsReference" -> <|...|>,
-  "BoundaryDomain" -> <|...|>,
-  "RequestedMasterIntegralEpsilonCoefficients" -> <|...|>,
-  "BoundaryConstantTable" -> <|...|>,
-  "BoundaryFunctionTable" -> <|...|>,
-  "BoundaryRelations" -> {...},
-  "DemandCoverage" -> "Complete" | "Incomplete",
-  "BoundaryDataStatus" -> "Undetermined" | "Partial" | "Determined",
-  "Status" -> "MasterIntegralSolutionConstructed",
-  "Validation" -> <|...|>
-|>
-```
+    Reduction and master-integral inputs
+      -> FamilyDifferentialSystem and block decomposition
+      -> sufficient epsilon orders and any needed basis preparation
+      -> fixed ordinary base point, domain, branch and finite epsilon request
+      -> MasterIntegralSolution (explicit finite expressions, schema 3)
+      -> determine initial constants and physical continuation
+      -> physical master-integral values and hard-function assembly
 
-An empty boundary-constant or boundary-function table is omitted.  Formal
-iterated-integral expressions use `FormalChenIteratedIntegral` with explicit
-letter or index sequences.  A product of integrals on path segments remains a
-product; it is not called one integral on the concatenated path unless Chen's
-deconcatenation sum has actually been performed.
+The connection may be a strict epsilon form or an accepted non-dlog system
+with known homogeneous data. Physical Laurent-order requirements need
+justified lower bounds as well as hard-coefficient valuations.
 
-After all required constants or boundary functions, the physical region, and
-the analytic continuation prescription have been fixed, the final object is
+Singular-boundary expansions and boundary-function differential systems remain
+available as local mathematics. Their complete matching to ordinary-point
+constants is not a prerequisite for constructing a finite solution and is not
+yet part of the current end-to-end production interface.
 
-```wl
-<|
-  "DataType" -> "PhysicalRegionMasterIntegralSolution",
-  "SchemaVersion" -> 2,
-  "MasterIntegralSolutionReference" -> <|...|>,
-  "PhysicalRegion" -> <|...|>,
-  "AnalyticContinuationPrescription" -> <|...|>,
-  "MasterIntegralEpsilonCoefficients" -> <|...|>,
-  "Status" -> "PhysicalRegionMasterIntegralSolutionValidated",
-  "Validation" -> <|...|>
-|>
-```
-
-This is the only completed-solution status.  A result still containing
-undetermined boundary data remains a `MasterIntegralSolution`, not a physical
-region solution.
-
-## 10. Complete artifact flow
-
-```text
-Pairs + KiraStream + CanonicalRegistry + master list
-  + HardFunctionMasterCoefficientEpsilonValuations
-        -> FamilyDifferentialSystem
-        -> FamilyDifferentialSystemBlockDecomposition
-        -> CoefficientPresentation
-        -> diagonal and off-diagonal basis transformations
-        -> FamilyDifferentialSystemWithEpsilonFormDiagonalBlocks
-           or FamilyDLogEpsilonForm when the stronger equation is validated
-        -> MasterIntegralEpsilonOrderRequirements
-        -> TruncatedLocalFrobeniusExpansion
-        -> BoundaryAsymptoticModeMatching
-        -> BoundaryFunctionDifferentialSystem
-           (only for a positive-dimensional boundary stratum)
-        -> evolve boundary functions from a tangential base point
-        -> RegularizedBoundaryToBasePointEvolutionOperator
-           and/or private requested-output coefficient operator
-        -> MasterIntegralSolution
-        -> determine and substitute all boundary data
-        -> PhysicalRegionMasterIntegralSolution
-```
+The authoritative commands are in [the production guide](../Scripts/Transport/README.md).
 
 ## Migration rule
 
-Live code writes only V2.  V1 generated artifacts are moved intact to a dated
-`Stale/DifferentialEquationData` directory.  If a V1 record reaches a V2 core
+Live upstream differential-system code writes V2; explicit finite solutions use V3.
+The obsolete V1 generated run archive has been removed.  If a V1 record reaches a V2 core
 function, the result is the typed refusal `LegacyDifferentialEquationSchemaUnsupported`.
 Regeneration starts from the preserved reduction/master inputs and records the
 wall time and peak memory of every mathematical stage as the new performance
-baseline.  The pre-V2 payload is at
-`Stale/DifferentialEquationData/2026-09-03_pre_v2`.
+baseline.  The [removal record](StaleDEResultRemoval_2026-09-06.md) records the deleted
+pre-V2 runs and the small retained test fixtures.
 
 Performance data are stored beside, not inside, the mathematical result:
 
@@ -551,3 +503,20 @@ Metrics, backend choices, thread counts and file locations do not participate
 in mathematical identity, resumption, or acceptance.  Live V2 data contain no
 settings or content fingerprints.  A result is resumed from its explicit
 mathematical inputs, completed blocks and their validation records.
+
+## Terminology revision, 2026-09-05
+
+The mathematical naming conventions are in
+[MathematicalTerminology.md](MathematicalTerminology.md).
+General integration kernels use `KernelCoefficientMatrices`;
+`OffDiagonalKernelCoefficientMatrices` stores the remainder of an
+off-diagonal Hermite reduction. `ExactKernelCoefficientDecomposition` does
+not assert dlog form. A holomorphic elliptic differential may have a nonzero
+kernel coefficient and zero pole residue.
+
+`RegulatorFactorizationUnsuccessful` keeps
+`RationalizingParametrizationSearch` separate from `MultiquadraticFactorization`.
+Neither a missing catalogue entry nor a failed construction proves
+non-rationalizability. Square-root metadata uses `RootCount`,
+`MaximumRootCount`, `ParityComponentCount` and `ParityComponentMatrices`;
+matrix rank and epsilon expansion order remain distinct concepts.

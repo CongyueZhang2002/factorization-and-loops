@@ -1,0 +1,417 @@
+(* Explicit interior densities from physical coefficient tables and finite
+   master solutions. Shared boundary definitions are installed only once. *)
+BeginPackage["FeynFacet`"];
+AssembleFiniteMasterIntegralDensity::usage="AssembleFiniteMasterIntegralDensity[physicalTable,solutions,request] contracts explicit finite physical master coefficients with their coefficient table, sharing all finite scalar definitions and reporting insufficient orders. solutions maps labels to saved solution directories or explicit solution records; request declares ThroughOrder, KinematicVariables and SolutionReferenceScale.";
+Begin["`Private`"];
+$finiteDensityPackageDirectory=DirectoryName[$InputFileName,2];
+Clear[finiteDensityFail,finiteDensityRead,finiteDensityLoadSolution,finiteDensityTermBound,
+ finiteDensityEntryBound,finiteDensityCoefficientFunction,finiteDensityDefinitionCheck,finiteDensityAssemble];
+finiteDensityFail[tag_,data_:<||>] := Throw[Failure[tag,Join[If[AssociationQ[$finiteDensityFailureContext],$finiteDensityFailureContext,<||>],data]],"FiniteDensity"];
+finiteDensityRead[file_String] := Module[{value},
+ If[!FileExistsQ[file],finiteDensityFail["FiniteDensityInputFileMissing",<|"File"->file|>]];
+ value=If[ToLowerCase[FileExtension[file]]==="wxf",Import[file,"WXF"],
+  Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Get[file]]];
+ If[!AssociationQ[value],finiteDensityFail["FiniteDensityInputRecordRequired",<|"File"->file|>]];value
+];
+finiteDensityLoadSolution[input_,label_] := Module[{data=input,directory=None,file=None},
+ If[StringQ[data],
+  If[DirectoryQ[data],directory=ExpandFileName[data];file=FileNameJoin[{directory,"solution.wxf"}],
+   file=ExpandFileName[data];directory=DirectoryName[file]];
+  If[FileExistsQ[file],data=finiteDensityRead[file],
+   If[!DirectoryQ[directory]||Length[DownValues[FeynFacetSolution`ReadMasterIntegralSolution]]===0,
+    finiteDensityFail["FiniteSolutionFileMissing",<|"Solution"->label,"File"->file|>]];
+   data=FeynFacetSolution`ReadMasterIntegralSolution[directory]]];
+ If[!AssociationQ[data]||Lookup[data,"DataType",None]=!="MasterIntegralSolution"||
+   !TrueQ[Lookup[data,"PhysicalBoundaryValuesCompleteForStoredOrders",False]],
+  finiteDensityFail["PhysicallyNormalizedFiniteSolutionRequired",<|"Solution"->label|>]];
+ If[directory===None,directory=Lookup[data,"SourceDirectory",None]];
+ <|"Data"->data,"Directory"->directory,"File"->file,"Label"->label|>
+];
+finiteDensityTermBound[t_,e_] := Module[{pv,cv},
+ If[coefficientExactZeroTermQ[t],Return[Infinity]];
+ If[t["Representation"]==="Exact",
+  pv=FeynFacet`DetermineMeromorphicLaurentLowerBound[t["PreFactor"],e];
+  cv=FeynFacet`DetermineMeromorphicLaurentLowerBound[t["Coefficient"],e];
+  cv=If[IntegerQ[pv]&&IntegerQ[cv],pv+cv,If[pv===Infinity||cv===Infinity,Infinity,Failure["MeromorphicLowerBoundNotEstablished",<||>]]],
+  pv=FeynFacet`DetermineMeromorphicLaurentLowerBound[t["PreFactor"],e];
+  If[pv===Infinity,Return[Infinity]];
+  cv=If[IntegerQ[pv],pv+First[Keys[t["Coefficient"]["Orders"]]],pv]];
+ If[!IntegerQ[cv]&&cv=!=Infinity,
+  finiteDensityFail["DensityCoefficientLaurentBoundRequired",<|"Cause"->cv|>]];cv
+];
+finiteDensityEntryBound[entry_,e_] := Min[finiteDensityTermBound[#,e]&/@entry["Terms"]];
+(* SparseArray objects held inside an Association can differ in internal
+   evaluation state after WXF restoration. Compare that one field rowwise;
+   every other field and every evaluated sparse-row value remains SameQ. *)
+Clear[finiteDensitySerializationEquivalentQ];
+finiteDensitySerializationEquivalentQ[left_,right_] := SameQ[left,right];
+finiteDensitySerializationEquivalentQ[left_Association,right_Association] := Module[{a,b},
+ If[Keys[left]=!=Keys[right],Return[False]];
+ And@@Table[If[key==="CoefficientConvolutionMatrices",
+   a=left[key];b=right[key];AssociationQ[a]&&AssociationQ[b]&&Keys[a]===Keys[b]&&
+    AllTrue[Keys[a],Head[a[#]]===SparseArray&&Head[b[#]]===SparseArray&&SameQ[a[#],b[#]]&],
+   SameQ[left[key],right[key]]],{key,Keys[left]}]
+];
+(* Each saved object is a complete finite coefficient function. Readable
+   master/range names identify versions; exact stored inputs distinguish
+   changed normalizations, coefficients and regulator conventions. *)
+finiteDensityCoefficientFunction[entry_,e_,range_,identity_,directory_,verbose_] := Module[
+ {input,baseName,files,path=None,record,expanded,coefficients,temporary,stream,sequence=1,found=False},
+ If[directory===None,Return[FeynFacet`ExpandMasterIntegralCoefficient[entry,e,range]]];
+ input=<|"Entry"->entry,"DimensionalRegulator"->e,"EpsilonOrderRange"->range|>;
+ baseName=If[identity===None,"ScalarRemainder",
+  StringTake[StringReplace[First[identity],Except[LetterCharacter|DigitCharacter|"_"]->"_"],UpTo[60]]<>
+   "__powers_"<>StringTake[StringRiffle[ToString/@Last[identity],"_"],UpTo[100]]];
+ baseName=baseName<>"__epsilon_"<>ToString[First[range]]<>"_to_"<>ToString[Last[range]];
+ files=Sort[FileNames[baseName<>"__*.wxf",directory]];
+ Do[
+  record=finiteDensityRead[file];
+  If[Lookup[record,"DataType",None]=!="FiniteDensityCoefficientFunction"||Lookup[record,"SchemaVersion",None]=!=2||
+     !KeyExistsQ[record,"Input"],finiteDensityFail["SavedCoefficientFunctionInvalid",<|"File"->file|>]];
+  If[record["Input"]===input&&Lookup[record,"Master",None]===identity,
+   path=file;expanded=Lookup[record,"ExpandedCoefficient",None];found=True;Break[]],{file,files}];
+ If[found,
+  coefficients=If[AssociationQ[expanded],Lookup[expanded,"Coefficients",None],None];
+  If[!AssociationQ[expanded]||Lookup[expanded,"DimensionalRegulator",None]=!=e||
+    Lookup[expanded,"EpsilonOrderRange",None]=!=range||!AssociationQ[coefficients]||
+    Keys[coefficients]=!=Range@@range||
+    !FreeQ[Values[coefficients],e|_Real|_Series|_SeriesData|_SeriesCoefficient|_Missing|_Failure|$Failed|Indeterminate|_DirectedInfinity],
+   finiteDensityFail["SavedCoefficientFunctionInvalid",<|"File"->path|>]];
+  If[TrueQ[verbose],Print[<|"Stage"->"ReusePhysicalCoefficientFunction","Master"->identity,"File"->path|>]];
+  Return[expanded]];
+ expanded=FeynFacet`ExpandMasterIntegralCoefficient[entry,e,range];
+ If[FailureQ[expanded],Return[expanded]];
+ If[!AssociationQ[expanded],finiteDensityFail["FiniteCoefficientFunctionRequired"]];
+ path=FileNameJoin[{directory,baseName<>"__"<>IntegerString[sequence,10,4]<>".wxf"}];
+ While[FileExistsQ[path],sequence++;path=FileNameJoin[{directory,baseName<>"__"<>IntegerString[sequence,10,4]<>".wxf"}]];
+ record=<|"DataType"->"FiniteDensityCoefficientFunction","SchemaVersion"->2,
+  "Master"->identity,"Input"->input,"ExpandedCoefficient"->expanded|>;
+ temporary=path<>".partial";stream=OpenWrite[temporary,BinaryFormat->True];
+ If[Head[stream]=!=OutputStream,finiteDensityFail["CoefficientFunctionOutputNotWritable",<|"File"->temporary|>]];
+ BinaryWrite[stream,Normal[BinarySerialize[record,PerformanceGoal->"Size"]],"Byte"];Close[stream];
+ If[Import[temporary,"WXF"]=!=record,finiteDensityFail["CoefficientFunctionSerializationFailed",<|"File"->temporary|>]];
+ RenameFile[temporary,path,OverwriteTarget->True];
+ If[!FileExistsQ[path],finiteDensityFail["CoefficientFunctionOutputNotWritten",<|"File"->path|>]];
+ If[TrueQ[verbose],Print[<|"Stage"->"SavePhysicalCoefficientFunction","Master"->identity,"File"->path|>]];
+ expanded
+];
+(* Validate dependency order in each scalar namespace. Integral and kernel
+   dummy parameters remain bound by their individual finite definitions. *)
+finiteDensityDefinitionCheck[bundle_,e_] := Module[{aa,ff,kk,refs,good=True},
+ {aa,ff,kk}=Lookup[bundle,{"AlgebraicDefinitions","IntegralDefinitions","KernelDefinitions"}];
+ If[!FreeQ[{aa,ff,kk},e|_FeynFacetSolution`C|_FeynFacetSolution`B|_Missing|_Failure|$Failed|
+    _SeriesData|_Series|_SeriesCoefficient|Indeterminate|_DirectedInfinity],Return[False]];
+ Do[refs=Cases[aa[[i]],FeynFacetSolution`a[j_]:>j,{0,Infinity}];
+  If[!AllTrue[refs,IntegerQ[#]&&1<=#<i&],good=False;Break[]],{i,Length[aa]}];
+ If[!good,Return[False]];
+ Do[refs=Cases[ff[[i,"Integrand"]],FeynFacetSolution`F[j_,_]:>j,{0,Infinity}];
+  If[!AllTrue[refs,IntegerQ[#]&&1<=#<i&],good=False;Break[]],{i,Length[ff]}];
+ If[!good,Return[False]];
+ Do[refs=Cases[kk[[i,"Expression"]],FeynFacetSolution`K[j_,_]:>j,{0,Infinity}];
+  If[!AllTrue[refs,IntegerQ[#]&&1<=#<i&],good=False;Break[]],{i,Length[kk]}];good
+];
+(* Each coefficient function is independent. Only these small input records
+   go to workers; the shared master-solution definitions stay in the parent. *)
+finiteDensityCoefficientJob[task_Association]:=Module[{result,seconds,audit=None},
+ {seconds,result}=AbsoluteTiming[Block[{$finiteDensityFailureContext=<||>},Catch[
+   If[TrueQ[task["RemainderChecks"]],
+    WithEpsilonRemainderChecks[finiteDensityCoefficientFunction[task["Entry"],task["Regulator"],
+      task["Range"],task["Master"],task["Directory"],False],
+      "TruncationOrderShift"->task["TruncationOrderShift"],"TimeLimitPerCheck"->task["TimeLimitPerCheck"]],
+    finiteDensityCoefficientFunction[task["Entry"],task["Regulator"],task["Range"],task["Master"],task["Directory"],False]],
+  "FiniteDensity"]]];
+ If[TrueQ[task["RemainderChecks"]]&&AssociationQ[result]&&KeyExistsQ[result,"EpsilonRemainderAudit"],
+  audit=result["EpsilonRemainderAudit"];result=result["Result"]];
+ <|"Index"->task["Index"],"Result"->result,"Seconds"->seconds,"EpsilonRemainderAudit"->audit|>
+];
+finiteDensityParallelCoefficients[entries_,plans_,e_,directory_,workers_] := Module[{tasks,kernels={},results},
+ tasks=Table[If[plans[[j,"CoefficientLaurentLowerBound"]]===Infinity||
+   plans[[j,"RequiredMasterUpperOrder"]]<plans[[j,"MasterLaurentLowerBound"]],Nothing,
+  <|"Index"->j,"Entry"->entries[[j]],"Regulator"->e,"Master"->plans[[j,"Master"]],
+   "Range"->Lookup[plans[[j]],{"CoefficientLaurentLowerBound","RequiredCoefficientUpperOrder"}],
+   "Directory"->directory,"RemainderChecks"->TrueQ[$epsilonRemainderChecks],
+   "TruncationOrderShift"->If[TrueQ[$epsilonRemainderChecks],$epsilonRemainderShift,0],
+   "TimeLimitPerCheck"->If[TrueQ[$epsilonRemainderChecks],$epsilonRemainderTimeLimit,10]|>],{j,Length[plans]}];
+ If[tasks==={},Return[<||>]];
+ If[Kernels[]=!={},finiteDensityFail["IndependentCoefficientWorkerPoolRequired",
+   <|"Reason"->"Existing subkernels are preserved. Run this batch from a kernel without an active pool, or use CoefficientWorkers -> 1."|>]];
+ Internal`WithLocalSettings[Null,
+  kernels=LaunchKernels[Min[workers,Length[tasks]]];
+  If[Length[kernels]=!=Min[workers,Length[tasks]],finiteDensityFail["CoefficientWorkersUnavailable"]];
+  With[{directory=$finiteDensityPackageDirectory},ParallelEvaluate[
+   $HistoryLength=0;$MaxExtraPrecision=50;
+   SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+   Get[directory<>"/Algebra/RegulatorSeries.wl"];
+   Get[directory<>"/Algebra/EpsilonRemainders.wl"];
+   Get[directory<>"/Solutions/Orders/LaurentBounds.wl"];
+   Begin["FeynFacet`Private`"];Get[directory<>"/Coefficients/FinalResults.wl"];End[];
+   Get[directory<>"/Coefficients/FiniteDensity.wl"];True,kernels]];
+  results=ParallelMap[finiteDensityCoefficientJob,tasks,Method->"FinestGrained",DistributedContexts->None],
+  If[kernels=!={},CloseKernels[kernels]]];
+ If[!ListQ[results]||Length[results]=!=Length[tasks]||!AllTrue[results,AssociationQ],
+  finiteDensityFail["CoefficientWorkerResultsIncomplete"]];
+ If[TrueQ[$epsilonRemainderChecks],Do[With[{audit=r["EpsilonRemainderAudit"]},If[AssociationQ[audit],
+   KeyValueMap[AssociateTo[$epsilonRemainderCounts,#1->(Lookup[$epsilonRemainderCounts,#1,0]+#2)]&,audit["ChecksByStage"]];
+   If[audit["Status"]==="Failed",epsilonAuditRecord["Stage4/CoefficientWorker",<|"Cause"->audit["FailedChecks"]|>]]]],{r,results}]];
+ Association[(#["Index"]->#["Result"])&/@results]
+];
+Options[FeynFacet`AssembleFiniteMasterIntegralDensity]={"Verbose"->False,"CoefficientFunctionDirectory"->None,"CoefficientWorkers"->1};
+finiteDensityAssemble[input_,sources_,request_,verbose_,coefficientDirectory_,workers_] := Module[
+ {table,e,target,variables,referenceScale,normalization,static,dynamic,allTerms,progress,
+  loaded=<||>,locations=<||>,source,record,basis,ranges,orderValues,byOrder,expected,identity,row,range,
+  index={},plans={},missingMasters={},missingCoefficients={},coefficientEntries={},entry,weighted,bound,
+  lo,hi,required,term,pv,known,metadata,selection=<||>,selected,pruned,localBundles=<||>,
+  boundaryRequests=<||>,sharedPath,refs,shared,definitions,boundaryMaps=<||>,sharedBundles=<||>,
+  aaParts={},ffParts={},kkParts={},aaCount=0,ffCount=0,kkCount=0,scopes={},install,shift,replaceBoundary,
+  aaOffset,ffOffset,kkOffset,shiftRules,expr,installed,scope,keys,values,map,newDefinitions,
+  masterReferences=<||>,masterVector={},masterIndex={},coefficientReferences=<||>,coefficientIndex={},
+  weightRecord,expanded,coefficientOrder,coefficientRef,masterRef,masterOrder,col,convolution=<||>,
+  densityCoefficients,lower,densityRemainder,remBound,remRef=<||>,remEntry,rows,densityValue,columns,
+  coefficientVectors,termReports={},result,requiredMasterCount,requestedVariables,scaleProof,sourceMetadata,coefficientPath,
+  parallelCoefficients=<||>,started=AbsoluteTime[]},
+ progress[x_]:=If[TrueQ[verbose],Print[x]];
+ If[!IntegerQ[workers]||!TrueQ[1<=workers<=8],finiteDensityFail["CoefficientWorkerCountMustBeOneThroughEight"]];
+ coefficientPath=coefficientDirectory;
+ If[coefficientPath=!=None,
+  If[!StringQ[coefficientPath],finiteDensityFail["CoefficientFunctionDirectoryInvalid"]];
+  coefficientPath=ExpandFileName[coefficientPath];
+  If[!DirectoryQ[coefficientPath],CreateDirectory[coefficientPath,CreateIntermediateDirectories->True]];
+  If[!DirectoryQ[coefficientPath],finiteDensityFail["CoefficientFunctionDirectoryInvalid"]]];
+ If[!AssociationQ[sources]||sources===<||>||!AllTrue[Keys[sources],StringQ]||
+   !IntegerQ[Lookup[request,"ThroughOrder",None]],finiteDensityFail["FiniteDensitySourcesAndTargetRequired"]];
+ If[Length[DownValues[FeynFacetSolution`PruneFiniteSolutionDefinitions]]===0,
+  finiteDensityFail["FiniteSolutionDefinitionReaderNotLoaded"]];
+ $finiteDensityFailureContext=<|"Stage"->"ReadPhysicalCoefficientTable"|>;
+ table=FeynFacet`ReadMasterIntegralCoefficients[input];
+ If[FailureQ[table],finiteDensityFail["PhysicalCoefficientTableInvalid",<|"Cause"->table|>]];
+ If[!TrueQ[Lookup[table,"PhysicalMasterNormalizationApplied",False]]||
+   Lookup[table,"CoefficientConvention",None]=!="PhysicalMasterAtReferenceScale",
+  finiteDensityFail["PhysicalMasterCoefficientDensityRequired"]];
+ If[!FreeQ[{table["PreFactor"],Lookup[table["Masters"],"Terms"],table["RemainderTerms"]},
+    _FeynFacetSolution`C|_FeynFacetSolution`B|_FeynFacetSolution`a|_FeynFacetSolution`F|_FeynFacetSolution`K],
+  finiteDensityFail["CoefficientTableUnscopedFiniteReferences",<|
+   "Required"->"Coefficient functions must be explicit expressions; finite a/F/K definitions are installed from the supplied solution records."|>]];
+ e=table["DimensionalRegulator"];target=request["ThroughOrder"];
+ variables=Lookup[request,"KinematicVariables",None];referenceScale=Lookup[request,"SolutionReferenceScale",None];
+ normalization=Lookup[table,"PhysicalDensityNormalization",<||>];
+ If[!MatchQ[variables,{__Symbol}]||!DuplicateFreeQ[variables]||MemberQ[variables,e]||referenceScale===None||
+   !FreeQ[referenceScale,e]||!TrueQ[FullSimplify[referenceScale==Lookup[normalization,"ReferenceScale",Missing[]],
+     Assumptions->Lookup[normalization,"Assumptions",True]]],
+  finiteDensityFail["MatchingSolutionKinematicsAndReferenceScaleRequired"]];
+ allTerms=If[Head[table["PreFactor"]]===Times,List@@table["PreFactor"],{table["PreFactor"]}];
+ static=Times@@Select[allTerms,FreeQ[#,e]&];dynamic=Times@@Select[allTerms,!FreeQ[#,e]&];
+ progress[<|"Stage"->"ReadFiniteSolutions","SolutionCount"->Length[sources]|>];
+ Do[
+  source=finiteDensityLoadSolution[sources[label],label];record=source["Data"];
+  record=epsOrderNormalize[record,e];
+  If[Lookup[record,"KinematicVariables",None]=!=variables,
+   finiteDensityFail["FiniteSolutionKinematicVariablesMismatch",<|"Solution"->label,"Expected"->variables,
+     "Found"->Lookup[record,"KinematicVariables",None]|>]];
+  basis=Lookup[record,"OriginalMasterIntegralBasis",None];ranges=Lookup[record,"RequestedMasterIntegralOrderRanges",None];
+  orderValues=Lookup[record,"MasterIntegralCoefficients",None];
+  If[!ListQ[basis]||!AssociationQ[ranges]||!AssociationQ[orderValues],
+   finiteDensityFail["FiniteMasterCoefficientRangesRequired",<|"Solution"->label|>]];
+  byOrder=Association@KeyValueMap[Function[{q,v},
+    If[!IntegerQ[q]||!MatchQ[v,{(_Integer->_)..}]||!DuplicateFreeQ[First/@v],
+     finiteDensityFail["FiniteMasterCoefficientTableInvalid",<|"Solution"->label,"Order"->q|>]];
+    q->Association[v]],orderValues];
+  Do[
+   range=ranges[row];
+   If[!IntegerQ[row]||!TrueQ[1<=row<=Length[basis]]||!MatchQ[range,{_Integer,_Integer}]||First[range]>Last[range],
+    finiteDensityFail["FiniteMasterCoefficientRangeInvalid",<|"Solution"->label,"Row"->row|>]];
+   identity=coefficientMasterID[basis[[row]]];
+   If[KeyExistsQ[locations,identity],finiteDensityFail["DuplicateFiniteMasterSolution",<|"Master"->identity|>]];
+   AssociateTo[locations,identity-><|"Solution"->label,"Row"->row,"KnownOrderRange"->range|>],
+  {row,Keys[ranges]}];
+  AssociateTo[loaded,label->Join[source,<|"Data"->record,"CoefficientTable"->byOrder|>]],
+ {label,Keys[sources]}];
+ progress[<|"Stage"->"DetermineInteriorOrders","MasterCount"->Length[table["Masters"]]|>];
+ Do[
+  identity=coefficientMasterID[entry["Master"]];
+  $finiteDensityFailureContext=<|"Stage"->"DetermineInteriorOrders","Master"->identity|>;
+  progress[<|"Stage"->"DetermineInteriorOrders","Master"->identity,"Completed"->Length[plans],"ElapsedSeconds"->Round[AbsoluteTime[]-started]|>];
+  weighted=Join[entry,<|"Terms"->(Join[#,<|"PreFactor"->dynamic #["PreFactor"]|>]&/@entry["Terms"])|>];
+  bound=finiteDensityEntryBound[weighted,e];
+  If[!KeyExistsQ[locations,identity],AppendTo[missingMasters,<|"Master"->identity,"Reason"->"MasterNotStored"|>];Continue[]];
+  metadata=locations[identity];{lo,hi}=metadata["KnownOrderRange"];
+  required=If[bound===Infinity,lo-1,target-bound];
+  row=metadata["Row"];source=loaded[metadata["Solution"]];
+  expected=Range[lo,required];
+  missingMasters=Join[missingMasters,Table[
+    If[q>hi||!KeyExistsQ[source["CoefficientTable"],q]||!KeyExistsQ[source["CoefficientTable"][q],row],
+      <|"Master"->identity,"Solution"->metadata["Solution"],"Row"->row,"EpsilonOrder"->q,"KnownOrderRange"->{lo,hi}|>,Nothing],
+    {q,expected}]];
+  Do[If[term["Representation"]==="LaurentSeries"&&!coefficientExactZeroTermQ[term],
+    pv=FeynFacet`DetermineMeromorphicLaurentLowerBound[term["PreFactor"],e];
+    If[pv=!=Infinity,
+     known=term["Coefficient"]["SeriesTruncation"];
+     If[target-lo-pv>known,AppendTo[missingCoefficients,<|"Master"->identity,"RequiredThroughOrder"->target-lo-pv,
+       "KnownThroughOrder"->known,"PrefactorLaurentLowerBound"->pv|>]]]],{term,weighted["Terms"]}];
+  AppendTo[plans,Join[metadata,<|"Master"->identity,"CoefficientLaurentLowerBound"->bound,
+    "MasterLaurentLowerBound"->lo,"RequiredMasterUpperOrder"->required,
+    "RequiredCoefficientUpperOrder"->target-lo|>]];
+  AppendTo[coefficientEntries,weighted],
+ {entry,table["Masters"]}];
+ remEntry=<|"Terms"->(Join[#,<|"PreFactor"->dynamic #["PreFactor"]|>]&/@table["RemainderTerms"])|>;
+ remBound=finiteDensityEntryBound[remEntry,e];
+ Do[If[term["Representation"]==="LaurentSeries"&&!coefficientExactZeroTermQ[term],
+   pv=FeynFacet`DetermineMeromorphicLaurentLowerBound[term["PreFactor"],e];
+   If[pv=!=Infinity&&target-pv>term["Coefficient"]["SeriesTruncation"],
+    AppendTo[missingCoefficients,<|"Master"->None,"RequiredThroughOrder"->target-pv,
+     "KnownThroughOrder"->term["Coefficient"]["SeriesTruncation"],"PrefactorLaurentLowerBound"->pv|>]]],{term,remEntry["Terms"]}];
+ If[missingMasters=!={}||missingCoefficients=!={},finiteDensityFail["FiniteDensityOrdersInsufficient",<|
+   "MissingMasterCoefficients"->missingMasters,"MissingCoefficientOrders"->missingCoefficients,
+   "MasterOrderRequirements"->plans,"ThroughOrder"->target|>]];
+ (* Select the required finite coefficients before traversing any definitions. *)
+ Do[
+  source=loaded[label];rows=Select[plans,#["Solution"]===label&];selected=<||>;
+  Do[Do[AssociateTo[selected,{plan["Row"],q}->source["CoefficientTable"][q][plan["Row"]]],
+    {q,plan["MasterLaurentLowerBound"],plan["RequiredMasterUpperOrder"]}],{plan,rows}];
+  If[selected===<||>,Continue[]];
+  progress[<|"Stage"->"SelectFiniteDefinitions","Solution"->label,"CoefficientCount"->Length[selected]|>];
+  record=source["Data"];
+  pruned=FeynFacetSolution`PruneFiniteSolutionDefinitions[record,selected];
+  If[FailureQ[pruned],finiteDensityFail["FiniteSolutionDefinitionsInvalid",<|"Solution"->label,"Cause"->pruned|>]];
+  If[!FreeQ[Lookup[pruned,{"Expressions","AlgebraicDefinitions","IntegralDefinitions","KernelDefinitions"}],
+     e|_FeynFacetSolution`C|_Missing|_Failure|$Failed|_Series|_SeriesData|_SeriesCoefficient],
+    finiteDensityFail["ExplicitPhysicalMasterCoefficientsRequired",<|"Solution"->label|>]];
+  refs=DeleteDuplicates@Cases[pruned,FeynFacetSolution`B[i_Integer,q_Integer]:>{i,q},Infinity];
+  sharedPath=None;
+  If[refs=!={},
+   sharedPath=Lookup[record,"SharedBoundaryDefinitionFile",None];
+   If[!StringQ[sharedPath],finiteDensityFail["SharedPhysicalBoundaryDefinitionsRequired",<|"Solution"->label|>]];
+   If[!StringStartsQ[sharedPath,"/"],
+    If[!StringQ[source["Directory"]],finiteDensityFail["SolutionSourceDirectoryRequired",<|"Solution"->label|>]];
+    sharedPath=FileNameJoin[{source["Directory"],sharedPath}]];
+   sharedPath=ExpandFileName[sharedPath];
+   AssociateTo[boundaryRequests,sharedPath->Union[Lookup[boundaryRequests,sharedPath,{}],refs]]];
+  AssociateTo[localBundles,label->Join[pruned,<|"SharedBoundaryPath"->sharedPath|>]],
+ {label,Keys[loaded]}];
+ (* Installing a pruned bundle renumbers its local a/F/K namespaces. B is
+    substituted only after this shift, so shared references are never shifted. *)
+ install[bundle_,scope_,boundaryRules_] := Module[{a0=aaCount,f0=ffCount,k0=kkCount,rr,rewrite,al,fl,kl,ex},
+  rr=With[{ao=a0,fo=f0,ko=k0},{FeynFacetSolution`a[j_Integer]:>With[{shifted=j+ao},FeynFacetSolution`a[shifted]],
+    FeynFacetSolution`F[j_Integer,u_]:>With[{shifted=j+fo},FeynFacetSolution`F[shifted,u]],
+    FeynFacetSolution`K[j_Integer,u_]:>With[{shifted=j+ko},FeynFacetSolution`K[shifted,u]]}];
+  rewrite[value_]:=FeynFacetSolution`Private`replaceFiniteExpressionReferences[
+    FeynFacetSolution`Private`replaceFiniteExpressionReferences[value,rr],boundaryRules];
+  al=rewrite[bundle["AlgebraicDefinitions"]];
+  fl=MapIndexed[With[{index=f0+First[#2]},Join[#1,<|"Index"->index|>]]&,rewrite[bundle["IntegralDefinitions"]]];
+  kl=MapIndexed[With[{index=k0+First[#2]},Join[#1,<|"Index"->index|>]]&,rewrite[bundle["KernelDefinitions"]]];
+  ex=rewrite[bundle["Expressions"]];
+  AppendTo[aaParts,al];AppendTo[ffParts,fl];AppendTo[kkParts,kl];
+  aaCount+=Length[al];ffCount+=Length[fl];kkCount+=Length[kl];
+  AppendTo[scopes,<|"Source"->scope,"AlgebraicRange"->{a0+1,aaCount},
+    "IntegralRange"->{f0+1,ffCount},"KernelRange"->{k0+1,kkCount}|>];ex
+ ];
+ Do[
+  progress[<|"Stage"->"ReadSharedPhysicalBoundaryDefinitions","File"->path,"CoefficientCount"->Length[boundaryRequests[path]]|>];
+  shared=finiteDensityRead[path];
+  If[Lookup[shared,"DataType",None]=!="SharedBoundaryCoefficientDefinitions"||
+    !TrueQ[Lookup[shared,"PhysicalBoundaryValuesCompleteForStoredOrders",False]],
+   finiteDensityFail["PhysicallyCompleteSharedBoundaryDefinitionsRequired",<|"File"->path|>]];
+  definitions=shared["BoundaryCoefficientDefinitions"];keys=boundaryRequests[path];
+  If[!AllTrue[keys,KeyExistsQ[definitions,#]&],finiteDensityFail["PhysicalBoundaryCoefficientMissing",<|
+    "File"->path,"MissingCoefficients"->Select[keys,!KeyExistsQ[definitions,#]&]|>]];
+  selected=Association@Table[key->definitions[[Key[key]]],{key,keys}];
+  pruned=FeynFacetSolution`PruneFiniteSolutionDefinitions[shared,selected];
+  If[FailureQ[pruned]||!finiteDensityDefinitionCheck[pruned,e]||
+    !FreeQ[pruned["Expressions"],e|_FeynFacetSolution`C|_FeynFacetSolution`B|_Missing|_Failure|$Failed|_SeriesData|_Series|_SeriesCoefficient],
+   finiteDensityFail["ExplicitSharedPhysicalBoundaryDefinitionsRequired",<|"File"->path|>]];
+  installed=install[pruned,<|"Kind"->"SharedPhysicalBoundary","File"->path|>,{}];
+  map=<||>;newDefinitions={};
+  Do[expr=installed[[Key[key]]];
+    If[expr===0,AssociateTo[map,key->0],
+     AppendTo[newDefinitions,expr];aaCount++;AssociateTo[map,key->FeynFacetSolution`a[aaCount]]],{key,keys}];
+  AppendTo[aaParts,newDefinitions];AssociateTo[boundaryMaps,path->map],
+ {path,Keys[boundaryRequests]}];
+ Do[
+  pruned=localBundles[label];sharedPath=pruned["SharedBoundaryPath"];
+  map=If[sharedPath===None,<||>,boundaryMaps[sharedPath]];
+  shiftRules=KeyValueMap[Apply[FeynFacetSolution`B,#1]->#2&,map];
+  installed=install[pruned,<|"Kind"->"MasterSolution","Label"->label,"File"->loaded[label]["File"]|>,Dispatch[shiftRules]];
+  newDefinitions={};
+  Do[expr=installed[[Key[key]]];
+    If[!FreeQ[expr,e|_FeynFacetSolution`C|_FeynFacetSolution`B|_Missing|_Failure|$Failed],
+     finiteDensityFail["UnresolvedPhysicalMasterCoefficient",<|"Solution"->label,"RowAndOrder"->key|>]];
+    If[expr===0,masterRef=0,
+     AppendTo[newDefinitions,expr];aaCount++;masterRef=FeynFacetSolution`a[aaCount]];
+    col=Length[masterVector]+1;AppendTo[masterVector,masterRef];
+    identity=coefficientMasterID[loaded[label]["Data"]["OriginalMasterIntegralBasis"][[First[key]]]];
+    AssociateTo[masterReferences,{identity,Last[key]}->col];
+    AppendTo[masterIndex,<|"Column"->col,"Master"->identity,"Solution"->label,"Row"->First[key],
+      "EpsilonOrder"->Last[key],"Expression"->masterRef|>],{key,Keys[installed]}];
+  AppendTo[aaParts,newDefinitions],
+ {label,Keys[localBundles]}];
+ lower=Min[Append[(#["CoefficientLaurentLowerBound"]+#["MasterLaurentLowerBound"]&/@plans),remBound]];
+ If[lower===Infinity,lower=target];lower=Min[lower,target];
+ progress[<|"Stage"->"ExpandPhysicalCoefficientFunctions","MasterCount"->Length[plans],"ThroughOrder"->target|>];
+ If[workers>1,parallelCoefficients=finiteDensityParallelCoefficients[coefficientEntries,plans,e,coefficientPath,workers]];
+ Do[
+  metadata=plans[[j]];identity=metadata["Master"];
+  If[metadata["CoefficientLaurentLowerBound"]===Infinity||metadata["RequiredMasterUpperOrder"]<metadata["MasterLaurentLowerBound"],Continue[]];
+  range={metadata["CoefficientLaurentLowerBound"],metadata["RequiredCoefficientUpperOrder"]};
+  epsilonAuditProduct[{epsilonAuditSpec[{"Coefficient",identity},First[range],Last[range]],
+    epsilonAuditSpec[{"Master",identity},metadata["MasterLaurentLowerBound"],metadata["RequiredMasterUpperOrder"]]},
+    target,"Stage4/MasterDensityConvolution",identity];
+  $finiteDensityFailureContext=<|"Stage"->"ExpandPhysicalCoefficientFunctions","Master"->identity,"RequestedRange"->range|>;
+  progress[Join[$finiteDensityFailureContext,<|"Completed"->j-1,"ElapsedSeconds"->Round[AbsoluteTime[]-started]|>]];
+  expanded=If[workers>1,parallelCoefficients[j],
+    finiteDensityCoefficientFunction[coefficientEntries[[j]],e,range,identity,coefficientPath,verbose]];
+  If[FailureQ[expanded],finiteDensityFail["DensityCoefficientExpansionFailed",<|"Master"->identity,"Cause"->expanded|>]];
+  newDefinitions={};
+  KeyValueMap[Function[{q,value},
+   If[value===0,coefficientRef=0,
+    AppendTo[newDefinitions,value];aaCount++;coefficientRef=FeynFacetSolution`a[aaCount]];
+   AssociateTo[coefficientReferences,{identity,q}->coefficientRef];
+   AppendTo[coefficientIndex,<|"Master"->identity,"EpsilonOrder"->q,"Expression"->coefficientRef|>]],expanded["Coefficients"]];
+  AppendTo[aaParts,newDefinitions];
+  If[Mod[j,10]===0||j===Length[plans],progress[<|"Stage"->"PhysicalCoefficientFunctions","Completed"->j,"Total"->Length[plans]|>]],
+ {j,Length[plans]}];
+ If[remBound=!=Infinity&&remBound<=target,
+  $finiteDensityFailureContext=<|"Stage"->"ExpandScalarRemainder"|>;
+  expanded=finiteDensityCoefficientFunction[remEntry,e,{remBound,target},None,coefficientPath,verbose];
+  If[FailureQ[expanded],finiteDensityFail["DensityRemainderExpansionFailed",<|"Cause"->expanded|>]];
+  newDefinitions={};KeyValueMap[Function[{q,value},
+   If[value===0,AssociateTo[remRef,q->0],AppendTo[newDefinitions,value];aaCount++;
+    AssociateTo[remRef,q->FeynFacetSolution`a[aaCount]]]],expanded["Coefficients"]];AppendTo[aaParts,newDefinitions]];
+ densityCoefficients=Association@Table[
+  columns=<||>;
+  Do[identity=plan["Master"];
+   Do[coefficientOrder=q-masterOrder;
+    If[KeyExistsQ[coefficientReferences,{identity,coefficientOrder}],
+     col=masterReferences[[Key[{identity,masterOrder}]]];
+     coefficientRef=coefficientReferences[[Key[{identity,coefficientOrder}]]];
+     If[coefficientRef=!=0&&masterVector[[col]]=!=0,AssociateTo[columns,col->coefficientRef]]],
+    {masterOrder,plan["MasterLaurentLowerBound"],plan["RequiredMasterUpperOrder"]}],{plan,plans}];
+  AssociateTo[convolution,q->SparseArray[(List[First[#]]->Last[#])&/@Normal[columns],{Length[masterVector]}]];
+  q->static(Total[KeyValueMap[#2 masterVector[[#1]]&,columns]]+Lookup[remRef,q,0]),
+ {q,lower,target}];
+ definitions=<|"AlgebraicDefinitions"->Join@@aaParts,"IntegralDefinitions"->Join@@ffParts,"KernelDefinitions"->Join@@kkParts|>;
+ progress[<|"Stage"->"VerifyFiniteDefinitionClosure","AlgebraicCount"->aaCount,"IntegralCount"->ffCount,"KernelCount"->kkCount|>];
+ If[!finiteDensityDefinitionCheck[definitions,e],finiteDensityFail["FiniteDensityDefinitionClosureInvalid"]];
+ result=Join[<|"DataType"->"FiniteMasterIntegralDensity","SchemaVersion"->1,"Status"->"ExplicitFiniteInteriorDensity",
+  "DimensionalRegulator"->e,"KinematicVariables"->variables,"SolutionReferenceScale"->referenceScale,
+  "EpsilonOrderRange"->{lower,target},"OmittedEpsilonOrderLowerBound"->target+1,
+  "EpsilonIndependentPrefactor"->static,"Coefficients"->densityCoefficients,
+  "Expression"->Total[KeyValueMap[#2 e^#1&,densityCoefficients]],
+  "MasterCoefficientVector"->masterVector,"MasterCoefficientIndex"->masterIndex,
+  "CoefficientFunctionIndex"->coefficientIndex,"CoefficientConvolutionMatrices"->convolution,
+  "CoefficientFunctionDirectory"->coefficientPath,
+  "ScalarRemainderCoefficients"->remRef,"MasterOrderRequirements"->plans,
+  "MasterCount"->Length[table["Masters"]],"SolutionCount"->Length[localBundles],
+  "DefinitionScopes"->scopes,"SharedBoundarySources"->Keys[boundaryRequests],
+  "PhysicalDensityNormalization"->normalization,
+  "AnalyticDomains"->Association@Table[label->KeyTake[loaded[label]["Data"],
+    {"AnalyticDomain","BranchPrescription","BasePoint","Path"}],{label,Keys[localBundles]}],
+  "SourceCoefficientFile"->Lookup[table,"Source",None],
+  "PhysicalMasterNormalizationApplied"->True,"PhysicalBoundaryCoefficientsResolved"->True,
+  "UnknownInitialConstantCount"->0,"EndpointSubtractionsApplied"->False,
+  "Scope"->"Full finite ordinary-point interior density on the declared solution branches; no endpoint distribution extension or uniform corner limit is inferred.",
+  "CompleteDifferentialCrossSectionClaimed"->False|>,definitions];result
+];
+FeynFacet`AssembleFiniteMasterIntegralDensity[input_,sources_Association,request_Association,OptionsPattern[]] :=
+ Block[{$finiteDensityFailureContext=<||>},Catch[Catch[finiteDensityAssemble[input,sources,request,OptionValue["Verbose"],
+  OptionValue["CoefficientFunctionDirectory"],OptionValue["CoefficientWorkers"]],"FiniteDensity"],"CoefficientAssembly"]];
+End[];
+EndPackage[];

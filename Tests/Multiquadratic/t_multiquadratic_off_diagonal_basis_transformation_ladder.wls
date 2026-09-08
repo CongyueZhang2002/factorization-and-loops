@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The SCREEN-VALIDATED DEGREE-OFFSET LADDER of
-   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockSolve.wl (2026-08-25).
+   FeynFacet/DifferentialEquations/EpsilonForm/Multiquadratic/Solve.wl (2026-08-25).
 
    CF300 (12,9) needs a gauge numerator three degrees above its
    denominator ("DegreeOffset" -> {3,3}); at the default {0,0} the
@@ -56,6 +56,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 (* Long-route sections run only on request (user decision 2026-09-02: the
    suite's verification must be small and fast; the real CF300 (12,9)

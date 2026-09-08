@@ -1,0 +1,1230 @@
+{
+  "Date": "2026-09-06",
+  "Sources": [
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/README.md",
+      "Bytes": 2655,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/TransportDepthLedger.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/TransportDepthLedger.md",
+      "Bytes": 19984,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/TransportProductionPlan.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/TransportProductionPlan.md",
+      "Bytes": 138547,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/HistoricalNotes/01_stage2_approach_consult.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/HistoricalNotes/01_stage2_approach_consult.md",
+      "Bytes": 2549,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/MultiquadraticMeasurementNarratives_2026-08-26.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/MultiquadraticMeasurementNarratives_2026-08-26.md",
+      "Bytes": 7343,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/LEDGER.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/LEDGER.md",
+      "Bytes": 7881,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/QFPilotReport.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/QFPilotReport.md",
+      "Bytes": 63112,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/README.md",
+      "Bytes": 3591,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/ObservableTransport_2026-09-01_codex/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/ObservableTransport_2026-09-01_codex/README.md",
+      "Bytes": 981,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/README.md",
+      "Bytes": 2458,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsForms/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsForms/README.md",
+      "Bytes": 12057,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/freeze_cf300.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/freeze_cf300.wls",
+      "Bytes": 1604,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/README.md",
+      "Bytes": 11422,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/README.md",
+      "Bytes": 4112,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/cf300_prepare.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/cf300_prepare.wls",
+      "Bytes": 8227,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/cf300_attribute.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/cf300_attribute.wls",
+      "Bytes": 31367,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/README.md",
+      "Bytes": 22207,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/cf300_inverse_route.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/PrepareCoreMeasurement_2026-08-25/cf300_inverse_route.wls",
+      "Bytes": 8382,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/letter_discovery_2026-08-25/cf300_129_numerator_degree.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/letter_discovery_2026-08-25/cf300_129_numerator_degree.wls",
+      "Bytes": 3944,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/letter_discovery_2026-08-25/cf300_129_discovery.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/letter_discovery_2026-08-25/cf300_129_discovery.wls",
+      "Bytes": 9161,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/letter_discovery_2026-08-25/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-27_codex/CF300/letter_discovery_2026-08-25/README.md",
+      "Bytes": 10863,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/cf300_prepare.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/cf300_prepare.wls",
+      "Bytes": 8227,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/cf300_attribute.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/cf300_attribute.wls",
+      "Bytes": 31367,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/README.md",
+      "Bytes": 22207,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/cf300_inverse_route.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/cf300_inverse_route.wls",
+      "Bytes": 8382,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/letter_discovery_2026-08-25/cf300_129_numerator_degree.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/letter_discovery_2026-08-25/cf300_129_numerator_degree.wls",
+      "Bytes": 3944,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/letter_discovery_2026-08-25/cf300_129_discovery.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/letter_discovery_2026-08-25/cf300_129_discovery.wls",
+      "Bytes": 9161,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/letter_discovery_2026-08-25/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/letter_discovery_2026-08-25/README.md",
+      "Bytes": 10863,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF303/physical_coefficients_2026-09-03_T/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF303/physical_coefficients_2026-09-03_T/README.md",
+      "Bytes": 7623,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/observable_transport_2026-09-02/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/observable_transport_2026-09-02/README.md",
+      "Bytes": 1790,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/compact_family_dlog_record.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/compact_family_dlog_record.wls",
+      "Bytes": 3566,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/NATIVE_DLOG_END_TO_END.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/NATIVE_DLOG_END_TO_END.md",
+      "Bytes": 3914,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/README.md",
+      "Bytes": 1605,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/observable_transport_2026-09-02_certified/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/observable_transport_2026-09-02_certified/README.md",
+      "Bytes": 1908,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/RealizationTransfers.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/RealizationTransfers.md",
+      "Bytes": 6583,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/Period06_07.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/Period06_07.md",
+      "Bytes": 8162,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/Period01.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/Period01.md",
+      "Bytes": 7734,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/SoftEndpointDomination.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Proofs/SoftEndpointDomination.md",
+      "Bytes": 9432,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_parametric_representation.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_parametric_representation.wls",
+      "Bytes": 4584,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_period_01_de.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_period_01_de.wls",
+      "Bytes": 7823,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_soft_domination.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_soft_domination.wls",
+      "Bytes": 10614,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/extract_families.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/extract_families.py",
+      "Bytes": 3731,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_transfers.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BoundaryPeriods/Scripts/verify_transfers.wls",
+      "Bytes": 10404,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_numerator_residual_closure.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_numerator_residual_closure.py",
+      "Bytes": 15216,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_divisor_union_census.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_divisor_union_census.py",
+      "Bytes": 5133,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/screen_cf303_row25_kallen23_completeness.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/screen_cf303_row25_kallen23_completeness.wls",
+      "Bytes": 8445,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_row25_block_closure.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_row25_block_closure.py",
+      "Bytes": 13265,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_ambient_affine_solve.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_ambient_affine_solve.py",
+      "Bytes": 12040,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_ambient_witness_cffr.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/PathTransportObstructions/CF303/cf303_25_11_ambient_witness_cffr.py",
+      "Bytes": 4973,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/alg_repair.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/alg_repair.wls",
+      "Bytes": 3236,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/dump_block_fixture.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/dump_block_fixture.wls",
+      "Bytes": 2995,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/bench_block.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/bench_block.wls",
+      "Bytes": 9898,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/alg_denom.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/construction_dag_2026-08-25/alg_denom.wls",
+      "Bytes": 2516,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/LibraVsFiniteField_2026-08-22/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/LibraVsFiniteField_2026-08-22/README.md",
+      "Bytes": 2740,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripMethods_2026-08-21/summary.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripMethods_2026-08-21/summary.md",
+      "Bytes": 3526,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/M1_acceptance_CF254_9_6.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/M1_acceptance_CF254_9_6.md",
+      "Bytes": 1583,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/O1_acceptance_CF254_9_6.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/O1_acceptance_CF254_9_6.md",
+      "Bytes": 1496,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/O2_acceptance_CF254_9_6.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/O2_acceptance_CF254_9_6.md",
+      "Bytes": 2016,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/A2A3A4_acceptance.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/A2A3A4_acceptance.md",
+      "Bytes": 5284,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/M0_census_CF254_9_6.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/M0_census_CF254_9_6.md",
+      "Bytes": 1639,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/README.md",
+      "Bytes": 1864,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/SupportStrategy_2026-08-22/table.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/SupportStrategy_2026-08-22/table.py",
+      "Bytes": 1400,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/RepresentativeFamilies_2026-08-23/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/RepresentativeFamilies_2026-08-23/README.md",
+      "Bytes": 2145,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/scaleprobe.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/scaleprobe.wls",
+      "Bytes": 6230,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/old_head_extract.wl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/old_head_extract.wl",
+      "Bytes": 12750,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/suites.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/suites.sh",
+      "Bytes": 1347,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/TransportCharts_HEAD.wl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/TransportCharts_HEAD.wl",
+      "Bytes": 77995,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/chain2.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/chain2.sh",
+      "Bytes": 797,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/runner.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/runner.sh",
+      "Bytes": 1049,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/chain.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/chain.sh",
+      "Bytes": 674,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/old_path.wl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/old_path.wl",
+      "Bytes": 15279,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/equiv.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/equiv.wls",
+      "Bytes": 10845,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/probe_heldout.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/probe_heldout.wls",
+      "Bytes": 4713,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/README.md",
+      "Bytes": 4070,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/compare_oracle.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/compare_oracle.wls",
+      "Bytes": 2973,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/probe_order_rerun/compare_rerun.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/verification_2026-08-21/probe_order_rerun/compare_rerun.wls",
+      "Bytes": 2563,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor4.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor4.sh",
+      "Bytes": 9228,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor3.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor3.sh",
+      "Bytes": 9010,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor6.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor6.sh",
+      "Bytes": 9490,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor5.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor5.sh",
+      "Bytes": 9386,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor2.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor2.sh",
+      "Bytes": 6651,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/StripPullbackReorder_2026-08-24/watchdog/monitor.sh",
+      "Bytes": 6591,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/Consult_2026-08-17_evening_transport_state.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/Consult_2026-08-17_evening_transport_state.md",
+      "Bytes": 8554,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/ChatReply_2026-08-17_evening_transport_state.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/ChatReply_2026-08-17_evening_transport_state.md",
+      "Bytes": 4648,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/DecisionMemo_2026-08-17_stage2_strategy.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/DecisionMemo_2026-08-17_stage2_strategy.md",
+      "Bytes": 9578,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_consult_2026-08-16_afternoon.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_consult_2026-08-16_afternoon.md",
+      "Bytes": 13568,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_reply_2026-08-16_night_transport_cost.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_reply_2026-08-16_night_transport_cost.md",
+      "Bytes": 14803,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_reply_2026-08-17_stage2_strategy.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_reply_2026-08-17_stage2_strategy.md",
+      "Bytes": 14564,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/Consult_2026-08-17_stage2_strategy.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/Consult_2026-08-17_stage2_strategy.md",
+      "Bytes": 13031,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_reply_2026-08-16_afternoon.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_reply_2026-08-16_afternoon.md",
+      "Bytes": 19477,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/GPTPro_reply_2026-08-16_afternoon.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/GPTPro_reply_2026-08-16_afternoon.md",
+      "Bytes": 18455,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_consult_2026-08-16_night_transport_cost.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/FableMax_consult_2026-08-16_night_transport_cost.md",
+      "Bytes": 11194,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/GPTPro_reply_2026-08-17_stage2_strategy.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/GPTPro_reply_2026-08-17_stage2_strategy.md",
+      "Bytes": 17598,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/README.md",
+      "Bytes": 24044,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/GPTPro_reply_2026-08-16_night_transport_cost.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/EpsFormRoute/GPTPro_reply_2026-08-16_night_transport_cost.md",
+      "Bytes": 12954,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/DiagonalBlockFiniteField/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/DiagonalBlockFiniteField/README.md",
+      "Bytes": 15608,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsForms/Fixtures_2026-08-19/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsForms/Fixtures_2026-08-19/README.md",
+      "Bytes": 400,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/README.md",
+      "Bytes": 4005,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Audit/verify_cf231_gauge_transfer_to_cf305.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Audit/verify_cf231_gauge_transfer_to_cf305.wls",
+      "Bytes": 3156,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Audit/audit_cf231_cf305.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Audit/audit_cf231_cf305.wls",
+      "Bytes": 19427,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Audit/AUDIT.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Audit/AUDIT.md",
+      "Bytes": 11468,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/sample_gauge_cf231.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/sample_gauge_cf231.wls",
+      "Bytes": 10492,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/make_final_certificate_cf231.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/make_final_certificate_cf231.wls",
+      "Bytes": 5672,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/derive_pole_bounds_cf231.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/derive_pole_bounds_cf231.wls",
+      "Bytes": 5141,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/interpolate_epsilon_cf231.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/interpolate_epsilon_cf231.wls",
+      "Bytes": 9134,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/STATUS.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/STATUS.md",
+      "Bytes": 2633,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/build_residue_space_cf231.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/build_residue_space_cf231.wls",
+      "Bytes": 9655,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/lift_and_check_cf231.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/lift_and_check_cf231.wls",
+      "Bytes": 7360,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/METHOD.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/METHOD.md",
+      "Bytes": 4631,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/summarize_modular_samples_cf231.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/summarize_modular_samples_cf231.wls",
+      "Bytes": 2640,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/run_epsilon_samples_cf231.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/run_epsilon_samples_cf231.sh",
+      "Bytes": 1694,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/inspect_gauge_sample.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/inspect_gauge_sample.wls",
+      "Bytes": 657,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF231Sharp/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF231Sharp/README.md",
+      "Bytes": 2338,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254AffineBasis/interpolate_homogeneous_basis.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254AffineBasis/interpolate_homogeneous_basis.wls",
+      "Bytes": 7227,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254AffineBasis/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254AffineBasis/README.md",
+      "Bytes": 272,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/interpolate_epsilon_cf254_9_6_raw.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/interpolate_epsilon_cf254_9_6_raw.wls",
+      "Bytes": 216,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/lift_and_check_cf254_9_7.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/lift_and_check_cf254_9_7.wls",
+      "Bytes": 16710,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/run_epsilon_samples_parallel_cf254_9_6_raw.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/run_epsilon_samples_parallel_cf254_9_6_raw.wls",
+      "Bytes": 300,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/lift_and_check_cf254_9_6_raw.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/lift_and_check_cf254_9_6_raw.wls",
+      "Bytes": 510,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/interpolate_epsilon_cf254_9_7.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/interpolate_epsilon_cf254_9_7.wls",
+      "Bytes": 12500,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/install_cf254_9_6_checkpoint.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/install_cf254_9_6_checkpoint.wls",
+      "Bytes": 4875,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/run_epsilon_samples_parallel_cf254_9_7.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/run_epsilon_samples_parallel_cf254_9_7.wls",
+      "Bytes": 3700,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/prepare_cf254_9_6.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/prepare_cf254_9_6.wls",
+      "Bytes": 3424,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/install_cf254_9_7_checkpoint.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/install_cf254_9_7_checkpoint.wls",
+      "Bytes": 5321,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/sample_rank_by_points_cf254_9_6.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/sample_rank_by_points_cf254_9_6.wls",
+      "Bytes": 459,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/compare_cf254_9_6_raw_with_residue_space.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/compare_cf254_9_6_raw_with_residue_space.wls",
+      "Bytes": 1696,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/AUDIT.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/AUDIT.md",
+      "Bytes": 14014,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/build_residue_cf254_9_7.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/build_residue_cf254_9_7.wls",
+      "Bytes": 1162,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/sample_rank_by_points_cf254_9_7.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/sample_rank_by_points_cf254_9_7.wls",
+      "Bytes": 14978,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254Sector9Lower/divisor_census_cf254_9_7.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254Sector9Lower/divisor_census_cf254_9_7.wls",
+      "Bytes": 1655,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254ToCF265/check_and_build_transfer_cf254_to_cf265.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254ToCF265/check_and_build_transfer_cf254_to_cf265.wls",
+      "Bytes": 8793,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254ToCF265/STATIC_AUDIT.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254ToCF265/STATIC_AUDIT.md",
+      "Bytes": 2849,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254ToCF265/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254ToCF265/README.md",
+      "Bytes": 4015,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254ToCF305/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254ToCF305/README.md",
+      "Bytes": 7183,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254ToCF305/check_and_build_transfer_cf254_to_cf305.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254ToCF305/check_and_build_transfer_cf254_to_cf305.wls",
+      "Bytes": 18165,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCF254ToCF305/verify_de_relation_maple.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCF254ToCF305/verify_de_relation_maple.py",
+      "Bytes": 27346,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootCrossClassInvolution/screen_cf254_kallen12_partners.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootCrossClassInvolution/screen_cf254_kallen12_partners.wls",
+      "Bytes": 2893,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootLiftAudit/audit_cf254_lift.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootLiftAudit/audit_cf254_lift.wls",
+      "Bytes": 17627,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootLiftAudit/analyze_modulus_threshold.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootLiftAudit/analyze_modulus_threshold.wls",
+      "Bytes": 6831,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootLiftAudit/AUDIT.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootLiftAudit/AUDIT.md",
+      "Bytes": 7416,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/01_super_form_probe.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/01_super_form_probe.mpl",
+      "Bytes": 395,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/01_good_form_probe.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/01_good_form_probe.mpl",
+      "Bytes": 539,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/04_build_augmented_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/04_build_augmented_cf254.wls",
+      "Bytes": 12216,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/05_probe_first_ode_xy.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/05_probe_first_ode_xy.mpl",
+      "Bytes": 890,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/05_probe_first_ode_yx.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/05_probe_first_ode_yx.mpl",
+      "Bytes": 890,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/04_wait_and_build.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/04_wait_and_build.sh",
+      "Bytes": 1873,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/01_ratsuper_probe.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/01_ratsuper_probe.mpl",
+      "Bytes": 387,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/01_api_probe.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/01_api_probe.mpl",
+      "Bytes": 2101,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/02_synthetic_affine.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/02_synthetic_affine.mpl",
+      "Bytes": 4514,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/extract_maple_mw.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/extract_maple_mw.py",
+      "Bytes": 1029,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/01_lower_solver_probe.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/01_lower_solver_probe.mpl",
+      "Bytes": 555,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/RESULT.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/RESULT.md",
+      "Bytes": 10281,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/08_parametric_rhs_semantics.mpl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/08_parametric_rhs_semantics.mpl",
+      "Bytes": 1054,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/COMMAND_LOG.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/COMMAND_LOG.md",
+      "Bytes": 10575,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/07_make_inventory.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/07_make_inventory.sh",
+      "Bytes": 642,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/03_inspect_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/03_inspect_cf254.wls",
+      "Bytes": 3010,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/06_verify_cf254_result.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/06_verify_cf254_result.wls",
+      "Bytes": 8426,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMapleAugmented/README.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMapleAugmented/README.md",
+      "Bytes": 411,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootMethodComparison/STATUS_2026-08-20.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootMethodComparison/STATUS_2026-08-20.md",
+      "Bytes": 1889,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/build_sample_system_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/build_sample_system_cf254.wls",
+      "Bytes": 3770,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/interpolate_epsilon_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/interpolate_epsilon_cf254.wls",
+      "Bytes": 9136,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/divisor_census_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/divisor_census_cf254.wls",
+      "Bytes": 2672,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/run_epsilon_samples_cf254.sh",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/run_epsilon_samples_cf254.sh",
+      "Bytes": 798,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/build_sample_system_cf254_streamed.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/build_sample_system_cf254_streamed.wls",
+      "Bytes": 4695,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/sample_rank_by_points_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/sample_rank_by_points_cf254.wls",
+      "Bytes": 10257,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/analyze_affine_samples_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/analyze_affine_samples_cf254.wls",
+      "Bytes": 3473,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/prepare_cf254_cached_resume.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/prepare_cf254_cached_resume.wls",
+      "Bytes": 1869,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/lift_and_check_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/lift_and_check_cf254.wls",
+      "Bytes": 7456,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/install_cf254_checkpoint.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/install_cf254_checkpoint.wls",
+      "Bytes": 1313,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/inspect_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/inspect_cf254.wls",
+      "Bytes": 519,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/TwoRootSharpSimultaneous/build_residue_cf254.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/TwoRootSharpSimultaneous/build_residue_cf254.wls",
+      "Bytes": 1341,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateObservable.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateObservable.wls",
+      "Bytes": 1375,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeSpectatorEndpoint.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeSpectatorEndpoint.wls",
+      "Bytes": 1730,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateCF27AgainstStored.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateCF27AgainstStored.wls",
+      "Bytes": 3960,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectPivotCoordinates.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectPivotCoordinates.wls",
+      "Bytes": 304,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeFamilyEndpointModes.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeFamilyEndpointModes.wls",
+      "Bytes": 1166,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildObservableBoundarySubstitution.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildObservableBoundarySubstitution.wls",
+      "Bytes": 4635,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateTwoSegment.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateTwoSegment.wls",
+      "Bytes": 859,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildCutBaikovLBLPilot.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildCutBaikovLBLPilot.wls",
+      "Bytes": 1811,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/TwoSegmentRowSpaces.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/TwoSegmentRowSpaces.wls",
+      "Bytes": 2840,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/OBSERVABLE_TRANSPORT_RESULT.md",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/OBSERVABLE_TRANSPORT_RESULT.md",
+      "Bytes": 4932,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateTwoSegmentRecurrence.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateTwoSegmentRecurrence.wls",
+      "Bytes": 1812,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/VerifyEndpointPeriodTransfers.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/VerifyEndpointPeriodTransfers.py",
+      "Bytes": 6555,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildBoundaryModeMap.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildBoundaryModeMap.wls",
+      "Bytes": 8614,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeEndpointModes.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeEndpointModes.wls",
+      "Bytes": 3607,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectBoundaryPeriods.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectBoundaryPeriods.wls",
+      "Bytes": 324,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildCutBaikovPilot.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildCutBaikovPilot.wls",
+      "Bytes": 2460,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ComposeTwoSegment.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ComposeTwoSegment.wls",
+      "Bytes": 6840,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/MeasureConsumer.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/MeasureConsumer.wls",
+      "Bytes": 574,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectUsedBoundaryCoordinates.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectUsedBoundaryCoordinates.wls",
+      "Bytes": 680,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeResidueSubspaces.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeResidueSubspaces.wls",
+      "Bytes": 7102,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ObservableTransportConsumer.wl",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ObservableTransportConsumer.wl",
+      "Bytes": 732,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/DebugModeSolve.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/DebugModeSolve.wls",
+      "Bytes": 1418,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectEndpointRealizations.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/InspectEndpointRealizations.wls",
+      "Bytes": 628,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeEndpointTransformation.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeEndpointTransformation.wls",
+      "Bytes": 873,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildEndpointFrobenius.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/BuildEndpointFrobenius.wls",
+      "Bytes": 5788,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/PreTransportValuation.py",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/PreTransportValuation.py",
+      "Bytes": 65013,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeResidueBlockFlow.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/AnalyzeResidueBlockFlow.wls",
+      "Bytes": 897,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateBoundaryModeMap.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateBoundaryModeMap.wls",
+      "Bytes": 4259,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateSpectatorSystem.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/ValidateSpectatorSystem.wls",
+      "Bytes": 361,
+      "Kind": "ArchivedSourceOrNote"
+    },
+    {
+      "From": "Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/CompareTwoSegment.wls",
+      "To": "FeynFacet/Private_Backup/2026-09-06-stale-de-run-sources/RunSources/Codex/ppHX_NNLO_DoubleReal/TransportProjection_2026-08-17/CompareTwoSegment.wls",
+      "Bytes": 1019,
+      "Kind": "ArchivedSourceOrNote"
+    }
+  ],
+  "BeforeEditFiles": [
+    "Examples/Transport/pre_stage3_family_solutions.wl",
+    "Examples/Transport/README.md",
+    "Tests/Transport/t_cut_integral_laurent_bounds.wls",
+    "Tests/Transport/t_master_integral_representations.wls",
+    "Tests/Transport/t_master_order_solution_workflow.wls",
+    "Tests/EpsilonForm/t_epsilon_graded.wls",
+    "Tests/FiniteField/t_finite_field_eps_form.wls",
+    "Tests/FiniteField/t_finite_field_round2.wls",
+    "Tests/FiniteField/t_finite_field_off_diagonal_block_solve.wls",
+    "Tests/Multiquadratic/t_multiquadratic_providers.wls",
+    "Tests/Multiquadratic/t_multiquadratic_provider_real_pairs.wls",
+    "ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/Stage1And2_2026-09-06/campaign-input.json",
+    "Tests/README.md",
+    "Design/FiniteMasterIntegralSolutions.md",
+    "Design/DifferentialEquationDataSchemaV2.md",
+    "STATUS.md"
+  ],
+  "Purpose": "Source programs and derivation notes preserved before deleting obsolete DE results. Never loaded by production."
+}

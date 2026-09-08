@@ -1,0 +1,18 @@
+{
+	"Family":"CF48",
+	"Scope":"Source-coordinate reconstruction of two largest entries of the saved complete basis transformation; excludes the chart solve.",
+	"MatrixPositions":[
+		[
+			14,
+			1
+		],
+		[
+			14,
+			5
+		]
+	],
+	"BeforeSeconds":3.9071975e1,
+	"AfterSeconds":2.4282844e1,
+	"SameExactResult":true,
+	"AllGradesZeroResidual":true
+}

@@ -2,9 +2,10 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Block[{$Context = "FeynFacet`Private`",
     $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-  Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldOffDiagonalBlockSolve.wl"]]];
+  Get[FeynFacet`Private`feynFacetModuleFile["DifferentialEquations/EpsilonForm/Rational/OffDiagonalSolve.wl"]]];
 
 pass = 0; fail = 0;
 check[label_, value_] := If[TrueQ[value], pass++; Print["OK   ", label],

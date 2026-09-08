@@ -1,0 +1,22 @@
+{
+  "ColorCollectionSeconds": 455.37486,
+  "PhaseSeconds": {
+    "InputChecks": 21.176194,
+    "IndependentCoefficients": 279.077657,
+    "AlgebraicDefinitions": 3.236648,
+    "DeltaCoefficients": 80.175725,
+    "PlusCoefficients": 29.351559,
+    "RegularCoefficients": 32.076454,
+    "ComponentAssembly": 0.015495
+  },
+  "InputLoadingSeconds": 70.038036,
+  "OriginalFieldsIdentical": true,
+  "ColorComponentCount": 10,
+  "FactorPowersIdentical": true,
+  "StrictlyIdenticalGroups": 29,
+  "NumericallyComparedGroups": 1,
+  "MaxRelativeResidual": "0 at 70-digit working precision",
+  "Passed": true,
+  "VerificationReport": "color_verification.json",
+  "VerificationCorrection": "The original benchmark omitted parameter substitutions. A separate read-only comparison of its saved full output passes: 29 groups structurally identical, remaining regular group at generic rational factor/kinematic assignments."
+}

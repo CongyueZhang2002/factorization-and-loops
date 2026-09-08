@@ -1,0 +1,20 @@
+root=DirectoryName[ExpandFileName[$InputFileName],3];$HistoryLength=0;$MaxExtraPrecision=50;
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;passed=0;failed=0;
+check[label_,test_]:=If[TrueQ[test],passed++;Print["PASS ",label],failed++;Print["FAIL ",label]];
+master=FeynCalc`GLI["test",{1,1}];
+table=<|"PreFactor"->1,"DimensionalRegulator"->epTest,"Masters"->{<|"Master"->master,"Terms"->{<|"PreFactor"->1,"Coefficient"->1/epTest,"Representation"->"Exact"|>}|>},"RemainderTerms"->{},"PhaseSpace"->1|>;
+value=<|"MasterIntegral"->master,"DimensionalRegulator"->epTest,"LaurentLowerBound"->-1,"KnownThroughOrder"->1,
+ "Coefficients"-><|-1->bm1,0->b0,1->b1|>,"ExactInEpsilon"->False|>;
+request=<|"EpsilonOrderRange"->{0,0},"Normalization"->1,"MeasureConversions"-><|master->1|>|>;
+out=FeynFacet`WithEpsilonRemainderChecks[FeynFacet`ContractAnalyticMasterCoefficients[table,<|1->value|>,request]];
+check["simple coefficient pole requests epsilon one of master",out["Result"]["Coefficients"][0]===b1];
+check["independent omitted-master term check passed",out["EpsilonRemainderAudit"]["Status"]==="Passed"];
+short=Join[value,<|"KnownThroughOrder"->0,"Coefficients"->KeyDrop[value["Coefficients"],1]|>];
+check["insufficient supplied order rejected",FailureQ[FeynFacet`ContractAnalyticMasterCoefficients[table,<|1->short|>,request]]];
+hole=Join[value,<|"Coefficients"->KeyDrop[value["Coefficients"],0]|>];
+check["missing middle epsilon coefficient rejected",FailureQ[FeynFacet`ContractAnalyticMasterCoefficients[table,<|1->hole|>,request]]];
+shortAudit=FeynFacet`WithEpsilonRemainderChecks[FeynFacet`ContractAnalyticMasterCoefficients[table,<|1->value|>,request],"TruncationOrderShift"->-1];
+check["deliberately shortened cutoff independently detected",shortAudit["EpsilonRemainderAudit"]["Status"]==="Failed"];
+check["missing measure conversion rejected",FailureQ[FeynFacet`ContractAnalyticMasterCoefficients[table,<|1->value|>,Join[request,<|"MeasureConversions"-><||>|>]]]];
+check["missing master rejected",FailureQ[FeynFacet`ContractAnalyticMasterCoefficients[table,<||>,request]]];
+Print["ANALYTIC_CONTRACTION_TESTS ",passed,"/",passed+failed];Exit[If[failed===0,0,1]];

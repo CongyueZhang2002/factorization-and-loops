@@ -1,0 +1,8 @@
+{
+	"Scope":"Conservative structural homogeneity check on actual CF48 coefficients plus ten small controls; a candidate, not an installed replacement.",
+	"Family":"CF48",
+	"CoefficientCount":162,
+	"Seconds":5.7414e-2,
+	"AllStoredCoefficientsLinear":true,
+	"ControlsPassed":true
+}

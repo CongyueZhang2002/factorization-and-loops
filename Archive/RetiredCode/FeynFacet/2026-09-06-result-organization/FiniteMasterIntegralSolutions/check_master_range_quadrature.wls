@@ -1,0 +1,13 @@
+root=DirectoryName[ExpandFileName[$InputFileName],3];
+Get[FileNameJoin[{root,"FeynFacet","FiniteSolutionData.wl"}]];
+directory=FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","RequestedMasterIntegralSolutions","CF269"}];
+data=FeynFacetSolution`ReadMasterIntegralSolution[directory];
+Print["Read ",{data["BasePoint"],Length[data["IntegralDefinitions"]],Length[data["MasterIntegralCoefficients"]]}];
+a=FeynFacetSolution`EvaluateMasterIntegralSolution[data,{13/50,17/50},"QuadratureOrder"->12,"WorkingPrecision"->50];
+b=FeynFacetSolution`EvaluateMasterIntegralSolution[data,{13/50,17/50},"QuadratureOrder"->18,"WorkingPrecision"->50];
+aa=Flatten[Last /@ #& /@ Values[a["MasterIntegralEpsilonCoefficients"]]]/.FeynFacetSolution`C[_,_]->1;
+bb=Flatten[Last /@ #& /@ Values[b["MasterIntegralEpsilonCoefficients"]]]/.FeynFacetSolution`C[_,_]->1;
+error=Max[MapThread[Abs[#1-#2]/Max[1,Abs[#1],Abs[#2]]&,{aa,bb}]];
+Print["Off-base-point quadrature difference ",InputForm[error]];
+Print["DE constructor loaded ",DownValues[FeynFacet`ConstructMasterIntegralSolution]=!={}];
+If[!NumericQ[error] || error>10^-25 || DownValues[FeynFacet`ConstructMasterIntegralSolution]=!={},Exit[1]];

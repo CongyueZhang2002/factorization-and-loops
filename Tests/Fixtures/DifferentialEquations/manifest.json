@@ -1,0 +1,487 @@
+[
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/eps0_c97_factored.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FactorizedScalarOperators/eps0_c97_factored.wl",
+    "Bytes": 24804,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 24804
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/eps0_c77_factored.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FactorizedScalarOperators/eps0_c77_factored.wl",
+    "Bytes": 18761,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 18761
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/HardClasses/eps0_c79_factored.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FactorizedScalarOperators/eps0_c79_factored.wl",
+    "Bytes": 18614,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 18614
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf300_frozen_strip_12_9_input.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Multiquadratic/CF300/cf300_frozen_strip_12_9_input.wl",
+    "Bytes": 2549298,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 2549298
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf300_frozen_channel_forcing.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Multiquadratic/CF300/cf300_frozen_channel_forcing.wl",
+    "Bytes": 169784,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 169784
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF259/sector_CF259_standard/CF259_24_16_input.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Multiquadratic/CF259/CF259_24_16_input.wl",
+    "Bytes": 224160,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 224160
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF259/sector_CF259_standard/CF259_21_11_input.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Multiquadratic/CF259/CF259_21_11_input.wl",
+    "Bytes": 22957,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 22957
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF259/sector_CF259_standard/CF259_23_11_input.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Multiquadratic/CF259/CF259_23_11_input.wl",
+    "Bytes": 13937,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 13937
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/fixtures/fixture_CF254_9_6.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/fixtures/fixture_CF254_9_6.wl",
+    "Bytes": 1570005,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 1570005
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/fixtures/cf254_strips_2026-08-19/CF254_12_11_input.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/fixtures/cf254_strips_2026-08-19/CF254_12_11_input.wl",
+    "Bytes": 3987,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 3987
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/result_A4_CF254_9_6_FiniteField.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/result_A4_CF254_9_6_FiniteField.wl",
+    "Bytes": 111469,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 111469
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_1000003.wl",
+    "Bytes": 145741,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 145741
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483477.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483477.wl",
+    "Bytes": 162464,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 162464
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483489.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483489.wl",
+    "Bytes": 162473,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 162473
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483543.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483543.wl",
+    "Bytes": 162869,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 162869
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483497.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483497.wl",
+    "Bytes": 162441,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 162441
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483423.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483423.wl",
+    "Bytes": 162874,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 162874
+  },
+  {
+    "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483549.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/frozen_M0/a4_run/ff_artifacts_A4_CF254_9_6_155035/finite_field_strip_mod_2147483549.wl",
+    "Bytes": 162398,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 162398
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_input.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_input.wl",
+    "Bytes": 1570005,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 1570005
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_lifted_candidate.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_lifted_candidate.wl",
+    "Bytes": 234496,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 234496
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483563.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483563.wl",
+    "Bytes": 166327,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 166327
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483489.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483489.wl",
+    "Bytes": 165907,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 165907
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483477.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483477.wl",
+    "Bytes": 165908,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 165908
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483497.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483497.wl",
+    "Bytes": 165889,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 165889
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483399.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483399.wl",
+    "Bytes": 166312,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 166312
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_1000003.wl",
+    "Bytes": 154894,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 154894
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483647.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483647.wl",
+    "Bytes": 166333,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 166333
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483587.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483587.wl",
+    "Bytes": 166252,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 166252
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483423.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483423.wl",
+    "Bytes": 166317,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 166317
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_epsilon_interpolation_mod_2147483629.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_epsilon_interpolation_mod_2147483629.wl",
+    "Bytes": 165897,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 165897
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_21_41_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_21_41_nx1_ny0_p1000003.wl",
+    "Bytes": 21990,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21990
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_31_51_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_31_51_nx1_ny0_p1000003.wl",
+    "Bytes": 21983,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21983
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_3_23_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_3_23_nx1_ny0_p1000003.wl",
+    "Bytes": 21947,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21947
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_21_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_21_nx1_ny0_p1000003.wl",
+    "Bytes": 21987,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21987
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_9_29_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_9_29_nx1_ny0_p1000003.wl",
+    "Bytes": 21980,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21980
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_4_9_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_4_9_nx1_ny0_p1000003.wl",
+    "Bytes": 21989,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21989
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_11_31_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_11_31_nx1_ny0_p1000003.wl",
+    "Bytes": 22011,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 22011
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_6_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_6_nx1_ny0_p1000003.wl",
+    "Bytes": 21955,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21955
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_5_9_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_5_9_nx1_ny0_p1000003.wl",
+    "Bytes": 21984,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21984
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_17_37_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_17_37_nx1_ny0_p1000003.wl",
+    "Bytes": 21975,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21975
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_3_5_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_3_5_nx1_ny0_p1000003.wl",
+    "Bytes": 21961,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21961
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_6_11_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_6_11_nx1_ny0_p1000003.wl",
+    "Bytes": 21951,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21951
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_11_21_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_11_21_nx1_ny0_p1000003.wl",
+    "Bytes": 22000,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 22000
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_13_33_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_13_33_nx1_ny0_p1000003.wl",
+    "Bytes": 21967,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21967
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_19_39_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_19_39_nx1_ny0_p1000003.wl",
+    "Bytes": 21969,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21969
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_27_47_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_27_47_nx1_ny0_p1000003.wl",
+    "Bytes": 21985,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21985
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_7_27_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_7_27_nx1_ny0_p1000003.wl",
+    "Bytes": 21967,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21967
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_5_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_5_nx1_ny0_p1000003.wl",
+    "Bytes": 21981,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21981
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_3_7_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_3_7_nx1_ny0_p1000003.wl",
+    "Bytes": 21982,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21982
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_3_13_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_3_13_nx1_ny0_p1000003.wl",
+    "Bytes": 21957,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21957
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_23_43_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_23_43_nx1_ny0_p1000003.wl",
+    "Bytes": 21962,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21962
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_7_nx0_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_7_nx0_ny0_p1000003.wl",
+    "Bytes": 2997,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 2997
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_29_49_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_29_49_nx1_ny0_p1000003.wl",
+    "Bytes": 21997,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21997
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_2_7_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_2_7_nx1_ny0_p1000003.wl",
+    "Bytes": 21991,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21991
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_7_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_7_nx1_ny0_p1000003.wl",
+    "Bytes": 22016,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 22016
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_8_13_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_8_13_nx1_ny0_p1000003.wl",
+    "Bytes": 21982,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21982
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_7_17_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_7_17_nx1_ny0_p1000003.wl",
+    "Bytes": 21970,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21970
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_7_12_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_7_12_nx1_ny0_p1000003.wl",
+    "Bytes": 21942,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21942
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_13_23_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_13_23_nx1_ny0_p1000003.wl",
+    "Bytes": 21989,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21989
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_9_19_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_9_19_nx1_ny0_p1000003.wl",
+    "Bytes": 21961,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21961
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_7_nx0_ny1_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_7_nx0_ny1_p1000003.wl",
+    "Bytes": 2997,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 2997
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_3_8_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_3_8_nx1_ny0_p1000003.wl",
+    "Bytes": 21861,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21861
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_11_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_11_nx1_ny0_p1000003.wl",
+    "Bytes": 21950,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21950
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_2_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_2_nx1_ny0_p1000003.wl",
+    "Bytes": 21734,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21734
+  },
+  {
+    "From": "Codex/TwoRootCF254Sector9Lower/CF254_9_6_raw_point_sample_rank_1_3_nx1_ny0_p1000003.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_raw_point_sample_rank_1_3_nx1_ny0_p1000003.wl",
+    "Bytes": 21921,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 21921
+  },
+  {
+    "From": "ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/DifferentialEquationDataV2/CF269/FamilyDLogEpsilonForm.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Families/CF269/FamilyDLogEpsilonForm.wl",
+    "Bytes": 174857,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 174865,
+    "ReferencePathUpdated": true
+  },
+  {
+    "From": "ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/DifferentialEquationDataV2/CF269/FamilyDifferentialSystem.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Families/CF269/FamilyDifferentialSystem.wl",
+    "Bytes": 116431,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 116431
+  },
+  {
+    "From": "ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/DifferentialEquationDataV2/CF48/FamilyDLogEpsilonForm.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Families/CF48/FamilyDLogEpsilonForm.wl",
+    "Bytes": 670202,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 670242,
+    "ReferencePathUpdated": true
+  },
+  {
+    "From": "ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/DifferentialEquationDataV2/CF48/FamilyDifferentialSystem.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/Families/CF48/FamilyDifferentialSystem.wl",
+    "Bytes": 183452,
+    "Kind": "RegressionFixture",
+    "CurrentBytes": 183452
+  }
+]

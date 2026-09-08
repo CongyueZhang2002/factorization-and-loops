@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 preparation work in
-   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockSolve.wl:
+   FeynFacet/DifferentialEquations/EpsilonForm/Multiquadratic/Solve.wl:
 
      - prepare CONSUMES the sealed compile core instead of decomposing the
        inhomogeneity independently (so E, C and Inhomogeneity are decomposed once for
@@ -43,12 +43,13 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
+Get[FeynFacet`Private`feynFacetModuleFile["Algebra/Multiquadratic/Arithmetic.wl"]];
 (* the strip solver is eight files since round 4 (2026-09-02); the manifest
    names them in load order *)
-Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
-  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
+Get[FeynFacet`Private`feynFacetModuleFile[#]] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Kernel", "Modules.wl"}]],
+    "EpsilonForm"], StringStartsQ[#, "DifferentialEquations/EpsilonForm/Multiquadratic/"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -392,9 +393,9 @@ check["O5c the compiler's own core cache is still ON by default",
       TrueQ[Lookup[Lookup[asm, "CompileStatistics", <||>], "CompileCore",
         False]]]];
 
-solveSource = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
-  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &]];  (* all eight solver files *)
+solveSource = StringJoin[Import[FeynFacet`Private`feynFacetModuleFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Kernel", "Modules.wl"}]],
+    "EpsilonForm"], StringStartsQ[#, "DifferentialEquations/EpsilonForm/Multiquadratic/"] &]];  (* all eight solver files *)
 check["O4 the top level forwards the compile-architecture options to the \
 compiler",
   StringContainsQ[solveSource,

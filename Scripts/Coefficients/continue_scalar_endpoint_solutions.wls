@@ -1,0 +1,49 @@
+#!/usr/bin/env wolframscript
+$HistoryLength=0;$MaxExtraPrecision=50;
+SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+continuationRoot=DirectoryName[ExpandFileName[$InputFileName],3];
+Block[{Print},Get[continuationRoot<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+args=Rest[$ScriptCommandLine];
+If[Length[args]=!=2,Print["Expected REQUEST.wl OUTPUT_DIRECTORY"];Exit[2]];
+configuration=Get[First[args]];destination=ExpandFileName[Last[args]];
+If[!DirectoryQ[destination],CreateDirectory[destination,CreateIntermediateDirectories->True]];
+construction=Import[configuration["PhysicalBoundaryConstruction"],"WXF"];
+families=configuration["Families"];workers=Lookup[configuration,"Workers",1];
+If[!IntegerQ[workers]||workers<1||workers>8,Print["WorkerCountInvalid"];Exit[2]];
+save[value_,file_]:=Module[{stream,tmp=file<>".partial"},
+ If[!DirectoryQ[DirectoryName[file]],CreateDirectory[DirectoryName[file],CreateIntermediateDirectories->True]];
+ stream=OpenWrite[tmp,BinaryFormat->True];BinaryWrite[stream,Normal[BinarySerialize[value,PerformanceGoal->"Size"]],"Byte"];Close[stream];
+ If[Import[tmp,"WXF"]=!=value,Return[Failure["ScalarContinuationSerializationFailed",<|"File"->file|>]]];
+ RenameFile[tmp,file,OverwriteTarget->True];file];
+continue[family_,spec_,physicalConstruction_,directory_]:=Module[
+ {endpoint,projection,matching,physical,result,seconds,file,summary},
+ endpoint=Import[spec["EndpointSystemFile"],"WXF"];
+ projection=Import[spec["ProjectionFile"],"WXF"];
+ matching=Import[spec["BoundaryBasisMatchingFile"],"WXF"];
+ physical=<|"BoundaryBasisMatching"->matching,"AmplitudeLaurentLowerBounds"->physicalConstruction["AmplitudeLaurentLowerBounds"],
+  "AmplitudeCoefficients"-><|"PhysicalBoundaryConstruction"->physicalConstruction|>|>;
+ If[KeyExistsQ[spec,"PhysicalBoundaryFiniteDefinitions"],
+  AssociateTo[physical,"FiniteDefinitions"->Import[spec["PhysicalBoundaryFiniteDefinitions"],"WXF"]]];
+ seconds=First[AbsoluteTiming[result=FeynFacet`ConstructScalarEndpointSolution[projection,endpoint,
+  <|"ThroughOrder"->Lookup[spec,"ThroughOrder",projection["KnownDataTargetThroughOrder"]],
+   "TangentialBasePoint"->matching["TangentialBasePoint"],"PhysicalBoundaryValues"->physical|>]]];
+ file=save[result,directory<>"/"<>family<>"/scalar_endpoint_solution.wxf"];
+ If[FailureQ[file],result=file];
+ summary=<|"Family"->family,"Status"->If[FailureQ[result],"Failed",result["Status"]],
+  "Seconds"->seconds,"Source"->spec,"ReusedStages"->{"CoefficientOrders","NormalFrobeniusCoefficients","ScalarEndpointProjection"},
+  "Failure"->If[FailureQ[result],result,None]|>;
+ save[summary,directory<>"/"<>family<>"/summary.wxf"];summary
+];
+If[workers>1,
+ LaunchKernels[workers];
+ ParallelEvaluate[SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}]];
+ With[{p=continuationRoot<>"/Addon/Load/LoadFACET.wl"},ParallelEvaluate[Block[{Print},Get[p]]]];
+ DistributeDefinitions[save,continue,construction,destination];
+ jobs=KeyValueMap[Function[{family,spec},With[{f=family,s=spec},
+  ParallelSubmit[continue[f,s,construction,destination]]]],families];
+ result=WaitAll[jobs];CloseKernels[],
+ result=KeyValueMap[continue[#1,#2,construction,destination]&,families]];
+save[result,destination<>"/report.wxf"];
+Export[destination<>"/report.json",KeyTake[#,{"Family","Status","Seconds","ReusedStages"}]&/@result,"RawJSON"];
+Print[Count[Lookup[result,"Status"],"ExplicitPhysicalScalarEndpointCoefficients"],"/",Length[result]," explicit"];
+Exit[If[AllTrue[result,#["Status"]==="ExplicitPhysicalScalarEndpointCoefficients"&],0,1]];

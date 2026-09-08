@@ -54,6 +54,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -222,9 +223,7 @@ about the zero norm and not about the entry",
 (* D8 - D10: the frozen CF300 (12,9) anchor                             *)
 (* ------------------------------------------------------------------ *)
 
-fixtureDirectory = FileNameJoin[{root, "Stale", "DifferentialEquationData",
-  "2026-09-03_pre_v2", "UU_08_10_canonical", "FamilyEpsFormsSolving",
-  "FrozenTestFixtures_2026-08-25"}];
+fixtureDirectory = FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "Multiquadratic", "CF300"}];
 stripFile = FileNameJoin[{fixtureDirectory, "cf300_frozen_strip_12_9_input.wl"}];
 channelFile = FileNameJoin[{fixtureDirectory,
   "cf300_frozen_channel_forcing.wl"}];

@@ -1,0 +1,128 @@
+BeginPackage["ScalarEndpointCampaign`",{"ScalarEndpointDriver`"}];
+RunScalarEndpointCampaign::usage="RunScalarEndpointCampaign[input,output] dynamically assigns coefficient families to persistent workers and records every requested, missing or explicitly deferred family.";
+Begin["`Private`"];
+$campaignRoot=DirectoryName[ExpandFileName[$InputFileName],3];
+$workerPhysicalInputs=<||>;
+runJob[job_,seconds_,resume_,verbose_] := Module[{result,log,started=AbsoluteTime[],directory=job["OutputDirectory"]},
+ If[!DirectoryQ[directory],CreateDirectory[directory,CreateIntermediateDirectories->True]];
+ If[KeyExistsQ[job,"PreflightResult"],result=job["PreflightResult"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/summary.wxf"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status","Reason"}],directory<>"/summary.json"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status","Reason"}],directory<>"/progress.json"],
+  log=OpenAppend[directory<>"/construction.log"];
+  result=Block[{$Output={log},$Messages={log},$MaxExtraPrecision=50},
+    ScalarEndpointDriver`RunScalarEndpointFamily[job["Input"],directory,
+     "Resume"->resume,"TimeLimit"->seconds,"Verbose"->verbose,
+     "PhysicalInputCache"->$workerPhysicalInputs]];
+  Close[log]];
+ If[!AssociationQ[result],result=<|"Family"->job["Family"],"Status"->"COMPUTATION_FAILURE",
+   "Failure"->Failure["ScalarFamilyWorkerResultInvalid",<|"Value"->result|>]|>];
+ result=Join[result,<|"Family"->job["Family"],"OutputDirectory"->directory,
+   "WorkerKernelID"->$KernelID,"WorkerElapsedSeconds"->AbsoluteTime[]-started|>];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/campaign_result.wxf"];result];
+RunScalarEndpointCampaign[configuration_Association,outputValue_String] := Catch[Module[
+ {output=ExpandFileName[outputValue],sources,workers,seconds,common,overrides,deferred,
+  manifest,directories,requireAll,resume,verbose,jobs={},families={},source,input,
+  family,directory,config,missing,job,refs={},sourceInput,physicalCache,cacheFile,
+  bootstrap,driverFile,campaignFile,results,report,statuses,started=AbsoluteTime[],fail,
+  initializer,initializationResults,existingKernels,launched={},abort=False},
+ fail[tag_,data_:<||>]:=(ScalarEndpointDriver`WriteScalarEndpointArtifact[
+   <|"Status"->"CAMPAIGN_FAILURE","Failure"->Failure[tag,data],
+     "CoefficientInputFiles"->Lookup[configuration,"CoefficientInputFiles",{}]|>,output<>"/campaign_failure.wxf"];
+   Throw[Failure[tag,data],"ScalarEndpointCampaign"]);
+ sources=Lookup[configuration,"CoefficientInputFiles",{}];workers=Lookup[configuration,"Workers",1];
+ seconds=Lookup[configuration,"FamilyTimeLimit",1800];common=Lookup[configuration,"CommonInput",<||>];
+ overrides=Lookup[configuration,"FamilyInputOverrides",<||>];deferred=Lookup[configuration,"DeferredFamilies",<||>];
+ requireAll=TrueQ[Lookup[configuration,"RequireAllAcceptedFamilies",True]];
+ resume=TrueQ[Lookup[configuration,"Resume",True]];verbose=TrueQ[Lookup[configuration,"Verbose",True]];
+ If[!MatchQ[sources,{__String}]||!DuplicateFreeQ[sources]||!IntegerQ[workers]||!(1<=workers<=8)||
+   !NumericQ[seconds]||seconds<=0||!AllTrue[{common,overrides,deferred},AssociationQ]||
+   !AllTrue[Values[overrides],AssociationQ]||!AllTrue[Values[deferred],StringQ],
+  fail["ScalarEndpointCampaignInputInvalid"]];
+ manifest=ScalarEndpointDriver`ReadScalarEndpointInput[Lookup[configuration,"AcceptedEndpointManifest",None]];
+ If[!AssociationQ[manifest],fail["AcceptedEndpointManifestRequired"]];
+ directories=Lookup[manifest,"AcceptedDirectories",manifest];
+ If[!AssociationQ[directories]||!AllTrue[Keys[directories],StringQ]||!AllTrue[Values[directories],StringQ],
+  fail["AcceptedEndpointDirectoriesRequired"]];
+ If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[configuration,output<>"/campaign_input.wxf"];
+ Do[
+  source=ScalarEndpointDriver`ReadScalarEndpointInput[path];
+  If[!AssociationQ[source]||!KeyExistsQ[source,"Family"],
+   fail["ScalarCoefficientFamilyInputInvalid",<|"Path"->path,"Value"->source|>]];
+  family=ToString[source["Family"]];
+  If[!StringMatchQ[family,RegularExpression["[A-Za-z0-9_-]+"]],
+   fail["ScalarCoefficientFamilyIdentifierInvalid",<|"Family"->family|>]];
+  If[MemberQ[families,family],fail["DuplicateScalarCoefficientFamily",<|"Family"->family|>]];
+  AppendTo[families,family];directory=output<>"/"<>family;
+  config=Join[common,Lookup[overrides,family,<||>],<|"Family"->family,"CoefficientInput"->ExpandFileName[path],
+    "EndpointSystemDirectory"->Lookup[directories,family,output<>"/MissingEndpoint/"<>family]|>];
+  job=<|"Family"->family,"Input"->config,"OutputDirectory"->directory|>;
+  If[KeyExistsQ[deferred,family],AssociateTo[job,"PreflightResult"->
+    <|"Family"->family,"Status"->"DEFERRED","Reason"->deferred[family]|>],
+   If[!KeyExistsQ[directories,family],AssociateTo[job,"PreflightResult"->
+     <|"Family"->family,"Status"->"MISSING_ENDPOINT_SYSTEM",
+       "Failure"->Failure["AcceptedEndpointSystemMissing",<||>]|>]]];
+  AppendTo[jobs,job],{path,sources}];
+ missing=Complement[Keys[directories],families];
+ If[requireAll,Do[AppendTo[jobs,<|"Family"->family,"OutputDirectory"->output<>"/"<>family,
+   "PreflightResult"->If[KeyExistsQ[deferred,family],
+    <|"Family"->family,"Status"->"DEFERRED","Reason"->deferred[family]|>,
+    <|"Family"->family,"Status"->"MISSING_COEFFICIENT_INPUT",
+      "Failure"->Failure["ScalarCoefficientFamilyInputMissing",<||>]|>]|>],{family,missing}]];
+ If[Complement[Keys[deferred],Lookup[jobs,"Family"]]=!={},
+  fail["DeferredFamilyOutsideRequestedCampaign",<|"Families"->Complement[Keys[deferred],Lookup[jobs,"Family"]]|>]];
+ (* Resolve common physical records once. Workers retain these immutable
+    values while each family's mathematical checkpoint records their content. *)
+ Do[If[KeyExistsQ[job,"Input"],
+   input=job["Input"];
+   refs=Join[refs,Select[Lookup[input,{"PhysicalBoundaryConstruction","PhysicalBoundaryFiniteDefinitions","CoefficientRemainderClasses"},None],StringQ]];
+   If[!KeyExistsQ[input,"PhysicalBoundaryConstruction"]&&KeyExistsQ[directories,job["Family"]],
+    sourceInput=ScalarEndpointDriver`ReadScalarEndpointInput[directories[job["Family"]]<>"/input.wxf"];
+    If[AssociationQ[sourceInput]&&StringQ[Lookup[sourceInput,"PhysicalBoundaryConstruction",None]],
+     AppendTo[refs,sourceInput["PhysicalBoundaryConstruction"]]]]],{job,jobs}];
+ physicalCache=Association@Table[path->ScalarEndpointDriver`ReadScalarEndpointInput[path],{path,DeleteDuplicates[refs]}];
+ cacheFile=output<>"/common_physical_input.wxf";
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[physicalCache,cacheFile];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[jobs,output<>"/family_jobs.wxf"];
+ driverFile=$campaignRoot<>"/Scripts/Coefficients/ScalarEndpointDriver.wl";
+ campaignFile=$campaignRoot<>"/Scripts/Coefficients/ScalarEndpointCampaign.wl";
+ initializer=Lookup[configuration,"WorkerInitializationFile",Automatic];
+ bootstrap=If[initializer===Automatic,$campaignRoot<>"/Addon/Load/LoadFACET.wl",ExpandFileName[initializer]];
+ If[!FileExistsQ[bootstrap],fail["ScalarEndpointWorkerInitializationMissing",<|"Path"->bootstrap|>]];
+ If[workers===1,
+  SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+  Block[{Print},Get[bootstrap]];
+  Get[driverFile];$workerPhysicalInputs=physicalCache;
+  results=runJob[#,seconds,resume,verbose]&/@jobs,
+  existingKernels=Kernels[];
+  If[existingKernels=!={},fail["ScalarEndpointCampaignRequiresOwnedWorkerPool"]];
+  launched=LaunchKernels[workers];
+  If[Length[launched]=!=workers,If[launched=!={},CloseKernels[launched]];
+    fail["ScalarEndpointWorkerPoolNotAvailable",<|"RequestedWorkers"->workers|>]];
+  initializationResults=With[{boot=bootstrap,driver=driverFile,campaign=campaignFile,cache=cacheFile},
+   ParallelEvaluate[$HistoryLength=0;$MaxExtraPrecision=50;
+    SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+    Block[{Print},Get[boot]];Get[driver];Get[campaign];
+    ScalarEndpointCampaign`Private`$workerPhysicalInputs=Import[cache,"WXF"];True,launched]];
+  If[!AllTrue[initializationResults,TrueQ],CloseKernels[launched];fail["ScalarEndpointWorkerInitializationFailed"]];
+  results=CheckAbort[With[{limit=seconds,reuse=resume,talk=verbose},
+    ParallelMap[ScalarEndpointCampaign`Private`runJob[#,limit,reuse,talk]&,jobs,
+      Method->"FinestGrained",DistributedContexts->None]],abort=True;$Aborted];
+  CloseKernels[launched];If[abort,fail["ScalarEndpointCampaignAborted",<|"CompletedFamilyArtifactsPreserved"->True|>]]];
+ statuses=Lookup[results,"Status"];
+ report=<|"DataType"->"ScalarEndpointFamilyCampaign","SchemaVersion"->1,"Results"->results,
+   "RequestedFamilyCount"->Length[jobs],"CoefficientInputFamilyCount"->Length[families],
+   "ExplicitFamilyCount"->Count[statuses,"ExplicitPhysicalScalarEndpointCoefficients"],
+   "DeferredFamilyCount"->Count[statuses,"DEFERRED"],"MissingOrdersFamilyCount"->Count[statuses,"MISSING_ORDERS"],
+   "UnresolvedCoefficientClassFamilyCount"->Count[statuses,"UNRESOLVED_COEFFICIENT_CLASS"],
+   "OtherFailureFamilyCount"->Count[statuses,Except["ExplicitPhysicalScalarEndpointCoefficients"|"DEFERRED"|"MISSING_ORDERS"|"UNRESOLVED_COEFFICIENT_CLASS"]],
+   "AcceptedFamiliesNotRequested"->If[requireAll,{},missing],
+   "Workers"->workers,"Scheduling"->"One family per available persistent worker",
+   "ElapsedSeconds"->AbsoluteTime[]-started|>;
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[report,output<>"/campaign_report.wxf"];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyDrop[report,"Results"],output<>"/campaign_report.json"];
+ report
+],"ScalarEndpointCampaign"];
+End[];
+EndPackage[];

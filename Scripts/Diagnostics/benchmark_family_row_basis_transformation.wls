@@ -10,6 +10,7 @@ If[Length[args] < 3,
 {stateFile, stripFile, resultFile} = args[[1 ;; 3]];
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 state = Get[stateFile]; checkpoint = Get[stripFile];
 If[! AssociationQ[state] || ! AssociationQ[checkpoint],
   Print["BENCH invalid fixture"]; Exit[2]];

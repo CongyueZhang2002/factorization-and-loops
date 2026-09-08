@@ -3,6 +3,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 p = Symbol["Global`ffGaugeP"];
 q = Symbol["Global`ffGaugeQ"];
@@ -313,4 +314,27 @@ FTAssert["a failed rational ansatz reuses the chart in the rank-zero solver",
       "FallbackCoefficientPresentation", None] ===
         "SourceVariableRepresentationAfterRationalization"];
 
-FTDone[];
+FTAssert["adaptive epsilon growth retains already regular kinematic samples",
+  probeRecord["ReusedKinematicEpsilonSampleCount"]>0 &&
+  probeRecord["AdditionalKinematicEpsilonSampleCount"]>0 &&
+  probeRecord["RegularPointGridRebuildCount"]===0];
+
+(* A point that ceases to be regular at a newly requested epsilon sample
+   forces a fresh common grid. Simulate one such rejected delta evaluation. *)
+Clear[originalPointEvaluation];
+DownValues[originalPointEvaluation]=
+ DownValues[FeynFacet`Private`finiteFieldBasisTransformationReexpressionEvaluatePoint]/.
+ FeynFacet`Private`finiteFieldBasisTransformationReexpressionEvaluatePoint->originalPointEvaluation;
+rejectedDelta=False;
+rebuildRecord=Block[{FeynFacet`Private`finiteFieldBasisTransformationReexpressionEvaluatePoint},
+ FeynFacet`Private`finiteFieldBasisTransformationReexpressionEvaluatePoint[specialized_Association,point_List]:=
+  If[!rejectedDelta && Length[specialized["EpsilonImages"]]===4,
+    rejectedDelta=True;<|"Status"->"SingularNewEpsilonSample"|>,
+    originalPointEvaluation[specialized,point]];
+ FeynFacet`Private`finiteFieldBasisTransformationReexpressionPrime[
+  probePlan,probePrime,"MaximumKinematicTotalDegree"->4,
+  "MaximumEpsilonTotalDegree"->10,"HeldOutPointCount"->3]];
+FTAssert["a newly singular epsilon sample discards the old grid and cached fits",
+ rejectedDelta && Lookup[rebuildRecord,"RegularPointGridRebuildCount",0]===1 &&
+ rebuildRecord["Interpolations"]===probeRecord["Interpolations"]];
+FTReport[];

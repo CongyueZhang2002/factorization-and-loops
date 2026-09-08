@@ -56,7 +56,7 @@ FTAssert["exact construction derives the nontrivially permuted SCC order",
     exact["SchemaVersion"] === 2 &&
     exact["Status"] ===
       "FamilyDifferentialSystemBlockDecompositionValidated" &&
-    exact["IrreducibleDiagonalBlocks"] === {{1, 3}, {2}, {4, 5}}];
+    exact["DiagonalBlocksInCurrentBasis"] === {{1, 3}, {2}, {4, 5}}];
 
 FTAssert["exact validation records its strength honestly",
   exact["Validation", "Method"] ===
@@ -72,14 +72,14 @@ FTAssert["exact decomposition predicate re-evaluates and accepts",
   TrueQ[FamilyDifferentialSystemBlockDecompositionQ[exact, system]]];
 
 nonLowerClaim = Join[exact, <|
-  "IrreducibleDiagonalBlocks" ->
-    Reverse[exact["IrreducibleDiagonalBlocks"]]|>];
+  "DiagonalBlocksInCurrentBasis" ->
+    Reverse[exact["DiagonalBlocksInCurrentBasis"]]|>];
 FTAssert["reordered non-lower-triangular block claim is refused",
   ! TrueQ[FamilyDifferentialSystemBlockDecompositionQ[
     nonLowerClaim, system]]];
 
 malformedPartition = Join[exact, <|
-  "IrreducibleDiagonalBlocks" -> {{1, 3}, {2}, {4, 4}}|>];
+  "DiagonalBlocksInCurrentBasis" -> {{1, 3}, {2}, {4, 4}}|>];
 FTAssert["malformed row partition is refused",
   ! TrueQ[FamilyDifferentialSystemBlockDecompositionQ[
     malformedPartition, system]]];
@@ -94,8 +94,8 @@ sampled = BuildFamilyDifferentialSystemBlockDecomposition[
 
 FTAssert["finite-field construction derives the same ordered components",
   AssociationQ[sampled] &&
-    sampled["IrreducibleDiagonalBlocks"] ===
-      exact["IrreducibleDiagonalBlocks"] &&
+    sampled["DiagonalBlocksInCurrentBasis"] ===
+      exact["DiagonalBlocksInCurrentBasis"] &&
     sampled["Validation", "Method"] ===
       "ProbabilisticFiniteFieldSampling" &&
     ! TrueQ[sampled["Validation", "Exact"]] &&
@@ -106,7 +106,7 @@ FTAssert["finite-field predicate replays the stored points",
   TrueQ[FamilyDifferentialSystemBlockDecompositionQ[sampled, system]]];
 
 FTAssert["record has one authoritative block list and no digests",
-  KeyExistsQ[exact, "IrreducibleDiagonalBlocks"] &&
+  KeyExistsQ[exact, "DiagonalBlocksInCurrentBasis"] &&
     FreeQ[Keys[exact],
       "BasisPermutation" | "RowOrder" | "Blocks" |
       "Hash" | "Fingerprint" | "SHA256"]];
@@ -119,5 +119,22 @@ FTAssert["CLI takes explicit or repository-relative V2 paths only",
     ! AnyTrue[{"nnlo_de_", "ClassID", "block_class_assign",
         "Fingerprint", "SHA256"},
       StringContainsQ[cliSource, #] &]];
+
+
+(* Strong connectivity is relative to basis permutations, not differential irreducibility. *)
+coupledSystem = Join[system, <|
+  "OriginalMasterIntegralBasis" -> {masterIntegral[1], masterIntegral[2]},
+  "ConnectionMatrices" -> {epsBlock {{0, 1}, {1, 0}}/xBlock,
+    ConstantArray[0, {2, 2}]}|>];
+coupledBlocks = BuildFamilyDifferentialSystemBlockDecomposition[
+  coupledSystem, reference,
+  "ValidationMethod" -> "CharacteristicZeroSymbolicIdentity"];
+constantBasisChange = {{1, 1}, {1, -1}};
+FTAssert["a diagonalizable coupled system has one graph block without an irreducibility claim",
+  coupledBlocks["DiagonalBlocksInCurrentBasis"] === {{1, 2}} &&
+    ! KeyExistsQ[coupledBlocks, "IrreducibleDiagonalBlocks"] &&
+    Inverse[constantBasisChange].{{0, 1}, {1, 0}}.constantBasisChange ===
+      DiagonalMatrix[{1, -1}]];
+
 
 FTReport[];

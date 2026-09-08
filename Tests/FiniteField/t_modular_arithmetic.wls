@@ -1,5 +1,5 @@
 #!/usr/bin/env wolframscript
-(* The shared finite-field primitives of FeynFacet/Private/Core/Modular/ModularArithmetic.wl.
+(* The shared finite-field primitives of FeynFacet/Algebra/ModularArithmetic.wl.
 
    Acceptance criteria, all stated before the run and all checked
    against INDEPENDENT values (a brute-force search over the
@@ -62,8 +62,9 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Begin["FeynFacet`Private`"];
-Get[FeynFacet`Private`feynFacetPrivateFile["ModularArithmetic.wl"]];
+Get[FeynFacet`Private`feynFacetModuleFile["Algebra/ModularArithmetic.wl"]];
 Get[FileNameJoin[{root, "Scripts", "Diagnostics", "ModularSplitPoints.wl"}]];
 End[];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];

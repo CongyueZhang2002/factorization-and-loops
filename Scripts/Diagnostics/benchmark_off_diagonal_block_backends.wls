@@ -39,6 +39,7 @@ If[! AssociationQ[fixture] ||
 ];
 
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 backend = $ScriptCommandLine[[3]];
 If[! MemberQ[{"Wolfram", "FLINT"}, backend],

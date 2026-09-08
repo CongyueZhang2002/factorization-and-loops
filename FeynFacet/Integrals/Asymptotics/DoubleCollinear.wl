@@ -1,0 +1,96 @@
+
+(* Explicit double-collinear region integrands. Physical coefficient
+   completeness is checked separately from the Euclidean representation. *)
+Begin["FeynFacet`Private`"];
+FeynFacet`ConstructDoubleCollinearIntegrands::usage="ConstructDoubleCollinearIntegrands[definition,boundary] constructs the three possible two-particle collinear region integrands with exact energy powers, normalization and positive Euclidean squared forms.";
+FeynFacet`ConstructDoubleCollinearIntegrands[definition_Association,boundary_Association] := Catch[Module[
+ {base,eps=definition["DimensionalRegulator"],dim=definition["Dimension"],alpha,external,total,
+ dot,distances,gram,reference,independent={},rank=0,next,coordinates,basisGram,
+ energy=Symbol["FeynFacetEuclideanCoordinates`energyFraction"],loopGram,mixed,scalarVariables,
+ normalization,routing,minor,regions=<||>,spectator,permutation,soft,capPower,recoilPowers,
+ quadratics,den,subset,slot,power,forms,vector,extra,body,expr,gaussian,parameters,order,
+ componentSupports,rawPref,exponent,originalPairPowers,groups,positive,record,outerRatio},
+ If[!AllTrue[definition["PropagatorPowers"][[definition["CutIndices"]]],#===1&],
+   boundaryIntegrationFail["UnitCutsRequiredForDoubleCollinearConstruction"]];
+ base=FeynFacet`ConstructCoalescingNullBoundaryIntegral[definition,boundary];
+ If[FailureQ[base],Throw[base,"BoundaryIntegration"]];
+ alpha=Cancel[(dim-2)/2];external=definition["ExternalMomenta"];
+ total=Expand[Total[definition["OrientedCutMomenta"]]];
+ dot[p_,q_]:=Cancel[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[FeynCalc`SPD[p,q]]]/.base["BoundaryKinematicRules"]];
+ distances=Table[Cancel[2dot[p,q]/(dot[p,total]dot[q,total])],{p,external},{q,external}];
+ gram=Table[Cancel[(distances[[i,1]]+distances[[j,1]]-distances[[i,j]])/2],
+  {i,Length[external]},{j,Length[external]}];
+ Do[next=Append[independent,j];If[MatrixRank[gram[[next,next]]]>rank,independent=next;rank++],
+ {j,Length[external]}];
+ If[rank===0,boundaryIntegrationFail["SeparatedExternalDirectionsRequired"]];
+ basisGram=gram[[independent,independent]];
+ coordinates=gram[[All,independent]].Inverse[basisGram];
+ If[Map[Cancel,coordinates.basisGram.Transpose[coordinates]-gram,{2}]=!=ConstantArray[0,Dimensions[gram]],
+   boundaryIntegrationFail["ExternalOffsetGramDecompositionFailed"]];
+ loopGram={{Symbol["FeynFacetEuclideanCoordinates`ell1Squared"],Symbol["FeynFacetEuclideanCoordinates`ell1DotEll2"]},
+ {Symbol["FeynFacetEuclideanCoordinates`ell1DotEll2"],Symbol["FeynFacetEuclideanCoordinates`ell2Squared"]}};
+ mixed=Table[Symbol["FeynFacetEuclideanCoordinates`ell"<>ToString[i]<>"DotEta"<>ToString[j]],{i,2},{j,rank}];
+ scalarVariables=Join[{energy},DeleteDuplicates[Flatten[loopGram]],Flatten[mixed]];
+ routing=Table[Coefficient[m,l],{m,definition["OrientedCutMomenta"]},{l,definition["LoopMomenta"]}];
+ minor=SelectFirst[Subsets[Range[3],{2}],Det[routing[[#]]]=!=0&];
+ normalization=definition["MeasurePrefactor"]definition["MasterIntegralPrefactor"]/Abs[Det[routing[[minor]]]]^dim;
+ originalPairPowers=base["FinalStatePairPowers"];
+ Do[
+  spectator=First[Complement[Range[3],caps]];permutation=Join[caps,{spectator}];
+  soft=0;capPower=Lookup[originalPairPowers,Key[caps],0];
+  recoilPowers={Lookup[originalPairPowers,Key[Sort[{caps[[1]],spectator}]],0],
+    Lookup[originalPairPowers,Key[Sort[{caps[[2]],spectator}]],0]};
+  quadratics={};
+  Do[
+   If[Lookup[den,"Type",None]==="RecoilInvariant",Continue[]];
+   power=den["Power"];subset=den["Subset"];
+   If[den["Type"]==="FinalStatePairInvariant",
+    If[subset=!=caps,Continue[]];
+    forms={<|"Weight"->energy(1-energy),"LoopCoefficients"->{1,-1},
+      "ExternalCoefficients"->ConstantArray[0,rank]|>},
+    If[!SubsetQ[caps,subset],Continue[]];
+    soft+=power;vector=coordinates[[First[FirstPosition[external,den["ExternalMomentum"]]]]];
+    forms=Table[slot=First[FirstPosition[caps,j]];
+      <|"Weight"->If[slot===1,energy,1-energy],"LoopCoefficients"->UnitVector[2,slot],
+        "ExternalCoefficients"->vector|>,{j,subset}]];
+   AppendTo[quadratics,<|"Power"->power,"SquaredForms"->forms,
+    "OriginalPropagatorIndices"->{den["PropagatorIndex"]}|>],
+  {den,base["PropagatorLimits"]}];
+  groups=GatherBy[quadratics,#["SquaredForms"]&];
+  quadratics=(Join[First[#],<|"Power"->Total[Lookup[#,"Power"]],
+    "OriginalPropagatorIndices"->Flatten[Lookup[#,"OriginalPropagatorIndices"]]|>]&/@groups);
+  quadratics=Select[quadratics,#["Power"]=!=0&];
+  If[!AllTrue[quadratics,IntegerQ[#["Power"]]&&#["Power"]>0&],
+    AssociateTo[regions,caps->Failure["DoubleCollinearPolynomialNumeratorMomentsRequired",<||>]];Continue[]];
+  rawPref=normalization 2^(-4alpha-2)4^(soft+capPower)base["ExternalScaleFactor"];
+  exponent=Cancel[base["NormalExponent"]+2alpha-soft-capPower];
+  body=4^(soft+capPower)base["ExternalScaleFactor"]energy^-recoilPowers[[1]](1-energy)^-recoilPowers[[2]];
+  Do[
+   expr=Total[(#["Weight"](#["LoopCoefficients"].loopGram.#["LoopCoefficients"]-
+      2#["LoopCoefficients"].mixed.#["ExternalCoefficients"]+
+      #["ExternalCoefficients"].basisGram.#["ExternalCoefficients"]))&/@den["SquaredForms"]];
+   body*=expr^-den["Power"],{den,quadratics}];
+  parameters=<|"DimensionalRegulator"->eps,"LoopDimension"->2alpha,"ExternalGramMatrix"->basisGram,
+    "QuadraticDenominators"->quadratics,"AdditionalIntegrationVariables"->{energy},
+    "EndpointPowers"->{2alpha-1-recoilPowers[[1]]},
+    "UpperEndpointPowers"->{2alpha-1-recoilPowers[[2]]},"Prefactor"->rawPref|>;
+  gaussian=If[quadratics==={},<|"Scaleless"->True,"ScalelessReason"->"No transverse denominators."|>,
+    FeynFacet`ConstructEuclideanParameterIntegral[parameters]];
+  record=<|"DataType"->"DoubleCollinearRegionIntegral","OriginalIntegralDefinition"->definition,
+   "CollinearParticleIndices"->caps,"RecoilParticleIndex"->spectator,
+   "NormalVariable"->base["NormalVariable"],"DimensionalRegulator"->eps,"NormalExponent"->exponent,
+   "LogarithmPower"->0,"VanishingLogarithmCoefficientsAtThisPower"->True,
+   "EuclideanIntegralInput"->parameters,"EuclideanParameterIntegral"->gaussian,
+   "RationalIntegrand"->Cancel[Together[body]],"RationalIntegrandVariables"->scalarVariables,
+   "EnergyFraction"->energy,"LoopScalarProducts"->loopGram,"ExternalLoopScalarProducts"->mixed,
+   "CommonNormalizationPrefactor"->normalization 2^(-4alpha-2),
+   "ExternalOffsetGramMatrix"->gram,"IndependentExternalOffsetIndices"->independent,
+   "ExternalOffsetCoordinates"->coordinates,"CapPairPower"->capPower,"RecoilPairPowers"->recoilPowers,
+   "SoftExternalPower"->soft,"ExternalScaleFactor"->base["ExternalScaleFactor"],
+   "PhysicalLimitEstablished"->False,"NormalizationChanged"->False|>;
+  AssociateTo[regions,caps->record],
+ {caps,Subsets[Range[3],{2}]}];
+ <|"DataType"->"DoubleCollinearRegionIntegrands","Regions"->regions,
+  "PhysicalCoefficientCompletenessEstablished"->False|>
+ ],"BoundaryIntegration"];
+End[];

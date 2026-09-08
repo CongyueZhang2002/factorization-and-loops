@@ -198,4 +198,15 @@ FTAssert["family selection preserves the matching Kira block and cuts",
     ! StringContainsQ[configuration["FamilyBlock"], "name: FamilyB"]];
 
 DeleteDirectory[temporary, DeleteContents -> True];
+
+oneLoopTopology={"OneLoopTopology",{quadraticPropagator[l1],bilinearPropagator[l1,p1],
+ bilinearPropagator[l1,p2],bilinearPropagator[l1,p3]},{l1},{p1,p2,p3}};
+oneLoopAlgebra=FeynFacetCampaign`DifferentialEquations`Private`familyDEPrepareEulerAlgebra[
+ oneLoopTopology,{s12,s13,s23},{1}];
+FTAssert["one-loop families use the same scalar-product construction as higher-loop families",
+ oneLoopAlgebra["Status"]==="EulerScalarProductAlgebraPrepared"&&Length[oneLoopAlgebra["ScalarProductSolution"]]===4];
+oneLoopIntegral=FeynFacetCampaign`DifferentialEquations`Private`familyDEIntegral["OneLoop",{1,1,0,0}];
+FTAssert["the one-loop Euler derivative agrees with direct scaling of a linear denominator",
+ FeynFacetCampaign`DifferentialEquations`Private`familyDEEulerDerivative[p1,oneLoopIntegral,oneLoopAlgebra,{1}]===-oneLoopIntegral];
 FTReport[];
+

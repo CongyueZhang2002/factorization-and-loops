@@ -52,7 +52,7 @@ on-disk artifacts (the existing WXF record store:
 - NLO UU 10x10: byte-identical masters and reduced targets vs the
   saved `KiraResult.wl`.
 - NNLO: run from the preserved solved workspace
-  (`~/FACET/Codex/ppHX_NNLO_DoubleReal/Kira/UU_08_05_1`); require the
+  (`~/FACET/ppHX_NNLO_DoubleReal/Kira/UU_08_05_1`); require the
   same 342-master set, zero undeclared frontier integrals, no
   conflicting duplicate rules, no pinched cuts.
 - Record wall time and peak RSS per stage; target < 16 GB peak on the

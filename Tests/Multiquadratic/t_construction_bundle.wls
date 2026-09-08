@@ -72,6 +72,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];

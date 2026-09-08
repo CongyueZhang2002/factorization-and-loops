@@ -1,5 +1,5 @@
 #!/usr/bin/env wolframscript
-(* Adversarial generality test T1 (Design/GeneralityFixes.md).
+(* Adversarial generality test T1 (Archive/History/Design/GeneralityFixes.md).
 
    Acceptance criteria, stated before the run:
      STATIC   -- with every Wolfram comment removed (nested comments and
@@ -63,6 +63,7 @@ packageDirectory = FileNameJoin[{root, "FeynFacet"}];
 sourceFiles = Sort[DeleteDuplicates[Join[
   FileNames["*.m", packageDirectory, Infinity],
   FileNames["*.wl", packageDirectory, Infinity]]]];
+sourceFiles = Select[sourceFiles, ! MemberQ[FileNameSplit[#], "Private_Backup"] &];
 
 forbidden = <|
   "CanonicalFamilyLiteral" -> "CF" ~~ DigitCharacter,
@@ -101,8 +102,10 @@ FTAssert["the comment stripper removes nested comments and keeps strings",
     ! StringContainsQ[stripperProbe, "two"] &&
     ! StringContainsQ[stripperProbe, "three"] &&
     StringTake[stripperProbe, 1] === "a"];
-FTAssert["every package source file is scanned",
-  Length[sourceFiles] >= 30];
+FTAssert["active package sources are scanned and backups are excluded",
+  Length[sourceFiles] >= 30 &&
+    AllTrue[sourceFiles, ! MemberQ[FileNameSplit[#], "Private_Backup"] &] &&
+    ContainsAll[sourceFiles, FeynFacet`Private`$feynFacetSourceFiles]];
 FTAssert["no canonical-family literal outside comments",
   ! MemberQ[violations, r_ /; r["Kind"] === "CanonicalFamilyLiteral"]];
 FTAssert["no absolute /home/ path outside comments",
@@ -113,9 +116,7 @@ FTAssert["no project-tree name outside comments",
 (* Loaded implementation prose must remain reusable across projects.  This
    scan is deliberately raw: family labels in comments and messages are the
    regression this assertion protects against. *)
-privateSourceFiles = Sort[DeleteDuplicates[Join[
-  FileNames["*.m", FileNameJoin[{root, "FeynFacet", "Private"}], Infinity],
-  FileNames["*.wl", FileNameJoin[{root, "FeynFacet", "Private"}], Infinity]]]];
+privateSourceFiles = DeleteDuplicates[FeynFacet`Private`$feynFacetModuleFiles];
 privateProvenanceForbidden = <|
   "ConcreteCanonicalFamily" -> RegularExpression["(?i)\\bCF[0-9]+\\b"],
   "NamedCampaignFamily" -> RegularExpression["(?i)(ppHX|UU[_-]?08([_-][A-Za-z0-9]+)*|NNLO_DoubleReal)"],
@@ -293,27 +294,6 @@ FTAssert["the installation roots are package properties, not literals",
 FTAssert["the removed path-ordered compatibility route is not public",
   System`Names["FeynFacet`TransportFamily"] === {} &&
     DownValues[FeynFacet`Private`masterTransportBlockwiseSolve] === {}];
-
-(* A2: an empty differential directory is named, never a complete inventory *)
-emptyDirectory = CreateDirectory[FileNameJoin[{$TemporaryDirectory,
-  "feynfacet-generality-" <> CreateUUID[]}]];
-valuations = FileNameJoin[{emptyDirectory, "valuations.wl"}];
-Put[<||>, valuations];
-inputFileSearch =
-  FeynFacet`FindRequestedOutputIteratedIntegralCoefficientInputFiles[
-    {emptyDirectory}, emptyDirectory];
-FTAssert["zero differential families is a named refusal, not an inventory",
-  Lookup[inputFileSearch, "Status", None] ===
-      "NoDifferentialFamiliesFound" &&
-    Lookup[inputFileSearch, "DifferentialFamilyCount", -1] === 0 &&
-    ! FileExistsQ[FileNameJoin[{emptyDirectory, "manifest.tsv"}]]];
-FTAssert["the input-file finder takes its file patterns from the caller",
-  Sort[Keys[Association[
-    Options[
-      FeynFacet`FindRequestedOutputIteratedIntegralCoefficientInputFiles]]]] ===
-    Sort[{"DifferentialFilePattern", "EpsFormFilePattern",
-      "FamilyFromFileName"}]];
-Quiet[DeleteDirectory[emptyDirectory, DeleteContents -> True]];
 
 (* C4: the chart-extension output variables.  RationalizeRoots is an
    external add-on; when it is not installed the routine refuses typed

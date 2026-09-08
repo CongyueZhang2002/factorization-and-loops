@@ -121,7 +121,7 @@ If[! AssociationQ[decomposition] ||
 
 FeynFacet`FamilyArtifactWrite[decomposition, outputFile];
 Print["BLOCK-DECOMPOSITION family=", family,
-  " blocks=", Length[decomposition["IrreducibleDiagonalBlocks"]],
+  " blocks=", Length[decomposition["DiagonalBlocksInCurrentBasis"]],
   " method=", method,
   " seconds=", Round[seconds, 0.01],
   " output=", outputFile];

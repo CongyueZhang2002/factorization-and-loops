@@ -58,6 +58,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -241,9 +242,9 @@ check["O9 records the tested ansatz directly",
 (* O10: no surviving theorem-level wording                              *)
 (* ------------------------------------------------------------------ *)
 
-source = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
-  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &]];  (* all eight solver files *)
+source = StringJoin[Import[FeynFacet`Private`feynFacetModuleFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Kernel", "Modules.wl"}]],
+    "EpsilonForm"], StringStartsQ[#, "DifferentialEquations/EpsilonForm/Multiquadratic/"] &]];  (* all eight solver files *)
 executable = FTTest`FTStripComments[source];
 check["O10 no theorem-level contract name survives in the executable source",
   ! StringContainsQ[executable, "NoBasisTransformationExistsWith"]];

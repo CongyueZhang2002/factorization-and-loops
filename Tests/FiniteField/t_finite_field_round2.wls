@@ -22,6 +22,7 @@
 $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 checks = <||>;
 
 legacyOffDiagonalBlockRecord[value_Association] :=
@@ -40,9 +41,7 @@ legacyFiniteFieldRecord[value_Association] := Association[
   KeyValueMap[legacyFiniteFieldKey[#1] -> #2 &, value]];
 
 fixture = legacyOffDiagonalBlockRecord[
-  FeynFacet`FamilyArtifactRead[FileNameJoin[{root, "Stale",
-  "DifferentialEquationData", "2026-09-03_pre_v2", "UU_08_10_canonical",
-  "BenchmarkStripBackends", "fixtures", "fixture_CF254_9_6.wl"}]]];
+  FeynFacet`FamilyArtifactRead[FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldBenchmark", "fixtures", "fixture_CF254_9_6.wl"}]]];
 prep = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[fixture];
 census = prep["SupportCensus"];
 checks["SupportCertified"] = TrueQ[census["CertifiedQ"]];
@@ -129,9 +128,7 @@ Module[{p = 2147483647, p2 = 2147483629, modQ, fs, trueDeg, epsVals, canon, cano
 
 (* ---- unseen-prime residual on the real (9,6) A4 acceptance artifacts ---- *)
 Module[{files, modular, lifted, opts, bad, bad2},
-  files = FileNames["*_mod_*.wl", FileNameJoin[{root, "Stale", "DifferentialEquationData",
-    "2026-09-03_pre_v2", "UU_08_10_canonical",
-    "BenchmarkStripBackends", "frozen_M0", "a4_run", "ff_artifacts_A4_CF254_9_6_155035"}]];
+  files = FileNames["*_mod_*.wl", FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldBenchmark", "frozen_M0", "a4_run", "ff_artifacts_A4_CF254_9_6_155035"}]];
   modular = legacyFiniteFieldRecord /@ (FeynFacet`FamilyArtifactRead /@ files);
   lifted = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[fixture, modular, "KernelCount" -> 1, "ExactCheck" -> False];
   checks["A4ArtifactsLiftUnverified"] = Length[files] === 7 && AssociationQ[lifted] && lifted["Status"] === "LiftedUnverified" &&
@@ -172,9 +169,7 @@ Module[{sol, wide = 2305843009213693951, probeWide, solWide},
    strip, kernel death by memory at 31-bit primes *)
 Module[{strip, prep, sample, sol, t},
   strip = legacyOffDiagonalBlockRecord[
-    FeynFacet`FamilyArtifactRead[FileNameJoin[{root, "Stale",
-      "DifferentialEquationData", "2026-09-03_pre_v2", "UU_08_10_canonical",
-      "BenchmarkStripBackends", "fixtures", "cf254_strips_2026-08-19",
+    FeynFacet`FamilyArtifactRead[FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldBenchmark", "fixtures", "cf254_strips_2026-08-19",
       "CF254_12_11_input.wl"}]]];
   prep = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[strip];
   sample = FeynFacet`Private`ComputeOffDiagonalBlockFiniteFieldImage[strip, 1/21, 2147483647, "NumeratorDegreeOffset" -> {1, 0},

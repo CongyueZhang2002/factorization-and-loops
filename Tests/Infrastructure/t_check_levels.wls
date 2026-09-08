@@ -6,6 +6,7 @@
    development assembly. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 checks = <||>;
 
 (* point zero test *)
@@ -124,6 +125,9 @@ checks["ProductionDefersDuplicateDiagonalIdentities"] =
     "TransformationInverseVerified"]] &&
   prod2["FamilyDifferentialSystem", "Certificate",
     "FlatnessConjugatedRoute"] === "DeferredToFamilyCertificate";
+checks["ProductionPreservesExplicitProducts"] =
+ prod["FamilyDifferentialSystem","Certificate","OffDiagonalSimplification"] === "PreserveProducts" &&
+ dev["FamilyDifferentialSystem","Certificate","OffDiagonalSimplification"] === "Together";
 Print["synthetic assembly seconds: development ", Round[tD, 0.1],
   " production ", Round[tP, 0.1]];
 Print[InputForm[checks]];

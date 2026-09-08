@@ -31,12 +31,13 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
+Get[FeynFacet`Private`feynFacetModuleFile["Algebra/Multiquadratic/Arithmetic.wl"]];
 (* the strip solver is eight files since round 4 (2026-09-02); the manifest
    names them in load order *)
-Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
-  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
+Get[FeynFacet`Private`feynFacetModuleFile[#]] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Kernel", "Modules.wl"}]],
+    "EpsilonForm"], StringStartsQ[#, "DifferentialEquations/EpsilonForm/Multiquadratic/"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -190,7 +191,7 @@ check["algebra probe is SameQ in different reader contexts",
     Block[{$Context = "FeynFacet`MultiquadraticProbe`",
         $ContextPath = {"System`", "FeynFacet`MultiquadraticProbe`"}},
       algebraProbe[]] === firstProbe];
-Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
+Get[FeynFacet`Private`feynFacetModuleFile["Algebra/Multiquadratic/Arithmetic.wl"]];
 check["algebra probe is SameQ across two loads of the module",
   algebraProbe[] === firstProbe];
 

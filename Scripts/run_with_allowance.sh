@@ -1,6 +1,6 @@
 #!/bin/bash
-# Generic kernel launcher with a hard allowance (house rule 2026-08-31,
-# Design/Watchdog.md): the wolframscript runs in its own process group
+# Generic kernel launcher with a caller-supplied time allowance.
+# The wolframscript runs in its own process group
 # and a timer in THIS script SIGKILLs the whole group at the allowance.
 # Usage: run_with_allowance.sh ALLOWANCE_SECONDS LOGFILE SCRIPT [args...]
 ALLOWANCE=$1; LOG=$2; SCRIPT=$3; shift 3

@@ -19,6 +19,8 @@
    moment it frees up, so a slow pair costs one worker and never holds
    the others (the retired 4N-pair batches did). *)
 
+$HistoryLength=0;$MaxExtraPrecision=50;
+SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
 root = ExpandFileName[FileNameJoin[{DirectoryName[$InputFileName], ".."}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
@@ -31,14 +33,15 @@ processDirectory = FileNameJoin[{root, arguments[[1]]}];
 cardName = arguments[[2]];
 resultName = arguments[[3]];
 kernelCount = If[Length[arguments] >= 4, ToExpression[arguments[[4]]], 6];
+If[!IntegerQ[kernelCount]||!TrueQ[1<=kernelCount<=8],Print["Expected 1 to 8 subkernels."];Exit[1]];
 
 card = Get[FileNameJoin[{processDirectory, "Cards", cardName <> ".wl"}]];
 If[! AssociationQ[card],
   Print["Could not read the card."];
   Exit[1]
 ];
-forwardIndices = card["ForwardAmplitudes", "DiagramIndices"];
-conjugateIndices = card["ConjugateAmplitudes", "DiagramIndices"];
+forwardIndices = card["ForwardAmplitudes"]["DiagramIndices"];
+conjugateIndices = card["ConjugateAmplitudes"]["DiagramIndices"];
 
 resultDirectory = FileNameJoin[{processDirectory, "Results", resultName}];
 pairDirectory = FileNameJoin[{resultDirectory, "Pairs"}];
@@ -69,14 +72,15 @@ pairSetup[forward_Integer, conjugate_Integer] := Join[
 processPair[{forward_Integer, conjugate_Integer}] := Module[
   {setup, result, artifact, file},
   file = pairFile[forward, conjugate];
+  setup = pairSetup[forward, conjugate];
   If[FileExistsQ[file],
     Module[{saved = Quiet @ Check[Get[file], $Failed]},
-      If[FeynFacet`Private`validPreIBPResultQ[saved],
+      If[FeynFacet`Private`validPreIBPResultQ[saved]&&Lookup[saved,"Setup",None]===setup &&
+        Lookup[Lookup[saved,"AnalyticContext",<||>],"FeynFacetSourceHash",None]===FeynFacet`Private`$feynFacetSourceHash,
         Return[{forward, conjugate, "Skipped"}]
       ]
     ]
   ];
-  setup = pairSetup[forward, conjugate];
   result = FeynFacet`CollinearFactorizePreIBP[setup];
   If[! MatchQ[result, {_, _, _, _, _List}],
     Return[{forward, conjugate, "PreIBPFailed"}]
@@ -92,7 +96,7 @@ processPair[{forward_Integer, conjugate_Integer}] := Module[
   If[! FeynFacet`Private`validPreIBPResultQ[artifact],
     Return[{forward, conjugate, "ValidationFailed"}]
   ];
-  Put[artifact, file];
+  If[FeynFacet`FamilyArtifactWrite[artifact,file]=!=file,Return[{forward,conjugate,"WriteFailed"}]];
   {forward, conjugate, "OK"}
 ];
 
@@ -124,7 +128,9 @@ Print["GRID: ", Length[forwardIndices], " x ", Length[conjugateIndices],
 
 LaunchKernels[kernelCount];
 With[{loadFile = FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]},
-  ParallelEvaluate[Block[{$Output = {}}, Quiet[Get[loadFile], General::shdw]]]
+  ParallelEvaluate[$HistoryLength=0;$MaxExtraPrecision=50;
+    SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+    Block[{$Output = {}}, Quiet[Get[loadFile], General::shdw]]]
 ];
 DistributeDefinitions[
   pairSetup, processPair, processPairGuarded, pairFile, card, cardName,
@@ -189,3 +195,5 @@ Print["SKIPPED: ", Count[summaries, {_, _, "Skipped"}]];
 Print["FAILURES: ", Length[failures]];
 If[failures =!= {}, Print["FAILEDPAIRS: ", Take[failures, UpTo[20]]]];
 Print["RESULTDIRECTORY: ", resultDirectory];
+CloseKernels[];
+Exit[If[failures==={},0,1]];

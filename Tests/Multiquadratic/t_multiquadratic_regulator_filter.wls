@@ -45,6 +45,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -122,9 +123,9 @@ symbol is replaced by an ordinary one",
 
 (* ---- R5: no surviving spelling test in the loaded source ---- *)
 
-source = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
-  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &]];  (* all eight solver files *)
+source = StringJoin[Import[FeynFacet`Private`feynFacetModuleFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Kernel", "Modules.wl"}]],
+    "EpsilonForm"], StringStartsQ[#, "DifferentialEquations/EpsilonForm/Multiquadratic/"] &]];  (* all eight solver files *)
 (* comments are stripped so the note ABOUT the defect does not count *)
 executable = FTTest`FTStripComments[source];
 check["R5 no symbol-NAME regulator test survives in the executable source",

@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Deferred (sparse tagged term DAG) construction of the off-diagonal
-   block equation's source -- FeynFacet/Private/EpsForm/Blocks/BlockEquationDeferred.wl.
+   block equation's source -- FeynFacet/DifferentialEquations/EpsilonForm/Blocks/AlgebraicExpressions.wl.
 
    MEASURED MOTIVATION.  On CF259 sector 21 the driver spent 536 s of
    silent wall time constructing the source of block (21,18) (run log:
@@ -82,6 +82,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 Clear[x, y, eps, mu0];

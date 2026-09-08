@@ -31,7 +31,7 @@ FTAssert["an ordinary point produces a finite exact local Frobenius expansion",
   frobenius["Status"] === "TruncatedLocalFrobeniusExpansionComputed" &&
     frobenius["PointType"] === "OrdinaryPoint" &&
     frobenius["LocalExpansionPoint"] === 0 &&
-    frobenius["Residue"] === residue &&
+    frobenius["EpsilonNormalizedConnectionResidue"] === residue &&
     frobenius["FrobeniusPrefactorCoefficients"][{1, 1}] === regular &&
     frobenius["ResidualCheckedThrough"] ===
       <|"SeriesOrder" -> 1, "EpsilonOrder" -> 2|>];
@@ -45,7 +45,7 @@ FTAssert["an inward endpoint coordinate includes its differential Jacobian",
   reverseFrobenius["Status"] ===
       "TruncatedLocalFrobeniusExpansionComputed" &&
     reverseFrobenius["LocalDirection"] === -1 &&
-    reverseFrobenius["Residue"] === residue &&
+    reverseFrobenius["EpsilonNormalizedConnectionResidue"] === residue &&
     reverseFrobenius["FrobeniusPrefactorCoefficients"][{1, 1}] ===
       -regular];
 
@@ -303,26 +303,6 @@ FTAssert["the boundary-data requirements bind family, physical limit, Frobenius 
         ListQ[#BoundaryConstantEpsilonCoefficientLabels] &&
         ListQ[#RequiredMasterIntegralCoefficients] &]];
 
-source = Join[<|"Letters" -> {{"GPLPole", -1}},
-    "Residues" -> {{{0, 0}, {0, 0}}}, "Dimension" -> 2|>,
-  <|"BoundarySelectors" ->
-    boundarySelectors["BoundarySelectorMatricesByEpsilonOrder"]|>];
-layer = <|"Rows" -> {3}, "PathVariable" -> u,
-  "Regulator" -> eps, "BasePoint" -> 0, "PathEndpoint" -> 1/2,
-  "Diagonal" -> {{{"GPLPole", -1}, {{0}}}},
-  "Incoming" -> {
-    <|"Row" -> 1, "Column" -> 1, "Coefficient" -> eps,
-      "Letter" -> {"GPLPole", -1}|>,
-    <|"Row" -> 1, "Column" -> 2, "Coefficient" -> eps,
-      "Letter" -> {"GPLPole", -1}|>}
-|>;
-consumed = SolveRationalEpsilonDependentBlockByVariationOfConstants[source, layer,
-  <|"RequestedOutputPairs" -> {{1, 1}}|>];
-FTAssert["the boundary selector matrices are consumed directly by the rational-epsilon-dependent-block solution",
-  consumed["Status"] ===
-    "RationalEpsilonDependentBlockSolutionAccepted" &&
-    consumed["BoundaryColumns"] === 5];
-
 gplOnly = ConstructBoundaryValueVectorFromConstants[modeMap,
   Join[boundaryConstants, <|"e" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "Elliptic",
     "Status" -> "ExactZero"|>|>], {0, 1}];
@@ -394,17 +374,6 @@ FTAssert["demand pruning removes an unused boundary-constant epsilon coefficient
     FreeQ[formalBoundary["BoundaryDataRequirements"], {"g", 1}] &&
     formalBoundary["BoundaryDataRequirements"][[1,
       "BoundaryConstantEpsilonCoefficientLabels"]] === {{"g", 0}}];
-
-formalSource = Join[<|"Letters" -> {{"GPLPole", -1}},
-    "Residues" -> {{{0, 0}, {0, 0}}}, "Dimension" -> 2|>,
-  <|"BoundarySelectors" ->
-    formalBoundarySelectors["BoundarySelectorMatricesByEpsilonOrder"]|>];
-formalConsumed = SolveRationalEpsilonDependentBlockByVariationOfConstants[formalSource, layer,
-  <|"RequestedOutputPairs" -> {{1, 1}}|>];
-FTAssert["the block solution proceeds unchanged with formal GPL and elliptic boundary constants",
-  formalConsumed["Status"] ===
-      "RationalEpsilonDependentBlockSolutionAccepted" &&
-    formalConsumed["BoundaryColumns"] === 4];
 
 transferredBoundary = ConstructBoundaryValueVectorFromConstants[prunedModeMap, <|
     "g" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "GPL", "Status" -> "ExactZero"|>,
@@ -605,8 +574,19 @@ FTAssert["the former ambiguous boundary-vector and period-placeholder heads are 
     ! NameQ["FeynFacet`BoundaryDegenerateEigenspaceDeclaration"]];
 
 FTAssert["the production boundary module contains no family-specific token",
-  With[{text = Import[FileNameJoin[{root, "FeynFacet", "Private",
-      "Transport", "Boundary", "PhysicalBoundary.wl"}], "Text"]},
+  With[{text = Import[FileNameJoin[{root, "FeynFacet", "Boundary", "Conditions.wl"}], "Text"]},
     StringFreeQ[text, RegularExpression["CF[0-9]+"]]]];
+
+
+nonzeroResidueExpansion = ComputeTruncatedLocalFrobeniusExpansion[
+  {{3 eps/u}}, endpointSpec,
+  "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 1];
+FTAssert["the stored normalized residue gives the full connection residue after multiplying by epsilon",
+  nonzeroResidueExpansion["EpsilonNormalizedConnectionResidue"] === {{3}} &&
+    eps nonzeroResidueExpansion["EpsilonNormalizedConnectionResidue"] ===
+      {{Limit[u (3 eps/u), u -> 0]}} &&
+    ! KeyExistsQ[nonzeroResidueExpansion, "Residue"] &&
+    StringQ[nonzeroResidueExpansion["ResidueConvention"]]];
+
 
 FTReport[];

@@ -3,6 +3,7 @@
 $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 Clear[xAdaptive, yAdaptive, epsAdaptive];
 record = <|

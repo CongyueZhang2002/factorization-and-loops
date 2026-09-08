@@ -1,7 +1,7 @@
 (* The NLO golden through the package reconstruction stage, in both
    modes.
 
-   The stored trace of the regenerated NLO UU 10x10 set is reconstructed
+   The freshly generated trace of the regenerated NLO UU 10x10 set is reconstructed
    from scratch by ReconstructCoefficients and compared with the
    2026-08-09 reference CoefficientResult.wl:
 
@@ -24,7 +24,7 @@
 
    Acceptance criteria:
    A. The reference loads as a FormatVersion-8 FeynFacet-IBP result and
-      the stored trace directory is readable.
+      the freshly generated trace directory is readable.
    B. Full rational reconstruction completes and returns a
       FormatVersion-8 result with no series truncation.
    C. Identical master integral sets.
@@ -45,10 +45,11 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
-traceDirectory = FileNameJoin[{
-  root, "Codex", "ppHX_NLO", "CoefficientSimplification",
-  "UU_08_10_10x10_regen", "FiniteField"
-}];
+Get[FileNameJoin[{root, "Tests", "Reconstruction", "TemporaryTrace.wl"}]];
+traceDirectory = prepareReconstructionTestTrace[
+  FileNameJoin[{root, "ppHX_NLO", "Results", "UU_08_10_10x10_regen"}]];
+If[! StringQ[traceDirectory],
+  FTTest`FTAssert["temporary trace generation", False]; FTTest`FTReport[]];
 referenceFile = FileNameJoin[{
   root, "ppHX_NLO", "Results", "UU_08_05_10x10_1", "CoefficientResult.wl"
 }];
@@ -58,7 +59,7 @@ threads = 8;
 
 reference = If[FileExistsQ[referenceFile], Get[referenceFile], $Failed];
 
-FTTest`FTAssert["A. the reference and the stored trace are readable",
+FTTest`FTAssert["A. the reference and the freshly generated trace are readable",
   AssociationQ[reference] &&
     reference["Format"] === "FeynFacet-IBP" &&
     reference["FormatVersion"] === 8 &&
@@ -332,4 +333,5 @@ If[! AllTrue[Last /@ rationalDifferences, TrueQ],
   Print["    differing masters: ",
     Select[rationalDifferences, ! TrueQ[Last[#]] &][[All, 1]]]];
 
+removeReconstructionTestTrace[traceDirectory];
 FTTest`FTReport[];

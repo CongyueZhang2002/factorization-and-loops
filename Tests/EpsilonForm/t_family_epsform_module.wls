@@ -2,6 +2,7 @@
    self-contained mathematical fixture. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 scratch = CreateDirectory[FileNameJoin[{$TemporaryDirectory,
   "t_family_epsform_" <> ToString[$ProcessID]}]];
@@ -46,7 +47,7 @@ tests = <|
         "FamilyDLogEpsilonFormValidationPassed" &&
       TrueQ[validated["Validation", "Exact"]] &&
       ! TrueQ[validated["Validation", "Probabilistic"]] &&
-      validated["IrreducibleDiagonalBlocks"] === {{1}, {2}},
+      validated["DiagonalBlocksInCurrentBasis"] === {{1}, {2}},
   "ValidationResultIsNotAPersistedFamilyRecord" ->
     ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[validated],
   "TypedMissingKeys" -> typedFailure,

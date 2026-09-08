@@ -9,6 +9,8 @@
    KiraStreamImport run on the canonical set after canonicalization;
    without it the script stops after writing the canonical artifacts. *)
 
+$HistoryLength=0;$MaxExtraPrecision=50;
+SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
 root = ExpandFileName[FileNameJoin[{DirectoryName[$InputFileName], ".."}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 

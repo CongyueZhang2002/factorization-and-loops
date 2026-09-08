@@ -5,7 +5,7 @@
    Until 2026-08-24 it partitioned the grid into batches of 4N and called
    ParallelMap per batch, so every batch boundary was a barrier: the
    slowest pair of a batch held the other kernels idle until it returned
-   (Codex review, Exchange/Codex/2026-08-24/02_parallelism_advice.md).
+   (Codex review, Archive/History/Exchange/Codex/2026-08-24/02_parallelism_advice.md).
    It now submits every pair to ONE global dynamic queue and collects
    completions with WaitNext.
 

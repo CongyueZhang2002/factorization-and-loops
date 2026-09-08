@@ -35,10 +35,11 @@ referenceFile = FileNameJoin[{
   root, "ppHX_NLO", "Results", "UU_08_05_10x10_1", "CoefficientResult.wl"
 }];
 reference = Get[referenceFile];
+entryValue[entry_] := Total[(#["PreFactor"] #["Coefficient"]& /@ entry["Terms"])];
 
 single = FeynFacet`AssembleCutContributions[{referenceFile}];
 FTTest`FTAssert["B1. single-contribution assembly completes",
-  AssociationQ[single] && single["Format"] === "FeynFacet-CutAssembly"];
+  AssociationQ[single] && single["Format"] === "FeynFacet-MasterIntegralCoefficients"];
 FTTest`FTAssert["B2. same master set",
   AssociationQ[single] &&
     Sort[ToString[#["Master"], InputForm] & /@ single["Masters"]] ===
@@ -52,14 +53,14 @@ FTTest`FTAssert["B3. combined coefficients equal the source products",
   AssociationQ[single] && AllTrue[
     single["Masters"],
     TrueQ @ FeynFacet`Private`exactZeroQ[
-      #["Coefficient"] -
+      entryValue[#] -
         referenceProducts[ToString[#["Master"], InputForm]]
     ] &
   ]];
 FTTest`FTAssert["B4. same remainder",
   AssociationQ[single] &&
     TrueQ @ FeynFacet`Private`exactZeroQ[
-      single["Remainder"] - reference["Remainder"]
+      Total[#["PreFactor"] #["Coefficient"]& /@ single["RemainderTerms"]] - reference["Remainder"]
     ]];
 
 double = FeynFacet`AssembleCutContributions[
@@ -69,7 +70,7 @@ FTTest`FTAssert["C. doubling: coefficients are 2x the source products",
   AssociationQ[double] && AllTrue[
     double["Masters"],
     TrueQ @ FeynFacet`Private`exactZeroQ[
-      #["Coefficient"] -
+      entryValue[#] -
         2 referenceProducts[ToString[#["Master"], InputForm]]
     ] &
   ]];
@@ -88,13 +89,12 @@ FTTest`FTAssert["D. ghost-signed pair: coefficients are -2x the products",
   AssociationQ[ghostPair] && AllTrue[
     ghostPair["Masters"],
     TrueQ @ FeynFacet`Private`exactZeroQ[
-      #["Coefficient"] +
+      entryValue[#] +
         2 referenceProducts[ToString[#["Master"], InputForm]]
     ] &
   ]];
 
 FTTest`FTAssert["E. malformed input rejected",
-  Quiet[FeynFacet`AssembleCutContributions[{<|"Format" -> "junk"|>}]] ===
-    $Failed];
+  FailureQ[Quiet[FeynFacet`AssembleCutContributions[{<|"Format" -> "junk"|>}]]]];
 
 FTTest`FTReport[];

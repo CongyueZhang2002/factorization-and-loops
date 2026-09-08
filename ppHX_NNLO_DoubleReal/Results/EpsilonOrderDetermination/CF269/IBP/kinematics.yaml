@@ -1,0 +1,14 @@
+kinematics:
+  incoming_momenta: [ka, kb, kc]
+  outgoing_momenta: []
+  momentum_conservation: []
+  kinematic_invariants:
+    - [sc0, 2]
+  symbol_to_replace_by_one: sc0
+  scalarproduct_rules:
+    - [[ka, ka], 0]
+    - [[ka, kb], (1/2)*sc0]
+    - [[ka, kc], (1/8)*sc0]
+    - [[kb, kb], 0]
+    - [[kb, kc], (1/6)*sc0]
+    - [[kc, kc], 0]

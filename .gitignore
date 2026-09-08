@@ -2,8 +2,6 @@
 Output/
 Work/
 Runtime/
-Codex/ppHX_NLO/
-Codex/ppHX_NNLO_DoubleReal/
 Codex/EvaluateMasters/
 Codex/General/
 Codex/Backups/
@@ -147,3 +145,70 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_roo
 
 # FLINT adapter build output
 FeynFacet/Backends/flint/bin
+
+# Compact complete dimensional-recurrence and epsilon-order example.
+!ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/
+ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/*
+!ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/CF269/
+ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/CF269/*
+!ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/CF269/*.wxf
+!ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/CF269/README.md
+!ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/CF269/IBP/
+
+# Complete finite master coefficients at declared epsilon ranges (compressed).
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/
+ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/*
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/README.md
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/report.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF269/
+ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF269/*
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF269/solution.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF269/summary.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF48/
+ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF48/*
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF48/solution.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF48/summary.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF265/
+ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF265/*
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF265/solution.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF265/summary.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF259/
+ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF259/*
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF259/solution.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF259/summary.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF303/
+ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF303/*
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF303/solution.wxf
+!ppHX_NNLO_DoubleReal/Results/RequestedMasterIntegralSolutions/CF303/summary.wxf
+
+# Optional GiNaC GPL adapter build output
+FeynFacet/Backends/ginac/bin/
+
+# Process-owned IBP workspaces and downloaded external reference material
+/ppHX_NNLO_DoubleReal/Kira/
+/ppHX_NLO/Kira/
+/External/References/BoundaryMethods/
+
+# NLO campaigns: version cards, final hard functions and compact validation reports.
+/ppHX_NLO_qqprime/Kira/
+/ppHX_NLO_qqprime/Results/*
+!/ppHX_NLO_qqprime/Results/*_HardFunction.wl
+!/ppHX_NLO_qqprime/Results/Validation/
+/ppHX_NLO_qqprime/Results/Validation/*
+!/ppHX_NLO_qqprime/Results/Validation/NLOExternalReferences.wl
+!/ppHX_NLO_qqprime/Results/Validation/INCNLO_points.json
+!/ppHX_NLO_qqprime/Results/Validation/FullRegeneration.json
+!/ppHX_NLO_qqprime/Results/Validation/FinalAssembly.json
+!/ppHX_NLO_qqprime/Results/Validation/package_layout.json
+!/ppHX_NLO_qqprime/Results/Validation/FrameworkTests/
+/ppHX_NLO_qqprime/Results/Validation/FrameworkTests/*
+!/ppHX_NLO_qqprime/Results/Validation/FrameworkTests/Report.json
+# Original supplied attachments and downloaded third-party code stay local.
+/ppHX_NLO_qqprime/References/*
+!/ppHX_NLO_qqprime/References/README.md
+!/ppHX_NLO_qqprime/References/INCNLO/
+/ppHX_NLO_qqprime/References/INCNLO/*
+!/ppHX_NLO_qqprime/References/INCNLO/SOURCE.md
+
+# Local reference literature is not part of the source distribution.
+/LectureNotes/*.pdf

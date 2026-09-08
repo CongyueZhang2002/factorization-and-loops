@@ -9,6 +9,8 @@
    reduction into memory - appropriate for small and medium sets; the
    direct record-store adapter for very large sets is a separate task. *)
 
+$HistoryLength=0;$MaxExtraPrecision=50;
+SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
 root = ExpandFileName[FileNameJoin[{DirectoryName[$InputFileName], ".."}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
@@ -26,20 +28,20 @@ resultDirectory = FileNameJoin[{processDirectory, "Results", resultName}];
 streamDirectory = FileNameJoin[{resultDirectory, "KiraStream"}];
 kiraFile = FileNameJoin[{resultDirectory, "KiraResult.wl"}];
 
-If[! FileExistsQ[kiraFile],
-  Print["Materializing ", streamDirectory];
-  {seconds, kira} = AbsoluteTiming[
-    FeynFacet`Private`KiraStreamResult[streamDirectory]
-  ];
-  If[! AssociationQ[kira],
-    Print["MATERIALIZE: FAILED"];
-    Exit[1]
-  ];
-  Print["MATERIALIZESECONDS: ", Round[seconds, 0.1]];
-  Put[kira, kiraFile];
-  Clear[kira];
-  ClearSystemCache[]
+(* Materialization is cheap compared with reconstruction and must follow
+   the current stream after amplitude or normalization changes. *)
+Print["Materializing ", streamDirectory];
+{seconds, kira} = AbsoluteTiming[
+  FeynFacet`Private`KiraStreamResult[streamDirectory]
 ];
+If[! AssociationQ[kira],
+  Print["MATERIALIZE: FAILED"];
+  Exit[1]
+];
+Print["MATERIALIZESECONDS: ", Round[seconds, 0.1]];
+FeynFacet`FamilyArtifactWrite[kira,kiraFile];
+Clear[kira];
+ClearSystemCache[];
 Print["KIRAFILE: ", kiraFile, " (",
   Round[FileByteCount[kiraFile]/2.^20, 0.1], " MB)"];
 

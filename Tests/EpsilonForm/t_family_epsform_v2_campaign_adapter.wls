@@ -4,6 +4,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Get[FileNameJoin[{root, "Scripts",
   "family_dlog_epsilon_form_v2.wl"}]];
 
@@ -86,7 +87,7 @@ requiredKeys = {"DataType", "SchemaVersion", "Status", "Family",
   "ConstantResidueMatrices", "Validation"};
 privateWorkingKeys = {"Variables", "Regulator", "Blocks", "Ranges",
   "TTotal", "TTotalInverse", "EpsFormX", "EpsFormY", "BasisPermutation",
-  "IrreducibleDiagonalBlocks", "ComputationMetrics"};
+  "DiagonalBlocksInCurrentBasis", "ComputationMetrics"};
 
 (* A nontrivial block ordering checks the convention, not merely the schema.
    The worker uses the order {2,1}; the persisted transformation absorbs that
@@ -169,7 +170,7 @@ tests = <|
       inverseTransformation === permutationMatrix &&
       permuted["OriginalMasterIntegralBasis"] ===
         permutedSystem["OriginalMasterIntegralBasis"] &&
-      permuted["BlockDecomposition"]["IrreducibleDiagonalBlocks"] ===
+      permuted["BlockDecomposition"]["DiagonalBlocksInCurrentBasis"] ===
         {{2}, {1}} &&
       Union[Flatten[transformationResidual]] === {0},
   "LegacySystemRefused" ->

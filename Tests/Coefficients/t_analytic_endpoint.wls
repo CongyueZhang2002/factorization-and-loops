@@ -1,0 +1,26 @@
+root=DirectoryName[ExpandFileName[$InputFileName],3];$HistoryLength=0;$MaxExtraPrecision=50;
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+passed=0;failed=0;check[label_,test_]:=If[TrueQ[test],passed++;Print["PASS ",label],failed++;Print["FAIL ",label]];
+req=<|"DimensionalRegulator"->epTest,"Variable"->zTest,"Assumptions"->True,"ThroughOrder"->0,
+ "EndpointConditions"-><|"NoInteriorSingularities"->True,"UniformEpsilonExpansionOnCompactSubsets"->True,"RepresentationValidOnHalfOpenInterval"->True|>|>;
+fixture=zTest^-epTest/epTest Hypergeometric2F1[1,1,1-epTest,1-zTest];
+run[expr_]:=FeynFacet`WithEpsilonRemainderChecks[expansion=FeynFacet`ConstructAnalyticEndpointExpansion[expr,req];
+ If[FailureQ[expansion],expansion,FeynFacet`ExtractEndpointDistributions[expansion,<|"ThroughOrder"->0|>]]];
+out=run[fixture];term=First[out["Result"]["Terms"]];
+check["interior and endpoint epsilon checks executed",out["EpsilonRemainderAudit"]["Status"]==="Passed"&&Length[out["EpsilonRemainderAudit"]["ChecksByStage"]]>=2];
+check["coalescing angular branch",expansion["EndpointLeadingPower"]===-1-2epTest];
+check["finite delta from relative epsilon squared",FullSimplify[term["DeltaTerms"][[1]]["Coefficients"][0]+Pi^2/12]===0];
+check["leading double pole",term["DeltaTerms"][[1]]["Coefficients"][-2]===-1/2];
+check["regular complement retained with zero finite total in this fixture",FullSimplify[term["RegularRemainder"]["Coefficients"][0]]===0];
+check["leading logarithmic plus coefficient",Total[Lookup[Select[term["PlusTerms"],#["LogPower"]===1&],"Coefficients",{}]][0]===-2];
+short=FeynFacet`WithEpsilonRemainderChecks[expansion=FeynFacet`ConstructAnalyticEndpointExpansion[fixture,req];
+ If[FailureQ[expansion],expansion,FeynFacet`ExtractEndpointDistributions[expansion,<|"ThroughOrder"->0|>]],"TruncationOrderShift"->-1];
+check["one-order-short fixture rejected",short["EpsilonRemainderAudit"]["Status"]==="Failed"];
+check["mixed nonintegrable powers not merged",FailureQ[FeynFacet`ConstructAnalyticEndpointExpansion[zTest^(-1-epTest)+zTest^(-1-2epTest),req]]];
+check["joint regulator-endpoint poles rejected",FailureQ[FeynFacet`ConstructAnalyticEndpointExpansion[1/(zTest+epTest),req]]];
+check["unclassified endpoint functions rejected",FailureQ[FeynFacet`ConstructAnalyticEndpointExpansion[Gamma[zTest+epTest],req]]];
+check["domain conditions required",FailureQ[FeynFacet`ConstructAnalyticEndpointExpansion[fixture,KeyDrop[req,"EndpointConditions"]]]];
+check["positive logarithm factorization",FeynFacetSolution`ExpandPositiveLogarithms[Log[4sTest(1-vTest)],sTest>0&&0<vTest<1]===2Log[2]+Log[sTest]+Log[1-vTest]];
+check["unknown logarithm branch rejected",FailureQ[FeynFacetSolution`ExpandPositiveLogarithms[Log[xTest],True]]];
+check["causal real-part phase",FullSimplify[FeynFacetSolution`RealPartOnPhysicalDomain[(Log[sTest]-I Pi)^2,sTest>0]-Log[sTest]^2+Pi^2]===0];
+Print["ANALYTIC_ENDPOINT_TESTS ",passed,"/",passed+failed];Exit[If[failed===0,0,1]];

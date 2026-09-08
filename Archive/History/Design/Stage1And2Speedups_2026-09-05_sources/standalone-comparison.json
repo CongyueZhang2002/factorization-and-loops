@@ -1,0 +1,13 @@
+{
+  "Family": "CF269",
+  "PackageLoaded": "FeynFacet/FiniteSolutionData.wl only",
+  "Point": [
+    "13/50",
+    "17/50"
+  ],
+  "QuadratureOrder": 12,
+  "WorkingPrecision": 50,
+  "MaximumAbsoluteDifference": 0,
+  "Threshold": 1e-35,
+  "Passed": true
+}

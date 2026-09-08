@@ -1,4 +1,5 @@
-(* General two-loop family differential-system construction.
+(* Family differential-system construction for any positive loop count
+   with three massless external momenta.
 
    The topology and cut data come from the current CanonicalRegistry; the
    requested seed masters come from the current Kira-stream master-integral
@@ -325,18 +326,16 @@ familyDEPrepareEulerAlgebra[topology_, invariants_List,
   propagators = familyDEParsePropagator /@ topology[[2]];
   loopMomenta = topology[[3]];
   externalMomenta = topology[[4]];
-  If[! MatchQ[loopMomenta, {_, _}] ||
+  If[! MatchQ[loopMomenta, {__Symbol}] ||
       ! MatchQ[externalMomenta, {_, _, _}] ||
       Length[invariants] =!= 3 || ! FreeQ[propagators, _Missing],
-    Return[familyDEFailure["TwoLoopThreeExternalMomentumTopologyRequired",
+    Return[familyDEFailure["LoopAndThreeExternalMomentumTopologyRequired",
       <|"LoopMomenta" -> loopMomenta,
         "ExternalMomenta" -> externalMomenta|>]]];
   If[! AllTrue[cutPositions, IntegerQ[#] && 1 <= # <= Length[propagators] &],
     Return[familyDEFailure["CutIndicesInvalid"]]];
   momentumBasis = Join[loopMomenta, externalMomenta];
-  pairs = Join[{{loopMomenta[[1]], loopMomenta[[1]]},
-      {loopMomenta[[2]], loopMomenta[[2]]},
-      {loopMomenta[[1]], loopMomenta[[2]]}},
+  pairs = Join[({#,#}&/@loopMomenta),Subsets[loopMomenta,{2}],
     Flatten[Table[{loop, external}, {loop, loopMomenta},
       {external, externalMomenta}], 1]];
   If[Length[propagators] =!= Length[pairs],

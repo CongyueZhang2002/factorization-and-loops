@@ -1,5 +1,6 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 Clear[x, y, eps, master];
 conditions = <|"BasisTransformationInverse" -> True,
@@ -12,7 +13,7 @@ blockDecomposition = <|
     "RelativePath" -> "synthetic_family_system.wl",
     "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
     "Family" -> "Synthetic"|>,
-  "IrreducibleDiagonalBlocks" -> {{1}}|>;
+  "DiagonalBlocksInCurrentBasis" -> {{1}}|>;
 exact = <|"DataType" -> "FamilyDLogEpsilonForm", "SchemaVersion" -> 2,
   "Status" -> "FamilyDLogEpsilonFormValidated",
   "Family" -> "Synthetic",
@@ -53,9 +54,6 @@ legacyFiniteFieldMethod = ReplacePart[probabilistic,
   {"Validation", "Method"} -> "FiniteFieldEvaluation"];
 legacyStatus = ReplacePart[exact,
   "Status" -> "ExactlyValidatedFamilyDLogEpsilonForm"];
-v2BlockRecord = exact;
-legacyBlockRecord = Join[KeyDrop[exact, "BlockDecomposition"],
-  <|"IrreducibleDiagonalBlocks" -> {{1}}|>];
 incompletePublicRecord = KeyDrop[exact, "OriginalMasterIntegralBasis"];
 
 tests = <|
@@ -76,13 +74,7 @@ tests = <|
   "LegacyStrengthStatusRejected" ->
     ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[legacyStatus],
   "IncompletePublicRecordRejected" ->
-    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[incompletePublicRecord],
-  "ObservableConsumerUsesNestedBlockDecomposition" ->
-    FeynFacet`Private`observableTransportIrreducibleDiagonalBlocks[
-      v2BlockRecord] === {{1}},
-  "ObservableConsumerHasNoTopLevelBlockFallback" ->
-    MissingQ[FeynFacet`Private`observableTransportIrreducibleDiagonalBlocks[
-      legacyBlockRecord]]
+    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[incompletePublicRecord]
 |>;
 
 Print[InputForm[tests]];

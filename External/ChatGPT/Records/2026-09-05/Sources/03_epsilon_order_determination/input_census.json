@@ -1,0 +1,136 @@
+{
+  "Source": "ppHX_NNLO_DoubleReal/InputData/UU_08_10_canonical/HardFunctionMasterCoefficientEpsilonValuations.wl",
+  "EntryCount": 347,
+  "CoefficientValuationCounts": {
+    "-4": 1,
+    "-2": 7,
+    "0": 203,
+    "-1": 131,
+    "-3": 1,
+    "1": 2,
+    "Missing[\"ZeroColumn\"]": 2
+  },
+  "Scope": "Saved generic double-real coefficient valuations, before accounting for downstream endpoint distributions, counterterms, or constant lower bounds; source evidence inherited rather than recomputed.",
+  "SelectedFamilies": [
+    {
+      "MasterIntegralIndex": 178,
+      "Family": "CF269",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 179,
+      "Family": "CF269",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 180,
+      "Family": "CF269",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 181,
+      "Family": "CF269",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 195,
+      "Family": "CF303",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 196,
+      "Family": "CF303",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 197,
+      "Family": "CF303",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 198,
+      "Family": "CF303",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 199,
+      "Family": "CF303",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 200,
+      "Family": "CF303",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 268,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 269,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 270,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 271,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 272,
+      "Family": "CF48",
+      "CoefficientValuation": "-1"
+    },
+    {
+      "MasterIntegralIndex": 273,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 274,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 275,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 276,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 277,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 278,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 279,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 280,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    },
+    {
+      "MasterIntegralIndex": 281,
+      "Family": "CF48",
+      "CoefficientValuation": "0"
+    }
+  ]
+}

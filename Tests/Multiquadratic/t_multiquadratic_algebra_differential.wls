@@ -43,17 +43,18 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
+Get[FeynFacet`Private`feynFacetModuleFile["Algebra/Multiquadratic/Arithmetic.wl"]];
 (* the strip solver is eight files since round 4 (2026-09-02); the manifest
    names them in load order *)
-Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
-  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &];
+Get[FeynFacet`Private`feynFacetModuleFile[#]] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Kernel", "Modules.wl"}]],
+    "EpsilonForm"], StringStartsQ[#, "DifferentialEquations/EpsilonForm/Multiquadratic/"] &];
 (* the consumer is not registered in FeynFacet.m; read it into
    FeynFacet`Private` exactly as Tests/FiniteField/t_family_row_basis_transformation_finite_field.wls
    does *)
 Begin["FeynFacet`Private`"];
-Get[FileNameJoin[{root, "Prototypes", "FamilyRowBasisTransformationFiniteField.wl"}]];
+Get[FileNameJoin[{root, "Tests", "Support", "FamilyRowBasisTransformationFiniteField.wl"}]];
 End[];
 
 pass = 0; fail = 0;

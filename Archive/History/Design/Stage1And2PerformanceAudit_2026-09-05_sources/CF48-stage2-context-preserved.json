@@ -1,0 +1,106 @@
+{
+	"Family":"CF48",
+	"TotalSeconds":3.9796765e1,
+	"Success":true,
+	"Phases":[
+		{
+			"Seconds":0.123329,
+			"Phase":"Order determination: prepare the system"
+		},
+		{
+			"Seconds":0.681375,
+			"Phase":"Order determination: select the base point"
+		},
+		{
+			"Seconds":2.612629,
+			"Phase":"Order determination: basis valuations"
+		},
+		{
+			"Seconds":3.375117,
+			"Phase":"Order determination: connection valuations"
+		},
+		{
+			"Seconds":3.779904,
+			"Phase":"Order determination: defining integrals and pole bounds"
+		},
+		{
+			"Seconds":6.738597,
+			"Phase":"Order determination: assemble the report"
+		},
+		{
+			"Seconds":6.875125,
+			"Phase":"Checking flatness in all coordinates"
+		},
+		{
+			"Seconds":7.043748,
+			"Phase":"Preparing the connection for finite integration"
+		},
+		{
+			"Seconds":7.115595,
+			"Phase":"Normalizing the complete basis transformation at the base point"
+		},
+		{
+			"Seconds":7.435154,
+			"Phase":"Expanding the transformed connection through epsilon order 6"
+		},
+		{
+			"Seconds":7.435291,
+			"Phase":"Transforming source epsilon coefficients by finite basis convolutions"
+		},
+		{
+			"Seconds":7.591464,
+			"Phase":"Finite integration requires epsilon order 6 with 1175 matrix coefficients"
+		},
+		{
+			"Seconds":7.602096,
+			"Phase":"Constructing all finite integral definitions"
+		},
+		{
+			"Seconds":7.717832,
+			"Phase":"Completing the basis-change epsilon convolutions"
+		},
+		{
+			"Seconds":1.6493193e1,
+			"Phase":"Building the complete result association"
+		},
+		{
+			"Seconds":1.6493389e1,
+			"Phase":"Checking the complete finite expression"
+		}
+	],
+	"Functions":{
+		"FeynFacet`Private`epsOrderPrepareFrame":{
+			"Calls":1,
+			"InclusiveSeconds":0.557666
+		},
+		"DetermineMasterIntegralExpansionOrders":{
+			"Calls":1,
+			"InclusiveSeconds":6.738926
+		},
+		"FeynFacet`Private`solutionFlatness":{
+			"Calls":1,
+			"InclusiveSeconds":0.168506
+		},
+		"FeynFacet`Private`solutionGaugeChecks":{
+			"Calls":1,
+			"InclusiveSeconds":3.4421e-2
+		},
+		"FeynFacet`Private`solutionLaurentCoefficients":{
+			"Calls":6,
+			"InclusiveSeconds":8.558978999999999
+		},
+		"FeynFacet`Private`solutionConnectionCoefficientConjugation":{
+			"Calls":1,
+			"InclusiveSeconds":0.112012
+		},
+		"MasterIntegralSolutionQ":{
+			"Calls":2,
+			"InclusiveSeconds":2.3283056e1
+		},
+		"FeynFacet`Private`solutionMasterCoefficientsFromOrders":{
+			"Calls":1,
+			"InclusiveSeconds":2.2909712e1
+		}
+	},
+	"MaximumWolframMemoryBytes":333778608
+}

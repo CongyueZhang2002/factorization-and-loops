@@ -8,6 +8,7 @@
    invertible matrix, and the gate must certify it. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 x = Global`x; y = Global`y; eps = Global`eps;
 flags = {};
 check[label_, value_] := (AppendTo[flags, label -> TrueQ[value]];

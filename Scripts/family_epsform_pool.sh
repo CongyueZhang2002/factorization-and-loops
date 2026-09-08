@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Family eps-form completion on ONE main kernel + N subkernels (N is the
 # option), several families at once, each family parallelized through the
-# pool's task broker (FeynFacet/Private/Infrastructure/TaskBroker.wl):
+# pool's task broker (FeynFacet/Core/ParallelTasks.wl):
 #   - the KernelPool is our one main kernel; every family runs as a pool
 #     mission on one subkernel (family_epsform_sector.wls);
 #   - inside a strip, the finite-field sample batches and the CANONICA
@@ -24,7 +24,7 @@
 # Env:   FACET_CPU_LIST (default 0,1,6,7,8,9,18,19 = the P-cores),
 #        FACET_RATIONAL_MAPLE_BUDGET (default 300), FACET_SECTOR_BUDGET (1800),
 #        FACET_VALIDATED_FAMILY_DLOG_EPSILON_FORM_DIRECTORY
-# Progress: Scripts/tworoot_status.sh <output-root>
+# Progress: inspect family logs under <output-root> and use Scripts/kpstatus.sh <pooldir>.
 set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if (( $# < 5 )); then

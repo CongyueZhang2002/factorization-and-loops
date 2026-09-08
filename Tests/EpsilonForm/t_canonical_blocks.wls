@@ -50,6 +50,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 (* Bare symbols are resolved at parse time, and CANONICA` joins
    $ContextPath as soon as the first canonicalization loads it, which
@@ -73,7 +74,7 @@ formDirectory = FileNameJoin[{scratch, "forms"}];
    HoldFirst, so it would never evaluate the Symbol and would report a
    missing usage message for every symbol. *)
 entryPoints = {"DecomposeFamilyBlocks", "ClassifyBlocks",
-  "CanonicalizeClasses", "ValidateCanonicalForm", "CanonicalBlocksStatus"};
+  "ValidateCanonicalForm", "CanonicalBlocksStatus"};
 
 (* System`Names, not Names: the loaded FeynCalc/FeynArts session shadows
    the bare symbol, so `Names[...]` stays unevaluated and every lookup

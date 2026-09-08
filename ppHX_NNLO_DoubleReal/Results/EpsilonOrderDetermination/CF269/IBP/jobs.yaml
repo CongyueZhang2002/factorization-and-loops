@@ -1,0 +1,14 @@
+jobs:
+  - reduce_sectors:
+      reduce:
+        - {topologies: [CF269], sectors: [255], r: 10, s: 5}
+      select_integrals:
+        select_mandatory_list:
+          - [CF269, targets]
+      run_initiate: true
+      run_triangular: true
+      run_back_substitution: true
+      integral_ordering: 2
+  - kira2math:
+      target:
+        - [CF269, targets]

@@ -1,10 +1,11 @@
-(* AnalyzeOffDiagonalBlockEpsilonFormObstructions: the order-by-order certificate.
+(* AnalyzeOffDiagonalBlockEpsilonFormObstructions: the finite expansion diagnostic.
    (a) a synthetic block with the known rational solution D = eps x;
    (b) a synthetic missing letter: the alphabet is overridden to exclude
        the inhomogeneity's curve -> MissingLetters; supplying it as ExtraLetters
        clears the verdict. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 pass = 0; fail = 0;
 check[label_, ok_] := (If[TrueQ[ok], pass++; Print["OK   ", label], fail++; Print["FAIL ", label]]);
 (* (a) *)

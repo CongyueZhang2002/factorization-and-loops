@@ -1,0 +1,76 @@
+(* Read-only order audits of materialized stage-4 coefficients. *)
+BeginPackage["FeynFacet`"];
+CheckStage4EpsilonRemainders::usage="CheckStage4EpsilonRemainders[interior,endpoints,request] checks actual stored coefficient/master cutoffs and scalar endpoint tails against exact regulated moments. It requires complete master and separated-pole coverage and evaluates no integrals.";
+Begin["`Private`"];
+stage4OrderAuditFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"Stage4Orders"];
+stage4OrderAuditRange[orders_List,lower_,source_]:=Module[{upper},
+ If[!IntegerQ[lower]||!AllTrue[orders,IntegerQ]||!DuplicateFreeQ[orders],
+  stage4OrderAuditFail["ExplicitStoredEpsilonOrdersRequired",<|"Source"->source|>]];
+ upper=If[orders==={},lower-1,Max[orders]];
+ If[Complement[Range[lower,upper],orders]=!={},stage4OrderAuditFail["StoredEpsilonOrderGap",<|"Source"->source|>]];
+ upper
+];
+stage4OrderAuditInterior[d_]:=Module[{target,mi,ci,plans,masterOrders,coefficientOrders,ml,cl,mh,ch,id},
+ If[Lookup[d,"DataType",None]=!="FiniteMasterIntegralDensity"||
+  !TrueQ[Lookup[d,"PhysicalBoundaryCoefficientsResolved",False]],stage4OrderAuditFail["PhysicalFiniteDensityRequired"]];
+ {mi,ci,plans}=Lookup[d,{"MasterCoefficientIndex","CoefficientFunctionIndex","MasterOrderRequirements"}];
+ If[!AllTrue[{mi,ci,plans},ListQ],stage4OrderAuditFail["FiniteDensityOrderMetadataRequired"]];
+ target=Last[d["EpsilonOrderRange"]];
+ masterOrders=GroupBy[mi,#["Master"]&,(Lookup[#,"EpsilonOrder"]&)];
+ coefficientOrders=GroupBy[ci,#["Master"]&,(Lookup[#,"EpsilonOrder"]&)];
+ Do[id=p["Master"];{ml,cl}=Lookup[p,{"MasterLaurentLowerBound","CoefficientLaurentLowerBound"}];
+  If[cl===Infinity,Continue[]];
+  mh=stage4OrderAuditRange[Lookup[masterOrders,Key[id],{}],ml,{"Master",id}];
+  ch=stage4OrderAuditRange[Lookup[coefficientOrders,Key[id],{}],cl,{"Coefficient",id}];
+  epsilonAuditProduct[{epsilonAuditSpec[{"StoredMaster",id},ml,mh],
+    epsilonAuditSpec[{"StoredCoefficient",id},cl,ch]},target,"Stage4/SavedInteriorConvolution",id],{p,plans}];
+ Length[plans]
+];
+stage4OrderAuditEndpoint[record_,request_,label_]:=Module[{d=record,e,z,target,upper,cs,lo,hi,exact,u,moment,a,b,p},
+ If[Lookup[d,"DataType",None]=!="FiniteScalarEndpointSolution"||
+  !TrueQ[Lookup[d,"PhysicalBoundaryValuesApplied",False]]||
+  !TrueQ[Lookup[d,"GlobalPrefactorIncluded",False]]||
+  Lookup[d,"RequiredInitialConstantCoefficients",None]=!={},stage4OrderAuditFail["CompletePhysicalScalarEndpointRequired",<|"Endpoint"->label|>]];
+ {e,z}=Lookup[d,{"DimensionalRegulator","NormalVariable"}];target=request["ThroughOrder"];upper=Last[request["Interval"]];
+ Do[{a,b,p}=Lookup[term,{"Power","RegulatorExponent","LogPower"}];
+  If[!IntegerQ[a]||a>=0||!MatchQ[b,_Integer|_Rational]||!IntegerQ[p]||p<0,
+   stage4OrderAuditFail["SingularEndpointMonomialRequired",<|"Endpoint"->label|>]];
+  cs=term["Coefficients"];lo=term["LaurentLowerBound"];
+  If[!AssociationQ[cs],stage4OrderAuditFail["ExplicitEndpointCoefficientsRequired"]];
+  hi=Min[term["KnownThroughOrder"],stage4OrderAuditRange[Keys[cs],lo,{label,a,b,p}]];
+  exact=TrueQ[Lookup[term,"ExactInEpsilon",False]];
+  If[exact,Continue[]];
+  epsilonAuditProduct[{epsilonAuditSpec[{"StoredEndpoint",label,a,b,p},lo,hi]},target,
+    "Stage4/SavedEndpointRegularExpansion",label];
+  u=Unique["momentExponent"];
+  Do[moment=D[upper^u/u,{u,p}]/.u->a+j+1+b e;
+   epsilonAuditMultiplier[moment,e,lo,hi,target,"Stage4/SavedEndpointMoment",{label,a,b,p,j}],{j,0,-a-1}],
+ {term,d["EndpointTerms"]}];Length[d["EndpointTerms"]]
+];
+Options[CheckStage4EpsilonRemainders]=Options[WithEpsilonRemainderChecks];
+CheckStage4EpsilonRemainders[interior_Association,endpoints_Association,request_Association,opts:OptionsPattern[]]:=
+ WithEpsilonRemainderChecks[Catch[Module[{expected,covered,removed,added,counts,masters,checks},
+  If[Lookup[request,"ThroughOrder",None]=!=Last[interior["EpsilonOrderRange"]]||
+    !MatchQ[Lookup[request,"Interval",None],{0,_}],stage4OrderAuditFail["MatchingStage4TargetAndIntervalRequired"]];
+  expected=Lookup[interior["MasterOrderRequirements"],"Master"];
+  covered=Flatten[Lookup[Values[endpoints],"ProjectedMasterIdentities",{}],1];
+  removed=Flatten[Lookup[Values[endpoints],"SeparatedCoefficientPoles",{}],1];
+  added=Flatten[Lookup[Values[endpoints],"PartialCoefficientContributions",{}],1];
+  If[Sort[covered]=!=Sort[expected]||!TrueQ[coefficientPoleCoverage[removed,added,covered]],
+    stage4OrderAuditFail["Stage4EndpointCoverageIncomplete"]];
+  Do[If[Lookup[d,"SourceCoefficientFile",None]=!=Lookup[interior,"SourceCoefficientFile",None]||
+    Lookup[d,"NormalVariable",None]=!=Lookup[request,"NormalVariable",None]||
+    Lookup[d,"TangentialVariable",None]=!=Lookup[request,"TangentialVariable",None],
+    stage4OrderAuditFail["Stage4CoefficientSourceOrCoordinatesMismatch"]];
+   checks=Lookup[d,"CoefficientTailSufficiency",<||>];
+   If[Lookup[checks,"Status",None]=!="SufficientOrdersDetermined"||
+     Lookup[checks,"MissingCoefficientOrders",None]=!={}||Lookup[checks,"UnresolvedCoefficientRemainderClasses",{}]=!={},
+    stage4OrderAuditFail["UniformEndpointCoefficientTailRequired"]],{d,Values[endpoints]}];
+  masters=stage4OrderAuditInterior[interior];
+  counts=KeyValueMap[stage4OrderAuditEndpoint[#2,request,#1]&,endpoints];
+  <|"Status"->"StoredStage4OrdersChecked","MasterCount"->masters,"EndpointContributionCount"->Length[endpoints],
+    "EndpointTermCount"->Total[counts],"NewIntegralEvaluations"->0,
+    "Scope"->"Actual stored interior and endpoint cutoffs, under the declared lower bounds and uniform remainder classes. This does not replay earlier tangential DE construction or prove those classes."|>
+ ],"Stage4Orders"],opts];
+End[];
+EndPackage[];

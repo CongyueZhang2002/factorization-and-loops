@@ -3,6 +3,7 @@
    defining input, and be recomputed for a different input. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 Clear[xPreparation, yPreparation, epsPreparation];
 record = <|"Variables" -> {xPreparation, yPreparation},

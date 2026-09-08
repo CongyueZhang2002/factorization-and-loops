@@ -6,8 +6,8 @@
    MB, no entry over 6 s).  Probe time is linear in column size
    (measured 0.45-0.5 ms per MB), so this is the probe-rate lever.
 
-   The original file is kept next to the compacted one as
-   <name>.expr.fat; the manifest's ExpressionBytes are rewritten.
+   The original file is retained as <name>.expr.fat until the manifest
+   is updated successfully, then removed. Interrupted runs retain their backup.
 
    Usage:
      wolframscript -file Scripts/compact_trace_columns.wls \
@@ -121,10 +121,17 @@ Scan[
    the package's record writer (the manifest is a length-prefixed WXF
    record store, not a plain WXF file). *)
 traceData["ExpressionBytes"] = FileByteCount /@ traceData["OutputFiles"];
-FeynFacet`Private`finiteFieldWriteTraceManifest[
+compactionManifestResult=FeynFacet`Private`finiteFieldWriteTraceManifest[
   directory,
   traceData,
   record["InputFileFingerprint"],
   record["KiraFileHash"]
 ];
+compactionManifestCheck=FeynFacet`Private`coefficientReadRecord[
+ FeynFacet`Private`finiteFieldTraceManifestFile[directory]];
+If[compactionManifestResult===$Failed||!AssociationQ[compactionManifestCheck]||
+ compactionManifestCheck["TraceData"]=!=traceData,
+ Print["MANIFEST UPDATE FAILED; original expression backups retained"];Exit[1]];
+Scan[Function[key,With[{backup=FileNameJoin[{directory,"Expressions","Output_"<>key<>".expr.fat"}]},
+ If[FileExistsQ[backup],DeleteFile[backup]]]],keys];
 Print["MANIFEST UPDATED"];

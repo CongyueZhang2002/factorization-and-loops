@@ -6,6 +6,7 @@
    refusal). *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 pass = 0; fail = 0;
 check[label_, ok_] := (If[TrueQ[ok], pass++; Print["OK   ", label], fail++; Print["FAIL ", label]]);
 rv = FeynFacet`Private`canonicalBlocksResolveVariables;
@@ -35,15 +36,15 @@ check["ambiguous regulator is $Failed",
 (* campaign-level typed statuses *)
 rec[m_] := <|"ClassID" -> 999, "RepAv" -> m, "RepAw" -> m|>;
 cr = FeynFacet`Private`diagonalBlockClassRecord;
-r1 = cr[rec[{{Global`a/(1 + Global`b)}}], Automatic, 60, None, False];
+r1 = cr[rec[{{Global`a/(1 + Global`b)}}], Automatic, 60, False];
 check["undeclared foreign class record refused typed",
   AssociationQ[r1] && r1["Status"] === "ClassVariablesUndeclared"];
-r2 = cr[rec[{{eps/(1 + v) + Global`Epsilon w}}], Automatic, 60, None, False];
+r2 = cr[rec[{{eps/(1 + v) + Global`Epsilon w}}], Automatic, 60, False];
 check["ambiguous-regulator class record refused typed",
   AssociationQ[r2] && r2["Status"] === "RegulatorAmbiguous"];
 (* the zero block is the minimal genuine regulator-free representative
    (the project's regulator-free classes certify the same way) *)
-r3 = cr[rec[{{0}}], Automatic, 60, None, False];
+r3 = cr[rec[{{0}}], Automatic, 60, False];
 check["regulator-free class record proceeds and is flagged",
   AssociationQ[r3] && r3["Status"] =!= "RegulatorAmbiguous" &&
     r3["Status"] =!= "ClassVariablesUndeclared" &&

@@ -1,0 +1,110 @@
+{
+	"Family":"CF303",
+	"TotalSeconds":2.07454082e2,
+	"Success":true,
+	"Phases":[
+		{
+			"Seconds":1.858859,
+			"Phase":"Order determination: prepare the system"
+		},
+		{
+			"Seconds":3.144215,
+			"Phase":"Order determination: select the base point"
+		},
+		{
+			"Seconds":2.4763765e1,
+			"Phase":"Order determination: basis valuations"
+		},
+		{
+			"Seconds":2.4857469e1,
+			"Phase":"Order determination: connection valuations"
+		},
+		{
+			"Seconds":7.7186755e1,
+			"Phase":"Order determination: defining integrals and pole bounds"
+		},
+		{
+			"Seconds":8.5498351e1,
+			"Phase":"Order determination: assemble the report"
+		},
+		{
+			"Seconds":8.7741624e1,
+			"Phase":"Checking flatness in all coordinates"
+		},
+		{
+			"Seconds":8.774348e1,
+			"Phase":"Checking the supplied basis against the original differential system"
+		},
+		{
+			"Seconds":9.1802411e1,
+			"Phase":"Preparing the connection for finite integration"
+		},
+		{
+			"Seconds":9.1831303e1,
+			"Phase":"Normalizing the complete basis transformation at the base point"
+		},
+		{
+			"Seconds":9.2684585e1,
+			"Phase":"Expanding the transformed connection through epsilon order 7"
+		},
+		{
+			"Seconds":9.2684743e1,
+			"Phase":"Transforming source epsilon coefficients by finite basis convolutions"
+		},
+		{
+			"Seconds":1.65440105e2,
+			"Phase":"Finite integration requires epsilon order 7 with 2690 matrix coefficients"
+		},
+		{
+			"Seconds":1.75856608e2,
+			"Phase":"Constructing all finite integral definitions"
+		},
+		{
+			"Seconds":1.76331172e2,
+			"Phase":"Completing the basis-change epsilon convolutions"
+		},
+		{
+			"Seconds":1.77015615e2,
+			"Phase":"Building the complete result association"
+		},
+		{
+			"Seconds":1.77015855e2,
+			"Phase":"Checking the complete finite expression"
+		}
+	],
+	"Functions":{
+		"FeynFacet`Private`epsOrderPrepareFrame":{
+			"Calls":1,
+			"InclusiveSeconds":1.285068
+		},
+		"DetermineMasterIntegralExpansionOrders":{
+			"Calls":1,
+			"InclusiveSeconds":8.5499183e1
+		},
+		"FeynFacet`Private`solutionGaugeChecks":{
+			"Calls":2,
+			"InclusiveSeconds":2.6980329999999997
+		},
+		"FeynFacet`Private`solutionFlatness":{
+			"Calls":1,
+			"InclusiveSeconds":2.712727
+		},
+		"FeynFacet`Private`solutionLaurentCoefficients":{
+			"Calls":6,
+			"InclusiveSeconds":3.0754144e1
+		},
+		"FeynFacet`Private`solutionConnectionCoefficientConjugation":{
+			"Calls":1,
+			"InclusiveSeconds":5.0468076e1
+		},
+		"MasterIntegralSolutionQ":{
+			"Calls":2,
+			"InclusiveSeconds":3.0391964e1
+		},
+		"FeynFacet`Private`solutionMasterCoefficientsFromOrders":{
+			"Calls":1,
+			"InclusiveSeconds":1.6698027e1
+		}
+	},
+	"MaximumWolframMemoryBytes":2228074712
+}

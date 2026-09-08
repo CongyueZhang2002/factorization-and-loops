@@ -11,6 +11,7 @@ rd[f_] := Block[{$ContextPath = {"System`", "Global`"}, $Context = "Global`"}, G
 record = rd[file];
 If[! (AssociationQ[record] && KeyExistsQ[record, "OffDiagonalBlockEquation"]), Print["bad record ", file]; Exit[3]];
 If[! MemberQ[$ContextPath, "FeynFacet`"], Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 name = StringReplace[FileBaseName[file], {"_input" -> "", "fixture_" -> ""}];
 dims = Dimensions[record["OffDiagonalBlockEquation"][[3]][[1]]];
 tsv = FileNameJoin[{outdir, strategy <> ".tsv"}];

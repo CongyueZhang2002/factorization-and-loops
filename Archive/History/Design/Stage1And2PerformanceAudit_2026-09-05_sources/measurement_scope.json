@@ -1,0 +1,7 @@
+{
+  "Scope": "Inspection and diagnostic prototypes only. No production canonicalization or finite-solution algorithm was changed.",
+  "Profiles": "Successful constructions at the same requests as the saved examples. Instrumented wall times, not claimed speedups. CF48 overlapped the final part of CF303; use dedicated fixed-resource runs for before/after acceptance.",
+  "ExcludedRuns": "Two initial profiling attempts rebound Global symbols while reloading WL source. Their failed constructions are excluded. Explicit package contexts corrected the instrumentation; the preserved profiles both succeeded.",
+  "Memory": "Wolfram ByteCount is a structural expression size, not aggregate operating-system RSS. Shared subexpressions can be counted repeatedly.",
+  "Stage1Evidence": "Retained comparable block timings and current source inspection; no fresh full hard-block canonicalization was run in this audit."
+}

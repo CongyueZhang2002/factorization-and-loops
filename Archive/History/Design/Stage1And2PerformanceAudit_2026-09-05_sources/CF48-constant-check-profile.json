@@ -1,0 +1,18 @@
+{
+	"Family":"CF48",
+	"Valid":true,
+	"TotalSeconds":2.2125544e1,
+	"InclusiveSeconds":{
+		"ExplicitExpression":4.484299999999999e-2,
+		"PolynomialQ":2.195703500000001e1,
+		"Exponent":3.824199999999999e-2,
+		"Coefficient":1.3550000000000005e-3
+	},
+	"Calls":{
+		"ExplicitExpression":162,
+		"PolynomialQ":162,
+		"Exponent":162,
+		"Coefficient":162
+	},
+	"MasterCoefficientBytes":10041168
+}

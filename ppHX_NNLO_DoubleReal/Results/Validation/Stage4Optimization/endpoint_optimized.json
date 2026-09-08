@@ -1,0 +1,16 @@
+{
+	"Passed":true,
+	"AllMathematicalFieldsIdentical":true,
+	"AssemblySeconds":2.17605996e2,
+	"InputLoadingSeconds":2.6370577e1,
+	"BeforeAssemblySeconds":2.68664649e2,
+	"PhaseSeconds":{
+		"InteriorDefinitions":126.346694,
+		"EndpointDefinitionsAndCoverage":23.006995,
+		"DistributionExtraction":20.043663,
+		"CoefficientAssembly":2.525890,
+		"FinalDefinitionChecks":45.613772
+	},
+	"MasterCount":345,
+	"NoNewIntegrations":true
+}

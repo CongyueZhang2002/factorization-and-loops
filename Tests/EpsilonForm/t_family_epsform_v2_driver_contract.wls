@@ -9,8 +9,7 @@ recordValidator = Import[FileNameJoin[{root, "Scripts",
   "certify_family_epsform_record.wls"}], "Text"];
 launchers = Import[#, "Text"] & /@ (FileNameJoin[{root, "Scripts", #}] & /@
   {"family_epsform_campaign.sh", "family_epsform_pool.sh",
-   "complete_family_epsforms.sh", "tworoot_campaign.sh",
-   "tworoot_parallel.sh"});
+   "complete_family_epsforms.sh"});
 
 FTAssert["sector driver requires the four explicit V2 mathematical inputs",
   AllTrue[{"familyDifferentialSystemFile", "blockDecompositionFile",

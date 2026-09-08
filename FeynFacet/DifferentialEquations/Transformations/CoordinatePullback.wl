@@ -1,0 +1,118 @@
+(* Pull back complete differential systems, not individual auxiliary
+   integrals. Root signs are fixed at an explicit ordinary-point lift. *)
+Begin["FeynFacet`Private`"];
+FeynFacet`PullBackMasterIntegralDifferentialSystem::usage="PullBackMasterIntegralDifferentialSystem[system,parametrization,baseLift] pulls the connection and all supplied basis/homogeneous matrices to a verified rationalizing parametrization. Square-root signs are fixed from exact source values at the explicit lift, and tracked as continuous local branches. The result is input for the general finite constructor.";
+Options[FeynFacet`PullBackMasterIntegralDifferentialSystem]={"TimeLimit"->120,"RootValuesAtBasePoint"->Automatic};
+FeynFacet`PullBackMasterIntegralDifferentialSystem[system_Association,param_Association,lift_List,OptionsPattern[]]:=
+ TimeConstrained[Catch[Module[
+ {verification,source=system["KinematicVariables"],target,substitution,images,base,baseRules,sourceRules,
+  determinant,eps=system["DimensionalRegulator"],rootRecords={},rootImage,pull,connection,fields,
+  result,connectionSource,check,matrices,n,presentation,priorSubstitution,rootValues=OptionValue["RootValuesAtBasePoint"],suppliedRoot},
+ If[Lookup[system,"DataType",None]==="MasterIntegralSolution",
+  solutionFail["DifferentialSystemRequiredForCoordinatePullback"]];
+ matrices=Lookup[system,"ConnectionMatrices",None];
+ If[!ListQ[source]||source==={}||!VectorQ[source,MatchQ[#,_Symbol]&]||
+   !ListQ[matrices]||Length[matrices]=!=Length[source]||!AllTrue[matrices,MatrixQ[Normal[#]]&],
+  solutionFail["DifferentialSystemConnectionMatricesRequired"]];
+ n=Length[First[matrices]];
+ If[n<1||Dimensions[Normal/@matrices]=!={Length[source],n,n},
+  solutionFail["DifferentialSystemConnectionDimensionsMismatch"]];
+ If[rootValues===Automatic,rootValues=Lookup[system,"RootValuesAtBasePoint",Automatic]];
+ If[rootValues=!=Automatic&&!AssociationQ[rootValues],
+  solutionFail["ExplicitRootValuesAssociationRequired"]];
+ verification=FeynFacet`VerifyRationalizingParametrization[param];
+ If[!TrueQ[Lookup[verification,"Verified",False]],solutionFail["RationalizingParametrizationNotVerified"]];
+ target=param["ParametrizingVariables"];substitution=param["SourceVariableSubstitution"];
+ If[Length[source]=!=Length[target]||First/@substitution=!=source||
+    !DuplicateFreeQ[Join[source,target]]||Length[lift]=!=Length[target]||
+    !VectorQ[lift,NumericQ]||!FreeQ[lift,_Real],
+  solutionFail["InvalidRationalizingBasePointLift"]];
+ images=source/.substitution;base=images/.Thread[target->lift];
+ If[!VectorQ[base,NumericQ]||!FreeQ[base,Indeterminate|_DirectedInfinity],
+  solutionFail["RationalizingBasePointNotFinite"]];
+ baseRules=Thread[target->lift];sourceRules=Thread[source->base];
+ If[KeyExistsQ[system,"BasePoint"]&&
+   (!ListQ[system["BasePoint"]]||Length[system["BasePoint"]]=!=Length[base]||
+    !AllTrue[FullSimplify[base-system["BasePoint"]],#===0&]),
+  solutionFail["RationalizingBasePointDoesNotMatchSourceNormalization"]];
+ If[KeyExistsQ[system,"InitialConstants"]&&!KeyExistsQ[system,"BasePoint"],
+  solutionFail["SourceConstantNormalizationPointRequired"]];
+ determinant=Cancel[Det[Table[D[images[[i]],target[[j]]],{i,Length[source]},{j,Length[target]}]]];
+ If[!TrueQ[Abs[N[determinant/.baseRules,50]]>10^-35],
+  solutionFail["RationalizingBasePointJacobianSingular"]];
+ rootImage[b_]:=rootImage[b]=Module[{q,candidate,fac,sign,value,reference,radicand},
+  q=Cancel[Together[b/.substitution]];
+  If[!PolynomialQ[Numerator[q],target]||!PolynomialQ[Denominator[q],target],
+   solutionFail["RootRadicandNotRationalAfterPullback"]];
+  fac=FactorList[Numerator[q]];candidate=Sqrt[First[fac][[1]]];
+  Do[If[OddQ[f[[2]]],solutionFail["RootNotRationalized",<|"Radicand"->b|>]];
+    candidate*=f[[1]]^(f[[2]]/2),{f,Rest[fac]}];
+  fac=FactorList[Denominator[q]];candidate/=Sqrt[First[fac][[1]]];
+  Do[If[OddQ[f[[2]]],solutionFail["RootNotRationalized",<|"Radicand"->b|>]];
+    candidate/=f[[1]]^(f[[2]]/2),{f,Rest[fac]}];
+  candidate=Cancel[candidate];
+  If[!TrueQ[Cancel[Together[candidate^2-q]]===0],solutionFail["RationalizedRootIdentityFailed",<|"Radicand"->b,"Image"->q,"Candidate"->candidate|>]];
+  suppliedRoot=If[rootValues===Automatic,
+    If[KeyExistsQ[system,"BranchPrescription"],
+     solutionFail["ExplicitSourceRootValuesRequiredForDeclaredSheet"]];
+    Sqrt[b/.sourceRules],
+    Module[{matches=Select[Normal[rootValues],solutionZero[First[#]-b]&]},
+     If[Length[matches]=!=1,solutionFail["InvalidOrMissingSourceRootValue"]];
+     Last[First[matches]]]];
+  If[!NumericQ[suppliedRoot]||!FreeQ[suppliedRoot,_Real]||
+    !TrueQ[FullSimplify[suppliedRoot^2-(b/.sourceRules)]===0],
+   solutionFail["InvalidOrMissingSourceRootValue"]];
+  reference=N[suppliedRoot,60];value=N[candidate/.baseRules,60];
+  If[!NumericQ[reference]||!NumericQ[value]||!TrueQ[Abs[reference]>10^-35],
+   solutionFail["RootBranchNotRegularAtBasePoint"]];
+  sign=Which[TrueQ[Abs[value-reference]<10^-40 Max[1,Abs[reference]]],1,
+    TrueQ[Abs[value+reference]<10^-40 Max[1,Abs[reference]]],-1,
+    True,solutionFail["RationalizedRootBasePointMismatch"]];
+  AppendTo[rootRecords,<|"SourceRadicand"->b,"RationalRoot"->sign candidate,
+   "SourceBasePointRoot"->suppliedRoot,"RootIdentityVerified"->True|>];
+  sign candidate
+ ];
+ pull[z_]:=pull[z]=Which[
+  FreeQ[z,Alternatives@@source],z,
+  MemberQ[source,z],z/.substitution,
+  MatchQ[z,Power[_,_Rational]]&&Denominator[z[[2]]]===2,
+   rootImage[z[[1]]]^Numerator[z[[2]]],
+  AtomQ[z],z,
+  True,Map[pull,z]
+ ];
+ connection[matrices_]:=Table[
+  Map[Cancel,Total[Table[D[images[[j]],target[[i]]] pull[Normal[matrices[[j]]]],
+   {j,Length[source]}]],{2}],{i,Length[target]}];
+ fields=Association[];
+ Do[If[KeyExistsQ[system,key],
+   AssociateTo[fields,key->If[system[key]===None,None,
+    If[MemberQ[{"ConnectionMatrices","OriginalConnectionMatrices"},key],
+      connection[system[key]],pull[system[key]]]]]],
+ {key,{"ConnectionMatrices","OriginalConnectionMatrices","BasisTransformationMatrix",
+   "InverseBasisTransformationMatrix","HomogeneousFundamentalMatrix","InverseHomogeneousFundamentalMatrix",
+   "Topology","Topologies","TopologyRecord","KinematicRules","KinematicVariableDefinition",
+   "MasterIntegralRepresentations"}}];
+ If[AssociationQ[Lookup[system,"ConnectionCoefficientSource",None]],
+  connectionSource=system["ConnectionCoefficientSource"];
+  AssociateTo[fields,"ConnectionCoefficientSource"->Join[connectionSource,<|
+   "ConnectionMatrices"->connection[connectionSource["ConnectionMatrices"]],
+   "BasisTransformationMatrix"->pull[connectionSource["BasisTransformationMatrix"]],
+   "InverseBasisTransformationMatrix"->pull[connectionSource["InverseBasisTransformationMatrix"]]|>]]];
+ presentation=Lookup[system,"CoefficientPresentation",<||>];
+ If[!AssociationQ[presentation],presentation=<||>];
+ priorSubstitution=Lookup[presentation,"SourceVariableSubstitution",{}];
+ presentation=Join[presentation,<|"SourceVariableSubstitution"->
+   Join[(First[#]->pull[Last[#]]& /@ priorSubstitution),
+     Select[substitution,!MemberQ[First/@priorSubstitution,First[#]]&]]|>];
+ result=Join[KeyDrop[system,{"EpsilonZeroBlockReductions"}],fields,<|
+  "DataType"->"FamilyDifferentialSystem","CoefficientVariables"->target,
+  "CoefficientPresentation"->presentation,
+  "KinematicVariables"->target,"BasePoint"->lift,
+  "RationalizingCoordinates"-><|"SourceVariables"->source,"SourceVariableSubstitution"->substitution,
+    "SourceBasePoint"->base,"ParametrizingBasePoint"->lift,
+    "RootBranches"->rootRecords,"JacobianAtBasePoint"->(determinant/.baseRules),
+    "ParametrizationValidation"->verification,
+    "DomainConvention"->"A nonsingular simply connected neighborhood of the chosen lift; continuous roots from their stated base values."|>|>];
+ Clear[pull,rootImage];result
+],"FiniteSolution"],OptionValue["TimeLimit"],Failure["RationalizingPullbackTimeLimit",<||>]];
+End[];

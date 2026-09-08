@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Alphabet construction and the residue-only integrability screen of
-   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockSolve.wl (2026-08-24).
+   FeynFacet/DifferentialEquations/EpsilonForm/Multiquadratic/Solve.wl (2026-08-24).
 
    The fixture is the real off-diagonal block CF300 (12,9), read from the
    repository by a repository-relative path
@@ -69,6 +69,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 (* Long-route sections run only on request (user decision 2026-09-02): the
    real CF300 (12,9) block takes the compile route (~7900 s in a fresh

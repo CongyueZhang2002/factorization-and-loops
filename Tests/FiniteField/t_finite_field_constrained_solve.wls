@@ -4,6 +4,7 @@
    original-row checks, and report the one-factorization path. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 Clear[xConstrained, yConstrained, epsConstrained];
 dlog[letter_] := {D[Log[letter], xConstrained],

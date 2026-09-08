@@ -1,0 +1,200 @@
+{
+  "DataType": "CF303NormalFactorExactCircuitBundle",
+  "SchemaVersion": 2,
+  "Status": "CF303NormalFactorExactCircuitBundleIncomplete",
+  "Family": "CF303",
+  "Scope": {
+    "RequestedMasterIntegralRows": [44, 45],
+    "NormalVariable": "z",
+    "TangentialVariable": "p",
+    "DimensionalRegulator": "eps",
+    "EpsilonOrderWindow": [-3, 4],
+    "PathGaugeBasePoint": [1, 2]
+  },
+  "ExactMathematicalInputs": {
+    "MergedNinetyEntryTransfer": "cf303_hybrid_baseline90_transfer.maple.gz",
+    "SourceAndTargetDifferentialForms": "cf303_hybrid_baseline_path_dlog_gauge_inputs.maple.gz",
+    "PhysicalBasisTransformationT25": "cf303_block25_physical_gauge.wl",
+    "Block1DeferredDifferentialEquation": "CF303_25_1_input.wl.gz",
+    "Block1ExactDenominatorSupport": "cf303_block1_exact_denominator_support.json.gz",
+    "Block1ArithmeticDAG": "cf303_block1_full_exact_circuit.json",
+    "Block1EllipticRemainderAndCohomology": "cf303_block1_exact_elliptic_source.json",
+    "Block1FiniteGaugeInputs": "cf303_block1_finite_gauge_inputs.json"
+  },
+  "EvaluationSemantics": {
+    "PrimaryEvaluator": "cf303_hybrid_baseline_modular_circuit.py",
+    "CharacteristicZeroHermiteArithmetic": "cf303_exact_hermite_semantics.py",
+    "RationalHermiteArithmetic": "cf303_modular_hermite_pilot.py",
+    "EllipticHermiteArithmetic": "cf303_modular_algebraic_hermite_pilot.py",
+    "Block1PointResolver": "cf303_block1_circuit_point_resolver.py",
+    "Block1FixedPointLaurentDeckBuilder": "cf303_nested_laurent_deck.py",
+    "Block1DAGEvaluator": "cf303_block1_full_exact_circuit.py",
+    "Block1FiniteGaugeRecurrence": "cf303_block1_modular_finite_gauge_pilot.py",
+    "DeferredPathJetArithmetic": "native_path_residue_reconstruct.py"
+  },
+  "ExactConventionsAlreadyDeclared": {
+    "CoefficientField": "Q(p,z,eps,Y)/(Y^2-P4(p,z)) localized at the denominators in the exact input records",
+    "EllipticCurve": "P4(p,z)=16*p^6-32*p^4+16*p^2+(48*p^3-64*p^2+16*p)*z+(-8*p^4+16*p^3-24*p^2+16*p+4)*z^2+(-12*p+8)*z^3+(p^2-4*p+4)*z^4",
+    "FunctionPair": "{A,B} denotes A+B*Y",
+    "OneFormPair": "{a,b} denotes a*dz+b*dz/Y",
+    "RationalFactorKernel": "GPLFactor[q,k] denotes z^k*dz/q(z)",
+    "EllipticFactorKernel": "E4Factor[q,k] denotes z^k*dz/(q(z)*Y)",
+    "EllipticBasis": ["dz/Y", "z*dz/Y", "(z^2+a3*z/(2*a4))*dz/Y"],
+    "HermiteIdentity": "omega=dH+sum_alpha c_alpha*kappa_alpha",
+    "HermiteLinearSystemConvention": "Coefficient vectors are ordered by increasing z power inside primitive, finite-pole remainder, infinity primitive, and cohomology blocks; exact RREF is used and every free coordinate is set to zero",
+    "EllipticBranchPointPolePolicy": "Refuse when gcd(denominator,P4) is nonconstant",
+    "PrimitiveNormalization": "H(z=1/2)=0",
+    "AlgebraicBranch": "At p=4/11 choose Y(1/2)>0 and continue analytically along the declared physical/tangential path; on the initial physical soft-boundary sheet 0<p<1/Sqrt(2) this gives Y(2p)=+8*p*sqrt(1-p^2)",
+    "ModularSheetPolicy": "A finite-field square-root representative is validation-only and does not define the characteristic-zero physical branch",
+    "FinalMultiplicationOrder": "I25=T25*(G25+H*L)"
+  },
+  "FiniteFieldValidationInputs": {
+    "FixedPointEpsilonLifts": [
+      "cf303_block1_circuit_q7_p3_fixed_epsilon.json.gz",
+      "cf303_block1_circuit_q7_p239d47_fixed_epsilon.json.gz"
+    ],
+    "UnusedPrimeLaurentDecks": [
+      "block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213693967.json.gz",
+      "block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213693973.json.gz"
+    ],
+    "JunctionDefaultLaurentDeck": "block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213641971.json.gz",
+    "Scope": "Validation images only; they neither define the characteristic-zero branch nor replace the exact normal-factor DAG"
+  },
+  "ExactCircuitBindings": {
+    "BaselineRecurrence": "K_n=B_n+D*H_(n-1)-H_(n-1)*S-dH_n with H_n normalized at z=1/2",
+    "BaselineCrossHermiteNodeCount": 98,
+    "BaselineOffDiagonalTransformationNodeCount": 224,
+    "Block1FixedRationalHermiteSplitNodeCount": 14,
+    "RationalHermiteOperation": "cf303_exact_hermite_semantics.py::rational_hermite",
+    "QuarticHermiteOperation": "cf303_exact_hermite_semantics.py::elliptic_hermite",
+    "BaseNormalizationOperation": "cf303_exact_hermite_semantics.py::normalize_function_pair_at_base",
+    "DeferredKernelInterpretation": "Remainders are retained in GPLFactor, E4Factor, E4Omega0, E4OmegaInf, E4Eta2 without root expansion"
+  },
+  "TangentialBridgeInventory": {
+    "BoundaryModeEmbeddingAvailable": "CF303TangentialJunctionMapReconstructed.wl supplies SourceModeMap and TargetGModeMap as a 45-by-13 embedding through epsilon orders -4..3",
+    "BoundaryFunctionConnectionAvailable": "CF303TangentialBoundaryEvolutionOperatorV2.wl supplies the exact 13-by-13 Omega and its normalized evolution through epsilon order 6",
+    "OwnSixModeSubspaceEvidence": "CF303SixModeEndpointFrame constructs Gamma=V^-1 B_parallel V-V^-1 dV/dp and validates its rational-epsilon evolution",
+    "PreservedLegacyFamilyState": "A legacy 45-master state contains OriginalA and canonical A with dimensions 2-by-45-by-45 plus 45-by-45 S/SInverse/TDiagonal/TDiagonalInverse. It supplies the F-basis connection in principle but is not a V2 FamilyDifferentialSystem or a durable input of this bundle",
+    "BasisGap": "The terminal normal factor is in the G25 basis with F25=G25+H*Fsource. OriginalA plus S/T alone therefore do not give A_p|rho in the G25 basis; the exact H and its p derivative are also required",
+    "MissingBridge": "No durable record supplies A_p at fixed rho in the exact G25 normal-factor basis, hence B*Omega=(A_p|rho)*B-D[B,p] has not been validated for all thirteen columns",
+    "SmallestUnrecordedBlock": "the 2-by-43 target-from-source block of A_p|rho in the G25 basis, or its exact 2-by-13 contraction with SourceModeMap; the existing TangentialTargetConnection supplies only the 2-by-2 homogeneous target block",
+    "CoordinateRule": "rho=2p-z implies A_rho=-A_z and A_p|rho=A_p|z+2*A_z"
+  },
+  "ValidationPointEvidence": [
+    "cf303_block1_circuit_resolved_q2305843009213693693_p3d1.json",
+    "cf303_block1_circuit_resolved_q2305843009213693693_p239d47.json"
+  ],
+  "PortableEvaluatorValidation": [
+    {
+      "Prime": 2305843009213693967,
+      "P": [6, 1],
+      "Status": "CF303NormalFactorFiniteFieldReplayValidated",
+      "QuadraticExtensionNonresidue": 5,
+      "Block1OutputCount": 16,
+      "BaselineRecurrenceComparisons": 688,
+      "BaselineBasePointComparisons": 688,
+      "T25HScalarChannelComparisons": 2408,
+      "T25CrossKScalarChannelComparisons": 672,
+      "WallSeconds": 30.95,
+      "PeakRSSKiB": 107016,
+      "Scope": "unused-prime complete 90-entry normal-factor replay"
+    },
+    {
+      "Prime": 2305843009213693973,
+      "P": [3, 1],
+      "Status": "CF303NormalFactorFiniteFieldReplayValidated",
+      "QuadraticExtensionNonresidue": 2,
+      "Block1OutputCount": 16,
+      "BaselineRecurrenceComparisons": 688,
+      "BaselineBasePointComparisons": 688,
+      "T25HScalarChannelComparisons": 2408,
+      "T25CrossKScalarChannelComparisons": 672,
+      "WallSeconds": 29.38,
+      "PeakRSSKiB": 106208,
+      "Scope": "unused-prime complete 90-entry normal-factor replay"
+    },
+    {
+      "Prime": 2305843009213693967,
+      "P": [7, 5],
+      "Status": "CF303Block1FiniteFieldCircuitReplayValidated",
+      "OutputCount": 16,
+      "RationalSourceReplayComparisons": 1878,
+      "WallSeconds": 0.88,
+      "PeakRSSKiB": 74888,
+      "Scope": "unused-prime finite-field validation image"
+    },
+    {
+      "Prime": 2305843009213693973,
+      "P": [11, 7],
+      "Status": "CF303Block1FiniteFieldCircuitReplayValidated",
+      "OutputCount": 16,
+      "RationalSourceReplayComparisons": 1878,
+      "WallSeconds": 0.88,
+      "PeakRSSKiB": 74968,
+      "Scope": "unused-prime finite-field validation image"
+    },
+    {
+      "Prime": 2305843009213693693,
+      "P": [3, 1],
+      "Status": "CF303NormalFactorFiniteFieldReplayValidated",
+      "HOutputCount": 112,
+      "CrossKOutputCount": 98,
+      "BaselineRecurrenceComparisons": 688,
+      "BaselineBasePointComparisons": 688,
+      "T25HScalarChannelComparisons": 2408,
+      "T25CrossKScalarChannelComparisons": 672,
+      "WallSeconds": 33.34,
+      "PeakRSSKiB": 107304
+    },
+    {
+      "Prime": 2305843009213693693,
+      "P": [239, 47],
+      "Status": "CF303NormalFactorFiniteFieldReplayValidated",
+      "HOutputCount": 112,
+      "CrossKOutputCount": 98,
+      "BaselineRecurrenceComparisons": 688,
+      "BaselineBasePointComparisons": 688,
+      "T25HScalarChannelComparisons": 2408,
+      "T25CrossKScalarChannelComparisons": 672,
+      "WallSeconds": 40.48,
+      "PeakRSSKiB": 121216
+    }
+  ],
+  "DefinitionClosure": {
+    "ExactLeafFilesPresent": true,
+    "RepositoryRelativeReferencesOnly": true,
+    "MergedTransferContainsExceptionEntries77Through88": true,
+    "CharacteristicZeroBranchDeclared": true,
+    "FreshPrimeBlock1ReplayValidated": true,
+    "FreshPrimeFullNinetyEntryReplayValidated": true,
+    "CharacteristicZeroHermiteNodeClosure": false,
+    "CharacteristicZeroHermiteSemanticsTest": {
+      "Test": "Tests/Transport/t_cf303_exact_hermite_semantics.py",
+      "RationalRepeatedPoleIdentity": true,
+      "QuarticRepeatedPoleInfinityAndCohomologyIdentity": true,
+      "RREFFreeCoordinatesSetToZero": true,
+      "DeterministicRepeatEquality": true,
+      "BranchPointPoleTypedRefusal": true,
+      "DeclaredSheetBaseNormalization": true,
+      "ActualCF303SourceLeafCompilerAvailable": false,
+      "ActualReachableCF303HermiteNodeEvaluatedExactly": false,
+      "WallSeconds": 2.04,
+      "PeakRSSKiB": 61204
+    },
+    "Block1DAGReplayTest": {
+      "NodeCount": 138,
+      "OutputRecordCount": 16,
+      "ValidationPrimes": [2305843009213693967, 2305843009213693973, 2305843009213693693],
+      "TotalCoefficientComparisons": 5634,
+      "GPLFactorTermCountAtFirstPrime": 318,
+      "WallSeconds": 2.08,
+      "PeakRSSKiB": 81492
+    },
+    "TangentialIntertwiningIdentityValidated": false
+  },
+  "BlockingConditions": [
+    "Provide an executable characteristic-zero compiler for each HermiteSourceComponent in CF303_25_1_input.wl.gz and evaluate at least one reachable CF303 Hermite node through cf303_exact_hermite_semantics.py; filename bindings and generic fixtures alone do not close the actual DAG",
+    "Supply the ambient tangential connection in the moving coordinates rho=2p-z, p and validate d_p|rho N=(A_p|z+2*A_z)*N-N*Omega on the demanded normal-factor columns",
+    "Validate the resulting p component and one regularized boundary identity at an unused modular point; the z component already has two complete unused-prime recurrence replays"
+  ]
+}

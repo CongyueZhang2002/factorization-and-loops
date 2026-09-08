@@ -2,7 +2,7 @@
 (* Exact lifting and verification of finite-field strip gauges.
    - NormalizeEpsFormAffineSample fixes the normalization columns;
    - the CF254 (9,6) lift (Codex-era modular artifacts in
-     Codex/TwoRootCF254Sector9Lower, input record copied there from the
+     Tests/Fixtures/DifferentialEquations/FiniteFieldRaw, input record copied there from the
      legacy tree on 2026-08-21) reconstructs exactly and is a DLOG FORM:
      regulator-free letters, residues free of x and y; its residues carry
      1/(1+eps), so it is NOT yet an epsilon form -- that is the contract
@@ -18,6 +18,7 @@
 $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 legacyOffDiagonalBlockRecord[value_Association] :=
   Join[KeyTake[value,
@@ -37,7 +38,7 @@ legacyFiniteFieldRecord[value_Association] := Association[
 legacyOffDiagonalBlockSolution[value_Association] :=
   legacyFiniteFieldRecord[value];
 
-artifactDirectory = FileNameJoin[{root, "Codex", "TwoRootCF254Sector9Lower"}];
+artifactDirectory = FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldRaw"}];
 record = legacyOffDiagonalBlockRecord[
   FeynFacet`FamilyArtifactRead[FileNameJoin[
     {artifactDirectory, "CF254_9_6_input.wl"}]]];
@@ -75,8 +76,7 @@ badResidueInstalled = Quiet[Check[FeynFacet`Private`RecordVerifiedOffDiagonalBas
   FeynFacet`Private`RecordVerifiedOffDiagonalBasisTransformationBlock::state];
 
 (* the canonical-benchmark (9,6) fixture: the A4 acceptance artifacts *)
-benchmark = FileNameJoin[{root, "Stale", "DifferentialEquationData",
-  "2026-09-03_pre_v2", "UU_08_10_canonical", "BenchmarkStripBackends"}];
+benchmark = FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldBenchmark"}];
 fixture = legacyOffDiagonalBlockRecord[
   FeynFacet`FamilyArtifactRead[FileNameJoin[
     {benchmark, "fixtures", "fixture_CF254_9_6.wl"}]]];

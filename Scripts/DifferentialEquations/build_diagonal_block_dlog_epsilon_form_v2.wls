@@ -95,6 +95,7 @@ If[FileExistsQ[outputFile] && ! TrueQ[overwrite],
 scriptFile = ExpandFileName[$InputFileName];
 packageRoot = ParentDirectory[ParentDirectory[DirectoryName[scriptFile]]];
 Get[FileNameJoin[{packageRoot, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{packageRoot, "FeynFacet", "EpsilonForm.m"}]];
 
 system = FeynFacet`FamilyArtifactRead[systemFile];
 presentation = FeynFacet`FamilyArtifactRead[presentationFile];

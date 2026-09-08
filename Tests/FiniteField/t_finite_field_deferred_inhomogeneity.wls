@@ -5,6 +5,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 prime = 2147483423;
@@ -317,8 +318,7 @@ FTAssert["polynomial square-root recognition retains rational scalar content",
   mq["finiteFieldDeferredInhomogeneityPolynomialRoot"][2 (1 + rx)^2] ===
     $Failed];
 
-source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
-  "FiniteField", "FiniteFieldDeferredInhomogeneity.wl"}], "Text"];
+source = Import[FileNameJoin[{root, "FeynFacet", "DifferentialEquations", "EpsilonForm", "Rational", "Inhomogeneity.wl"}], "Text"];
 FTAssert["the live adapter uses inhomogeneity vocabulary and no stale fixture schema",
   StringContainsQ[source, "DeferredInhomogeneity"] &&
     StringFreeQ[source, "DeferredForcing" | "StripSolvers" |

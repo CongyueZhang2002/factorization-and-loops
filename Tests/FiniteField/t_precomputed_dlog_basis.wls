@@ -5,6 +5,7 @@
 $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 prepare = FeynFacet`Private`finiteFieldOffDiagonalBlockPrepare;
 definingInput = FeynFacet`Private`finiteFieldOffDiagonalBlockDefiningInput;

@@ -1,0 +1,574 @@
+--- before/Scripts/family_epsform_sector.wls
++++ Scripts/family_epsform_sector.wls
+@@ -1,22 +1,9 @@
+ #!/usr/bin/env wolframscript
+-(* Completing the family's eps-form -- STANDARDIZED SECTOR ROUTE.
+-   Existing families remain on the ordinary CANONICA route.  Only a sector
+-   that ordinary CANONICA cannot transform is completed strip by strip.
+-
+-   Per sector k = 2..nSectors, on the truncated connection A[1..nk,1..nk] whose
+-   diagonal blocks are certified eps-forms:
+-     A. Try CANONICA`TransformOffDiagonalBlock on the complete sector.
+-     B. If A does not finish, construct CANONICA's exact NextEquationD for
+-        each unresolved strip.  SolveOffDiagonalBasisTransformationBlock first recognizes an
+-        existing dlog strip, then searches numerator degrees 0,1,2,3 for
+-        120 s each on no more than eight local kernels, and only then invokes Maple's exact
+-        residue-compatibility construction.  If IntegrableConnections cannot
+-        solve the rational system, the final Maple route uses a finite
+-        rational ansatz whose denominator is generated from all singular
+-        letters of the strip.  Every returned strip gauge is checked in both
+-        differential variables before it is composed.  Each checked strip is
+-        written atomically, so an interrupted sector resumes from that gauge.
+-     C. Apply CANONICA`TransformDlogToEpsForm to the completed sector row.
++(* Complete a family epsilon form from explicit V2 differential-system,
++   block-decomposition, coefficient-presentation and diagonal-form inputs.
++   Each unresolved lower block uses the finite-field solver, with rational
++   parametrization of its active roots when available. Completed block
++   transformations are retained for continuation.
+    Family acceptance is the package family dlog epsilon-form validator. In
+    Production it evaluates the defining identities at independent finite-
+    field points and records a probabilistic result; in Development it uses
+@@ -92,6 +79,14 @@
+ checkLevel = Module[{value = Environment["FACET_CHECK_LEVEL"]},
+   If[StringQ[value] && value === "Development", "Development", "Production"]];
+ productionQ = checkLevel === "Production";
++(* Assembly helpers and worker kernels read this same setting. The driver
++   default must reach them; otherwise an unset environment selected symbolic
++   Development checks despite the driver's Production branch. *)
++SetEnvironment["FACET_CHECK_LEVEL"->checkLevel];
++obstructionAnalysisSeconds=Module[{value=Environment["FACET_OBSTRUCTION_ANALYSIS_SECONDS"],number},
++ number=If[StringQ[value],Quiet[Check[ToExpression[value],$Failed]],$Failed];
++ If[NumericQ[number] && number>0,number,0]
++];
+ offDiagonalBlockRoute = Module[{value = Environment["FACET_OFF_DIAGONAL_BLOCK_ROUTE"]},
+   If[StringQ[value] && value === "Legacy", "Legacy", "FiniteFieldFirst"]];
+ (* Overhaul 2026-09-02: the CANONICA/Maple strip ladder (SolveOffDiagonalBasisTransformationBlock)
+@@ -1396,24 +1391,15 @@
+           "OffDiagonalBlockConstructionBudget"];
+           If[! solvedQ[solution] && ! offDiagonalBlockBudgetExhaustedQ[solution] &&
+               algebraicFrameQ,
+-            log["    finite field found no gauge in frame: ",
++            log["    finite-field construction returned without a verified transformation: ",
+               If[AssociationQ[solution], KeyTake[solution,
+                 {"Status", "RootIndices", "QuadraticRadicands", "Method",
+                  "PassingBranchCount", "BranchCount"}], solution]]];
+-          (* An ALGEBRAIC frame has no rational-gauge obstruction series
+-             to compute -- AnalyzeOffDiagonalBlockEpsilonFormObstructions expands a rational
+-             ansatz -- so the guard below has always skipped it, and a
+-             failed algebraic strip was recorded with no certificate at
+-             all.  The multiquadratic engine now stops BEFORE prepare and
+-             compile with a typed AlphabetIntegrabilityObstruction: the
+-             residue-only integrability system is inconsistent with the
+-             alphabet it was given, which is a statement about the
+-             ALPHABET and not about the gauge ansatz.  That typed result
+-             is the certificate for this frame and is recorded through
+-             the existing ObstructionCertificate field (2026-08-24). *)
++          (* Keep the finite-field diagnostic with its tested target and
++             arithmetic scope. It is not an epsilon-form nonexistence proof. *)
+           If[! solvedQ[solution] && algebraicFrameQ && AssociationQ[solution] &&
+               Lookup[solution, "Status", None] ===
+-                "AlphabetIntegrabilityObstruction",
++                "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage",
+             obstruction = KeyDrop[solution, {"Witness", "AcceptedPoints"}];
+             log["    alphabet integrability obstruction: defect ",
+               Lookup[solution, "Defect", None], " with ",
+@@ -1421,24 +1407,19 @@
+               Lookup[solution, "Rank", None], "/",
+               Lookup[solution, "AugmentedRank", None], " of ",
+               Lookup[solution, "MatrixDimensions", None],
+-              "; no gauge exists with this alphabet"]];
+-          (* a budget stop is NOT "no gauge exists": the obstruction
+-             certificate (up to 900 s) and the repeat with extra letters
+-             would spend more time than the budget just refused *)
++              "; fixed-target finite-field inconsistency"]];
++          (* Symbolic expansion diagnostics are optional and share the
++             remaining sector budget; they never receive another 900 seconds. *)
+           If[! solvedQ[solution] && ! offDiagonalBlockBudgetExhaustedQ[solution] &&
+-              ! algebraicFrameQ,
+-            (* typed failure reason (AnalyzeOffDiagonalBlockEpsilonFormObstructions, 2026-08-22):
+-               a missing letter is supplied and the solve repeated once;
+-               a non-constant residue proves that no rational gauge
+-               exists with the present diagonal forms; no obstruction up
+-               to the order means an ansatz or budget limitation.  No
+-               CANONICA/Maple fallback (manual tools, user decision). *)
++              ! algebraicFrameQ && obstructionAnalysisSeconds>0 &&
++              sectorDeadline>AbsoluteTime[],
+             obstruction = Quiet[TimeConstrained[FeynFacet`AnalyzeOffDiagonalBlockEpsilonFormObstructions[
+               <|"Family" -> family, "Sector" -> k, "LowerSector" -> nlow,
+                 "Variables" -> invariants, "Regulator" -> ee,
+                 "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>,
+-              "MaximumOrder" -> 4], 900, $Failed]];
+-            log["    finite field found no gauge; obstruction certificate: ",
++              "MaximumOrder" -> 4],
++              Min[obstructionAnalysisSeconds,sectorDeadline-AbsoluteTime[]],$Failed]];
++            log["    transformation not constructed; expansion diagnostic: ",
+               If[AssociationQ[obstruction], KeyTake[obstruction, {"Status", "Order", "MissingLetters", "Obstructions", "OffDiagonalBasisTransformationNumeratorDegrees"}], obstruction]];
+             If[AssociationQ[obstruction] && obstruction["Status"] === "MissingLetters",
+               extraLetters = obstruction["MissingLetters"];
+@@ -1554,7 +1535,7 @@
+             "OffDiagonalBlockPair" -> {k, nlow}|>;
+           putAtomic[state, stateFile]; Exit[2]];
+         If[! solvedQ[solution],
+-          log["  !! no exact gauge for strip ", {k, nlow}];
++          log["  !! no transformation constructed for block ", {k, nlow}];
+           putAtomic[
+             <|"Family" -> family, "Sector" -> k,
+               "LowerSector" -> nlow, "Variables" -> invariants,
+@@ -1563,7 +1544,7 @@
+               "SolverFailure" ->
+                 FeynFacet`Private`familyRowBasisTransformationSolverFailureSummary[
+                   solution],
+-              "ObstructionCertificate" -> If[ValueQ[obstruction] && AssociationQ[obstruction],
++              "EpsilonFormDiagnostics" -> If[ValueQ[obstruction] && AssociationQ[obstruction],
+                 KeyDrop[obstruction, "OffDiagonalBasisTransformationBlockSeries"], Missing["NotRun"]]|>,
+             FileNameJoin[{scratch,
+               family <> "_" <> ToString[k] <> "_" <>
+--- before/FeynFacet/Private/Transport/Assembly/FamilyDifferentialSystemAssembly.wl
++++ FeynFacet/Private/Transport/Assembly/FamilyDifferentialSystemAssembly.wl
+@@ -207,6 +207,7 @@
+ Options[masterTransportAssemble] = {
+   "Blocks" -> Automatic,
+   "ConjugatedFlatnessCheck" -> Automatic,
++  "OffDiagonalSimplification" -> Automatic,
+   "CheckLevel" -> Automatic,
+   "Verbose" -> False
+ };
+@@ -220,10 +221,14 @@
+    checkLevel, productionQ, zeroMat, suppliedFlatness, suppliedFlatnessQ,
+    identityBlocks, pendingExpressions, pendingBlocks, blockV, blockW,
+    simplifiedRow, cursor, entryCount, dimensions, blockIndex,
+-   rowInputBytes, rowSeconds},
++   rowInputBytes, rowSeconds,simplification},
+   verbose = TrueQ[OptionValue["Verbose"]];
+   checkLevel = masterTransportCheckLevel[OptionValue["CheckLevel"]];
+   productionQ = checkLevel === "Production";
++  simplification=Replace[OptionValue["OffDiagonalSimplification"],
++    Automatic:>If[productionQ,"PreserveProducts","Together"]];
++  If[!MemberQ[{"PreserveProducts","Together"},simplification],
++    Return[<|"Status"->"InvalidOffDiagonalSimplification"|>]];
+   {v, w} = variables[[{1, 2}]];
+   zeroMat[m_] := If[productionQ,
+     masterTransportPointZeroQ[m, {v, w, eps}], masterTransportZeroMatQ[m]];
+@@ -271,6 +276,7 @@
+     TrueQ[masterTransportZeroQ[#]] &];
+   certificate["BlockLowerTriangular"] = triangular;
+   certificate["CheckLevel"] = checkLevel;
++  certificate["OffDiagonalSimplification"] = simplification;
+   certificate["FlatnessOriginal"] = If[suppliedFlatnessQ, True,
+     If[productionQ,
+       masterTransportPointFlatQ[av, aw, {v, w, eps}],
+@@ -352,14 +358,20 @@
+       {j, nb}];
+     If[pendingExpressions =!= {},
+       rowInputBytes = ByteCount[pendingExpressions];
+-      simplifiedRow = If[rowInputBytes >= 2^20,
++      (* The off-diagonal solver accepts explicit sums and products.
++         Combining all scalar denominators here destroys sharing across
++         three-root terms before the selected block is even constructed. *)
++      simplifiedRow = If[simplification==="PreserveProducts",
++        <|"Status"->"OK","Result"->pendingExpressions,"Route"->"ExplicitProducts",
++          "Helpers"->0,"Tasks"->0,"Seconds"->0.|>,
++        If[rowInputBytes >= 2^20,
+         taskBrokerParallelTogether[pendingExpressions, {},
+           "family_assembly_row_" <> ToString[i]],
+         {rowSeconds, blockV} = AbsoluteTiming[
+           Together /@ pendingExpressions];
+         <|"Status" -> "OK", "Result" -> blockV,
+           "Route" -> "Serial", "Helpers" -> 0,
+-          "Tasks" -> 0, "Seconds" -> rowSeconds|>];
++          "Tasks" -> 0, "Seconds" -> rowSeconds|>]];
+       If[Lookup[simplifiedRow, "Status", None] =!= "OK",
+         Return[<|"Status" -> "BlockRowSimplificationFailed",
+           "BlockRow" -> i, "Detail" -> simplifiedRow|>]];
+@@ -946,6 +958,7 @@
+   "Blocks" -> Automatic,
+   "FormDirectory" -> None,
+   "Regulator" -> Automatic,
++  "OffDiagonalSimplification" -> Automatic,
+   "Verbose" -> False
+ };
+ 
+@@ -1066,6 +1079,7 @@
+     forms = Association @ Table[
+       blocks[[i]] -> resolved[[i]]["Certificate"], {i, Length[blocks]}];
+     assembled = masterTransportAssemble[chartSystem, eps, chartVariables,
++      "OffDiagonalSimplification"->OptionValue["OffDiagonalSimplification"],
+       "Blocks" -> Table[{blocks[[i]], resolved[[i]]["Spec"]},
+         {i, Length[blocks]}],
+       "Verbose" -> verbose];
+--- before/FeynFacet/Private/EpsForm/FiniteField/FiniteFieldOffDiagonalBlockSolve.wl
++++ FeynFacet/Private/EpsForm/FiniteField/FiniteFieldOffDiagonalBlockSolve.wl
+@@ -1024,7 +1024,12 @@
+       "DLogInfinityLogarithmicQ" -> TrueQ[dlogInfinity <= -1],
+       "DiagonalFinitePolesAtMostSimpleQ" -> diagonalPoles <= 1,
+       "DLogFinitePolesAtMostSimpleQ" -> dlogPoles <= 1,
+-      "CertifiedQ" -> TrueQ[diagonalInfinity <= -1] && TrueQ[dlogInfinity <= -1] &&
++      "CertificateScope" -> "KinematicPoleAndDegreeBoundsOverRationalFunctionField",
++      "DiagonalConnectionsEpsilonIndependentQ" -> FreeQ[{e,c},epsilon],
++      "RegulatorInterpolationCompletenessProved" -> False,
++      "GenericNonexistenceProved" -> False,
++      "CertifiedQ" -> FreeQ[{e,c,dlog},epsilon] &&
++        TrueQ[diagonalInfinity <= -1] && TrueQ[dlogInfinity <= -1] &&
+         diagonalPoles <= 1 && dlogPoles <= 1 && inhomogeneityInfinity =!= -Infinity|>];
+   (* O2b: every rational entry as numerator/denominator polynomials in
+      {x, y, eps} with exact rational coefficients, computed once per
+--- before/FeynFacet/Private/EpsForm/FiniteField/FiniteFieldBasisTransformationReexpression.wl
++++ FeynFacet/Private/EpsForm/FiniteField/FiniteFieldBasisTransformationReexpression.wl
+@@ -26,6 +26,7 @@
+   finiteFieldBasisTransformationReexpressionFailure,
+   finiteFieldBasisTransformationReexpressionModRational,
+   finiteFieldBasisTransformationReexpressionPlan,
++  finiteFieldBasisTransformationReexpressionZero,
+   finiteFieldBasisTransformationReexpressionSpecialize,
+   finiteFieldBasisTransformationReexpressionEvaluatePoint,
+   finiteFieldBasisTransformationReexpressionCollectPoints,
+@@ -68,6 +69,24 @@
+ finiteFieldBasisTransformationReexpressionExpiredQ[deadline_] :=
+   NumericQ[deadline] && AbsoluteTime[] >= deadline;
+ 
++(* Keep the same coefficient representation as a reconstructed nonzero
++   transformation, so the final modular DE residual uses its normal path. *)
++finiteFieldBasisTransformationReexpressionZero[plan_Association] := <|
++  "Status" -> "FiniteFieldBasisTransformationReexpressionConstructed",
++  "Result" -> ConstantArray[0,plan["Dimensions"]], "Model" -> "ExactZero",
++  "Primes" -> {}, "PrimeRecords" -> {},
++  "CoefficientRepresentation" -> <|
++    "Status" -> "FiniteFieldBasisTransformationCoefficientRepresentationV1",
++    "Dimensions" -> plan["Dimensions"], "Variables" -> plan["Variables"],
++    "Regulator" -> plan["Regulator"], "RootCount" -> plan["RootCount"],
++    "GradeCount" -> plan["GradeCount"],
++    "NumeratorSupport" -> {{0,0}}, "DenominatorSupport" -> {{0,0}},
++    "NumeratorCoefficientPairs" -> ConstantArray[
++      <|"NumeratorCoefficients"->{0},"DenominatorCoefficients"->{1}|>,
++      {plan["EntryCount"],plan["GradeCount"],1}],
++    "DenominatorCoefficientPairs" -> {
++      <|"NumeratorCoefficients"->{1},"DenominatorCoefficients"->{1}|>}|>|>;
++
+ finiteFieldBasisTransformationReexpressionPlan[parametrizedBasisTransformationBlock_List, parametrizedBasisTransformationDenominator_,
+     parametrizingVariables : {_Symbol, _Symbol}, coordinateImages : {_, _},
+     variables : {_Symbol, _Symbol}, epsilon_Symbol, roots_List] := Module[
+@@ -84,7 +103,7 @@
+   rootSquares = If[rank === 0, {},
+     squareRootRecordRadicand /@ roots];
+   If[! ListQ[rootSquares] || Length[rootSquares] =!= rank ||
+-      ! FreeQ[rootSquares, $Failed],
++      ! FreeQ[rootSquares, $Failed | _Missing],
+     Return[finiteFieldBasisTransformationReexpressionFailure[
+       "FiniteFieldBasisTransformationReexpressionRootFrameInvalid"]]];
+   numerators = Flatten[parametrizedBasisTransformationBlock] parametrizedBasisTransformationDenominator;
+@@ -1254,6 +1273,11 @@
+     parametrizingVariables, coordinateImages, variables, epsilon, roots];
+   If[Lookup[plan, "Status", None] =!= "FiniteFieldBasisTransformationReexpressionPlanV1",
+     Return[plan]];
++  (* An exactly zero transformation is already reconstructed.  Zero values
++     at sampled points alone do not justify this shortcut. *)
++  If[AllTrue[Flatten[parametrizedBasisTransformationBlock], # === 0 &],
++    Return[Append[finiteFieldBasisTransformationReexpressionZero[plan],
++      "Seconds" -> N[AbsoluteTime[] - started]]]];
+   primeOptions[] := {
+     "MaximumKinematicTotalDegree" ->
+       OptionValue["MaximumKinematicTotalDegree"],
+@@ -1453,6 +1477,9 @@
+     epsilon, roots];
+   If[Lookup[validationPlan, "Status", None] =!=
+       "FiniteFieldBasisTransformationReexpressionPlanV1", Return[validationPlan]];
++  If[AllTrue[Flatten[parametrizedBasisTransformationBlock], # === 0 &],
++    Return[Append[finiteFieldBasisTransformationReexpressionZero[validationPlan],
++      "Seconds" -> N[AbsoluteTime[] - started]]]];
+   symbolicBudget = If[deadline === Infinity, symbolicLimit,
+     Min[symbolicLimit, Max[0., N[deadline - AbsoluteTime[]]]]];
+   If[symbolicBudget > 0.,
+--- before/FeynFacet/Private/EpsForm/OffDiagonalBlocks/OffDiagonalBlockEpsilonFormObstructions.wl
++++ FeynFacet/Private/EpsForm/OffDiagonalBlocks/OffDiagonalBlockEpsilonFormObstructions.wl
+@@ -1,33 +1,14 @@
+-(* Obstruction certificate for the eps-form completion of one off-diagonal
+-   block (k, j).
+-
+-   The block equation (conventions of VerifyOffDiagonalBasisTransformationBlock) is
+-     dD = eps (e D - D c) + inhomogeneity - eps Sum_a K_a dlog L_a
+-   with e, c the eps-free residue forms of the diagonal eps-forms, inhomogeneity the
+-   inhomogeneity, D the basis-transformation block and K_a the residues.  Expanding D = Sum eps^k D_k,
+-   inhomogeneity = Sum eps^k B_k (B_0 = 0 for a block between certified eps-forms)
+-   gives order by order
+-     dD_k = w_k - Sum_a K_a^(k) dlog L_a,   w_k = e D_{k-1} - D_{k-1} c + B_k,
+-   where w_k is a closed rational 1-form.  A closed rational 1-form on the
+-   plane is d(rational) + Sum_L c_L dlog L with CONSTANT c_L if and only if
+-   its residue along every polar curve L is constant; then D_k exists and is
+-   unique up to a constant matrix, and that constant shifts w_{k+1} by
+-   e C - C c, whose residues are constant.  Hence:
+-     - a polar curve of some w_k outside the alphabet with a constant
+-       residue is a MISSING LETTER (extend the alphabet and re-solve);
+-     - a NON-CONSTANT residue of some w_k along a curve proves that no
+-       rational basis-transformation block D exists with the present diagonal eps-forms and
+-       letters, whatever the ansatz (the pair needs a basis change: the
+-       blockwise Libra route, balances on the local pair);
+-     - no obstruction up to the requested order: the failure of a rational
+-       solver is an ansatz or budget limitation.
+-   Built 2026-08-22 from a measured production block: clean to order 10, every D_k
+-   of numerator total degree 9, residues geometric in the order -- which
+-   proved the block solvable and exposed the finite-field support defect
+-   (bidegree rectangle instead of the certified total-degree simplex).
+-   A transverse line through a point where two polar curves meet gives a
+-   false non-constant residue; such points are excluded.
+-*)
++(* Order-by-order rational construction diagnostics for one fixed
++   off-diagonal equation. The expansion starts at epsilon order zero and
++   chooses one primitive at each step. This does not exhaust Laurent
++   transformations, integration constants, alphabets, or diagonal bases.
++
++   Residues measured on different roots of a polynomial can belong to
++   different geometric components. Unequal constant values on those
++   components do not imply a varying residue along one component.
++   Failure of symbolic integration is a construction failure, not a
++   nonexistence theorem. A finite successful expansion is not a proof of a
++   complete rational epsilon-form transformation. *)
+ 
+ Clear[AnalyzeOffDiagonalBlockEpsilonFormObstructions];
+ ClearAll[
+@@ -110,7 +91,7 @@
+    residueTable, nonConstant, constants, exact, dk, result,
+    offDiagonalBasisTransformationBlockSeries = {}, residueSeries = {}, missingLetters = {}, status,
+    numeratorDegrees = {}, regulatorPoleResidues = False,
+-   eSeries, cSeries, product, closedQ, tw, tc, tr, tp},
++   eSeries, cSeries, product, closedQ, tw, tc, tr, tp, rationalInput, inputValuations, scope},
+   If[! (AssociationQ[record] && KeyExistsQ[record, "OffDiagonalBlockEquation"] &&
+       MatchQ[record["Variables"], {_Symbol, _Symbol}] && MatchQ[record["Regulator"], _Symbol]),
+     Message[AnalyzeOffDiagonalBlockEpsilonFormObstructions::record]; Return[$Failed]];
+@@ -118,6 +99,23 @@
+   {e, c, inhomogeneity} = record["OffDiagonalBlockEquation"];
+   {upper, lower} = Dimensions[inhomogeneity[[1]]];
+   maximumOrder = OptionValue["MaximumOrder"]; lines = OptionValue["TransverseLines"];
++  scope=<|"FixedDiagonalConnections"->True,"FixedInhomogeneity"->True,
++    "GaugeSeriesLowerOrder"->0,"GaugeSeriesIntegrationConstants"->"Zero representatives",
++    "ResidueDependence"->"Kinematics independent at each epsilon order",
++    "GenericNonexistenceProved"->False,"AlphabetCompletenessProved"->False,
++    "Conclusion"->"Diagnostic for the selected finite expansion"|>;
++  If[!IntegerQ[maximumOrder] || maximumOrder<0 || !IntegerQ[lines] || lines<1,
++    Return[<|"Status"->"InvalidExpansionDiagnosticOptions","ConclusionScope"->scope|>]];
++  rationalInput=Together /@ Flatten[{e,c,inhomogeneity}];
++  If[!AllTrue[rationalInput,PolynomialQ[Numerator[#],Append[variables,epsilon]] &&
++      PolynomialQ[Denominator[#],Append[variables,epsilon]]&],
++    Return[<|"Status"->"UnsupportedCoefficientField","ConclusionScope"->scope,
++      "Reason"->"This diagnostic requires rational functions of the declared variables."|>]];
++  inputValuations=If[#===0,Infinity,Exponent[Numerator[#],epsilon,Min]-
++    Exponent[Denominator[#],epsilon,Min]]& /@ rationalInput;
++  If[Min[inputValuations]<0,
++    Return[<|"Status"->"LaurentExpansionLowerOrderRequired","ConclusionScope"->scope,
++      "Reason"->"Negative input orders require an explicit Laurent-series analysis."|>]];
+   verbose = TrueQ[OptionValue["Verbose"]];
+   log[args___] := If[verbose, Print["[obstruction] ", args]];
+   letters = If[OptionValue["Alphabet"] === Automatic,
+@@ -163,14 +161,18 @@
+        residues with a regulator pole (K_0/eps), which the sector-level
+        regulator factorization absorbs in measured production blocks --
+        recorded, not an obstruction. *)
++    If[AnyTrue[residueTable,Lookup[#,"Values",{}]==={}&],
++      status="ResidueEvaluationInconclusive";
++      result=<|"Status"->status,"Order"->order|>;Break[]];
+     nonConstant = Select[residueTable, Length[#["Values"]] > 1 &];
+     If[order === 0 && AnyTrue[residueTable, #["Values"] =!= {} && ! PossibleZeroQ[First[#["Values"]]] &],
+       regulatorPoleResidues = True];
+     If[nonConstant =!= {},
+-      status = "NonConstantResidue";
+-      log["order ", order, ": non-constant residue along ", nonConstant[[1, "Curve"]], " entry ", nonConstant[[1, "Entry"]], ": ", N[nonConstant[[1, "Values"]], 8]];
++      status = "ResidueComponentsNotResolved";
++      log["order ", order, ": unequal residue samples on ", nonConstant[[1, "Curve"]], " entry ", nonConstant[[1, "Entry"]], ": ", N[nonConstant[[1, "Values"]], 8]];
+       result = <|"Status" -> status, "Order" -> order,
+-        "Obstructions" -> (KeyTake[#, {"Curve", "Entry", "Values"}] & /@ nonConstant)|>;
++        "Reason"->"Distinct geometric components may have different constant residues.",
++        "ResidueSamples" -> (KeyTake[#, {"Curve", "Entry", "Values"}] & /@ nonConstant)|>;
+       Break[]];
+     missingLetters = DeleteDuplicates[Join[missingLetters,
+       Select[missing, Function[L, AnyTrue[Select[residueTable, #["Curve"] === L &], ! PossibleZeroQ[First[#["Values"]]] &]]]]];
+@@ -187,8 +189,8 @@
+       {mu, 2}, {i, upper}, {j, lower}];
+     {tp, dk} = AbsoluteTiming[Table[epsFormObstructionPrimitive[exact[[All, i, j]], {x, y}], {i, upper}, {j, lower}]];
+     If[! FreeQ[dk, $Failed],
+-      status = "PrimitiveNotRational";
+-      log["order ", order, ": the residue-free part has no rational primitive"];
++      status = "RationalPrimitiveNotConstructed";
++      log["order ", order, ": a rational primitive was not constructed"];
+       result = <|"Status" -> status, "Order" -> order|>; Break[]];
+     AppendTo[residueSeries, <|"Order" -> order, "Residues" -> constants|>];
+     AppendTo[offDiagonalBasisTransformationBlockSeries, dk];
+@@ -208,5 +210,5 @@
+     "OffDiagonalBasisTransformationNumeratorDegrees" -> numeratorDegrees,
+     "ResidueSeries" -> residueSeries,
+     "RegulatorPoleResidues" -> regulatorPoleResidues,
+-    "MaximumOrder" -> maximumOrder|>]
++    "MaximumOrder" -> maximumOrder,"ConclusionScope"->scope|>]
+ ];
+--- before/FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockDriver.wl
++++ FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockDriver.wl
+@@ -159,6 +159,7 @@
+      False skips it entirely *)
+   "IntegrabilityScreen" -> True,
+   "IntegrabilityScreenPointCount" -> 20,
++  "IntegrabilityScreenScoreLetters" -> False,
+   "IntegrabilityScreenPrime" -> Automatic,
+   "IntegrabilityScreenRegulatorValue" -> Automatic,
+   (* the full-basis-transformation block per-image screen runs AFTER prepare and BEFORE
+@@ -612,6 +613,7 @@
+       letterRecords, "Prime" -> OptionValue["IntegrabilityScreenPrime"],
+       "RegulatorValue" -> screenRegulatorValue,
+       "PointCount" -> OptionValue["IntegrabilityScreenPointCount"],
++      "ScoreLetters"->OptionValue["IntegrabilityScreenScoreLetters"],
+       "Deadline" -> deadline, Sequence @@ ceilingOptions];
+     multiquadraticOffDiagonalBlockStageDone["integrability screen",
+       <|"status" -> Lookup[screen, "Status", None],
+@@ -643,12 +645,12 @@
+           ToString[Lookup[screen, "FreshImageCount", 0]],
+           " drawn fresh at random for this call): a high-confidence ",
+           "modular obstruction, i.e. no basis-transformation block of any shape, denominator ",
+-          "or support repairs this alphabet at any of these images and ",
+-          "the alphabet is missing letters. It is not an unconditional ",
+-          "theorem over Q(eps): the statement is exact for each ",
+-          "specialized finite-field system, and its generic validity ",
+-          "rests on the images being independent, not on a proved ",
+-          "epsilon-degree bound."],
++          "or support satisfies this fixed target at these images. ",
++          "The diagonal connections and previously fixed inhomogeneity ",
++          "are held fixed. This does not identify missing letters, prove ",
++          "alphabet completeness, or exclude another epsilon form. ",
++          "The result is exact for the specialized finite-field systems; ",
++          "generic inconsistency over Q(eps) is not proved."],
+         "ValidationMethod" -> "ProbabilisticFiniteFieldSampling",
+         "ImageCount" -> Lookup[screen, "ImageCount", Missing["NotRecorded"]],
+         "Seconds" -> AbsoluteTime[] - startTime|>]]];
+--- before/FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockScreens.wl
++++ FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockScreens.wl
+@@ -499,8 +499,7 @@
+    letterCount, unknownCount, rows = {}, right = {}, accepted = {},
+    rejected = <||>, attempts = 0, point, probeTables, probeInverses,
+    deltaValues, rootValues, pointRows, pointRight, pointOK, notFlat = False,
+-   values, inverses, powerTables, rootDerivatives, evaluate, matrixValue,
+-   matrixDerivative, ex, ey, cx, cy, bx, by, dyex, dxey, dycx, dxcy, dybx,
++   values, inverses, powerTables, rootDerivatives, evaluate, ex, ey, cx, cy, bx, by, dyex, dxey, dycx, dxcy, dybx,
+    dxby, curvatureE, curvatureC, inhomogeneityCurl, oneFormValues, matrix,
+    rightVector, rankA, rankAugmented, defect, witness, nullVectors, scored,
+    keptColumns, screenStatus, rationalLeaves,
+@@ -511,7 +510,8 @@
+    compileStatisticsBefore, inhomogeneityProvider, nativeInhomogeneityQ,
+    sameFrameNativeInhomogeneityQ, chartNativeInhomogeneityQ, preflight, chartPreflight,
+    nativeInhomogeneity, inhomogeneityChannels, inhomogeneityDerivativeChannels, inhomogeneityCurlChannels,
+-   inhomogeneityExteriorDerivative, gradeMonomials, composeChannels},
++   inhomogeneityExteriorDerivative, gradeMonomials, composeChannels,
++   eEvaluated,cEvaluated,bEvaluated,oneFormsEvaluated,notClosed=False},
+   gate = multiquadraticOffDiagonalBlockProductionOptionGate[{opts},
+     Keys[Association[Options[multiquadraticOffDiagonalBlockIntegrabilityScreen]]]];
+   If[AssociationQ[gate], Return[gate]];
+@@ -650,7 +650,7 @@
+   BlockRandom[
+     SeedRandom[randomSeed, Method -> "MersenneTwister"];
+     While[Length[accepted] < pointCount && attempts < maximumAttempts &&
+-        ! notFlat && ! expired,
++        ! notFlat && ! notClosed && ! expired,
+       (* cooperative stop during point acquisition: every accepted point
+          is one 2^rank-branch evaluation of the whole block *)
+       If[multiquadraticOffDiagonalBlockDeadlineExpiredQ[deadline],
+@@ -749,34 +749,34 @@
+           {First[pair], Table[Mod[Last[pair][[mu]] +
+              Sum[Last[pair][[2 + a]] rootDerivatives[[a, mu]], {a, rank}],
+              prime], {mu, 2}]}];
+-        matrixValue[block_] := Map[First[evaluate[#1]] &, block, {2}];
+-        matrixDerivative[block_, mu_] :=
+-          Map[Last[evaluate[#1]][[mu]] &, block, {2}];
+         gradeMonomials = Table[Product[
+           If[BitGet[grade - 1, a - 1] === 1, values[[2 + a]], 1],
+           {a, rank}], {grade, 2^rank}];
+         composeChannels[channelTensor_] := Map[
+           Mod[#1 . gradeMonomials, prime] &, channelTensor, {2}];
+         If[Catch[
+-            ex = matrixValue[eCompiled[[1]]]; ey = matrixValue[eCompiled[[2]]];
+-            cx = matrixValue[cCompiled[[1]]]; cy = matrixValue[cCompiled[[2]]];
++            (* Each scalar evaluator already computes both derivatives.
++               Reuse that result for values and mixed-partial identities. *)
++            eEvaluated=Map[evaluate,eCompiled,{3}];
++            cEvaluated=Map[evaluate,cCompiled,{3}];
++            ex=eEvaluated[[1,All,All,1]];ey=eEvaluated[[2,All,All,1]];
++            cx=cEvaluated[[1,All,All,1]];cy=cEvaluated[[2,All,All,1]];
+             If[nativeInhomogeneityQ,
+               bx = composeChannels[inhomogeneityChannels[[1]]];
+               by = composeChannels[inhomogeneityChannels[[2]]],
+-              bx = matrixValue[bCompiled[[1]]];
+-              by = matrixValue[bCompiled[[2]]]];
+-            dyex = matrixDerivative[eCompiled[[1]], 2];
+-            dxey = matrixDerivative[eCompiled[[2]], 1];
+-            dycx = matrixDerivative[cCompiled[[1]], 2];
+-            dxcy = matrixDerivative[cCompiled[[2]], 1];
++              bEvaluated=Map[evaluate,bCompiled,{3}];
++              bx=bEvaluated[[1,All,All,1]];by=bEvaluated[[2,All,All,1]]];
++            dyex=eEvaluated[[1,All,All,2,2]];
++            dxey=eEvaluated[[2,All,All,2,1]];
++            dycx=cEvaluated[[1,All,All,2,2]];
++            dxcy=cEvaluated[[2,All,All,2,1]];
+             If[nativeInhomogeneityQ,
+               inhomogeneityExteriorDerivative = composeChannels[inhomogeneityCurlChannels],
+-              dybx = matrixDerivative[bCompiled[[1]], 2];
+-              dxby = matrixDerivative[bCompiled[[2]], 1];
++              dybx=bEvaluated[[1,All,All,2,2]];
++              dxby=bEvaluated[[2,All,All,2,1]];
+               inhomogeneityExteriorDerivative = Mod[dybx - dxby, prime]];
+-            oneFormValues = Table[
+-              {First[evaluate[letterCompiled[[k, 1]]]],
+-               First[evaluate[letterCompiled[[k, 2]]]]}, {k, letterCount}];
++            oneFormsEvaluated=Map[evaluate,letterCompiled,{2}];
++            oneFormValues=If[letterCount===0,{},oneFormsEvaluated[[All,All,1]]];
+             True, "MultiquadraticScreenPoint"] =!= True,
+           pointOK = False; Break[]];
+         curvatureE = Mod[dyex - dxey + epsilonMod (ex . ey - ey . ex), prime];
+@@ -784,6 +784,9 @@
+         If[! (AllTrue[Flatten[curvatureE], #1 === 0 &] &&
+             AllTrue[Flatten[curvatureC], #1 === 0 &]),
+           notFlat = True; pointOK = False; Break[]];
++        If[letterCount>0 && !AllTrue[Mod[
++            oneFormsEvaluated[[All,1,2,2]]-oneFormsEvaluated[[All,2,2,1]],prime],#===0&],
++          notClosed=True;pointOK=False;Break[]];
+         inhomogeneityCurl = Mod[inhomogeneityExteriorDerivative +
+           epsilonMod (ex . by - ey . bx + bx . cy - by . cx), prime];
+         Do[
+@@ -808,6 +811,10 @@
+         "PointCount" -> Length[accepted], "AttemptCount" -> attempts,
+         "PhaseTimings" -> <|"Compile" -> compileSeconds,
+           "PointAssembly" -> assemblySeconds|>|>]]];
++  If[TrueQ[notClosed],
++    Return[<|"Status"->"IntegrabilityScreenNotApplicable",
++      "Reason"->"TargetOneFormsNotClosed","Prime"->prime,
++      "RegulatorValue"->regulatorValue,"GenericNonexistenceProved"->False|>]];
+   If[TrueQ[notFlat],
+     Return[<|"Status" -> "IntegrabilityScreenNotApplicable",
+       "Module" -> "MultiquadraticOffDiagonalBlockSolve",
+@@ -897,6 +904,17 @@
+     "PointCount" -> Length[accepted], "AcceptedPoints" -> accepted,
+     "AttemptCount" -> attempts, "RejectedPoints" -> rejected,
+     "FlatDiagonalConnections" -> True, "Witness" -> witness,
++    "TargetOneFormsClosedAtSamples"->True,
++    "ConclusionScope"-><|"FixedDiagonalConnections"->True,
++      "FixedInhomogeneity"->True,"FixedTargetOneForms"->Lookup[letterRecords,"OneForm",{}],
++      "GaugeAnsatzEliminated"->True,"Arithmetic"->"Specialized finite fields",
++      "DiagonalFlatness"->"CheckedAtSamples",
++      "QuadraticRadicands"->(squareRootRecordRadicand /@ roots),
++      "SignChangeImageInterpretation"->"FormalGeneratorSignChangesOnly",
++      "GaloisConjugatesCertified"->False,
++      "ResidueRegulatorDependence"->"IndependentUnknownsAtEachRegulatorImage",
++      "GenericNonexistenceProved"->False,"AlphabetCompletenessProved"->False,
++      "OtherBasesExcluded"->False|>,
+     "ScoredLetters" -> scored,
+     "Alphabet" -> Lookup[letterRecords, "Letter", {}],
+     "LetterKinds" -> Lookup[letterRecords, "Kind", {}]|>
+@@ -1813,6 +1831,15 @@
+     "LeftNullSpace" -> leftNullSeconds|>;
+   <|"Status" -> screenStatus, "Module" -> "MultiquadraticOffDiagonalBlockSolve",
+     "Method" -> "PointEvaluatedAffineOffDiagonalBasisTransformationSystem",
++    "ConclusionScope"-><|"FixedDiagonalConnections"->True,
++      "FixedInhomogeneity"->True,"FixedTargetOneForms"->oneForms,
++      "GaugeAnsatzEliminated"->False,"GaugeSupportCompletenessProved"->False,
++      "Arithmetic"->"Specialized finite fields",
++      "QuadraticRadicands"->(squareRootRecordRadicand /@ roots),
++      "SignChangeImageInterpretation"->"FormalGeneratorSignChangesOnly",
++      "GaloisConjugatesCertified"->False,
++      "GenericNonexistenceProved"->False,"AlphabetCompletenessProved"->False,
++      "OtherBasesExcluded"->False|>,
+     "SizeEstimate" -> sizeEstimate, "PhaseTimings" -> phaseTimings,
+     "CompileCache" -> Join[
+       AssociationMap[($multiquadraticOffDiagonalBlockScreenCompileStatistics[#1] -

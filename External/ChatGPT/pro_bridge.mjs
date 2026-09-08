@@ -414,10 +414,8 @@ async function pageState() {
         disabled: input.disabled,
         files: [...(input.files || [])].map(file => file.name),
       })),
-      proCount: [...document.querySelectorAll('button')]
-        .filter(button => ['Pro', 'Extra High'].includes(
-          (button.innerText || '').trim()
-        )).length,
+      proCount: [...(composerForm?.querySelectorAll('button') || [])]
+        .filter(button => (button.innerText || '').trim() === 'Pro').length,
       userCount: users.length,
       assistantCount: assistants.length,
       userIds: users.map(messageId).filter(Boolean),

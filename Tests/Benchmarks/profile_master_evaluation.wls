@@ -1,0 +1,68 @@
+#!/usr/bin/env wolframscript
+$HistoryLength=0;$MaxExtraPrecision=50;
+SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+SetEnvironment[{"OMP_NUM_THREADS"->"1","OPENBLAS_NUM_THREADS"->"1","MKL_NUM_THREADS"->"1"}];
+root=DirectoryName[ExpandFileName[$InputFileName],3];
+Get[root<>"/FeynFacet/Solution.m"];Get[root<>"/Scripts/Validation/common.wl"];
+args=Rest[$ScriptCommandLine];
+If[Length[args]!=2,Print["Expected FAMILY_REQUEST.wxf OUTPUT_DIRECTORY"];Exit[2]];
+spec=Import[args[[1]],"WXF"];
+spec["EvaluationOptions"]=Append[DeleteCases[spec["EvaluationOptions"],Rule["Threads",_]],"Threads"->1];
+out=ExpandFileName[args[[2]]];
+If[!DirectoryQ[out],CreateDirectory[out,CreateIntermediateDirectories->True]];
+events={};eventStream=OpenWrite[out<>"/events.jsonl"];serial=0;depth=0;
+emit[event_]:=(AppendTo[events,event];WriteString[eventStream,ExportString[event,"RawJSON","Compact"->True]<>"\n"]);
+SetAttributes[measure,HoldRest];
+measure[label_,body_]:=Module[{id=++serial,t=AbsoluteTime[],value=$Failed,level=depth},
+ emit[<|"Event"->"Begin","ID"->id,"Function"->label,"Depth"->level|>];
+ Internal`WithLocalSettings[depth++,
+  value=body,
+  depth--;emit[Join[<|"Event"->"End","ID"->id,"Function"->label,"Depth"->level,
+   "Seconds"->N[AbsoluteTime[]-t],"Status"->If[FailureQ[value],ToString[value[[1]]],"Returned"]|>,
+   If[AssociationQ[value],KeyTake[value,{"Dimension","EntryCount","EpsilonOrderRange",
+    "PhaseTimings","WorkingPrecision","FrobeniusOrder","TaylorOrder","TaylorStepCount","RejectedTaylorSteps"}],<||>]]]];
+ value];
+SetAttributes[instrument,HoldFirst];
+instrument[symbol_]:=With[{original=Unique["profileOriginal"],label=SymbolName[Unevaluated[symbol]]},
+ Options[original]=Options[symbol];Attributes[original]=Attributes[symbol];
+ DownValues[original]=DownValues[symbol]/.HoldPattern[symbol]->original;
+ DownValues[symbol]={};
+ symbol[a___]:=measure[label,original[a]]];
+instrument[FeynFacetSolution`EvaluateMasterIntegralSolution];
+instrument[FeynFacetSolution`EvaluateSharedBoundaryCoefficients];
+instrument[FeynFacetSolution`EvaluateBoundaryAmplitudeCoefficientValues];
+instrument[FeynFacetSolution`PrepareFrobeniusNumerics];
+instrument[FeynFacetSolution`EvaluateFrobeniusSolution];
+instrument[FeynFacetSolution`Private`frobeniusNativeStep];
+instrument[FeynFacetSolution`Private`prepareFiniteNumerics];
+instrument[FeynFacetSolution`Private`evaluateFinitePanels];
+instrument[FeynFacetSolution`Private`polynomialPathCheck];
+data=measure["ReadMasterIntegralSolution",FeynFacetSolution`ReadMasterIntegralSolution[spec["SolutionDirectory"]]];
+previous=Import[spec["OutputDirectory"]<>"/physical_evaluation.wxf","WXF"];
+Print["PREVIOUS ",KeyTake[previous,{"ElapsedSeconds","BoundaryPrecisionAttempts","ConvergenceHistory","NumericalEvaluationCount"}]];
+result=FeynFacetSolution`EvaluateMasterIntegralSolution[data,spec["Point"],Sequence@@spec["EvaluationOptions"]];
+Close[eventStream];
+writeValidationFile[out<>"/evaluation.wxf",result];
+If[FailureQ[result],Print[result];Exit[1]];
+reference=Import[spec["OutputDirectory"]<>"/amflow_reference.wxf","WXF"];
+comparisons=Table[
+ orders=spec["RequiredOrders"][row];
+ a=Association@Table[k->Lookup[Association[result["MasterIntegralEpsilonCoefficients"][k]],row],{k,orders}];
+ b=Association@Table[k->Lookup[Association[reference["MasterIntegralEpsilonCoefficients"][k]],row],{k,orders}];
+ Join[<|"Row"->row|>,FeynFacetSolution`CompareLaurentCoefficients[a,b,orders,"AccuracyGoal"->20,"PrecisionGoal"->20]],
+ {row,spec["Rows"]}];
+boundaryKeys=Keys[result["BoundaryCoefficientValues"]];
+boundaryComparison=FeynFacetSolution`CompareLaurentCoefficients[
+ AssociationThread[Range[Length[boundaryKeys]],(result["BoundaryCoefficientValues"][[Key[#]]]&/@boundaryKeys)],
+ AssociationThread[Range[Length[boundaryKeys]],(previous["BoundaryCoefficientValues"][[Key[#]]]&/@boundaryKeys)],
+ Range[Length[boundaryKeys]],"AccuracyGoal"->20,"PrecisionGoal"->20];
+writeValidationFile[out<>"/boundary_comparison.wxf",boundaryComparison];
+summary=<|"BoundaryComparisonStatus"->boundaryComparison["Status"],
+ "BoundaryComparedCoefficientCount"->boundaryComparison["ComparedCoefficientCount"],"Family"->spec["ID"],"Status"->If[AllTrue[comparisons,#["Status"]==="Passed"&]&&boundaryComparison["Status"]==="Passed","Passed","Failed"],
+ "EvaluationSeconds"->result["ElapsedSeconds"],"BoundaryPrecisionAttempts"->result["BoundaryPrecisionAttempts"],
+ "PassedCoefficientCount"->Total[Lookup[comparisons,"PassedCoefficientCount"]],
+ "Comparisons"->comparisons|>;
+writeValidationFile[out<>"/report.wxf",summary];
+Export[out<>"/report.json",KeyDrop[summary,"Comparisons"],"RawJSON"];
+Print["RESULT ",KeyDrop[summary,"Comparisons"]];
+Exit[If[summary["Status"]==="Passed",0,1]];

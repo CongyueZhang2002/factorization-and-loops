@@ -1,7 +1,7 @@
 # Wolfram-side CFFR1 backend ("PlanDiscoveryBackend" -> "FLINTAffineRREF")
 
 Binding design, 2026-08-23 (Fable).  Implements the promotion boundary of
-`Exchange/Codex/2026-08-23/12_package_bug_handoff.md` for the
+`Archive/History/Exchange/Codex/2026-08-23/12_package_bug_handoff.md` for the
 native affine-RREF adapter now at `FeynFacet/Backends/flint/flint_affine_rref`
 (protocol `PROTOCOL_CFFR1.md`; source SHA256 11f4d337...5617cd; independently
 re-verified 2026-08-23: bit-identical rebuild, 73/73 + 36/36, byte-identical

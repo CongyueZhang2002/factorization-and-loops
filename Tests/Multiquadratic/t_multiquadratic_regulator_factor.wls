@@ -1,7 +1,7 @@
 (* FactorFamilyRegulatorDependenceMultiquadratic (2026-08-25, CF259).
 
    A root set with no joint rational chart (CF259's three declared
-   squares: the triple cover is a K3 surface) used to be a typed stop.
+   squares; the catalogue miss makes no geometric nonexistence claim) used to be a typed stop.
    The constant T(eps) is now sought in the graded algebra
    Q(x,y)[r1,r2,r3]/(ri^2 - qi) itself: T lies in grade 0, so conjugation
    acts grade by grade and the 2^k grade components -- ordinary rational
@@ -16,6 +16,7 @@
        refused, typed, and the driver's terminal stop survives. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 pass = 0; fail = 0;
 check[label_, ok_] := (If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]]);
@@ -88,11 +89,11 @@ check["the conjugated input is not eps-factored",
 
 (* a generous ABSOLUTE deadline must not change the accepted result:
    the plumbing of Codex 0830 P2 is a cooperative stop, not a new gate *)
-{sec, f} = AbsoluteTiming[FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+{sec, f} = AbsoluteTiming[FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
   connection, {x, y}, eps, frame, "Deadline" -> AbsoluteTime[] + 3600,
   "Verbose" -> False]];
 Print["planted T: ", If[AssociationQ[f],
-  KeyTake[f, {"Status", "Method", "Chart", "RootIndices", "Rank", "GradeCount",
+  KeyTake[f, {"Status", "Method", "Chart", "RootIndices", "RootCount", "ParityComponentCount",
     "Points", "ExactEpsFactorization", "ExactInverse"}], f],
   " (", Round[sec, 0.1], " s)"];
 check["planted T: status OK", AssociationQ[f] && f["Status"] === "OK"];
@@ -101,7 +102,7 @@ check["planted T: routed through the graded algebra, no chart",
     StringMatchQ[f["Method"], "MultiquadraticGradedAlgebra/*"] &&
     f["Chart"] === None && Sort[f["RootIndices"]] === {1, 2, 3}];
 check["planted T: rank 3, 8 grades",
-  AssociationQ[f] && f["Rank"] === 3 && f["GradeCount"] === 8];
+  AssociationQ[f] && f["RootCount"] === 3 && f["ParityComponentCount"] === 8];
 If[AssociationQ[f] && f["Status"] === "OK",
   tRec = f["Transformation"]; tRecInverse = f["Inverse"];
   check["planted T: T is constant in the variables and eps-dependent",
@@ -125,7 +126,7 @@ If[AssociationQ[f] && f["Status"] === "OK",
     AssociationQ[newGrades] && newGrades["Status"] === "OK"];
   check["planted T: every grade of the output is eps-factored",
     AssociationQ[newGrades] && newGrades["Status"] === "OK" &&
-      FeynFacet`Private`familyRegulatorFactoredQ[newGrades["Grades"], eps]];
+      FeynFacet`Private`familyRegulatorFactoredQ[newGrades["ParityComponentMatrices"], eps]];
   (* the gauge identity itself, in the algebra: r-symbol reduction, not
      Together (2026-08-25) *)
   check["planted T: the gauge identity holds in the algebra (all entries)",
@@ -172,7 +173,7 @@ If[AssociationQ[f] && f["Status"] === "OK",
   check["planted T: a generous deadline skipped no evidence stage",
     Lookup[f, "DeadlineSkippedStages", $Failed] === {} &&
       NumericQ[Lookup[f, "GradeDecompositionSeconds", $Failed]]];
-  g = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+  g = FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
     f["Connection"], {x, y}, eps, frame];
   check["planted T: idempotent (AlreadyEpsFactored on the output)",
     AssociationQ[g] && g["Status"] === "AlreadyEpsFactored"]];
@@ -186,7 +187,7 @@ deferred = Block[{FeynFacet`Private`familyRegulatorGradedSpotCheck,
     (spotCalls++; $Failed);
   FeynFacet`Private`familyRegulatorGradedCorroborate[___] :=
     (corroborationCalls++; $Failed);
-  FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+  FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
     connection, {x, y}, eps, frame,
     "InputResiduesEpsFree" -> False,
     "ValidationMode" -> "DeferredToFamilyCertificate"]];
@@ -211,7 +212,7 @@ canonical0 = Table[
   eps Sum[{k1, k2, k3}[[a]] dl[letters0[[a]]][[mu]], {a, 3}], {mu, 2}];
 connection0 = Table[
   Map[Together, tKnown . canonical0[[mu]] . tKnownInverse, {2}], {mu, 2}];
-f0 = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+f0 = FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
   connection0, {x, y}, eps, frame];
 Print["rational input: ", If[AssociationQ[f0],
   KeyTake[f0, {"Status", "Method", "RootIndices"}], f0]];
@@ -240,7 +241,7 @@ check["the non-factorable input is not already eps-factored",
   ! (FeynFacet`Private`familyRegulatorFactoredQ[connectionBad[[1]], eps] &&
      FeynFacet`Private`familyRegulatorFactoredQ[connectionBad[[2]], eps])];
 {secBad, fBad} = AbsoluteTiming[
-  FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+  FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
     connectionBad, {x, y}, eps, frame, "PointLadder" -> {1, 2},
     "TimeLimit" -> 120]];
 Print["non-factorable: ", If[AssociationQ[fBad],
@@ -248,8 +249,11 @@ Print["non-factorable: ", If[AssociationQ[fBad],
   If[AssociationQ[fBad],
     Lookup[Lookup[fBad, "MultiquadraticFactorization", <||>], "Status", None],
     None], " (", Round[secBad, 0.1], " s)"];
-check["non-factorable: the typed stop NoRationalChart survives",
-  AssociationQ[fBad] && fBad["Status"] === "NoRationalChart"];
+check["non-factorable: the typed stop RegulatorFactorizationUnsuccessful survives",
+  AssociationQ[fBad] && fBad["Status"] === "RegulatorFactorizationUnsuccessful" &&
+    fBad["RationalizingParametrizationSearch", "Status"] ===
+      "NoCataloguedRationalizingParametrization" &&
+    fBad["RationalizingParametrizationSearch", "NonexistenceProved"] === False];
 check["non-factorable: the graded route's diagnostics are attached",
   AssociationQ[fBad] &&
     AssociationQ[Lookup[fBad, "MultiquadraticFactorization", None]] &&
@@ -329,7 +333,7 @@ check["adversarial Sqrt[2] T: the graded generator list is rank 4",
     connectionAlgebraic, {x, y}, eps, grAdversarial,
     "PointLadder" -> {1, 2}, "TimeLimit" -> 120]];
 Print["adversarial Sqrt[2] T: ", If[AssociationQ[fAdv],
-  KeyTake[fAdv, {"Status", "Rank", "GradeCount", "Complete",
+  KeyTake[fAdv, {"Status", "RootCount", "ParityComponentCount", "Complete",
     "NumericGradeGeneratorCount", "NumericGradeGenerators"}], fAdv],
   " (", Round[secAdv, 0.1], " s)"];
 check["adversarial Sqrt[2] T: the refusal is the NARROWED ConstantFieldRestriction, \
@@ -343,12 +347,12 @@ and names the generators responsible",
     StringQ[fAdv["Reason"]]];
 check["adversarial Sqrt[2] T: no transformation is returned",
   AssociationQ[fAdv] && ! KeyExistsQ[fAdv, "Transformation"]];
-fAdvFrame = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+fAdvFrame = FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
   connectionAlgebraic, {x, y}, eps, frame, "PointLadder" -> {1, 2},
   "TimeLimit" -> 120];
 check["adversarial Sqrt[2] T: the in-frame route carries the narrowed \
 diagnostic to the caller",
-  AssociationQ[fAdvFrame] && fAdvFrame["Status"] === "NoRationalChart" &&
+  AssociationQ[fAdvFrame] && fAdvFrame["Status"] === "RegulatorFactorizationUnsuccessful" &&
     Lookup[Lookup[fAdvFrame, "MultiquadraticFactorization", <||>], "Status",
       None] === "ConstantFieldRestriction"];
 (* without a numeric class present the refusal stays unqualified: the
@@ -415,12 +419,12 @@ modular image of its root square",
 (* ------------------------------------------------------------------ *)
 check["\"Deadline\" is a declared option of all three entry points",
   AllTrue[{FeynFacet`FactorFamilyRegulatorDependence,
-      FeynFacet`FactorFamilyRegulatorDependenceInFrame,
+      FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation,
       FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic},
     KeyExistsQ[Association[Options[#]], "Deadline"] &]];
 check["the default deadline is unbounded (the former behaviour)",
   AllTrue[{FeynFacet`FactorFamilyRegulatorDependence,
-      FeynFacet`FactorFamilyRegulatorDependenceInFrame,
+      FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation,
       FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic},
     Lookup[Association[Options[#]], "Deadline"] === Infinity &]];
 deadlineStages = {"Entry", "FrameEntry", "SamplePoints", "GradeDecomposition",
@@ -438,7 +442,7 @@ expiredGraded = FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic[
   connection, {x, y}, eps, gr, "Deadline" -> AbsoluteTime[] - 1];
 check["an expired deadline stops the graded route, typed and resumable",
   typedStopQ[expiredGraded] && expiredGraded["Stage"] === "Entry"];
-expiredFrame = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+expiredFrame = FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
   connection, {x, y}, eps, frame, "Deadline" -> AbsoluteTime[] - 1];
 check["an expired deadline stops the in-frame dispatcher before any work",
   typedStopQ[expiredFrame] && expiredFrame["Stage"] === "FrameEntry"];
@@ -457,12 +461,12 @@ check["a deadline falling mid-stage is caught at a stage boundary",
 check["a mid-stage deadline stop hands back no transformation",
   AssociationQ[midStage] && ! KeyExistsQ[midStage, "Transformation"]];
 (* a deadline expiry inside the graded route is NOT the family's typed
-   terminal: "NoRationalChart" stops the family, a budget expiry resumes *)
-midFrame = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+   terminal: "RegulatorFactorizationUnsuccessful" stops the family, a budget expiry resumes *)
+midFrame = FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
   connection, {x, y}, eps, frame, "Deadline" -> AbsoluteTime[] + 0.02,
   "PointLadder" -> {1, 2}, "TimeLimit" -> 120];
-check["a budget expiry never masquerades as the NoRationalChart terminal",
-  AssociationQ[midFrame] && midFrame["Status"] =!= "NoRationalChart" &&
+check["a budget expiry never masquerades as the RegulatorFactorizationUnsuccessful terminal",
+  AssociationQ[midFrame] && midFrame["Status"] =!= "RegulatorFactorizationUnsuccessful" &&
     typedStopQ[midFrame]];
 (* ---- grade decomposition: interning, brokering, sampling cache ----
    Codex's 08:30 performance item 1: the decomposition was 134.1 of the
@@ -487,8 +491,8 @@ newGrade = gradedMatrices[repeatConnection, gr, "Intern" -> True,
   "Parallel" -> False];
 check["grade interning: the interned route is SameQ to the per-entry route",
   Lookup[newGrade, "Status", None] === "OK" &&
-    newGrade["Grades"] === oldGrade["Grades"] &&
-    newGrade["ActiveGrades"] === oldGrade["ActiveGrades"] &&
+    newGrade["ParityComponentMatrices"] === oldGrade["ParityComponentMatrices"] &&
+    newGrade["ActiveParityComponents"] === oldGrade["ActiveParityComponents"] &&
     newGrade["Channels"] === oldGrade["Channels"]];
 check["grade interning: each unique expression is decomposed once",
   Lookup[newGrade["Statistics"], "NonzeroEntries", -1] === 9 &&
@@ -498,7 +502,7 @@ check["grade interning: each unique expression is decomposed once",
    environment fact and not this test's subject *)
 check["grade interning: interning is the default",
   Module[{d = gradedMatrices[repeatConnection, gr, "Parallel" -> False]},
-   d["Grades"] === oldGrade["Grades"] &&
+   d["ParityComponentMatrices"] === oldGrade["ParityComponentMatrices"] &&
      Lookup[d["Statistics"], "Interned", False] === True &&
      Lookup[d["Statistics"], "UniqueEntries", -1] === 2 &&
      Lookup[d["Statistics"], "Route", None] === "Serial"]];
@@ -513,7 +517,7 @@ parGrade = gradedMatrices[repeatConnection, gr, "Intern" -> True,
   "Parallel" -> True, "Helpers" -> 1, "BatchDispatcher" -> gradeDispatcher];
 check["grade interning: the brokered map returns the same decomposition",
   Lookup[parGrade, "Status", None] === "OK" &&
-    parGrade["Grades"] === oldGrade["Grades"] &&
+    parGrade["ParityComponentMatrices"] === oldGrade["ParityComponentMatrices"] &&
     Lookup[parGrade["Statistics"], "Route", None] === "Parallel" &&
     Lookup[parGrade["Statistics"], "Batches", 0] === 2];
 deadGrade = gradedMatrices[repeatConnection, gr, "Intern" -> True,
@@ -521,12 +525,12 @@ deadGrade = gradedMatrices[repeatConnection, gr, "Intern" -> True,
   "BatchDispatcher" -> deadGradeDispatcher];
 check["grade interning: a helper that returns nothing costs time, never a grade",
   Lookup[deadGrade, "Status", None] === "OK" &&
-    deadGrade["Grades"] === oldGrade["Grades"]];
+    deadGrade["ParityComponentMatrices"] === oldGrade["ParityComponentMatrices"]];
 check["grade interning: a byte cap splits the unique expressions, not the entries",
   Module[{d = gradedMatrices[repeatConnection, gr, "Intern" -> True,
       "Parallel" -> True, "Helpers" -> 1, "BatchByteCap" -> 1,
       "BatchDispatcher" -> gradeDispatcher]},
-   d["Grades"] === oldGrade["Grades"] &&
+   d["ParityComponentMatrices"] === oldGrade["ParityComponentMatrices"] &&
      Lookup[d["Statistics"], "Batches", 0] === 2]];
 Print["t_multiquadratic_regulator_factor: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

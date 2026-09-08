@@ -2,6 +2,7 @@
    distinct for the same rational family dlog epsilon form. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
 Clear[v, w, u, eps, master];
@@ -51,29 +52,11 @@ threeVariableSource = FeynFacet`ValidateFamilyDLogEpsilonForm[
 unsupportedMethod = FeynFacet`ValidateFamilyDLogEpsilonForm[
   candidate, system, "SourceVariables" -> {v, w},
   "IdentityMethod" -> "Unknown"];
-transportInput = exact;
-transportDemand = <|
-  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> {{0, 1}},
-  "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
-  "RegularBasePointAndFirstPathParameterScale" -> <|
-    "FirstVariable" -> v, "SecondVariable" -> w,
-    "FirstBase" -> 1/2, "SecondBase" -> 1/2,
-    "FirstPathParameterScale" -> -1/6|>|>;
-transportFromV2Blocks =
-  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
-  transportInput, transportDemand,
-  "BoundaryConstraintSubspaceRepresentation" ->
-    "AmbientSpaceWithBasePointConstraints",
-  "IteratedIntegralCoefficientRepresentation" ->
-    "IteratedIntegralCoefficientOperatorForRequestedOutputs"];
-transportFromTopLevelBlocks =
-  FeynFacet`ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
-  Join[KeyDrop[transportInput, "BlockDecomposition"],
-    <|"IrreducibleDiagonalBlocks" -> {{1}, {2}}|>], transportDemand,
-  "BoundaryConstraintSubspaceRepresentation" ->
-    "AmbientSpaceWithBasePointConstraints",
-  "IteratedIntegralCoefficientRepresentation" ->
-    "IteratedIntegralCoefficientOperatorForRequestedOutputs"];
+(* The public solver consumes the raw closed DE without a lazy transport stage. *)
+finiteSolution = FeynFacet`ConstructMasterIntegralSolution[v2System,
+  <|"BasePoint" -> {1/2,1/2}, "RequestedEpsilonOrders" -> {0,1},
+    "AnalyticDomain" -> "0<v<1 and 0<w<1",
+    "BranchPrescription" -> "Real branch at the ordinary base point"|>];
 
 tests = <|
   "ExactStatus" -> exact["Status"] ===
@@ -98,12 +81,8 @@ tests = <|
   "SourceRepresentation" ->
     exact["CoefficientPresentation", "DataType"] ===
       "SourceVariableRepresentation",
-  "CoefficientOperatorConsumesNestedBlockDecomposition" ->
-    FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
-      transportFromV2Blocks],
-  "CoefficientOperatorRefusesTopLevelBlockAlias" ->
-    ! FeynFacet`IteratedIntegralCoefficientOperatorForRequestedOutputsQ[
-      transportFromTopLevelBlocks],
+  "RawDEHasExplicitFiniteSolution" ->
+    FeynFacet`MasterIntegralSolutionQ[finiteSolution],
   "BrokenTransformationRejected" ->
     broken["Status"] === "FamilyDLogEpsilonFormValidationFailed" &&
       ! TrueQ[broken["Validation", "Conditions",

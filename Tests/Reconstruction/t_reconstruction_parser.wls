@@ -9,13 +9,13 @@
    columns reconstruct separately) and on the relative marker paths a
    manual run started from the trace directory writes.
 
-   This test builds synthetic rec files over the stored NLO trace and
+   This test builds synthetic rec files over a temporary synthetic trace and
    pins the contract down.  The alias map is read from the manifest, not
    assumed: the trace variables are numbered in emission order and the
    order differs between traces.
 
    Acceptance criteria:
-   A. The stored NLO trace manifest loads and names its alias map.
+   A. The synthetic trace manifest loads and names its alias map.
    B. A complete, absolute-marker result set parses to exactly the
       expressions written, with every master covered.
    C. A subset parses to exactly its own blocks, and reports the
@@ -39,15 +39,33 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
-traceDirectory = FileNameJoin[{
-  root, "Codex", "ppHX_NLO", "CoefficientSimplification",
-  "UU_08_10_10x10_regen", "FiniteField"
-}];
+(* Parser tests generate their own tiny trace; production intermediates
+   are not test fixtures. *)
+fixtureDirectory = CreateDirectory[];
+traceDirectory = FileNameJoin[{fixtureDirectory, "FiniteField"}];
+CreateDirectory[FileNameJoin[{traceDirectory, "Expressions"}],
+  CreateIntermediateDirectories -> True];
+syntheticTrace = <|
+  "PhysicalFactor" -> 1, "CompleteTargetSet" -> True,
+  "Masters" -> Table[GLI[parserFamily, {i}], {i, 5}],
+  "Signatures" -> <|1 -> HoldComplete[2^(2 Global`Epsilon)],
+    2 -> HoldComplete[-3 Pi^(1 + Global`Epsilon)]|>,
+  "SymbolRules" -> <|Global`parserColorA -> Global`parserAliasA,
+    Global`parserColorB -> Global`parserAliasB,
+    Global`Epsilon -> Global`parserAliasEpsilon|>,
+  "Variables" -> {Global`parserColorA, Global`parserColorB, Global`Epsilon},
+  "OutputFiles" -> Table[FileNameJoin[{traceDirectory, "Expressions",
+    "Output_" <> IntegerString[i, 10, 6] <> ".expr"}], {i, 10}],
+  "OutputMetadata" -> Table[<|"MasterIndex" -> Ceiling[i/2],
+    "SignatureIndex" -> 1 + Mod[i, 2]|>, {i, 10}]
+|>;
+FeynFacet`Private`finiteFieldWriteTraceManifest[
+  traceDirectory, syntheticTrace, "synthetic", "synthetic"];
 
 record = FeynFacet`Private`reconstructionTraceRecord[traceDirectory];
 traceData = If[AssociationQ[record], record["TraceData"], $Failed];
 
-FTTest`FTAssert["A. the stored NLO trace manifest loads with its alias map",
+FTTest`FTAssert["A. the synthetic trace manifest loads with its alias map",
   AssociationQ[traceData] &&
     AssociationQ[traceData["SymbolRules"]] &&
     Length[traceData["OutputFiles"]] > 1];
@@ -322,4 +340,5 @@ Print["    alias map: ", InputForm[symbolRules]];
 Print["    outputs: ", outputCount, ", masters: ",
   Length[traceData["Masters"]]];
 
+DeleteDirectory[fixtureDirectory, DeleteContents -> True];
 FTTest`FTReport[];

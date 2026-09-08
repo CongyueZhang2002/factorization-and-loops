@@ -7,14 +7,14 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 z = Symbol["Global`rationalBlockResidueZ"];
 a = Symbol["Global`rationalBlockLocalExpansionPointA"];
 source = <|"Letters" -> {{"GPLPole", a}},
-  "Residues" -> {SparseArray[{{1, 2} -> 2}, {2, 2}]}|>;
+  "KernelCoefficientMatrices" -> {SparseArray[{{1, 2} -> 2}, {2, 2}]}|>;
 diagonal = <|"Letters" -> {{"GPLPole", a}},
-  "Residues" -> {SparseArray[{{1, 1} -> 3}, {1, 1}]}|>;
+  "KernelCoefficientMatrices" -> {SparseArray[{{1, 1} -> 3}, {1, 1}]}|>;
 incoming = <|
   -1 -> <|"Letters" -> {{"GPLPole", a}},
-    "Residues" -> {SparseArray[{{1, 1} -> 5}, {1, 2}]}|>,
+    "KernelCoefficientMatrices" -> {SparseArray[{{1, 1} -> 5}, {1, 2}]}|>,
   1 -> <|"Letters" -> {{"GPLPole", a + 1}},
-    "Residues" -> {SparseArray[{{1, 2} -> 7}, {1, 2}]}|>
+    "KernelCoefficientMatrices" -> {SparseArray[{{1, 2} -> 7}, {1, 2}]}|>
 |>;
 
 result = ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint[
@@ -32,7 +32,7 @@ FTAssert["a rational-epsilon-dependent block connection residue is computed dire
     {{0, 2, 0}, {0, 0, 0}, {0, 0, 3}}];
 
 badIncoming = <|0 -> <|"Letters" -> {{"GPLPole", a}},
-  "Residues" -> {IdentityMatrix[2]}|>|>;
+  "KernelCoefficientMatrices" -> {IdentityMatrix[2]}|>|>;
 FTAssert["an incoming deck with the wrong rectangular shape is refused",
   ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint[source, diagonal,
     badIncoming, z, a]["Status"] ===

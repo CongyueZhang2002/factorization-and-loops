@@ -1,0 +1,11 @@
+{
+	"Scope":"Isolated numerator fitting with 32 outputs, corresponding to four entries in an eight-dimensional square-root algebra; not a complete family canonicalization.",
+	"BeforeSeconds":0.127545,
+	"AfterSeconds":2.9619e-2,
+	"SameExactCoefficients":true,
+	"DamagedHeldOutRowDetected":true,
+	"SupportCount":81,
+	"PointCount":89,
+	"EpsilonSampleCount":12,
+	"OutputCount":32
+}

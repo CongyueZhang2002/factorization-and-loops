@@ -55,13 +55,13 @@
    E. Matching.  LookupCataloguedRationalizingParametrizationForRoots returns KallenQ4a for
       {lambda1, 4v+w^2}, KallenQ4b for {lambda1, v^2+4w}, in either
       order and in caller-chosen source symbols; and
-      Missing["NoRationalChart"] for {lambda1, 1 + v^3}.
+      Missing["RegulatorFactorizationUnsuccessful"] for {lambda1, 1 + v^3}.
 
    R. Catalog regression.  Every root set built from the SIX distinct
       quadratics the catalog rationalizes (all singletons and all pairs,
       21 sets) resolves exactly as it did before the two charts were
       added -- measured on the base commit f002abb, 2026-08-24 -- except
-      the two pairs of criterion E, which were Missing["NoRationalChart"]
+      the two pairs of criterion E, which were Missing["RegulatorFactorizationUnsuccessful"]
       and are the point of this change.
 
    S. The square class of a radical base.  The kernel AUTOMATICALLY pulls
@@ -79,7 +79,7 @@
    T. END TO END on the artifact that motivated the chart: the CF259
       sector state, its rows 1..16 truncation (row bound from the state's
       own "Ranges"), the family's registered multiquadratic frame, and
-      FactorFamilyRegulatorDependenceInFrame.
+      FactorFamilyRegulatorDependenceInCoefficientPresentation.
 
       THE INPUT IS FROZEN.  Until 2026-08-25 this block read the LIVE
       campaign state
@@ -101,9 +101,9 @@
       fingerprint is the registered CF259 frame; rows 1..16 is the 24x24
       leading truncation; that truncation carries frame roots {1, 3} and no
       undeclared radical; the pair {lambda1, 4x+y^2} resolves to KallenQ4a
-      (it was Missing["NoRationalChart"] before this chart existed, which is
+      (it was Missing["RegulatorFactorizationUnsuccessful"] before this chart existed, which is
       what stopped the solve); and
-      FactorFamilyRegulatorDependenceInFrame returns "AlreadyEpsFactored"
+      FactorFamilyRegulatorDependenceInCoefficientPresentation returns "AlreadyEpsFactored"
       on it, because the frozen truncation is itself eps-factored in the
       frame -- verified here directly, not taken from the status.
       Skipped with a typed line when the fixture is absent (it is project
@@ -532,14 +532,14 @@ undeclared radical",
       "QuadraticRadicand", {}];
     chart = FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[rootSquares, {xx, yy}];
     FTAssert["T6 that root pair now resolves to KallenQ4a (it was \
-Missing[\"NoRationalChart\"], which is what stopped the solve)",
+Missing[\"RegulatorFactorizationUnsuccessful\"], which is what stopped the solve)",
       AssociationQ[chart] && chart["Name"] === "KallenQ4a"];
     {seconds, factor} = AbsoluteTiming[
-      FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+      FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
         truncation, {xx, yy}, ee, frame,
         "TimeLimit" -> 900, "Verbose" -> False]];
     status = If[AssociationQ[factor], Lookup[factor, "Status", None], factor];
-    Print["T: FactorFamilyRegulatorDependenceInFrame -> ", InputForm[status],
+    Print["T: FactorFamilyRegulatorDependenceInCoefficientPresentation -> ", InputForm[status],
       " in ", Round[seconds, 0.1], " s"];
     Print["T: record = ", InputForm[If[AssociationQ[factor],
       KeyDrop[factor, {"Transformation", "Inverse", "Connection", "Attempts"}],
@@ -553,9 +553,9 @@ Missing[\"NoRationalChart\"], which is what stopped the solve)",
        of the frozen matrix, not a run position.  It is asserted as the
        exact status, and T8 verifies the mathematical claim BEHIND that
        status independently of the function's own verdict. *)
-    FTAssert["T7 the call gets past the NoRationalChart stop, with the \
+    FTAssert["T7 the call gets past the RegulatorFactorizationUnsuccessful stop, with the \
 measured status AlreadyEpsFactored on the frozen truncation",
-      AssociationQ[factor] && status =!= "NoRationalChart" &&
+      AssociationQ[factor] && status =!= "RegulatorFactorizationUnsuccessful" &&
       status === "AlreadyEpsFactored"];
     FTAssert["T8 the reason is exact: the frozen rows-1..16 truncation is \
 itself eps-factored in the frame, in both variables",

@@ -1,6 +1,6 @@
 (* Scripts/Diagnostics/ModularSplitPoints.wl -- the split-point sampler
    and predicate of the 2026-09-02 finite-field consolidation, moved out
-   of FeynFacet/Private/Core/Modular/ModularArithmetic.wl in round 4 (2026-09-02)
+   of FeynFacet/Algebra/ModularArithmetic.wl in round 4 (2026-09-02)
    because they have NO production caller and no identical production
    body: MultiquadraticOffDiagonalBlockSolve.wl evaluates a radicand at a point as an
    exact rational (multiquadraticOffDiagonalBlockModRational: Together, then ONE

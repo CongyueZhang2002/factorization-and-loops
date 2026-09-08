@@ -12,7 +12,7 @@ eps-truncated series reconstruction (13x probe reduction on the fat
 column, verified exact to truncation), the parser defects on partial
 result sets, and the progress-monitoring requirement.
 
-## Public API (Simplification.wl or a new Reconstruction.wl)
+## Public API
 
     ReconstructCoefficients[traceDirectory, options]
 
@@ -22,10 +22,10 @@ returns/writes the standard coefficient artifact. Options:
   Automatic = the context regulator (Epsilon), None = full rational
   reconstruction. Series mode uses ratracer `to-series` (Laurent-pole
   aware; verified).
-- "SeriesOrder" -> 5 (production default, user decision 2026-08-13:
-  safety margin over master pole depths; ~15% probe overhead).
+- "SeriesOrder" -> 5 is the historical default. Production callers should
+  supply the order derived from the sufficient-epsilon-order calculation.
 - "Threads" -> Automatic (respects the core-cap convention:
-  Global`$FACETKernelLimit, currently 16 by user grant).
+  Global`$FACETKernelLimit; current runs use at most eight cores).
 - "Schedule" -> Automatic: bundle all columns with expression files
   below "BundleBelowBytes" (default 16 MB) into one shared trace;
   isolate larger columns as sequential solo jobs, ascending by size
@@ -87,15 +87,16 @@ completeness beyond it.
   equals the eps-series of the golden exactly to depth. Timing
   recorded.
 - t_reconstruction_ghost.wls: ghost grid in series mode vs stored
-  exact coefficients (series-expanded); wall time must not exceed the
-  measured 18.8 s full-rational baseline.
+  exact coefficients (series-expanded); timings are reported without a
+  hardware-dependent pass/fail threshold.
 - t_reconstruction_parser.wls: synthetic rec files exercising subset,
   permuted, and relative-marker cases (regression for the filed
   defects); a wrong-order file must fail loudly, not silently.
 
-## Migration
+## Final results and working files
 
-The ad-hoc scripts under Reconstruction_2026_08_13/ stay as the
-historical record; Scripts/assemble_reconstruction.wls and
-verify_reconstruction_slice.wls become thin wrappers over the package
-functions (keep CLIs working). WORKLOG documents the switchover.
+Completed coefficient intermediates and ad-hoc production launch scripts were
+removed on 2026-09-06 after all final coefficient values were consolidated.
+The parser and reconstruction CLI remain general tools for new runs.
+[Final coefficient storage and retention](FinalCoefficientResults.md) defines
+the mixed exact/Laurent result, the exporter and automatic cleanup.

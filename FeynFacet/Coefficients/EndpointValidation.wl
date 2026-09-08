@@ -1,0 +1,70 @@
+(* Evaluation at the stored tangential base point, without DE transport.
+   Constant kernels give polynomial iterated integrals there. Unsupported
+   surviving nonpolynomial integrals are reported, never replaced by zero. *)
+BeginPackage["FeynFacet`"];
+EvaluateScalarEndpointAtBasePoint::usage=
+ "EvaluateScalarEndpointAtBasePoint[solution,opts] evaluates explicit scalar endpoint coefficients at the stored tangential base point using polynomial integral definitions and closed constants. ParameterRules must supply external physical factors. Surviving unsupported integral definitions cause a failure.";
+Begin["`Private`"];
+Options[EvaluateScalarEndpointAtBasePoint]={"ParameterRules"->{},"WorkingPrecision"->80};
+EvaluateScalarEndpointAtBasePoint[data_Association,OptionsPattern[]]:=Catch[Module[
+ {v,base,pointRules,kd,fd,ad,kernels,functions,arithmetic,t=Unique["basePointParameter"],
+  precision=OptionValue["WorkingPrecision"],rules=OptionValue["ParameterRules"],body,lower,
+  coefficients,terms,values,gpls,gvalues,resolve,nonpolynomial={},fail,seconds,start=AbsoluteTime[]},
+ fail[tag_,details_:<||>]:=Throw[Failure[tag,details],"EndpointBasePoint"];
+ If[Lookup[data,"DataType",None]=!="FiniteScalarEndpointSolution"||
+   !IntegerQ[precision]||precision<30||!MatchQ[rules,{(_Rule|_RuleDelayed)...}],
+  fail["ScalarEndpointAndExactParameterRulesRequired"]];
+ v=data["TangentialVariable"];base=data["TangentialBasePoint"];pointRules=Prepend[rules,v->base];
+ {kd,fd,ad}=Lookup[data,{"KernelDefinitions","IntegralDefinitions","AlgebraicDefinitions"}];
+ kernels=ConstantArray[0,Length[kd]];functions=ConstantArray[None,Length[fd]];
+ Do[
+  body=(kd[[i,"Expression"]]/.kd[[i,"Parameter"]]->t)/.pointRules;
+  body=body/.FeynFacetSolution`K[j_Integer,u_]:>If[1<=j<i,kernels[[j]]/.t->u,
+    fail["EndpointKernelDependencyInvalid",<|"Index"->i|>]];
+  kernels[[i]]=body,
+ {i,Length[kd]}];
+ Do[
+  body=(fd[[i,"Integrand"]]/.fd[[i,"IntegrationVariable"]]->t)/.pointRules;
+  body=body/.{
+   FeynFacetSolution`K[j_Integer,u_]:>If[1<=j<=Length[kernels],kernels[[j]]/.t->u,
+     fail["EndpointKernelDependencyInvalid",<|"IntegralIndex"->i|>]],
+   FeynFacetSolution`F[j_Integer,u_]:>If[1<=j<i,
+     If[functions[[j]]===None,FeynFacetSolution`F[j,u],functions[[j]]/.t->u],
+     fail["EndpointIntegralDependencyInvalid",<|"Index"->i|>]]};
+  If[PolynomialQ[body,t]&&FreeQ[body,_FeynFacetSolution`F|Indeterminate|_DirectedInfinity],
+   lower=Lookup[fd[[i]],"LowerLimit",0]/.pointRules;
+   coefficients=CoefficientRules[body,{t}];
+   functions[[i]]=Total[(Last[#]/(First[First[#]]+1)*
+     (t^(First[First[#]]+1)-lower^(First[First[#]]+1)))&/@coefficients],
+   AppendTo[nonpolynomial,i]],
+ {i,Length[fd]}];
+ resolve[x_]:=x/.FeynFacetSolution`F[j_Integer,u_]:>If[1<=j<=Length[functions]&&functions[[j]]=!=None,
+   functions[[j]]/.t->u,FeynFacetSolution`F[j,u]];
+ gpls=DeleteDuplicates@Cases[{ad,data["EndpointTerms"]}/.pointRules,_FeynFacetSolution`G,Infinity];
+ gvalues=If[gpls==={},{},Quiet[FeynFacetSolution`EvaluateGPLExpression[gpls,"WorkingPrecision"->precision+15]]];
+ If[FailureQ[gvalues]||!ListQ[gvalues],fail["EndpointGPLValuesUnavailable",<|"Cause"->gvalues|>]];
+ arithmetic=ConstantArray[0,Length[ad]];
+ Do[
+  body=resolve[(ad[[i]]/.pointRules)/.FeynFacetSolution`a[j_Integer]:>If[1<=j<i,arithmetic[[j]],
+    fail["EndpointArithmeticDependencyInvalid",<|"Index"->i|>]]]/.Thread[gpls->gvalues];
+  arithmetic[[i]]=Quiet[N[body,precision]],
+ {i,Length[ad]}];
+ terms=Map[Function[term,
+  values=Association@KeyValueMap[Function[{order,expression},
+    body=resolve[(expression/.pointRules)/.FeynFacetSolution`a[j_Integer]:>arithmetic[[j]]]/.Thread[gpls->gvalues];
+    order->Quiet[N[body,precision]]],term["Coefficients"]];
+  If[!AllTrue[Values[values],NumericQ[#]&&FreeQ[#,Indeterminate|_DirectedInfinity]&],
+    fail["EndpointBasePointCoefficientNotNumeric",<|"Power"->term["Power"],
+      "RegulatorExponent"->term["RegulatorExponent"],"LogPower"->term["LogPower"],
+      "NonpolynomialIntegralCount"->Length[nonpolynomial]|>]];
+  Join[term,<|"Coefficients"->values|>]],data["EndpointTerms"]];
+ <|"DataType"->"NumericalScalarEndpointCoefficients","TangentialPoint"->base,
+   "EndpointTerms"->terms,"WorkingPrecision"->precision,"ParameterRules"->rules,
+   "Seconds"->AbsoluteTime[]-start,"IntegralDefinitionCount"->Length[fd],
+   "MinimumCoefficientAccuracy"->If[terms==={},Infinity,Min[Accuracy/@Flatten[Values[#["Coefficients"]]&/@terms]]],
+   "UnusedNonpolynomialIntegralCount"->Length[nonpolynomial],
+   "Method"->"Polynomial integral definitions and closed constants at the tangential base point; no differential equation transport."|>
+],"EndpointBasePoint"];
+EvaluateScalarEndpointAtBasePoint[___]:=Failure["ScalarEndpointSolutionRequired",<||>];
+End[];
+EndPackage[];

@@ -1,0 +1,202 @@
+
+(* Numerical boundary values from the existing exact normalized system.
+   The explicit shared symbolic expressions remain the primary stored result. *)
+FeynFacetSolution`EvaluateSharedBoundaryCoefficients::usage="EvaluateSharedBoundaryCoefficients[shared,construction,amplitudeCoefficients,opts] computes requested ordinary-point boundary coefficients using normalized Frobenius initialization. amplitudeCoefficients is an Association keyed by {unknown amplitude index,epsilon order}.";
+Options[FeynFacetSolution`EvaluateSharedBoundaryCoefficients]=Join[
+ Options[FeynFacetSolution`EvaluateFrobeniusSolution],{
+ "BoundaryCoefficientRequests"->Automatic,"CheckBoundaryConvergence"->True}];
+FeynFacetSolution`EvaluateSharedBoundaryCoefficients[shared_Association,construction_Association,
+ supplied_Association,opts:OptionsPattern[]] := Catch[Module[
+ {prep=construction["PreparedBoundarySystem"],seed=construction["BoundarySeed"]["Basis"],
+ bounds=construction["AmplitudeLaurentLowerBounds"],unknown=construction["UnknownAmplitudeDefinitions"],
+ known=construction["KnownAmplitudeExpressions"],requests=OptionValue["BoundaryCoefficientRequests"],
+ labels=shared["OrdinaryPointBoundaryBasis"],matrix,gauge,eps,z,n,c,low,high,upper,previous,
+ valuation,positions,gaugePositions,seedPositions,av,gv,sv,needed,missing={},columnUpper,
+ amplitudeSeries,coefficientSeed,coefficient,series,row,col,power,index,idx,
+ prepared,results=<||>,summaries={},target,groups,group,first,second,
+ mapped,refined,differences={},mapResult,localGauge,values,runOptions,
+ ag=OptionValue["AccuracyGoal"],pg=OptionValue["PrecisionGoal"],wp=OptionValue["WorkingPrecision"],
+ compare=OptionValue["CheckBoundaryConvergence"],u,targets,active,activeIndex,
+  suppliedOriginal=supplied,originalRequests,started=AbsoluteTime[],preparationSeconds},
+ matrix=prep["NormalizedDifferentialSystem"]["ConnectionMatrix"];
+ eps=prep["NormalizedDifferentialSystem"]["DimensionalRegulator"];
+ z=prep["NormalizedDifferentialSystem"]["Variable"];gauge=prep["NormalizedToOriginalGauge"];
+ {n,c}=Dimensions[seed];low=Min[bounds];
+ If[requests===Automatic,requests=Keys[shared["BoundaryCoefficientDefinitions"]]];
+ If[!AllTrue[requests,MatchQ[#,{_Integer,_Integer}]&&1<=First[#]<=Length[labels]&],
+   frobeniusNumericalFail["BoundaryCoefficientRequestsInvalid"]];
+ If[requests==={},Return[<|"BoundaryCoefficientValues"-><||>,"NumericalContinuations"->{}|>]];
+ valuation[value_]:=If[value===0,Infinity,With[{nd=NumeratorDenominator[Cancel[Together[value]]]},
+   If[!AllTrue[nd,PolynomialQ[#,eps]&],frobeniusNumericalFail["RationalBoundaryGaugeAndSeedRequired"]];
+   Exponent[First[nd],eps,Min]-Exponent[Last[nd],eps,Min]]];
+ positions=Position[Normal[matrix],x_/;x=!=0,{2},Heads->False];
+ gaugePositions=Position[Normal[gauge],x_/;x=!=0,{2},Heads->False];
+ seedPositions=Position[Normal[seed],x_/;x=!=0,{2},Heads->False];
+ av=valuation[Extract[matrix,#]]&/@positions;
+ sv=valuation[Extract[seed,#]]&/@seedPositions;
+ If[Min[av]<0||Min[sv]<0,frobeniusNumericalFail["EpsilonRegularConnectionAndSeedRequired"]];
+ upper=ConstantArray[-Infinity,n];
+ Do[row=labels[[request[[1]],"ConnectionRow"]];
+  Do[If[gauge[[row,j]]===0,Continue[]];
+   upper[[j]]=Max[upper[[j]],request[[2]]-valuation[gauge[[row,j]]]],{j,n}],
+ {request,requests}];
+ Do[previous=upper;
+  Do[upper[[positions[[j,2]]]]=Max[upper[[positions[[j,2]]]],upper[[positions[[j,1]]]]-av[[j]]],{j,Length[positions]}];
+  If[previous===upper,Break[]],{n}];
+ high=Max[upper];columnUpper=ConstantArray[-Infinity,c];
+ Do[{row,col}=seedPositions[[j]];
+  columnUpper[[col]]=Max[columnUpper[[col]],upper[[row]]-sv[[j]]],{j,Length[seedPositions]}];
+ If[KeyExistsQ[construction,"AmplitudeReduction"],
+   originalRequests=Flatten[Table[
+    col=amplitude["Definition"]["SeedColumn"];idx=amplitude["Index"];
+    If[columnUpper[[col]]<bounds[[col]],{},Table[{idx,k},{k,bounds[[col]],columnUpper[[col]]}]],
+    {amplitude,unknown}],1];
+   suppliedOriginal=FeynFacetSolution`EvaluateBoundaryAmplitudeCoefficientValues[
+    construction["AmplitudeReduction"],supplied,originalRequests,"WorkingPrecision"->wp+15];
+   If[FailureQ[suppliedOriginal],Throw[suppliedOriginal,"FrobeniusNumerics"]]];
+ amplitudeSeries=ConstantArray[0,c];
+ Do[
+  col=amplitude["Definition"]["SeedColumn"];idx=amplitude["Index"];
+  needed=If[columnUpper[[col]]<bounds[[col]],{},Table[{idx,k},{k,bounds[[col]],columnUpper[[col]]}]];
+  missing=Join[missing,Select[needed,!KeyExistsQ[suppliedOriginal,#]&]];
+  If[AllTrue[needed,KeyExistsQ[suppliedOriginal,#]&],
+   amplitudeSeries[[col]]=Total[(suppliedOriginal[[Key[#]]] eps^Last[#])&/@needed]],
+ {amplitude,unknown}];
+ If[missing=!={},frobeniusNumericalFail["RequiredBoundaryAmplitudeCoefficientsMissing",<|"Coefficients"->missing|>]];
+ Do[
+  If[columnUpper[[col]]>=bounds[[col]],
+    amplitudeSeries[[col]]=N[Normal[Series[known[col],{eps,0,columnUpper[[col]]}]],wp+20]],
+ {col,Keys[known]}];
+ If[!FreeQ[amplitudeSeries,_Series|_SeriesData|Indeterminate|_DirectedInfinity],
+   frobeniusNumericalFail["BoundaryAmplitudeExpansionFailed"]];
+ coefficientSeed=ConstantArray[0,{high-low+1,n}];
+ Do[If[upper[[row]]<low,Continue[]];
+  series=Normal[Series[seed[[row]].amplitudeSeries,{eps,0,upper[[row]]}]];
+  Do[coefficientSeed[[k-low+1,row]]=N[Coefficient[Expand[series],eps,k],wp+15],
+   {k,low,upper[[row]]}],{row,n}];
+ If[!MatrixQ[coefficientSeed,finiteNumericQ],frobeniusNumericalFail["NumericBoundaryAmplitudeCoefficientsRequired"]];
+ active=Select[Range[n],upper[[#]]>=low&];activeIndex=AssociationThread[active,Range[Length[active]]];
+ coefficientSeed=coefficientSeed[[All,active]];
+ prepared=FeynFacetSolution`PrepareFrobeniusNumerics[Join[prep["NormalizedDifferentialSystem"],
+   <|"ConnectionMatrix"->matrix[[active,active]]|>],{low,high}];
+ If[FailureQ[prepared],Throw[prepared,"FrobeniusNumerics"]];
+ preparationSeconds=AbsoluteTime[]-started;
+ groups=GroupBy[requests,labels[[First[#],"NormalCoordinates",1]]&];
+ runOptions=FilterRules[{opts},Options[FeynFacetSolution`EvaluateFrobeniusSolution]];
+ mapResult[result_,selected_,point_]:=Module[{outputs={},rr,kk,sum,entry,coeffs,j,q,norm},
+  norm=result["NormalizedEpsilonCoefficients"];
+  Do[
+   {rr,kk}={labels[[request[[1]],"ConnectionRow"]],request[[2]]};sum=0;
+   Do[entry=gauge[[rr,j]];If[entry===0,Continue[]];
+    coeffs=Normal[Series[entry/.z->point,{eps,0,kk-low}]];
+    Do[If[low<=kk-q<=high,sum+=Coefficient[coeffs,eps,q]norm[kk-q][[activeIndex[j]]]],
+     {q,valuation[entry],kk-low}],{j,active}];
+   AppendTo[outputs,N[sum,wp]],
+  {request,selected}];outputs];
+ Do[
+  first=FeynFacetSolution`EvaluateFrobeniusSolution[prepared,coefficientSeed,target,Sequence@@runOptions];
+  If[FailureQ[first],Throw[first,"FrobeniusNumerics"]];
+  mapped=mapResult[first,groups[target],target];
+  If[TrueQ[compare],
+   u=OptionValue["MatchingParameter"];
+   If[u===Automatic,u=If[prepared["FrobeniusConvergenceRadius"]===Infinity,1/4,
+     Min[1/4,Rationalize[N[prepared["FrobeniusConvergenceRadius"]/(4Abs[target](1+OptionValue["ContourDeformation"])),20],0]]]];
+   second=FeynFacetSolution`EvaluateFrobeniusSolution[prepared,coefficientSeed,target,
+    "MatchingParameter"->3u/4,"FrobeniusOrder"->Min[OptionValue["MaximumOrder"],first["FrobeniusOrder"]+8],
+    "TaylorOrder"->Min[OptionValue["MaximumOrder"],OptionValue["TaylorOrder"]+8],Sequence@@runOptions];
+   If[FailureQ[second],Throw[second,"FrobeniusNumerics"]];
+   refined=mapResult[second,groups[target],target];
+   AppendTo[differences,scaledDifference[mapped,refined,ag,pg]];
+   If[!TrueQ[Last[differences]<1],frobeniusNumericalFail["OriginalBoundaryCoefficientRefinementFailed",
+     <|"DifferenceRatio"->Last[differences],"Target"->target|>]];
+   mapped=refined;
+   AppendTo[summaries,KeyDrop[second,"NormalizedEpsilonCoefficients"]]];
+  AssociateTo[results,MapThread[Rule,{groups[target],mapped}]];
+  AppendTo[summaries,KeyDrop[first,"NormalizedEpsilonCoefficients"]],
+ {target,Keys[groups]}];
+ <|"DataType"->"NumericalSharedBoundaryCoefficients","BoundaryCoefficientValues"->results,
+  "NormalizedOrderRange"->{low,high},"ActiveNormalizedRows"->active,"NormalizedComponentUpperOrders"->upper,
+  "AmplitudeColumnUpperOrders"->columnUpper,"NumericalContinuations"->summaries,
+  "PhaseTimings"-><|"BoundaryPreparationSeconds"->preparationSeconds,
+    "BoundaryContinuationAndMappingSeconds"->AbsoluteTime[]-started-preparationSeconds|>,
+  "OriginalCoefficientRefinementRatios"->differences,
+  "UnrequestedSeedCoefficientsOmittedUsingClosedDependencyGraph"->True,
+  "PhysicalBoundaryValuesDetermined"->TrueQ[Lookup[shared,"PhysicalBoundaryValuesCompleteForStoredOrders",False]]|>
+],"FrobeniusNumerics"];
+
+FeynFacetSolution`ApplyNumericalBoundaryCoefficients::usage="ApplyNumericalBoundaryCoefficients[compactSolution,values] substitutes computed B[index,order] values into a compact solution without invoking endpoint quadrature.";
+FeynFacetSolution`ApplyNumericalBoundaryCoefficients[record_Association,values_Association] := Catch[Module[
+ {required,missing,rules,result},
+ required=DeleteDuplicates@Cases[record["MasterIntegralCoefficients"],
+   FeynFacetSolution`B[i_Integer,k_Integer]:>{i,k},Infinity];
+ missing=Select[required,!KeyExistsQ[values,#]&];
+ If[missing=!={},frobeniusNumericalFail["NumericalBoundaryCoefficientsMissing",<|"Coefficients"->missing|>]];
+ rules=Dispatch[(Apply[FeynFacetSolution`B,#]->values[[Key[#]]])&/@required];
+ result=replaceFiniteExpressionReferences[KeyDrop[record,"SharedBoundaryDefinitionFile"],rules];
+ Join[result,<|"RequiredInitialConstantCoefficients"->{},"InitialConstantLaurentLowerBounds"->{},
+  "UnknownBoundarySeriesCount"->0,"BoundaryCoefficientValuesSupplied"->True,
+  "NumericalEndpointStatus"->"FrobeniusInitializationApplied"|>]
+],"FrobeniusNumerics"];
+
+
+(* The ordinary public evaluator chooses Frobenius initialization whenever
+   its reader has attached a singular-boundary construction. It never tries
+   unweighted endpoint quadrature for these definitions. *)
+evaluateMasterFromSingularBoundary[data_,point_,options_] := TimeConstrained[
+ Catch[Module[{source=data["SingularBoundaryNumericalInput"],shared,construction,compact,requests,
+  rules,freeValues,wp=options["BoundaryWorkingPrecision"],max=options["MaxBoundaryWorkingPrecision"],
+  ag=options["AccuracyGoal"],pg=options["PrecisionGoal"],guard=options["InputGuardDigits"],
+  attempts={},boundary,tag,ratio,extra,next,local,result,ordinaryOptions,started=AbsoluteTime[],attemptStarted},
+ If[!AllTrue[Values[source],StringQ[#]&&FileExistsQ[#]&],numericalFailure["SingularBoundaryNumericalFilesMissing"]];
+ shared=Import[source["SharedBoundaryDefinitionFile"],"WXF"];
+ construction=Import[source["ConstructionInputFile"],"WXF"];
+ compact=Import[source["CompactSolutionFile"],"WXF"];
+ If[options["InitialConstantValues"]===Automatic&&Lookup[shared,"UnknownBoundarySeriesCount",0]>0,
+  numericalFailure["PhysicalBoundaryAmplitudeValuesRequired",<|
+   "RequiredCoefficients"->Lookup[compact,"RequiredInitialConstantCoefficients",{}]|>]];
+ rules=constantRules[data,options["InitialConstantValues"]];
+ freeValues=Association[(List@@First[#]->Last[#])&/@rules];
+ requests=DeleteDuplicates@Cases[compact["MasterIntegralCoefficients"],
+   FeynFacetSolution`B[i_Integer,k_Integer]:>{i,k},Infinity];
+ If[wp===Automatic,wp=Max[80,ag+guard+30,pg+guard+30]];
+ If[!IntegerQ[wp]||!IntegerQ[max]||max<wp||wp<Max[ag,pg]+guard+20,
+  numericalFailure["BoundaryWorkingPrecisionInvalid"]];
+ Do[
+  attemptStarted=AbsoluteTime[];
+  boundary=FeynFacetSolution`EvaluateSharedBoundaryCoefficients[shared,construction,freeValues,
+   "BoundaryCoefficientRequests"->requests,"WorkingPrecision"->wp,
+   "AccuracyGoal"->ag+guard+5,"PrecisionGoal"->pg+guard+5,
+   "Threads"->options["Threads"],"CheckBoundaryConvergence"->options["CheckConvergence"],
+   "TimeLimit"->Max[1,options["TimeLimit"]-(AbsoluteTime[]-started)]];
+  If[AssociationQ[boundary],AppendTo[attempts,<|"WorkingPrecision"->wp,"Status"->"Computed",
+    "ElapsedSeconds"->AbsoluteTime[]-attemptStarted|>];Break[]];
+  tag=If[FailureQ[boundary],boundary[[1]],"UnknownFailure"];
+  AppendTo[attempts,Join[<|"WorkingPrecision"->wp,"Status"->tag,
+    "ElapsedSeconds"->AbsoluteTime[]-attemptStarted|>,
+    If[FailureQ[boundary],KeyTake[boundary[[2]],{"RoundoffRatio","Step"}],<||>]]];
+  If[!MemberQ[{"FrobeniusArithmeticPrecisionInsufficient","TaylorArithmeticPrecisionInsufficient",
+    "FrobeniusSeedPrecisionInsufficient"},tag],Throw[boundary,"NumericalSolution"]];
+  ratio=Lookup[boundary[[2]],"RoundoffRatio",Infinity];
+  extra=If[NumericQ[ratio]&&TrueQ[0<ratio<Infinity],Max[30,Ceiling[Log[10,ratio]]+30],wp];
+  next=Max[2wp,wp+extra];
+  If[next>max,Throw[Failure["BoundaryWorkingPrecisionLimit",<|"Attempts"->attempts,
+    "LastFailure"->boundary,"MaximumWorkingPrecision"->max|>],"NumericalSolution"]];
+  wp=next,
+ {6}];
+ If[!AssociationQ[boundary],Throw[boundary,"NumericalSolution"]];
+ local=FeynFacetSolution`ApplyNumericalBoundaryCoefficients[compact,boundary["BoundaryCoefficientValues"]];
+ If[FailureQ[local],Throw[local,"NumericalSolution"]];
+ ordinaryOptions=Join[options,<|"InitialConstantValues"->{},"TimeLimit"->Max[1,options["TimeLimit"]-(AbsoluteTime[]-started)]|>];
+ result=FeynFacetSolution`EvaluateMasterIntegralSolution[local,point,Sequence@@Normal[ordinaryOptions]];
+ If[FailureQ[result],Throw[result,"NumericalSolution"]];
+ Join[result,<|"BoundaryEvaluationMethod"->"FrobeniusInitializationAndTaylorContinuation",
+  "BoundaryPrecisionAttempts"->attempts,
+  "BoundaryPhaseTimings"->boundary["PhaseTimings"],
+  "BoundaryNumericalContinuations"->boundary["NumericalContinuations"],
+  "OrdinaryTransportSeconds"->result["ElapsedSeconds"],
+  "BoundaryCoefficientValues"->boundary["BoundaryCoefficientValues"],
+  "BoundaryCoefficientConvergenceRatios"->boundary["OriginalCoefficientRefinementRatios"],
+  "BoundaryNormalizedOrderRange"->boundary["NormalizedOrderRange"],
+  "PhysicalBoundaryValuesDetermined"->boundary["PhysicalBoundaryValuesDetermined"],
+  "ElapsedSeconds"->AbsoluteTime[]-started|>]
+ ],"NumericalSolution"],options["TimeLimit"],Failure["NumericalEvaluationTimeLimit",<|"Stage"->"BoundaryAndOrdinaryTransport"|>]];

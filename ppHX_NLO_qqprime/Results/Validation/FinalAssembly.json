@@ -1,0 +1,24 @@
+{
+  "Assemblies": [
+    {
+      "Campaign": "UU",
+      "Passed": true,
+      "UnchangedExplicitResult": true,
+      "ElapsedSeconds": 20.752321917010704
+    },
+    {
+      "Campaign": "LL",
+      "Passed": true,
+      "UnchangedExplicitResult": true,
+      "ElapsedSeconds": 19.146793265012093
+    },
+    {
+      "Campaign": "TT",
+      "Passed": true,
+      "UnchangedExplicitResult": true,
+      "ElapsedSeconds": 3.4146011130069382
+    }
+  ],
+  "ExternalReferencesPassed": true,
+  "ExternalReferenceSeconds": 9.158927432989003
+}

@@ -31,6 +31,7 @@ Quiet[Clear["Global`v", "Global`w", "Global`x", "Global`y", "Global`s",
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -47,9 +48,7 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   "multiquadraticOffDiagonalBlockProviderPreflight",
   "multiquadraticOffDiagonalBlockProviderChannels"};
 
-dataDirectory = FileNameJoin[{root, "Stale", "DifferentialEquationData",
-  "2026-09-03_pre_v2", "UU_08_10_canonical", "FamilyEpsFormsSolving",
-  "triple_root_2026-08-24_fable", "CF259", "sector_CF259_standard"}];
+dataDirectory = FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "Multiquadratic", "CF259"}];
 
 cases = {
   <|"Name" -> "CF259 (24,16) lambda1/lambda3",

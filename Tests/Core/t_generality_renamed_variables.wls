@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Generality of the package under RENAMED symbols and MOVED trees
-   (agent II's half of Design/GeneralityFixes.md, 2026-08-23).
+   (agent II's half of Archive/History/Design/GeneralityFixes.md, 2026-08-23).
 
    Every check below is written in variables {a, b} with regulator ep,
    i.e. in symbols this project never uses, or against an installation
@@ -17,6 +17,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
@@ -51,7 +52,7 @@ campaignDirectory = FileNameJoin[{scratch, "classes"}];
 campaign = FeynFacet`DiagonalBlockClassCampaign[
   {scalarClass, scalarNoDeclaration, zeroClass}, campaignDirectory,
   "Variables" -> Automatic, "Regulator" -> Automatic,
-  "CanonicaValidation" -> False, "Verbose" -> False];
+  "ValidateCanonicalForm" -> False, "Verbose" -> False];
 record1 = FeynFacet`FamilyArtifactRead[
   FileNameJoin[{campaignDirectory, "classSYN1.wl"}]];
 record3 = FeynFacet`FamilyArtifactRead[
@@ -81,14 +82,14 @@ check["(C1) a regulator-free representative falls back to the default eps \
     record3["Regulator"] === Symbol["Global`eps"] &&
     record3["Variables"] === {Symbol["Global`v"], Symbol["Global`w"]}];
 check["(C1) explicit options override the record",
-  Module[{r = FeynFacet`Private`diagonalBlockClassRecord[scalarClass, ep, 60, None, False,
+  Module[{r = FeynFacet`Private`diagonalBlockClassRecord[scalarClass, ep, 60, False,
       {a, b}]},
     r["Status"] === "CANONICALIZED" && r["Regulator"] === ep]];
 check["(C1) a class that declares three variables is refused, not sampled \
 as a pair",
   FeynFacet`Private`diagonalBlockClassRecord[
       Append[scalarClass, "Variables" -> {a, b, Symbol["Global`u"]}],
-      Automatic, 60, None, False,
+      Automatic, 60, False,
       Automatic]["Status"] === "ClassVariablesNotTwoSymbols"];
 
 (* ---------------------------------------------------------------- *)
@@ -229,16 +230,8 @@ reported, not asserted"];
   Print["    facetCPUList[] = ", FeynFacet`Private`facetCPUList[]],
   check["(D4) the CPU-list fallback on this machine is unchanged (0..15)",
     FeynFacet`Private`facetCPUList[] === StringRiffle[ToString /@ Range[0, 15], ","]]];
-(* the CANONICA class ladder is retired (2026-09-02, round 2): the public
-   name answers RouteRetired and its implementation, which had learned to
-   write under $TemporaryDirectory instead of Directory[], is preserved
-   unchanged in Private_Backup *)
-check["(D4) CanonicalizeClasses is retired and answers typed",
-  Lookup[FeynFacet`CanonicalizeClasses[<||>], "Status", None] === "RouteRetired" &&
-    Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private_Backup",
-        "CanonicalBlocks.wl"}], "Text"]},
-      StringFreeQ[source, "Directory[], \"CanonicalClassForms\""] &&
-        StringContainsQ[source, "$TemporaryDirectory"]]];
+check["(D4) the retired class ladder is no longer public",
+  System`Names["FeynFacet`CanonicalizeClasses"] === {}];
 check["(D4) the removed path-ordered compatibility route is not public",
   System`Names["FeynFacet`TransportFamily"] === {}];
 
@@ -251,9 +244,8 @@ check["(B4) the workspace root defaults to the package root",
 repositoryResults = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical"}];
 location = FeynFacet`Private`ibpProjectLocation[repositoryResults];
-check["(B4) this repository's Kira workspace path is unchanged",
-  location["Root"] === FileNameJoin[{root, "Codex", "ppHX_NNLO_DoubleReal",
-      "Kira"}] &&
+check["(B4) the Kira workspace belongs to the actual process folder",
+  location["Root"] === FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Kira"}] &&
     location["Directory"] === FileNameJoin[{location["Root"],
       "UU_08_10_canonical"}]];
 outside = FileNameJoin[{scratch, "elsewhere", "ZZ7", "Results", "run1"}];
@@ -262,7 +254,7 @@ workspace = FileNameJoin[{scratch, "workspace"}];
 outsideLocation = FeynFacet`Private`ibpProjectLocation[outside, workspace];
 check["(B4) a result tree outside the workspace root is no longer refused",
   outsideLocation["Root"] ===
-      FileNameJoin[{workspace, "Codex", "ZZ7", "Kira"}] &&
+      FileNameJoin[{workspace, "ZZ7", "Kira"}] &&
     outsideLocation["Directory"] ===
       FileNameJoin[{outsideLocation["Root"], "run1"}] &&
     outsideLocation["WorkspaceRoot"] === ExpandFileName[workspace]];
@@ -271,6 +263,13 @@ check["(B4) the delete guard is the workspace root it was given",
     ! FeynFacet`Private`coefficientSafeWorkPathQ[workspace, workspace] &&
     ! FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{scratch, "other"}],
       workspace]];
+check["(B4) coefficient reconstruction uses the process result folder",
+ FeynFacet`Private`coefficientWorkDirectory[FileNameJoin[{repositoryResults,"KiraResult.wl"}]]===
+ FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","CoefficientSimplification","UU_08_10_canonical"}]];
+check["(B4) default cleanup refuses other project content",
+ FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","CoefficientSimplification","trial"}]]&&
+ !FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Cards"}]]&&
+ !FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","CoefficientSimplification"}]]];
 runtimeA = <|"KiraExecutable" -> "/opt/kira/bin/kira",
   "FermatExecutable" -> "/opt/kira/bin/fer64",
   "SupportFile" -> "/opt/kira/BACKWARD/chdat"|>;

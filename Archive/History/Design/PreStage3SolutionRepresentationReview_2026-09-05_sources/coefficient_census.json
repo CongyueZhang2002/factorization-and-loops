@@ -1,0 +1,78 @@
+[
+  {
+    "Family": "CF269",
+    "MasterCount": 23,
+    "LetterCount": 6,
+    "Scope": "Canonical fundamental-matrix coefficients only; not original-basis master solutions or established epsilon-order coverage",
+    "Orders": [
+      {
+        "EpsilonOrder": 1,
+        "NonzeroLetterSequences": 6,
+        "ScalarNonzeroCoefficients": 551,
+        "WolframBytes": 36152,
+        "TextBytes": 7328
+      },
+      {
+        "EpsilonOrder": 2,
+        "NonzeroLetterSequences": 34,
+        "ScalarNonzeroCoefficients": 2755,
+        "WolframBytes": 181112,
+        "TextBytes": 37398
+      },
+      {
+        "EpsilonOrder": 3,
+        "NonzeroLetterSequences": 189,
+        "ScalarNonzeroCoefficients": 13182,
+        "WolframBytes": 869848,
+        "TextBytes": 183401
+      },
+      {
+        "EpsilonOrder": 4,
+        "NonzeroLetterSequences": 1025,
+        "ScalarNonzeroCoefficients": 61891,
+        "WolframBytes": 4159424,
+        "TextBytes": 889718
+      }
+    ],
+    "TotalTextBytes": 1117845,
+    "TotalGzipBytes": 143786
+  },
+  {
+    "Family": "CF48",
+    "MasterCount": 27,
+    "LetterCount": 14,
+    "Scope": "Canonical fundamental-matrix coefficients only; not original-basis master solutions or established epsilon-order coverage",
+    "Orders": [
+      {
+        "EpsilonOrder": 1,
+        "NonzeroLetterSequences": 14,
+        "ScalarNonzeroCoefficients": 1123,
+        "WolframBytes": 77936,
+        "TextBytes": 15898
+      },
+      {
+        "EpsilonOrder": 2,
+        "NonzeroLetterSequences": 132,
+        "ScalarNonzeroCoefficients": 8284,
+        "WolframBytes": 590344,
+        "TextBytes": 122838
+      },
+      {
+        "EpsilonOrder": 3,
+        "NonzeroLetterSequences": 1160,
+        "ScalarNonzeroCoefficients": 58279,
+        "WolframBytes": 4293880,
+        "TextBytes": 912249
+      },
+      {
+        "EpsilonOrder": 4,
+        "NonzeroLetterSequences": 9772,
+        "ScalarNonzeroCoefficients": 403598,
+        "WolframBytes": 30782912,
+        "TextBytes": 6669631
+      }
+    ],
+    "TotalTextBytes": 7720616,
+    "TotalGzipBytes": 879107
+  }
+]

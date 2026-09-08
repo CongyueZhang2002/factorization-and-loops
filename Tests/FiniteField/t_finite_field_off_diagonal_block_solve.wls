@@ -1,7 +1,8 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
-directory = FileNameJoin[{root, "Codex", "TwoRootCF254Sector9Lower"}];
+directory = FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldRaw"}];
 prime = 1000003;
 sampleFiles = Sort[FileNames[
   "CF254_9_6_raw_point_sample_rank_*_p" <> ToString[prime] <> ".wl",

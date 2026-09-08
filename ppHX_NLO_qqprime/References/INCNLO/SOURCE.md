@@ -1,0 +1,1 @@
+Reference only: INCNLO 1.4 (December 2002), authors Aversa, Chiappetta, Greco, Guillet. Downloaded from https://lapth.cnrs.fr/PHOX_FAMILY/src_inc/inc1_4.tar.gz; documentation https://lapth.cnrs.fr/PHOX_FAMILY/readme_inc.html. The archive is unchanged. Only hadlib source text extracted for independent validation, never loaded by production.

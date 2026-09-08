@@ -154,4 +154,25 @@ FTAssert[
     MasterIntegralEpsilonOrderRequirementsQ[embeddedOnly]
 ];
 
+
+bounded=DeriveMasterIntegralEpsilonOrderRequirements[
+ request,valuations,<|3->-4,8->-2,11->0|>];
+FTAssert["finite demands include every lower order and omit empty ranges",
+ MasterIntegralEpsilonOrderRequirementsQ[bounded] &&
+ Lookup[bounded["Entries"],"RequiredMasterIntegralEpsilonOrders"]===
+   {Range[-4,3],Range[-2,1],{}} &&
+ bounded["Validation","OrderRequirementInterpretation"]==="FiniteEpsilonOrderRanges"];
+FTAssert["two-input output is explicitly upper bounds only",
+ requirements["Validation","OrderRequirementInterpretation"]==="UpperBoundsOnly"];
+zeroInput=ReplacePart[valuations,
+ {"Entries",1,"HardFunctionCoefficientEpsilonValuation"}->Missing["ZeroColumn"]];
+zeroRequirements=DeriveMasterIntegralEpsilonOrderRequirements[request,zeroInput,<|3->-4,11->-4|>];
+FTAssert["a known zero needs no epsilon coefficients or lower bound",
+ MasterIntegralEpsilonOrderRequirementsQ[zeroRequirements] &&
+ zeroRequirements["Entries"][[2,"RequiredMasterIntegralEpsilonOrders"]]==={} &&
+ zeroRequirements["MathematicalInputData","HardFunctionMasterCoefficientEpsilonValuations",
+   "Entries"][[2,"HardFunctionCoefficientEpsilonValuation"]]===Infinity];
+FTAssert["missing nonzero-column lower bounds are not guessed",
+ DeriveMasterIntegralEpsilonOrderRequirements[request,valuations,<|3->-4|>]["Status"]===
+   "MasterIntegralLaurentLowerBoundsRequiredForEveryNonzeroCoefficient"];
 FTReport[];

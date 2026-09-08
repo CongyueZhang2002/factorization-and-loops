@@ -14,6 +14,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -167,7 +168,7 @@ check["C3 installation updates the complete cumulative family connection",
       IdentityMatrix[2]]];
 
 factor = If[Lookup[rowResult, "Status", None] === "OK",
-  FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+  FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
     rowResult["Connection"], variables, eps, frame,
     "TimeLimit" -> 120, "PointLadder" -> {1, 2, 4},
     "GatePoints" -> 2, "ExactCheckTimeLimit" -> 30,

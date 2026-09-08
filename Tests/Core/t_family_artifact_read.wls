@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* FamilyArtifactRead: the mandatory context-guarded artifact reader
-   (FeynFacet/Private/EpsForm/Family/FamilyEpsForm.wl), rebased 2026-08-23 on the
+   (FeynFacet/DifferentialEquations/EpsilonForm/Assembly/EpsilonForm.wl), rebased 2026-08-23 on the
    hydration pattern of MultiquadraticOffDiagonalBlockSolve.wl (port-agent defect
    J: Quiet[Check[Get[file], $Failed]] discards a valid artifact after
    any benign message, and the context guard hardcoded Global`).
@@ -122,6 +122,14 @@ FeynFacet`FamilyArtifactWrite[roundTripValue, roundTripFile];
 FTTest`FTAssert["a written artifact round-trips through the reader",
   FeynFacet`FamilyArtifactRead[roundTripFile] === roundTripValue &&
     messages[] === {}];
+
+oversizedRecord=FileNameJoin[{scratch,"oversized_record.wxf"}];
+oversizedStream=OpenWrite[oversizedRecord,BinaryFormat->True];
+BinaryWrite[oversizedStream,2^60,"UnsignedInteger64"];Close[oversizedStream];
+FTTest`FTAssert["an impossible binary record length is rejected before allocation",
+ FeynFacet`Private`coefficientReadRecord[oversizedRecord]===$Failed];
+FTTest`FTAssert["a text manifest cannot be mistaken for a binary record",
+ FeynFacet`Private`coefficientReadRecord[cleanFile]===$Failed];
 
 Quiet[DeleteDirectory[scratch, DeleteContents -> True]];
 FTTest`FTReport[];

@@ -1,0 +1,42 @@
+#!/usr/bin/env wolframscript
+$HistoryLength=0;$MaxExtraPrecision=50;
+SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+root=DirectoryName[ExpandFileName[$InputFileName],3];
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];
+args=Rest[$ScriptCommandLine];
+If[Length[args]=!=1,Print["Expected INPUT_REQUEST.wl"];Exit[2]];
+read[p_]:=If[StringQ[p],If[ToLowerCase[FileExtension[p]]==="wxf",Import[p,"WXF"],Get[p]],p];
+request=read[First[args]];table=read[request["CoefficientFile"]];
+If[Lookup[table,"Format",None]=!="FeynFacet-MasterIntegralCoefficients"||
+ !TrueQ[Lookup[table,"PhysicalMasterNormalizationApplied",False]],Print["PhysicalCoefficientTableRequired"];Exit[1]];
+id[x_]:=FeynFacet`Private`coefficientMasterID[x];
+entries=Association[(id[#["Master"]]->#)&/@table["Masters"]];
+output=ExpandFileName[request["OutputDirectory"]];
+If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];
+save[value_,file_]:=Module[{tmp=file<>".partial",stream},
+ stream=OpenWrite[tmp,BinaryFormat->True];
+ BinaryWrite[stream,Normal[BinarySerialize[value,PerformanceGoal->"Size"]],"Byte"];Close[stream];
+ RenameFile[tmp,file,OverwriteTarget->True]];
+used={};report={};
+Do[
+ system=read[file];basis=system["OriginalMasterIntegralBasis"];family=ToString[system["Family"]];
+ aligned=Table[With[{key=id[m]},If[KeyExistsQ[entries,key],AppendTo[used,key];entries[key],
+   <|"Master"->m,"Terms"->{}|>]],{m,basis}];
+ result=<|"DataType"->"EndpointCoefficientInput","Family"->family,
+  "CoefficientEntries"->aligned,"OriginalMasterIntegralBasis"->basis,
+  "SourceDifferentialSystemFile"->ExpandFileName[file],
+  "SourceCoefficientFile"->ExpandFileName[request["CoefficientFile"]],
+  "Request"-><|"ThroughOrder"->Lookup[request,"ThroughOrder",0],
+    "SourceCoefficientFile"->ExpandFileName[request["CoefficientFile"]],
+    "KinematicRules"->request["KinematicRules"],"GlobalPrefactor"->table["PreFactor"]|>|>;
+ path=output<>"/"<>family<>".wxf";save[result,path];
+ AppendTo[report,<|"Family"->family,"Dimension"->Length[basis],
+  "ActiveMasterCount"->Count[aligned,a_Association/;a["Terms"]=!={}],
+  "InputFile"->path|>],
+ {file,request["DifferentialSystemFiles"]}];
+If[Sort[used]=!=Sort[Keys[entries]],
+ save[<|"Missing"->Complement[Keys[entries],used],"Repeated"->Select[Tally[used],Last[#]>1&]|>,
+ output<>"/coverage_failure.wxf"];Print["CoefficientFamilyCoverageMismatch"];Exit[1]];
+Export[output<>"/summary.json",<|"Status"->"CoefficientInputsPrepared",
+ "FamilyCount"->Length[report],"MasterCount"->Length[used],"Families"->report|>,"RawJSON"];
+Print["PASS ",Length[report]," families; ",Length[used]," masters."];Exit[0];

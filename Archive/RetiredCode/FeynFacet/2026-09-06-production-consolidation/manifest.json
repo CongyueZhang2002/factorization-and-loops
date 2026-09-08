@@ -1,0 +1,1336 @@
+{
+  "Date": "2026-09-06",
+  "Scope": "General production solver consolidation",
+  "Retired": [
+    {
+      "Path": "FeynFacet/Private/Transport/Boundary/BoundaryCoefficientOperatorProduct.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Boundary/BoundaryCoefficientOperatorProduct.wl",
+      "Bytes": 48120,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Boundary/FactorizedFiniteFieldBoundaryComposition.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Boundary/FactorizedFiniteFieldBoundaryComposition.wl",
+      "Bytes": 20933,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Boundary/TangentialBoundaryEvolution.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Boundary/TangentialBoundaryEvolution.wl",
+      "Bytes": 20418,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Observable/MasterIntegralEpsilonExpansionCoefficient.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Observable/MasterIntegralEpsilonExpansionCoefficient.wl",
+      "Bytes": 18596,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Observable/ObservableTransport.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Observable/ObservableTransport.wl",
+      "Bytes": 211818,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Observable/ObservableTransportFiniteField.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Observable/ObservableTransportFiniteField.wl",
+      "Bytes": 111592,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Observable/RationalEpsilonDependentBlock.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Observable/RationalEpsilonDependentBlock.wl",
+      "Bytes": 99351,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Observable/RationalEpsilonDependentBlockIteratedIntegralCoefficientOperator.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Observable/RationalEpsilonDependentBlockIteratedIntegralCoefficientOperator.wl",
+      "Bytes": 36444,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Observable/SingularPointMatching.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/FeynFacet/Private/Transport/Observable/SingularPointMatching.wl",
+      "Bytes": 14945,
+      "Reason": "Superseded lazy transport or coefficient-map composition module"
+    },
+    {
+      "Path": "Scripts/Diagnostics/benchmark_overhaul.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Diagnostics/benchmark_overhaul.wls",
+      "Bytes": 6334,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/Diagnostics/overhaul/README.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Diagnostics/overhaul/README.md",
+      "Bytes": 1033,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Diagnostics/overhaul/move_to_backup.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Diagnostics/overhaul/move_to_backup.py",
+      "Bytes": 3585,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Diagnostics/overhaul/reachability.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Diagnostics/overhaul/reachability.py",
+      "Bytes": 7911,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Diagnostics/overhaul/route_split.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Diagnostics/overhaul/route_split.py",
+      "Bytes": 4786,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Diagnostics/overhaul/structure_move.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Diagnostics/overhaul/structure_move.py",
+      "Bytes": 3373,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_denominator_factor.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_denominator_factor.wls",
+      "Bytes": 560,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_factor_lists.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_factor_lists.wls",
+      "Bytes": 843,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_junction_fields.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_junction_fields.wls",
+      "Bytes": 3982,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_junction_radicals.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_junction_radicals.py",
+      "Bytes": 1498,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_operator_keys.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_operator_keys.wls",
+      "Bytes": 1288,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_partial_fraction_lift.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_partial_fraction_lift.wls",
+      "Bytes": 9750,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_projective_lift.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_projective_lift.wls",
+      "Bytes": 4552,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/.probe_scale_recovery.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/.probe_scale_recovery.wls",
+      "Bytes": 4903,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Artifacts/CF303InheritedLowerSoftJets.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Artifacts/CF303InheritedLowerSoftJets.wl",
+      "Bytes": 58703,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303JunctionRebase.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303JunctionRebase.wl",
+      "Bytes": 10744,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303NormalBulkCoefficientMap.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303NormalBulkCoefficientMap.wl",
+      "Bytes": 13948,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303PhysicalBoundaryCampaign.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303PhysicalBoundaryCampaign.wl",
+      "Bytes": 9677,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_BOUNDARY_INHERITANCE_AUDIT.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_BOUNDARY_INHERITANCE_AUDIT.md",
+      "Bytes": 5369,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_DEFERRED_SOFT_RESIDUE_ABI.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_DEFERRED_SOFT_RESIDUE_ABI.md",
+      "Bytes": 5086,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_INHERITED_LOWER_SOFT_JETS.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_INHERITED_LOWER_SOFT_JETS.md",
+      "Bytes": 3197,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_INHERITED_OBSERVABLE_EXTENSIONS.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_INHERITED_OBSERVABLE_EXTENSIONS.md",
+      "Bytes": 5748,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_INHERITED_SOFT_SOURCE_NEEDS.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_INHERITED_SOFT_SOURCE_NEEDS.md",
+      "Bytes": 6549,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_OWN_PHYSICAL_SOFT_MODES.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_OWN_PHYSICAL_SOFT_MODES.md",
+      "Bytes": 4347,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_PHYSICAL_SOFT_SIX_SYSTEM.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_PHYSICAL_SOFT_SIX_SYSTEM.md",
+      "Bytes": 5997,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/CF303_SIX_MODE_ENDPOINT_FRAME.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/CF303_SIX_MODE_ENDPOINT_FRAME.md",
+      "Bytes": 11432,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/__pycache__/t_cf303_extract_final_state_a_target_rows.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/__pycache__/t_cf303_extract_final_state_a_target_rows.cpython-312.pyc",
+      "Bytes": 2988,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/__pycache__/t_cf303_extract_original_a_target_rows.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/__pycache__/t_cf303_extract_original_a_target_rows.cpython-312.pyc",
+      "Bytes": 2894,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/__pycache__/t_cf303_extract_pre_final_block_a_target_rows.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/__pycache__/t_cf303_extract_pre_final_block_a_target_rows.cpython-312.pyc",
+      "Bytes": 4554,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/__pycache__/t_cf303_final_state_a_truncated_rho.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/__pycache__/t_cf303_final_state_a_truncated_rho.cpython-312.pyc",
+      "Bytes": 6128,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/__pycache__/t_cf303_pre_final_block_connection_jet.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/__pycache__/t_cf303_pre_final_block_connection_jet.cpython-312.pyc",
+      "Bytes": 9782,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/__pycache__/t_deferred_soft_residue_point.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/__pycache__/t_deferred_soft_residue_point.cpython-312.pyc",
+      "Bytes": 10281,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_extract_pre_final_block_a_target_rows.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_extract_pre_final_block_a_target_rows.py",
+      "Bytes": 3612,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_inherited_lower_soft_jets.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_inherited_lower_soft_jets.wls",
+      "Bytes": 2185,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_inherited_observable_extensions.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_inherited_observable_extensions.wls",
+      "Bytes": 4331,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_inherited_soft_source_needs.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_inherited_soft_source_needs.wls",
+      "Bytes": 7532,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_junction_rebase.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_junction_rebase.wls",
+      "Bytes": 2307,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_own_physical_soft_modes.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_own_physical_soft_modes.wls",
+      "Bytes": 3160,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_pre_final_block_connection_jet.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_pre_final_block_connection_jet.py",
+      "Bytes": 7015,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_cf303_six_mode_endpoint_frame.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_cf303_six_mode_endpoint_frame.wls",
+      "Bytes": 10758,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_deferred_soft_residue_point.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_deferred_soft_residue_point.py",
+      "Bytes": 6735,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/Controls/t_physical_soft_six_system.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/Controls/t_physical_soft_six_system.wls",
+      "Bytes": 4080,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/README.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/README.md",
+      "Bytes": 2511,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/build_cf303_regularized_normal_action_v2.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/build_cf303_regularized_normal_action_v2.cpython-312.pyc",
+      "Bytes": 18787,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_deferred_soft_residue_point.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_deferred_soft_residue_point.cpython-312.pyc",
+      "Bytes": 38194,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_extract_final_state_a_target_rows.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_extract_final_state_a_target_rows.cpython-312.pyc",
+      "Bytes": 7905,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_extract_original_a_target_rows.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_extract_original_a_target_rows.cpython-312.pyc",
+      "Bytes": 7900,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_extract_pre_final_block_a_target_rows.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_extract_pre_final_block_a_target_rows.cpython-312.pyc",
+      "Bytes": 13665,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_final_state_a_truncated_rho.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_final_state_a_truncated_rho.cpython-312.pyc",
+      "Bytes": 43200,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_baseline_at_base.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_baseline_at_base.cpython-312.pyc",
+      "Bytes": 8412,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_adjoint_pilot.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_adjoint_pilot.cpython-312.pyc",
+      "Bytes": 16656,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_block1_component.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_block1_component.cpython-312.pyc",
+      "Bytes": 10953,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_block1_transposed.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_block1_transposed.cpython-312.pyc",
+      "Bytes": 29796,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_campaign.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_campaign.cpython-312.pyc",
+      "Bytes": 7507,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_degree_profile.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_degree_profile.cpython-312.pyc",
+      "Bytes": 14103,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_factorwise_fit.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_factorwise_fit.cpython-312.pyc",
+      "Bytes": 22308,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_interpolate.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_interpolate.cpython-312.pyc",
+      "Bytes": 10783,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_known_denominator_interpolate.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_known_denominator_interpolate.cpython-312.pyc",
+      "Bytes": 13643,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_point.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_h_endpoint_point.cpython-312.pyc",
+      "Bytes": 16621,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_inherited_soft_projection_point.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_inherited_soft_projection_point.cpython-312.pyc",
+      "Bytes": 12242,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_pre_final_block_connection_jet.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_pre_final_block_connection_jet.cpython-312.pyc",
+      "Bytes": 55046,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_tangential_junction_interpolate.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_tangential_junction_interpolate.cpython-312.pyc",
+      "Bytes": 12579,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/cf303_tangential_junction_point.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/cf303_tangential_junction_point.cpython-312.pyc",
+      "Bytes": 51854,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/__pycache__/sample_cf303_tangential_junction_grid.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/__pycache__/sample_cf303_tangential_junction_grid.cpython-312.pyc",
+      "Bytes": 8353,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_boundary_constant_solution_map.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_boundary_constant_solution_map.wls",
+      "Bytes": 19840,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_boundary_function_evolution.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_boundary_function_evolution.wls",
+      "Bytes": 22228,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_inherited_lower_soft_jets.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_inherited_lower_soft_jets.wls",
+      "Bytes": 8609,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_inherited_observable_extensions.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_inherited_observable_extensions.wls",
+      "Bytes": 14997,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_known_denominator_image.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_known_denominator_image.wls",
+      "Bytes": 8512,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_normal_bulk_lazy_operator_v2.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_normal_bulk_lazy_operator_v2.wls",
+      "Bytes": 23500,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_physical_soft_six_system.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_physical_soft_six_system.wls",
+      "Bytes": 7775,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_pre_final_block_tangential_bridge_pilot.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_pre_final_block_tangential_bridge_pilot.wls",
+      "Bytes": 49854,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_regularized_normal_action_v2.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_regularized_normal_action_v2.py",
+      "Bytes": 17092,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_six_mode_endpoint_frame.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_six_mode_endpoint_frame.wls",
+      "Bytes": 26316,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_tangential_junction_jet_control.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_tangential_junction_jet_control.wls",
+      "Bytes": 14950,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/build_cf303_tangential_junction_map.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/build_cf303_tangential_junction_map.wls",
+      "Bytes": 28182,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_deferred_soft_residue_point.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_deferred_soft_residue_point.py",
+      "Bytes": 29534,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_extract_pre_final_block_a_target_rows.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_extract_pre_final_block_a_target_rows.py",
+      "Bytes": 9970,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_baseline_at_base.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_baseline_at_base.py",
+      "Bytes": 6232,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_adjoint_pilot.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_adjoint_pilot.py",
+      "Bytes": 11437,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_block1_component.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_block1_component.py",
+      "Bytes": 7990,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_campaign.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_campaign.py",
+      "Bytes": 5031,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_degree_profile.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_degree_profile.py",
+      "Bytes": 11130,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_factorwise_fit.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_factorwise_fit.py",
+      "Bytes": 19073,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_interpolate.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_interpolate.py",
+      "Bytes": 6707,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_known_denominator_interpolate.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_known_denominator_interpolate.py",
+      "Bytes": 11059,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_h_endpoint_point.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_h_endpoint_point.py",
+      "Bytes": 14708,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_inherited_soft_projection_point.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_inherited_soft_projection_point.py",
+      "Bytes": 9953,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_laurent_path_jet.c",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_laurent_path_jet.c",
+      "Bytes": 43462,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_pre_final_block_connection_jet.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_pre_final_block_connection_jet.py",
+      "Bytes": 42501,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_tangential_junction_interpolate.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_tangential_junction_interpolate.py",
+      "Bytes": 8602,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/cf303_tangential_junction_point.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/cf303_tangential_junction_point.py",
+      "Bytes": 49051,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/CF303_25_1_input.wl.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/CF303_25_1_input.wl.gz",
+      "Bytes": 3881033,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_block1_circuit_point_resolver.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_block1_circuit_point_resolver.cpython-312.pyc",
+      "Bytes": 17929,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_block1_full_exact_circuit.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_block1_full_exact_circuit.cpython-312.pyc",
+      "Bytes": 20745,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_block1_modular_finite_gauge_pilot.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_block1_modular_finite_gauge_pilot.cpython-312.pyc",
+      "Bytes": 20847,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_exact_fixed_u_source.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_exact_fixed_u_source.cpython-312.pyc",
+      "Bytes": 25788,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_exact_hermite_semantics.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_exact_hermite_semantics.cpython-312.pyc",
+      "Bytes": 16686,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_fixed_u_hermite_reconstruction.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_fixed_u_hermite_reconstruction.cpython-312.pyc",
+      "Bytes": 27680,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_hybrid_baseline_modular_circuit.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_hybrid_baseline_modular_circuit.cpython-312.pyc",
+      "Bytes": 82551,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_modular_algebraic_hermite_pilot.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_modular_algebraic_hermite_pilot.cpython-312.pyc",
+      "Bytes": 38474,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_modular_hermite_pilot.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_modular_hermite_pilot.cpython-312.pyc",
+      "Bytes": 34488,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_nested_laurent_deck.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/cf303_nested_laurent_deck.cpython-312.pyc",
+      "Bytes": 9908,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/native_path_residue_reconstruct.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/__pycache__/native_path_residue_reconstruct.cpython-312.pyc",
+      "Bytes": 78029,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213641971.json.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213641971.json.gz",
+      "Bytes": 637391,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213693967.json.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213693967.json.gz",
+      "Bytes": 637247,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213693973.json.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213693973.json.gz",
+      "Bytes": 637048,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/bundle_manifest.json",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/bundle_manifest.json",
+      "Bytes": 10806,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_point_resolver.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_point_resolver.py",
+      "Bytes": 13254,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_q7_p239d47_fixed_epsilon.json.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_q7_p239d47_fixed_epsilon.json.gz",
+      "Bytes": 18123,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_q7_p3_fixed_epsilon.json.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_q7_p3_fixed_epsilon.json.gz",
+      "Bytes": 17628,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_resolved_q2305843009213693693_p239d47.json",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_resolved_q2305843009213693693_p239d47.json",
+      "Bytes": 74649,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_resolved_q2305843009213693693_p3d1.json",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_circuit_resolved_q2305843009213693693_p3d1.json",
+      "Bytes": 73247,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_exact_denominator_support.json.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_exact_denominator_support.json.gz",
+      "Bytes": 71635,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_exact_elliptic_source.json",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_exact_elliptic_source.json",
+      "Bytes": 123948,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_finite_gauge_inputs.json",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_finite_gauge_inputs.json",
+      "Bytes": 2227,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_full_exact_circuit.json",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_full_exact_circuit.json",
+      "Bytes": 36611,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_full_exact_circuit.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_full_exact_circuit.py",
+      "Bytes": 18545,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_modular_finite_gauge_pilot.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block1_modular_finite_gauge_pilot.py",
+      "Bytes": 14368,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block25_physical_gauge.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_block25_physical_gauge.wl",
+      "Bytes": 7619,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_exact_fixed_u_source.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_exact_fixed_u_source.py",
+      "Bytes": 18114,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_exact_hermite_semantics.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_exact_hermite_semantics.py",
+      "Bytes": 12330,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_hybrid_baseline90_transfer.maple.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_hybrid_baseline90_transfer.maple.gz",
+      "Bytes": 4922145,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_hybrid_baseline_modular_circuit.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_hybrid_baseline_modular_circuit.py",
+      "Bytes": 58414,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_hybrid_baseline_path_dlog_gauge_inputs.maple.gz",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_hybrid_baseline_path_dlog_gauge_inputs.maple.gz",
+      "Bytes": 252965,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_modular_algebraic_hermite_pilot.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_modular_algebraic_hermite_pilot.py",
+      "Bytes": 31087,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_modular_hermite_pilot.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_modular_hermite_pilot.py",
+      "Bytes": 25990,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_nested_laurent_deck.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/cf303_nested_laurent_deck.py",
+      "Bytes": 6527,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/data/normal_factor_exact_circuit/native_path_residue_reconstruct.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/data/normal_factor_exact_circuit/native_path_residue_reconstruct.py",
+      "Bytes": 63666,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/CF303/sample_cf303_tangential_junction_grid.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/CF303/sample_cf303_tangential_junction_grid.py",
+      "Bytes": 5350,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/Controls/2026-09-03_endpoint_mode_coverage.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/Controls/2026-09-03_endpoint_mode_coverage.md",
+      "Bytes": 4851,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/Controls/physical_boundary_campaign_control_summary.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/Controls/physical_boundary_campaign_control_summary.wl",
+      "Bytes": 1456,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/Controls/t_cf300_split_transport_path.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/Controls/t_cf300_split_transport_path.wls",
+      "Bytes": 2266,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/Controls/t_physical_boundary_campaign_adapter.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/Controls/t_physical_boundary_campaign_adapter.wls",
+      "Bytes": 10071,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/LazyTransportCampaign.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/LazyTransportCampaign.wl",
+      "Bytes": 4802,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundary/README.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundary/README.md",
+      "Bytes": 1689,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundary/build_boundary_mode_campaign.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundary/build_boundary_mode_campaign.wls",
+      "Bytes": 14780,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundary/build_physical_endpoint_transport_family.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundary/build_physical_endpoint_transport_family.wls",
+      "Bytes": 6364,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundary/inventory_physical_transport_inputs.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundary/inventory_physical_transport_inputs.wls",
+      "Bytes": 2988,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundary/submit_boundary_mode_campaign.sh",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundary/submit_boundary_mode_campaign.sh",
+      "Bytes": 1601,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundary/submit_physical_endpoint_transport_campaign.sh",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundary/submit_physical_endpoint_transport_campaign.sh",
+      "Bytes": 1428,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundary/summarize_physical_endpoint_transport_campaign.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundary/summarize_physical_endpoint_transport_campaign.wls",
+      "Bytes": 5130,
+      "Reason": "Historical campaign, control or migration for the retired transport architecture"
+    },
+    {
+      "Path": "Scripts/Transport/PhysicalBoundaryCampaignAdapter.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/PhysicalBoundaryCampaignAdapter.wl",
+      "Bytes": 73001,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/compact_family_dlog_record.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/compact_family_dlog_record.wls",
+      "Bytes": 5902,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/complete_master_transport.sh",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/complete_master_transport.sh",
+      "Bytes": 2679,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/complete_observable_transport.sh",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/complete_observable_transport.sh",
+      "Bytes": 2791,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/family_observable_transport.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/family_observable_transport.wls",
+      "Bytes": 10494,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/family_observable_transport_pool_mission.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/family_observable_transport_pool_mission.wls",
+      "Bytes": 10373,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/integrate_observable_transport.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/integrate_observable_transport.wls",
+      "Bytes": 7358,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/observable_transport_campaign.sh",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/observable_transport_campaign.sh",
+      "Bytes": 6169,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/observable_transport_kernelpool_campaign.sh",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/observable_transport_kernelpool_campaign.sh",
+      "Bytes": 6636,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/transport_family_record.sh",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/transport_family_record.sh",
+      "Bytes": 2624,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Scripts/write_requested_output_iterated_integral_coefficient_input_summary.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/write_requested_output_iterated_integral_coefficient_input_summary.wls",
+      "Bytes": 2641,
+      "Reason": "Driver or adapter for superseded lazy transport records"
+    },
+    {
+      "Path": "Tests/Transport/t_algebraic_observable_transport.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_algebraic_observable_transport.wls",
+      "Bytes": 3547,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_cf303_exact_fixed_u_source_pilot.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_cf303_exact_fixed_u_source_pilot.py",
+      "Bytes": 4051,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_cf303_exact_hermite_semantics.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_cf303_exact_hermite_semantics.py",
+      "Bytes": 4192,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_cf303_h_endpoint_adjoint_pilot.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_cf303_h_endpoint_adjoint_pilot.py",
+      "Bytes": 1959,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_cf303_h_endpoint_known_denominator_interpolate.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_cf303_h_endpoint_known_denominator_interpolate.py",
+      "Bytes": 3462,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_cf303_normal_factor_bundle_paths.py",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_cf303_normal_factor_bundle_paths.py",
+      "Bytes": 5295,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_cf303_physical_boundary_campaign.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_cf303_physical_boundary_campaign.wls",
+      "Bytes": 3484,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_factorized_boundary_stratum_master_integral_solution.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_factorized_boundary_stratum_master_integral_solution.wls",
+      "Bytes": 13015,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_factorized_finite_field_boundary_composition.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_factorized_finite_field_boundary_composition.wls",
+      "Bytes": 9493,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_finish_physical_transport.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_finish_physical_transport.wls",
+      "Bytes": 11264,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_graded_physical_endpoint_transport.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_graded_physical_endpoint_transport.wls",
+      "Bytes": 12027,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_master_integral_epsilon_expansion_coefficient.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_master_integral_epsilon_expansion_coefficient.wls",
+      "Bytes": 13880,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport.wls",
+      "Bytes": 8557,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_certificate_residues.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_certificate_residues.wls",
+      "Bytes": 5379,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_compact_ordering.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_compact_ordering.wls",
+      "Bytes": 7961,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_covariant_closure.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_covariant_closure.wls",
+      "Bytes": 3142,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_ff_radical_prime.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_ff_radical_prime.wls",
+      "Bytes": 4357,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_ff_radical_scale.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_ff_radical_scale.wls",
+      "Bytes": 5109,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_final_reconstruction.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_final_reconstruction.wls",
+      "Bytes": 4638,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_finite_field.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_finite_field.wls",
+      "Bytes": 13002,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_integration_load.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_integration_load.wls",
+      "Bytes": 1524,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_laurent_series.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_laurent_series.wls",
+      "Bytes": 11654,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_samples_field.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_samples_field.wls",
+      "Bytes": 4662,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_observable_transport_split_path.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_observable_transport_split_path.wls",
+      "Bytes": 3318,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_rational_epsilon_dependent_block.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_rational_epsilon_dependent_block.wls",
+      "Bytes": 49577,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_rational_epsilon_dependent_block_curve.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_rational_epsilon_dependent_block_curve.wls",
+      "Bytes": 9667,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_rational_epsilon_dependent_block_operator.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_rational_epsilon_dependent_block_operator.wls",
+      "Bytes": 10632,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_tangential_boundary_evolution_composition.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_tangential_boundary_evolution_composition.wls",
+      "Bytes": 8043,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/t_tangential_junction.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/t_tangential_junction.wls",
+      "Bytes": 4813,
+      "Reason": "Tests of superseded transport implementations; general mathematical tests remain active"
+    },
+    {
+      "Path": "Tests/Transport/Fixtures/cf259_ttotal_entries.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/Fixtures/cf259_ttotal_entries.wl",
+      "Bytes": 47228,
+      "Reason": "Fixture or bytecode used only by archived transport tests"
+    },
+    {
+      "Path": "Tests/Transport/__pycache__/t_cf303_exact_fixed_u_source_pilot.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/__pycache__/t_cf303_exact_fixed_u_source_pilot.cpython-312.pyc",
+      "Bytes": 6490,
+      "Reason": "Fixture or bytecode used only by archived transport tests"
+    },
+    {
+      "Path": "Tests/Transport/__pycache__/t_cf303_h_endpoint_adjoint_pilot.cpython-312.pyc",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Tests/Transport/__pycache__/t_cf303_h_endpoint_adjoint_pilot.cpython-312.pyc",
+      "Bytes": 3344,
+      "Reason": "Fixture or bytecode used only by archived transport tests"
+    },
+    {
+      "Path": "Scripts/Transport/verify_finite_solution_at_base_point.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/verify_finite_solution_at_base_point.wls",
+      "Bytes": 2936,
+      "Reason": "Earlier text-export-only verification driver; current verification uses VerifyMasterIntegralSolution on the same complete finite record"
+    },
+    {
+      "Path": "Scripts/Transport/verify_finite_solution_numerically.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Retired/Scripts/Transport/verify_finite_solution_numerically.wls",
+      "Bytes": 3901,
+      "Reason": "Earlier text-export-only verification driver; current verification uses VerifyMasterIntegralSolution on the same complete finite record"
+    }
+  ],
+  "Before": [
+    {
+      "Path": "FeynFacet/FeynFacet.m",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/FeynFacet.m",
+      "Bytes": 77847
+    },
+    {
+      "Path": "FeynFacet/Private/LoadOrder.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/LoadOrder.wl",
+      "Bytes": 12407
+    },
+    {
+      "Path": "FeynFacet/Private/Core/Base/Core.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/Core/Base/Core.wl",
+      "Bytes": 28294
+    },
+    {
+      "Path": "FeynFacet/Private/EpsForm/Blocks/CanonicalBlocks.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/EpsForm/Blocks/CanonicalBlocks.wl",
+      "Bytes": 46401
+    },
+    {
+      "Path": "FeynFacet/Private/EpsForm/Blocks/LibraEpsForm.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/EpsForm/Blocks/LibraEpsForm.wl",
+      "Bytes": 6065
+    },
+    {
+      "Path": "FeynFacet/Private/EpsForm/Blocks/DiagonalBlockEpsForm.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/EpsForm/Blocks/DiagonalBlockEpsForm.wl",
+      "Bytes": 102380
+    },
+    {
+      "Path": "Scripts/README.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Scripts/README.md",
+      "Bytes": 13118
+    },
+    {
+      "Path": "Tests/README.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/README.md",
+      "Bytes": 7780
+    },
+    {
+      "Path": "STATUS.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/STATUS.md",
+      "Bytes": 24241
+    },
+    {
+      "Path": "Tests/Core/t_usage_messages.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/Core/t_usage_messages.wls",
+      "Bytes": 2710
+    },
+    {
+      "Path": "Tests/Core/t_package_generality.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/Core/t_package_generality.wls",
+      "Bytes": 16444
+    },
+    {
+      "Path": "Tests/Core/t_generality_renamed_variables.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/Core/t_generality_renamed_variables.wls",
+      "Bytes": 15507
+    },
+    {
+      "Path": "Tests/Core/t_undeclared_metadata.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/Core/t_undeclared_metadata.wls",
+      "Bytes": 2917
+    },
+    {
+      "Path": "Tests/EpsilonForm/t_certify_family_epsilon_form.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/EpsilonForm/t_certify_family_epsilon_form.wls",
+      "Bytes": 5096
+    },
+    {
+      "Path": "Tests/EpsilonForm/t_exact_family_epsilon_form_q.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/EpsilonForm/t_exact_family_epsilon_form_q.wls",
+      "Bytes": 4038
+    },
+    {
+      "Path": "Tests/EpsilonForm/t_canonical_blocks.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/EpsilonForm/t_canonical_blocks.wls",
+      "Bytes": 11542
+    },
+    {
+      "Path": "Tests/Transport/t_physical_boundary.wls",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Tests/Transport/t_physical_boundary.wls",
+      "Bytes": 34733
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Boundary/MasterIntegralEpsilonOrderRequirements.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/Transport/Boundary/MasterIntegralEpsilonOrderRequirements.wl",
+      "Bytes": 12510
+    },
+    {
+      "Path": "FeynFacet/Private/Transport/Observable/FormalChenIteratedIntegrals.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/Transport/Observable/FormalChenIteratedIntegrals.wl",
+      "Bytes": 5351
+    },
+    {
+      "Path": "Design/DifferentialEquationDataSchemaV2.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Design/DifferentialEquationDataSchemaV2.md",
+      "Bytes": 20855
+    },
+    {
+      "Path": "Design/FiniteMasterIntegralSolutions.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Design/FiniteMasterIntegralSolutions.md",
+      "Bytes": 18133
+    },
+    {
+      "Path": "Design/MathematicalTerminology.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Design/MathematicalTerminology.md",
+      "Bytes": 7294
+    },
+    {
+      "Path": "Examples/Transport/README.md",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/Examples/Transport/README.md",
+      "Bytes": 9762
+    },
+    {
+      "Path": "FeynFacet/Private/Geometry/TransportCharts.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/Geometry/TransportCharts.wl",
+      "Bytes": 59324
+    },
+    {
+      "Path": "FeynFacet/Private/Core/Modular/ModularArithmetic.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/Core/Modular/ModularArithmetic.wl",
+      "Bytes": 20970
+    },
+    {
+      "Path": "FeynFacet/Private/EpsForm/Family/FamilyEpsForm.wl",
+      "Backup": "FeynFacet/Private_Backup/2026-09-06-production-consolidation/Before/FeynFacet/Private/EpsForm/Family/FamilyEpsForm.wl",
+      "Bytes": 37944
+    }
+  ],
+  "Relocated": [
+    {
+      "From": "FeynFacet/Private/Transport/Boundary/MasterIntegralEpsilonOrderRequirements.wl",
+      "To": "FeynFacet/Private/Transport/Orders/MasterIntegralEpsilonOrderRequirements.wl"
+    },
+    {
+      "From": "FeynFacet/Private/Transport/Observable/FormalChenIteratedIntegrals.wl",
+      "To": "FeynFacet/Private/Transport/Functions/FormalChenIteratedIntegrals.wl"
+    }
+  ],
+  "ArchivedMathematicalCapabilities": [
+    "Path concatenation and ordered coefficient-map composition in the old letter-sequence representation",
+    "Regularized singular-junction and endpoint matching transformations in the old records",
+    "Tangential-base-point normalization and resonant-mode binding implemented by the archived campaigns",
+    "Epsilon-order propagation through those legacy matching/selector maps"
+  ],
+  "RetainedMathematicalCapabilities": [
+    "Integral representations, Laurent bounds and sufficient epsilon-order planning",
+    "Explicit finite ordinary-point solutions and arbitrary-precision numerical evaluation",
+    "Local Frobenius expansions, residue extraction, exact mode matching and boundary-function DE derivation",
+    "Optional canonicalization and GPL/elliptic kernel conversion"
+  ]
+}

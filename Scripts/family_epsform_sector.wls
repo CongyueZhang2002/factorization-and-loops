@@ -1,22 +1,9 @@
 #!/usr/bin/env wolframscript
-(* Completing the family's eps-form -- STANDARDIZED SECTOR ROUTE.
-   Existing families remain on the ordinary CANONICA route.  Only a sector
-   that ordinary CANONICA cannot transform is completed strip by strip.
-
-   Per sector k = 2..nSectors, on the truncated connection A[1..nk,1..nk] whose
-   diagonal blocks are certified eps-forms:
-     A. Try CANONICA`TransformOffDiagonalBlock on the complete sector.
-     B. If A does not finish, construct CANONICA's exact NextEquationD for
-        each unresolved strip.  SolveOffDiagonalBasisTransformationBlock first recognizes an
-        existing dlog strip, then searches numerator degrees 0,1,2,3 for
-        120 s each on no more than eight local kernels, and only then invokes Maple's exact
-        residue-compatibility construction.  If IntegrableConnections cannot
-        solve the rational system, the final Maple route uses a finite
-        rational ansatz whose denominator is generated from all singular
-        letters of the strip.  Every returned strip gauge is checked in both
-        differential variables before it is composed.  Each checked strip is
-        written atomically, so an interrupted sector resumes from that gauge.
-     C. Apply CANONICA`TransformDlogToEpsForm to the completed sector row.
+(* Complete a family epsilon form from explicit V2 differential-system,
+   block-decomposition, coefficient-presentation and diagonal-form inputs.
+   Each unresolved lower block uses the finite-field solver, with rational
+   parametrization of its active roots when available. Completed block
+   transformations are retained for continuation.
    Family acceptance is the package family dlog epsilon-form validator. In
    Production it evaluates the defining identities at independent finite-
    field points and records a probabilistic result; in Development it uses
@@ -30,6 +17,7 @@ $HistoryLength = 0;
 driverFile = ExpandFileName[$InputFileName];
 root = ParentDirectory[DirectoryName[driverFile]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 (* pool subkernels keep state: clear the Global` symbols CANONICA and earlier
    missions leave behind (they broke AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks on a reused
@@ -92,13 +80,21 @@ familyDeadline = Infinity;
 checkLevel = Module[{value = Environment["FACET_CHECK_LEVEL"]},
   If[StringQ[value] && value === "Development", "Development", "Production"]];
 productionQ = checkLevel === "Production";
+(* Assembly helpers and worker kernels read this same setting. The driver
+   default must reach them; otherwise an unset environment selected symbolic
+   Development checks despite the driver's Production branch. *)
+SetEnvironment["FACET_CHECK_LEVEL"->checkLevel];
+obstructionAnalysisSeconds=Module[{value=Environment["FACET_OBSTRUCTION_ANALYSIS_SECONDS"],number},
+ number=If[StringQ[value],Quiet[Check[ToExpression[value],$Failed]],$Failed];
+ If[NumericQ[number] && number>0,number,0]
+];
 offDiagonalBlockRoute = Module[{value = Environment["FACET_OFF_DIAGONAL_BLOCK_ROUTE"]},
   If[StringQ[value] && value === "Legacy", "Legacy", "FiniteFieldFirst"]];
 (* Overhaul 2026-09-02: the CANONICA/Maple strip ladder (SolveOffDiagonalBasisTransformationBlock)
-   is retired to FeynFacet/Private_Backup; the Legacy route would now run on
+   is retired to Archive/RetiredCode/FeynFacet; the Legacy route would now run on
    RouteRetired records.  Refuse it loudly instead of silently degrading. *)
 If[offDiagonalBlockRoute === "Legacy",
-  Print["[sector-epsform] !! FACET_OFF_DIAGONAL_BLOCK_ROUTE=Legacy is retired (2026-09-02): the CANONICA/Maple strip ladder lives in FeynFacet/Private_Backup and is not loaded; use the default FiniteFieldFirst route"];
+  Print["[sector-epsform] !! FACET_OFF_DIAGONAL_BLOCK_ROUTE=Legacy is retired (2026-09-02): the CANONICA/Maple strip ladder lives in Archive/RetiredCode/FeynFacet and is not loaded; use the default FiniteFieldFirst route"];
   Exit[64]];
 kernelCount = Module[{value = Environment["FACET_KERNEL_COUNT"]},
   If[StringQ[value] && StringLength[value] > 0,
@@ -268,7 +264,7 @@ If[! TrueQ[
     "V2 family differential system"];
   Exit[2]];
 decompositionBlocks = Lookup[blockDecomposition,
-  "IrreducibleDiagonalBlocks", $Failed];
+  "DiagonalBlocksInCurrentBasis", $Failed];
 If[! ListQ[decompositionBlocks] || decompositionBlocks === {} ||
     ! AllTrue[decompositionBlocks, MatchQ[#, {__Integer}] &] ||
     Sort[Flatten[decompositionBlocks]] =!=
@@ -376,7 +372,7 @@ algebraicFrameQ = Lookup[chart, "DataType", None] ===
    therefore frame-independent; in a multiquadratic frame each strip is
    solved in the smallest rational chart of its own roots
    (SolveOffDiagonalBasisTransformationBlock) and the completed truncation is factored
-   there as well (FactorFamilyRegulatorDependenceInFrame). *)
+   there as well (FactorFamilyRegulatorDependenceInCoefficientPresentation). *)
 blockwiseRouteQ = offDiagonalBlockRoute === "FiniteFieldFirst";
 (* Cooperative strip budget (2026-08-24).  Until today sectorBudget bound
    only the retired Maple/CANONICA routes; the
@@ -726,7 +722,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     " regulator-dependent residues; FactorFamilyRegulatorDependence",
     If[algebraicFrameQ, "InFrame", ""], " on the ", nm, "x", nm, " truncation"];
   factor = If[algebraicFrameQ,
-    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, workingCoefficientPresentation, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> True],
+    FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[aT, {xx, yy}, ee, workingCoefficientPresentation, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> True],
     FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> True]];
   If[AssociationQ[factor] &&
       factor["Status"] === "RegulatorFactorizationDeadlineExpired",
@@ -741,7 +737,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
       "Detail" -> KeyDrop[factor,
         {"Transformation", "Inverse", "Connection"}]|>;
     putAtomic[state, stateFile]; Exit[2]];
-  If[AssociationQ[factor] && factor["Status"] === "NoRationalChart",
+  If[AssociationQ[factor] && factor["Status"] === "RegulatorFactorizationUnsuccessful",
     (* typed stop: the roots of the completed truncation have no joint
        rational chart AND the graded-algebra route
        (FactorFamilyRegulatorDependenceMultiquadratic, 2026-08-25) refused
@@ -883,7 +879,7 @@ blockRows[m_] := ranges[[m]];
      block CF259 (21,18), and 2+ h between blocks of the 28x28 / 37x37
      truncations (two watchdog confirmations).
 
-   - the DEFERRED route (FeynFacet/Private/EpsForm/Blocks/BlockEquationDeferred.wl,
+   - the DEFERRED route (FeynFacet/DifferentialEquations/EpsilonForm/Blocks/AlgebraicExpressions.wl,
      Codex Q5 points 1-4, 6 and 8) keeps a sparse tagged term DAG whose
      terms reference the source entries, never forms
      Together[Total[terms]], proves entries nonzero by a modular census,
@@ -1396,24 +1392,15 @@ Do[
           "OffDiagonalBlockConstructionBudget"];
           If[! solvedQ[solution] && ! offDiagonalBlockBudgetExhaustedQ[solution] &&
               algebraicFrameQ,
-            log["    finite field found no gauge in frame: ",
+            log["    finite-field construction returned without a verified transformation: ",
               If[AssociationQ[solution], KeyTake[solution,
                 {"Status", "RootIndices", "QuadraticRadicands", "Method",
                  "PassingBranchCount", "BranchCount"}], solution]]];
-          (* An ALGEBRAIC frame has no rational-gauge obstruction series
-             to compute -- AnalyzeOffDiagonalBlockEpsilonFormObstructions expands a rational
-             ansatz -- so the guard below has always skipped it, and a
-             failed algebraic strip was recorded with no certificate at
-             all.  The multiquadratic engine now stops BEFORE prepare and
-             compile with a typed AlphabetIntegrabilityObstruction: the
-             residue-only integrability system is inconsistent with the
-             alphabet it was given, which is a statement about the
-             ALPHABET and not about the gauge ansatz.  That typed result
-             is the certificate for this frame and is recorded through
-             the existing ObstructionCertificate field (2026-08-24). *)
+          (* Keep the finite-field diagnostic with its tested target and
+             arithmetic scope. It is not an epsilon-form nonexistence proof. *)
           If[! solvedQ[solution] && algebraicFrameQ && AssociationQ[solution] &&
               Lookup[solution, "Status", None] ===
-                "AlphabetIntegrabilityObstruction",
+                "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage",
             obstruction = KeyDrop[solution, {"Witness", "AcceptedPoints"}];
             log["    alphabet integrability obstruction: defect ",
               Lookup[solution, "Defect", None], " with ",
@@ -1421,36 +1408,31 @@ Do[
               Lookup[solution, "Rank", None], "/",
               Lookup[solution, "AugmentedRank", None], " of ",
               Lookup[solution, "MatrixDimensions", None],
-              "; no gauge exists with this alphabet"]];
-          (* a budget stop is NOT "no gauge exists": the obstruction
-             certificate (up to 900 s) and the repeat with extra letters
-             would spend more time than the budget just refused *)
+              "; fixed-target finite-field inconsistency"]];
+          (* Symbolic expansion diagnostics are optional and share the
+             remaining sector budget; they never receive another 900 seconds. *)
           If[! solvedQ[solution] && ! offDiagonalBlockBudgetExhaustedQ[solution] &&
-              ! algebraicFrameQ,
-            (* typed failure reason (AnalyzeOffDiagonalBlockEpsilonFormObstructions, 2026-08-22):
-               a missing letter is supplied and the solve repeated once;
-               a non-constant residue proves that no rational gauge
-               exists with the present diagonal forms; no obstruction up
-               to the order means an ansatz or budget limitation.  No
-               CANONICA/Maple fallback (manual tools, user decision). *)
+              ! algebraicFrameQ && obstructionAnalysisSeconds>0 &&
+              sectorDeadline>AbsoluteTime[],
             obstruction = Quiet[TimeConstrained[FeynFacet`AnalyzeOffDiagonalBlockEpsilonFormObstructions[
               <|"Family" -> family, "Sector" -> k, "LowerSector" -> nlow,
                 "Variables" -> invariants, "Regulator" -> ee,
                 "OffDiagonalBlockEquation" -> {e, c, inhomogeneity}|>,
-              "MaximumOrder" -> 4], 900, $Failed]];
-            log["    finite field found no gauge; obstruction certificate: ",
+              "MaximumOrder" -> 4],
+              Min[obstructionAnalysisSeconds,sectorDeadline-AbsoluteTime[]],$Failed]];
+            log["    transformation not constructed; expansion diagnostic: ",
               If[AssociationQ[obstruction], KeyTake[obstruction, {"Status", "Order", "MissingLetters", "Obstructions", "OffDiagonalBasisTransformationNumeratorDegrees"}], obstruction]];
             If[AssociationQ[obstruction] && obstruction["Status"] === "MissingLetters",
               extraLetters = obstruction["MissingLetters"];
               log["    repeating the finite-field solve with the missing letters ", extraLetters];
               solution = finiteFieldSolve[]]]];
-        (* F2 (Design/GeneralityFixes2.md, 2026-08-23): SolveOffDiagonalBasisTransformationBlock
+        (* F2 (Archive/History/Design/GeneralityFixes2.md, 2026-08-23): SolveOffDiagonalBasisTransformationBlock
            InFrame now dispatches a chartless multiquadratic strip to the
            direct engine, whose terminal success status is
            "ModularConsistent".  That is a RECORDED candidate, never an
            installed epsilon form: the engine returns closed one-forms,
            not a certified dlog potential, so solvedQ is false for it by
-           construction (Design/MultiquadraticPromotion.md section 3).
+           construction (Archive/History/Design/MultiquadraticPromotion.md section 3).
            The run stops typed here -- it must neither continue with an
            uninstalled strip nor claim the family. *)
         (* Cooperative strip budget (2026-08-24): the finite-field and
@@ -1554,7 +1536,7 @@ Do[
             "OffDiagonalBlockPair" -> {k, nlow}|>;
           putAtomic[state, stateFile]; Exit[2]];
         If[! solvedQ[solution],
-          log["  !! no exact gauge for strip ", {k, nlow}];
+          log["  !! no transformation constructed for block ", {k, nlow}];
           putAtomic[
             <|"Family" -> family, "Sector" -> k,
               "LowerSector" -> nlow, "Variables" -> invariants,
@@ -1563,7 +1545,7 @@ Do[
               "SolverFailure" ->
                 FeynFacet`Private`familyRowBasisTransformationSolverFailureSummary[
                   solution],
-              "ObstructionCertificate" -> If[ValueQ[obstruction] && AssociationQ[obstruction],
+              "EpsilonFormDiagnostics" -> If[ValueQ[obstruction] && AssociationQ[obstruction],
                 KeyDrop[obstruction, "OffDiagonalBasisTransformationBlockSeries"], Missing["NotRun"]]|>,
             FileNameJoin[{scratch,
               family <> "_" <> ToString[k] <> "_" <>

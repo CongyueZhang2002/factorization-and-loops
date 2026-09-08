@@ -5,6 +5,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -20,7 +21,7 @@ frameEvidence = FeynFacet`Private`familyRegulatorGradedFrameEvidence;
 base = rootRecord /@ {x, 2 x};
 baseFrame = frame[base];
 check["two square classes whose quotient is nonsquare are independent",
-  Lookup[baseFrame, "Status", None] === "StableRootFrame"];
+  Lookup[baseFrame, "Status", None] === "SquareRootGeneratorsValidated"];
 
 dependent = gradedRoots[base, {2}];
 check["a numeric class that closes a square relation is refused",
@@ -56,26 +57,26 @@ check["rank-five decomposition uses the full dynamic 32-grade ABI",
 
 evidence5 = frameEvidence[roots5, {x, y}, eps];
 check["rank-five square-root grade data bind the producer ceiling and grade dimension",
-  evidence5["Status"] === "StableRootFrame" &&
-    evidence5["DataType"] === "SquareRootGradeDecompositionData" &&
+  evidence5["Status"] === "SquareRootGeneratorsValidated" &&
+    evidence5["DataType"] === "SquareRootParityDecompositionData" &&
     evidence5["SchemaVersion"] === 2 &&
     evidence5["Roots"] === roots5 &&
-    evidence5["RootCount"] === 5 && evidence5["GradeCount"] === 32 &&
-    evidence5["MaximumRank"] === 5];
+    evidence5["RootCount"] === 5 && evidence5["ParityComponentCount"] === 32 &&
+    evidence5["MaximumRootCount"] === 5];
 
 genericNumericEvidence = frameEvidence[
   rootRecord /@ {1 + x, 3, 5}, {x, y}, eps];
 check["generic independent numeric square classes are explicit graded generators",
-  genericNumericEvidence["Status"] === "StableRootFrame" &&
+  genericNumericEvidence["Status"] === "SquareRootGeneratorsValidated" &&
     genericNumericEvidence["RootCount"] === 3 &&
     Sort[genericNumericEvidence["NumericQuadraticRadicands"]] === {3, 5} &&
     Length[genericNumericEvidence["NumericRootIndices"]] === 2];
 check["whole-family certification resolves its Automatic ceiling from the graded producer",
   ("MultiquadraticRootRankLimit" /.
       Options[FeynFacet`ValidateFamilyDLogEpsilonForm]) === Automatic &&
-    evidence5["MaximumRank"] === 5];
+    evidence5["MaximumRootCount"] === 5];
 
-source = Import[FeynFacet`Private`feynFacetPrivateFile["FamilyRegulatorFactor.wl"], "Text"];
+source = Import[FeynFacet`Private`feynFacetModuleFile["DifferentialEquations/EpsilonForm/Assembly/RegulatorFactor.wl"], "Text"];
 check["the implementation contains no fixed rootA through rootE locals",
   AllTrue[{"rootA", "rootB", "rootC", "rootD", "rootE"},
     ! StringContainsQ[source, #] &]];

@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
 (* Multiquadratic dispatch without a catalogued joint rationalizing
    parametrization, generator-order invariance, and the scalar-local
-   root-free fast path (Design/GeneralityFixes2.md F1, F2, F6.1;
+   root-free fast path (Archive/History/Design/GeneralityFixes2.md F1, F2, F6.1;
    2026-08-23).  The fixtures are rebuilt here from the construction of
    Exchange/Codex/2026-08-23/16_standardization_generality_audit/
    test_standardization_generality_adversarial.wls; the Exchange file
@@ -38,6 +38,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 private[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, layoutBuilder, decompose, compose, presentationRoots,

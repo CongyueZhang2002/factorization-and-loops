@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The FULL-GAUGE per-image screen and the witness-guided mixed-grade
-   letter discovery of FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticOffDiagonalBlockSolve.wl
+   letter discovery of FeynFacet/DifferentialEquations/EpsilonForm/Multiquadratic/Solve.wl
    (2026-08-25).
 
    The residue-only integrability screen (Tests/Multiquadratic/t_multiquadratic_letters.wls)
@@ -95,6 +95,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
 
 (* Long-route sections run only on request (user decision 2026-09-02: the
    suite's verification must be small and fast; the real CF300 (12,9)
@@ -103,11 +104,11 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
    and the synthetic sections carry the contract. *)
 longTestsQ = Environment["FACET_TEST_LONG"] === "1";
 (* the mixed-grade letter generator (G6-G9) has no production caller and
-   was moved to Prototypes/ on 2026-08-26 (Codex review 4.2); this suite
+   is retained in Tests/Support/ as an independent reference; this test
    is its only exercise and loads it explicitly, inside the private
    context it is written in *)
 Begin["FeynFacet`Private`"];
-Get[FileNameJoin[{root, "Prototypes", "MultiquadraticMixedGradeLetters.wl"}]];
+Get[FileNameJoin[{root, "Tests", "Support", "MultiquadraticMixedGradeLetters.wl"}]];
 End[];
 
 pass = 0; fail = 0;
@@ -490,37 +491,25 @@ If[FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
 (* (Codex 04:30 P1: a single regulator image is not an exact generic    *)
 (*  Q(eps) obstruction)                                                 *)
 (* ------------------------------------------------------------------ *)
-(* An adversarial 1x1 rank-0 strip whose residue-only integrability
-   system is GENERICALLY SOLVABLE and INCONSISTENT AT ONE regulator
-   value -- Codex's (eps - a) z = 1 in the shape the screen actually
-   sees.  Construction (all of it exact and derived, none of it fitted):
-
-     e = {1, eps},  c = 0,  so chi := e - c has chi_x = 1, chi_y = eps;
-     letters as one-forms  w1 = {-y, x},  w2 = {-x, y}.
-
-   The screen's row for letter k on a 1x1 block is
-     eps^2 (w_{k,y} chi_x - w_{k,x} chi_y),
-   hence the two columns are eps^2 (x + eps y) and eps^2 (y + eps x).
-   As functions of the sampled point they are independent unless
-   eps^2 = 1, so the system matrix DROPS RANK exactly at eps = +-1.
-   The inhomogeneity is chosen so that the true residues are R1 = -R2 =
-   1/(eps^2 - 1): the right-hand side is then eps^2 (y - x)/(1 + eps),
-   finite and in the column span for every other eps, and at eps = 1 the
-   span collapses to {x + y} while the right-hand side is (y - x)/2,
-   which is not in it.  inhomogeneity = {0, (eps (y - x) - 1)/(1 + eps)} realizes
-   exactly that inhomogeneity curl, and both diagonal connections are closed,
-   so the screen's flatness measurement passes. *)
+(* A closed-form target tests exceptional specialization honestly.
+   e={1,eps}, c=0; w1=d(x y), w2=d((x^2+y^2)/2).
+   The residue columns are eps^2 (x-eps y), eps^2 (y-eps x).
+   With b={0,(eps(x+y)+1)/(1+eps)}, the curvature is
+   eps^2 (x+y)/(1+eps). Both residues 1/(1-eps^2) solve generically;
+   at eps=1 the columns span x-y and cannot reproduce x+y.
+   These forms are closed; closedness is required by this screen.
+   This fixture tests specialized compatibility, not a dlog alphabet. *)
 
 Clear[ax, ay, ae];
-exceptionalBeta = (ae (ay - ax) - 1)/(1 + ae);
+exceptionalBeta = (ae (ax + ay) + 1)/(1 + ae);
 exceptionalRecord = <|"Family" -> "SyntheticExceptionalRegulator",
   "Sector" -> 2, "LowerSector" -> 1,
   "Variables" -> {ax, ay}, "Regulator" -> ae,
   "OffDiagonalBlockEquation" -> {{{{1}}, {{ae}}}, {{{0}}, {{0}}},
     {{{0}}, {{exceptionalBeta}}}}|>;
 exceptionalLetters = {
-  <|"Kind" -> "Synthetic", "Letter" -> "w1", "OneForm" -> {-ay, ax}|>,
-  <|"Kind" -> "Synthetic", "Letter" -> "w2", "OneForm" -> {-ax, ay}|>};
+  <|"Kind" -> "Synthetic", "Letter" -> "w1", "OneForm" -> {ay, ax}|>,
+  <|"Kind" -> "Synthetic", "Letter" -> "w2", "OneForm" -> {ax, ay}|>};
 integrabilityScreen = mq["multiquadraticOffDiagonalBlockIntegrabilityScreen"];
 integrabilityScreenImages = mq["multiquadraticOffDiagonalBlockIntegrabilityScreenImages"];
 
@@ -553,11 +542,9 @@ exceptionalConfirmed = integrabilityScreenImages[exceptionalRecord, {},
 report["S3 two-image verdict", KeyTake[exceptionalConfirmed,
   {"Status", "Confirmed", "Defects", "ImageCount", "Images",
    "ExceptionalRegulatorImages"}]];
-(* the confirmation image is CONSISTENT, and a consistent image exhibits
-   a solution of its own specialized system -- so the generic system is
-   solvable and the first image's defect was an exceptional regulator
-   value.  The verdict is therefore "consistent", NOT "obstruction", and
-   certainly not the confirmed obstruction the single image claimed. *)
+(* A consistent image invalidates the all-negative sampling criterion.
+   Generic solvability of this fixture follows from the explicit residues
+   above, not merely from observing one consistent specialization. *)
 check["S3 the confirmation image is run and the FALSE obstruction is not \
 propagated: the verdict is consistent, unconfirmed as an obstruction",
   Lookup[exceptionalConfirmed, "Status", None] ===
@@ -569,10 +556,7 @@ check["S3b the exceptional regulator image is RECORDED as evidence",
   Lookup[exceptionalConfirmed, "ExceptionalRegulatorImages", {}] ===
     {{2147483423, 1}}];
 
-(* S4: a GENUINE alphabet obstruction still confirms at both images.
-   Dropping w2 leaves the single column eps^2 (x + eps y), and the
-   right-hand side eps^2 (y - x)/(1 + eps) is proportional to it only at
-   eps = -1, so both default images carry a defect. *)
+(* S4: removing w2 leaves incompatible functions at the tested images. *)
 genuine = integrabilityScreenImages[exceptionalRecord, {},
   Take[exceptionalLetters, 1], "PointCount" -> 12];
 report["S4 genuine obstruction", KeyTake[genuine,
@@ -606,21 +590,9 @@ check["S5 a consistent first image ends the screen (fast path preserved)",
 
 (* S6: the contract language of the top level says what a confirmed
    defect is and what it is not *)
-solveSource = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
-  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
-    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticOffDiagonalBlock"] &]];  (* all eight solver files *)
-check["S6 the solution contract calls a confirmed defect a high-confidence \
-modular obstruction, not a Q(eps) theorem",
-  StringContainsQ[solveSource,
-    "\"ValidationMethod\" -> \"ProbabilisticFiniteFieldSampling\""] &&
-    (* round-3 A1: the note now states the MEASURED image counts
-       (configured plus fresh) instead of hard-coding TWO *)
-    StringContainsQ[solveSource,
-      "independent (prime, regulator) images ("] &&
-    (* the sentence is assembled from adjacent StringJoin pieces, so
-       the grep must not span a literal boundary (2026-08-27) *)
-    StringContainsQ[solveSource, "It is not an unconditional"] &&
-    StringContainsQ[solveSource, "theorem over Q(eps)"]];
+solveSource = StringJoin[Import[FeynFacet`Private`feynFacetModuleFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Kernel", "Modules.wl"}]],
+    "EpsilonForm"], StringStartsQ[#, "DifferentialEquations/EpsilonForm/Multiquadratic/"] &]];  (* all eight solver files *)
 (* BEHAVIOURAL (2026-08-25): the source-text form of this assertion broke
    on a pure reformatting of the call it greps for, which is exactly the
    brittleness Codex flagged for S12.  The statement that matters is that
@@ -639,6 +611,10 @@ s6Frame = FeynFacet`Private`masterTransportCoefficientPresentationData[
 s6Driven = mq["solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators"][exceptionalRecord, s6Frame,
   "OneForms" -> Lookup[Take[exceptionalLetters, 1], "OneForm"],
   "OffDiagonalBasisTransformationBlockScreen" -> False, "IntegrabilityScreenPointCount" -> 12];
+check["S6 the returned conclusion is scoped to the fixed sampled problem",
+ Lookup[Lookup[s6Driven,"ConclusionScope",<||>],"GaugeAnsatzEliminated",False] &&
+ !Lookup[s6Driven["ConclusionScope"],"GenericNonexistenceProved",True] &&
+ !Lookup[s6Driven["ConclusionScope"],"OtherBasesExcluded",True]];
 report["S6 top-level verdict on the genuine obstruction",
   KeyTake[s6Driven, {"Status", "Confirmed", "ImageCount", "Defects",
     "ValidationMethod"}]];

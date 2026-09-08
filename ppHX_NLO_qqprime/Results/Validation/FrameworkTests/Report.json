@@ -1,0 +1,155 @@
+[
+  {
+    "Test": "Tests/Core/t_package_entry_points.wls",
+    "ExitCode": 0,
+    "Seconds": 6.217533488001209,
+    "PassLines": 11,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Core/t_collinear_counterterms.wls",
+    "ExitCode": 0,
+    "Seconds": 1.2603535240050405,
+    "PassLines": 18,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Core/t_nlo_counterterm_workflow.wls",
+    "ExitCode": 0,
+    "Seconds": 2.9645812929957174,
+    "PassLines": 11,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Core/t_external_mass_shell.wls",
+    "ExitCode": 0,
+    "Seconds": 2.904299183981493,
+    "PassLines": 5,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Core/t_scaleless_loop_scaling.wls",
+    "ExitCode": 0,
+    "Seconds": 2.8721213699900545,
+    "PassLines": 2,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Core/t_diagram_coverage_and_flavors.wls",
+    "ExitCode": 0,
+    "Seconds": 2.827916107024066,
+    "PassLines": 5,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Core/t_gauss_epsilon_coefficients.wls",
+    "ExitCode": 0,
+    "Seconds": 0.8434666289831512,
+    "PassLines": 8,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_analytic_endpoint.wls",
+    "ExitCode": 0,
+    "Seconds": 2.9225109849940054,
+    "PassLines": 14,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Infrastructure/t_pair_queue_schedule.wls",
+    "ExitCode": 0,
+    "Seconds": 11.450505651009735,
+    "PassLines": 23,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_density_reference_contraction.wls",
+    "ExitCode": 0,
+    "Seconds": 0.7554294199799187,
+    "PassLines": 7,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_distribution_color_factors.wls",
+    "ExitCode": 0,
+    "Seconds": 1.9214764339849353,
+    "PassLines": 11,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_endpoint_distributions.wls",
+    "ExitCode": 0,
+    "Seconds": 2.3848527390218806,
+    "PassLines": 25,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_endpoint_subtracted_density.wls",
+    "ExitCode": 0,
+    "Seconds": 0.8510502910066862,
+    "PassLines": 25,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Transport/t_epsilon_remainder_stages.wls",
+    "ExitCode": 0,
+    "Seconds": 2.96297969398438,
+    "PassLines": 13,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_epsilon_remainders.wls",
+    "ExitCode": 0,
+    "Seconds": 0.8286246539792046,
+    "PassLines": 16,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_final_coefficient_results.wls",
+    "ExitCode": 0,
+    "Seconds": 0.7708946829952765,
+    "PassLines": 21,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_finite_master_density.wls",
+    "ExitCode": 0,
+    "Seconds": 3.1473867110034917,
+    "PassLines": 29,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_saved_epsilon_orders.wls",
+    "ExitCode": 0,
+    "Seconds": 3.2074464239994995,
+    "PassLines": 12,
+    "FailureLines": 0
+  },
+  {
+    "Test": "Tests/Coefficients/t_analytic_contraction.wls",
+    "ExitCode": 0,
+    "Seconds": null,
+    "PassLines": 7,
+    "FailureLines": 0,
+    "Log": "ppHX_NLO_qqprime/Results/analytic_contraction_tests.log",
+    "Scope": "Additional focused check after implementation"
+  },
+  {
+    "Test": "Tests/Core/t_finite_definition_compaction.wls",
+    "ExitCode": 0,
+    "Seconds": null,
+    "PassLines": 17,
+    "FailureLines": 0,
+    "Log": "ppHX_NNLO_DoubleReal/Results/Validation/Stage4Optimization/compaction_tests.log",
+    "Scope": "Additional focused check after implementation"
+  },
+  {
+    "Test": "Tests/Coefficients/t_nlo_hard_function_assembly.wls",
+    "ExitCode": 0,
+    "Seconds": null,
+    "PassLines": 10,
+    "FailureLines": 0,
+    "Log": "ppHX_NLO_qqprime/Results/nlo_assembly_tests.log",
+    "Scope": "Additional focused check after implementation"
+  }
+]
