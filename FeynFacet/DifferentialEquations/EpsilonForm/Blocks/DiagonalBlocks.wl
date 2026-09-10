@@ -1917,7 +1917,7 @@ DiagonalBlockClassCampaign[input_, directory_String, OptionsPattern[]] := Module
       " ", Lookup[rec, "Method", ""], " ", Lookup[rec, "Frame", ""], " ",
       Round[rec["Seconds"], 0.1], " s", If[rec["Status"] =!= "CANONICALIZED", " " <> ToString[Lookup[rec, "Detail", ""]], ""]]);
   If[kernels > 0,
-    launched = LaunchKernels[kernels];
+    launched = facetLaunchKernels[kernels];
     With[{loader = $feynFacetLoader, additions = $feynFacetAdditionalLoadFiles},
       ParallelEvaluate[Block[{$Output = {}}, Get[loader]; Scan[Get,additions]]; $KernelID]];
     queue = todo; running = {};

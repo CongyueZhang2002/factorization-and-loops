@@ -126,6 +126,28 @@ r=DetermineEndpointEpsilonOrders[<|"DimensionalRegulator"->ee,
 FTAssert["epsilon times an invertible constant matrix has only a simple moment pole",
  Max[Flatten[r["MatrixMoments"][[1,"CoefficientUpperOrders"]]]]===1];
 
+
+r=endpoint[{-3-ee}];
+FTAssert["stronger endpoint poles retain all nonresonant Taylor moments",
+ Sort[Lookup[r["Requirements"],"NormalDerivativeOrders"][[2;;]]/.a_Association:>Values[a]]==={{0},{1},{2}}&&
+ Sort[Lookup[r["Requirements"],"CoefficientUpperOrder"]]==={0,0,0,1}];
+r=DetermineEndpointEpsilonOrders[<|"DimensionalRegulator"->ee,
+ "ExponentMatrix"->{{ee,1},{0,ee}},"LogPower"->1,"Prefactor"->ee|>,<|"ThroughOrder"->0|>];
+FTAssert["logarithmic Jordan moments include nilpotent poles and normalization zeros",
+ r["MatrixMoments"][[1,"CoefficientUpperOrders",1,2]]===2&&
+ Cancel[r["MatrixMoments"][[1,"MomentMatrix",1,2]]-2/ee^2]===0];
+r=DetermineEndpointEpsilonOrders[<|"DimensionalRegulator"->ee,
+ "ExponentMatrix"->{{ee,1},{0,ee}},"LeftMap"->{{ee,1}},"RightMap"->{{0},{1}}|>,
+ <|"ThroughOrder"->0|>];
+FTAssert["contracted endpoint maps remove exact boundary-column cancellations",
+ r["MatrixMoments"][[1,"ContractedMomentMatrix"]]==={{0}}&&
+ r["MatrixMoments"][[1,"BoundaryCoefficientUpperOrders"]]==={-Infinity}];
+r=DetermineEndpointEpsilonOrders[<|"DimensionalRegulator"->ee,
+ "ExponentMatrix"->{{ee}},"TaylorOrders"->{2},"TaylorCoefficientConvention"->"Derivative"|>,
+ <|"ThroughOrder"->0|>];
+FTAssert["normal derivatives retain their Taylor factorial in matrix moments",
+ Cancel[r["MatrixMoments"][[1,"MomentMatrix",1,1]]-1/(2(2+ee))]===0];
+
 frob[a_] := DetermineFrobeniusLaurentBounds[<|"DimensionalRegulator"->ee,
  "NormalVariable"->xx,"ConnectionMatrix"->a/xx|>];
 r=frob[ee IdentityMatrix[2]];

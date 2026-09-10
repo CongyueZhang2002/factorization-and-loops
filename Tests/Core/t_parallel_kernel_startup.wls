@@ -1,0 +1,11 @@
+$HistoryLength=0;$MaxExtraPrecision=50;
+startupRoot=DirectoryName[ExpandFileName[$InputFileName],3];Get[startupRoot<>"/Tests/TestKit.wl"];
+Block[{Print},Get[startupRoot<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+startupExisting=FeynFacet`Private`facetLaunchKernels[2];
+startupAdded=FeynFacet`Private`facetLaunchKernels[6];
+FTTest`FTAssert["all eight requested local kernels connect",Length[startupExisting]===2&&Length[startupAdded]===6&&Length[Kernels[]]===8];
+FTTest`FTAssert["the helper reports only new kernels",Intersection[startupExisting,startupAdded]==={}];
+FTTest`FTAssert["all workers execute",Length[DeleteDuplicates[ParallelEvaluate[$KernelID]]]===8];
+CloseKernels[startupAdded];
+FTTest`FTAssert["closing added workers preserves the caller's pool",Kernels[]===startupExisting];
+CloseKernels[startupExisting];FTTest`FTReport[];

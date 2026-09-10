@@ -1,5 +1,5 @@
-(* Materialize a KiraStream directory artifact into a legacy
-   KiraResult.wl and run the finite-field coefficient reconstruction.
+(* Materialize a KiraStream directory as KiraResult.wl, then reconstruct
+   and save the current master-coefficient table.
 
    Usage:
      wolframscript -file Scripts/stream_to_coefficients.wls \
@@ -39,8 +39,10 @@ If[! AssociationQ[kira],
   Exit[1]
 ];
 Print["MATERIALIZESECONDS: ", Round[seconds, 0.1]];
-FeynFacet`FamilyArtifactWrite[kira,kiraFile];
-Clear[kira];
+storedKira=If[FileExistsQ[kiraFile],FeynFacet`FamilyArtifactRead[kiraFile],$Failed];
+If[!AssociationQ[storedKira]||KeyDrop[storedKira,"Created"]=!=KeyDrop[kira,"Created"],
+ FeynFacet`FamilyArtifactWrite[kira,kiraFile]];
+Clear[kira,storedKira];
 ClearSystemCache[];
 Print["KIRAFILE: ", kiraFile, " (",
   Round[FileByteCount[kiraFile]/2.^20, 0.1], " MB)"];
@@ -54,9 +56,9 @@ Print["PAIRFILES: ", Length[pairFiles]];
    and KinematicMassDimensions from the card, so declaration updates do
    not require regenerating the pair artifacts. It writes
    CoefficientResult.wl into the result directory itself. *)
-cardName = First[StringSplit[FileNameTake[First[pairFiles]], "_"]];
+If[pairFiles==={},Print["PAIRFILES: REQUIRED"];Exit[1]];
 cardName = Lookup[
-  Quiet @ Check[Get[First[pairFiles]], <||>],
+  FeynFacet`FamilyArtifactRead[First[pairFiles]],
   "CardName",
   $Failed
 ];

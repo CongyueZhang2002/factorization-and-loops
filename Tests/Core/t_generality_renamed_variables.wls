@@ -210,8 +210,8 @@ Print["--- D4  machine size and scratch defaults"];
 Print["    $ProcessorCount ", $ProcessorCount, ", operating-system cpus ",
   FeynFacet`Private`facetProcessorCount[], ", FACET_CPU_LIST ",
   ToString[Environment["FACET_CPU_LIST"]]];
-check["(D4) the operating-system cpu count is read (20 on this machine)",
-  IntegerQ[FeynFacet`Private`facetProcessorCount[]] && FeynFacet`Private`facetProcessorCount[] >= 20];
+check["(D4) the operating-system cpu count is positive",
+  IntegerQ[FeynFacet`Private`facetProcessorCount[]] && FeynFacet`Private`facetProcessorCount[] >= 1];
 Module[{envCount = Environment["FACET_KERNEL_COUNT"], expected},
   (* FACET_KERNEL_COUNT (set by the pool driver for missions) caps the
      count below the machine ceiling; the assertion must hold in both
@@ -241,23 +241,24 @@ Print["--- B4  workspace root and paths"];
 
 check["(B4) the workspace root defaults to the package root",
   FeynFacet`Private`$feynFacetWorkspaceRoot === FeynFacet`Private`$feynFacetRoot];
-repositoryResults = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+repositoryResults = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp", "Results",
   "UU_08_10_canonical"}];
 location = FeynFacet`Private`ibpProjectLocation[repositoryResults];
 check["(B4) the Kira workspace belongs to the actual process folder",
-  location["Root"] === FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Kira"}] &&
+  location["Root"] === FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp", "Kira"}] &&
     location["Directory"] === FileNameJoin[{location["Root"],
       "UU_08_10_canonical"}]];
-outside = FileNameJoin[{scratch, "elsewhere", "ZZ7", "Results", "run1"}];
-Quiet[CreateDirectory[outside, CreateIntermediateDirectories -> True]];
 workspace = FileNameJoin[{scratch, "workspace"}];
-outsideLocation = FeynFacet`Private`ibpProjectLocation[outside, workspace];
-check["(B4) a result tree outside the workspace root is no longer refused",
-  outsideLocation["Root"] ===
-      FileNameJoin[{workspace, "ZZ7", "Kira"}] &&
-    outsideLocation["Directory"] ===
-      FileNameJoin[{outsideLocation["Root"], "run1"}] &&
-    outsideLocation["WorkspaceRoot"] === ExpandFileName[workspace]];
+insideResult = FileNameJoin[{workspace, "ZZ7", "NLO", "qqp-qqp", "Results", "run1"}];
+Quiet[CreateDirectory[insideResult, CreateIntermediateDirectories -> True]];
+insideLocation = FeynFacet`Private`ibpProjectLocation[insideResult, workspace];
+check["(B4) a declared workspace preserves project order and channel",
+  insideLocation["Root"] === FileNameJoin[{workspace, "ZZ7", "NLO", "qqp-qqp", "Kira"}] &&
+  insideLocation["Directory"] === FileNameJoin[{insideLocation["Root"], "run1"}] &&
+  insideLocation["WorkspaceRoot"] === ExpandFileName[workspace]];
+outside = FileNameJoin[{scratch, "elsewhere", "ZZ7", "NLO", "qqp-qqp", "Results", "run1"}];
+check["(B4) outside results cannot redirect workspace writes",
+  FailureQ[FeynFacet`Private`projectResultLocation[outside,workspace]]];
 check["(B4) the delete guard is the workspace root it was given",
   FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{workspace, "x"}], workspace] &&
     ! FeynFacet`Private`coefficientSafeWorkPathQ[workspace, workspace] &&
@@ -265,11 +266,11 @@ check["(B4) the delete guard is the workspace root it was given",
       workspace]];
 check["(B4) coefficient reconstruction uses the process result folder",
  FeynFacet`Private`coefficientWorkDirectory[FileNameJoin[{repositoryResults,"KiraResult.wl"}]]===
- FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","CoefficientSimplification","UU_08_10_canonical"}]];
+ FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","CoefficientSimplification","UU_08_10_canonical"}]];
 check["(B4) default cleanup refuses other project content",
- FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","CoefficientSimplification","trial"}]]&&
- !FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Cards"}]]&&
- !FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","CoefficientSimplification"}]]];
+ FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","CoefficientSimplification","trial"}]]&&
+ !FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Cards"}]]&&
+ !FeynFacet`Private`coefficientSafeWorkPathQ[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","CoefficientSimplification"}]]];
 runtimeA = <|"KiraExecutable" -> "/opt/kira/bin/kira",
   "FermatExecutable" -> "/opt/kira/bin/fer64",
   "SupportFile" -> "/opt/kira/BACKWARD/chdat"|>;

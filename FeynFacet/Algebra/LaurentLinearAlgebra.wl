@@ -5,7 +5,7 @@ Clear[SaturateLaurentColumnBasis];
 SaturateLaurentColumnBasis[input_?MatrixQ,e_Symbol] := Catch@Module[
  {b=exactRationalMatrix[input],n=Length[input],c=Dimensions[input][[2]],
   change=IdentityMatrix[Dimensions[input][[2]]],low,leading,good,bad,rows,
-  coefficients,old,step=0,rank,check,left,point={e->1/97}},
+  coefficients,old,step=0,rank,check,left},
  If[n<c,Throw[Failure["ColumnBasisHasTooManyColumns",<||>]]];
  If[!AllTrue[Flatten[b],PolynomialQ[Numerator[#],e]&&PolynomialQ[Denominator[#],e]&],
   Throw[Failure["LaurentRationalColumnBasisRequired",<||>]]];
@@ -16,8 +16,8 @@ SaturateLaurentColumnBasis[input_?MatrixQ,e_Symbol] := Catch@Module[
   change[[All,j]]=change[[All,j]]/e^low,{j,c}];
  While[True,
   leading=b/.e->0;
-  If[!MatrixQ[leading,MatchQ[#,_Integer|_Rational]&],
-    Throw[Failure["RationalLeadingColumnMatrixRequired",<||>]]];
+  If[!MatrixQ[leading]||!FreeQ[leading,_Real|_DirectedInfinity|Indeterminate|e],
+    Throw[Failure["ExactRegulatorIndependentLeadingColumnMatrixRequired",<||>]]];
   good=exactIndependentRowIndices[Transpose[leading]];rank=Length[good];
   If[rank===c,Break[]];
   step++;If[step>64,Throw[Failure["LaurentSaturationDidNotTerminate",<||>]]];
@@ -35,12 +35,12 @@ SaturateLaurentColumnBasis[input_?MatrixQ,e_Symbol] := Catch@Module[
    {j,bad}]];
  rows=exactIndependentRowIndices[leading];
  left=exactRationalMatrix[Inverse[b[[rows,All]]].IdentityMatrix[n][[rows]]];
- check=AllTrue[Flatten[(input/.point).(change/.point)-(b/.point)],#===0&]&&
-   AllTrue[Flatten[(left/.point).(b/.point)-IdentityMatrix[c]],#===0&];
+ check=AllTrue[Flatten[exactRationalMatrix[input.change-b]],#===0&]&&
+   AllTrue[Flatten[exactRationalMatrix[left.b-IdentityMatrix[c]]],#===0&];
  If[!check,Throw[Failure["LaurentColumnSaturationVerificationFailed",<||>]]];
  <|"DataType"->"SaturatedLaurentColumnBasis","SchemaVersion"->1,
   "DimensionalRegulator"->e,"Basis"->b,"BasisChangeMatrix"->change,
   "LeftInverse"->left,"CoordinateRows"->rows,"LeadingRank"->rank,
-  "SaturationSteps"->step,"VerificationPoint"->point,
+  "SaturationSteps"->step,"Verification"->"ExactRationalIdentities",
   "Convention"->"InputBasis.BasisChangeMatrix = Basis; old amplitudes = BasisChangeMatrix.new amplitudes."|>
 ];

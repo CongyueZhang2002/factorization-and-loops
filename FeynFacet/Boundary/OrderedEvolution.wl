@@ -1,0 +1,94 @@
+(* Exact Laurent-order propagation through two ordered boundary strata. *)
+BeginPackage["FeynFacet`"];
+PrepareOrderedMeasuredBoundaryIntegration::usage =
+ "PrepareOrderedMeasuredBoundaryIntegration[boundary,request] prepares singular-to-ordinary evolution for both ordered endpoints, preserving symbolic scales, and propagates exact boundary-value and rational-matrix Laurent bounds to sufficient evolution and boundary epsilon orders.";
+Begin["`Private`"];
+PrepareOrderedMeasuredBoundaryIntegration[data_Association,request_Association] :=
+ Catch[Module[
+ {endpoint,rho,z,e,z0,upper,n,a,t,ti,raw,rhoPrep,comparison,comparison0,rhoSeed,rhoSaturated,
+  cornerPrep,cornerValues,nonzero,cornerSeed,cornerSaturated,constants,constantSeries,
+  constantLower,cornerOrders,rhoOrders,cornerEntry,rhoEntry,c13Lower,amplitudeMap,
+  amplitudeMapVal,amplitudeLower,amplitudeUpper,c13Upper,cornerColumnUpper,
+  constantUpper,rhoColumnUpper,valuation,mappedBounds,check,seconds,timings=<||>,i,j,k},
+ check[x_]:=If[FailureQ[x],Throw[x,"CutFamily"]];
+ If[Lookup[data,"DataType",None]=!="MeasuredMasterBoundaryValues",
+  cutFamilyFail["CompletedMeasuredMasterBoundaryValuesRequired"]];
+ endpoint=data["NormalEndpointSystem"];rho=data["RecoilVariable"];
+ z=data["MeasurementVariable"];e=data["DimensionalRegulator"];n=Length[data["MasterIntegralBasis"]];
+ z0=Lookup[request,"MeasurementBasePoint",Automatic];
+ If[z0===Automatic,z0=z];
+ upper=Lookup[request,"MasterIntegralUpperOrders",{}];
+ If[!(z0===z||TrueQ[0<z0<1])||Length[upper]=!=n||!AllTrue[upper,IntegerQ],
+  cutFamilyFail["InteriorMeasuredFractionAndMasterUpperOrdersRequired"]];
+ valuation[x_]:=exactRationalLaurentValuation[x,e];
+ mappedBounds[matrix_,bounds_]:=Table[
+  Min[Table[If[matrix[[i,j]]===Infinity||bounds[[j]]===Infinity,Infinity,
+    matrix[[i,j]]+bounds[[j]]],{j,Length[bounds]}]],{i,Length[matrix]}];
+ {a,t,ti}=Lookup[endpoint,{"NormalizedNormalConnectionMatrix","NormalGaugeMatrix","InverseNormalGaugeMatrix"}]/.z->z0;
+ raw=Map[Together,(D[t,rho]+t.a).ti,{2}];
+ {seconds,rhoPrep}=AbsoluteTiming[FeynFacet`PrepareSingularBoundarySystem[
+  <|"Variable"->rho,"DimensionalRegulator"->e,"ConnectionMatrix"->raw|>,
+  "Verbose"->Lookup[request,"Verbose",False],
+  "ParameterVerificationRules"->Lookup[request,"ParameterVerificationRules",{}]]];
+ check[rhoPrep];AssociateTo[timings,"NormalLinePreparation"->seconds];
+ comparison=Map[Together,rhoPrep["OriginalToNormalizedGauge"].t,{2}];
+ If[tangentialEndpointOrder[comparison,rho]<0,
+  cutFamilyFail["RegularComparisonOfNormalizedBoundaryFramesRequired"]];
+ comparison0=Map[Cancel[#]/.rho->0&,comparison,{2}];
+ If[!FreeQ[comparison0,Indeterminate|_DirectedInfinity],
+  cutFamilyFail["FiniteBoundaryFrameComparisonRequired"]];
+ rhoSeed=Map[Together,comparison0.(data["PhysicalNormalSeedMatrix"]/.z->z0),{2}];
+ rhoSaturated=FeynFacet`SaturateLaurentColumnBasis[rhoSeed,e];check[rhoSaturated];
+ amplitudeMap=Map[Together,Inverse[rhoSaturated["BasisChangeMatrix"]],{2}];
+ cornerPrep=data["CornerPreparation"];cornerValues=data["CornerBoundaryValues"];
+ nonzero=Select[Range[cornerValues["BoundaryConstantCount"]],
+  !epsOrderZero[cornerValues["InitialConstantValues"][[#]]]&];
+ If[nonzero==={},cutFamilyFail["NonzeroPhysicalBoundaryValuesRequired"]];
+ cornerSeed=cornerValues["NormalizedSeedMatrix"][[All,nonzero]];
+ cornerSaturated=FeynFacet`SaturateLaurentColumnBasis[cornerSeed,e];check[cornerSaturated];
+ constants=Inverse[cornerSaturated["BasisChangeMatrix"]].cornerValues["InitialConstantValues"][[nonzero]];
+ {seconds,constantSeries}=AbsoluteTiming[regulatorSeries[#,e,0]&/@constants];
+ If[AnyTrue[constantSeries,FailureQ],cutFamilyFail["AnalyticBoundaryLaurentOrdersUndetermined",
+  <|"Causes"->Select[constantSeries,FailureQ]|>]];
+ AssociateTo[timings,"AnalyticBoundaryLowerOrders"->seconds];constantLower=First/@constantSeries;
+ (* The matrix-entry bounds depend on gauges, the seed, and connection
+    paths only. No assumed integral pole order is used in this direction. *)
+ cornerOrders=FeynFacet`DetermineBoundaryAmplitudeOrders[cornerPrep,cornerSaturated,
+  ConstantArray[Infinity,cornerValues["SourceDimension"]]];check[cornerOrders];
+ cornerEntry=cornerOrders["MatrixEntryLaurentLowerBounds"];
+ c13Lower=mappedBounds[cornerEntry,constantLower];
+ amplitudeMapVal=Map[valuation,amplitudeMap,{2}];
+ amplitudeLower=mappedBounds[amplitudeMapVal,c13Lower];
+ rhoOrders=FeynFacet`DetermineBoundaryAmplitudeOrders[rhoPrep,rhoSaturated,ConstantArray[Infinity,n]];check[rhoOrders];
+ rhoEntry=rhoOrders["MatrixEntryLaurentLowerBounds"];
+ amplitudeUpper=Table[Max[Table[If[rhoEntry[[i,k]]===Infinity,-Infinity,
+  upper[[i]]-rhoEntry[[i,k]]],{i,n}]],{k,Length[amplitudeLower]}];
+ c13Upper=Table[Max[Table[If[amplitudeMapVal[[k,j]]===Infinity,-Infinity,
+   amplitudeUpper[[k]]-amplitudeMapVal[[k,j]]],{k,Length[amplitudeUpper]}]],
+  {j,Length[c13Lower]}];
+ constantUpper=Table[Max[Table[If[cornerEntry[[j,k]]===Infinity,-Infinity,
+   c13Upper[[j]]-cornerEntry[[j,k]]],{j,Length[c13Upper]}]],{k,Length[constants]}];
+ cornerColumnUpper=Table[Max[0,Max[Table[If[cornerEntry[[j,k]]===Infinity,-Infinity,
+   c13Upper[[j]]-constantLower[[k]]],{j,Length[c13Upper]}]]],{k,Length[constants]}];
+ rhoColumnUpper=Table[Max[0,Max[Table[If[rhoEntry[[i,k]]===Infinity,-Infinity,
+   upper[[i]]-amplitudeLower[[k]]],{i,n}]]],{k,Length[amplitudeLower]}];
+ <|"DataType"->"OrderedMeasuredBoundaryIntegrationPreparation","DimensionalRegulator"->e,
+  "MeasurementValue"->z0,"MeasurementCoordinateKeptSymbolic"->(z0===z),
+  "MasterIntegralUpperOrders"->upper,
+  "NormalLinePreparation"->rhoPrep,"NormalLineSeed"->rhoSaturated,
+  "NormalizedBoundaryFrameComparison"->comparison0,
+  "TangentialValueToNormalAmplitudeMatrix"->amplitudeMap,
+  "CornerPreparation"->cornerPrep,"CornerSeed"->cornerSaturated,
+  "AnalyticCornerAmplitudeValues"->constants,"RetainedPhysicalConstantIndices"->nonzero,
+  "CornerAmplitudeLaurentLowerBounds"->constantLower,"CornerAmplitudeUpperOrders"->constantUpper,
+  "CornerConnectionColumnUpperOrders"->cornerColumnUpper,
+  "TangentialValueLaurentLowerBounds"->c13Lower,"TangentialValueUpperOrders"->c13Upper,
+  "NormalAmplitudeLaurentLowerBounds"->amplitudeLower,"NormalAmplitudeUpperOrders"->amplitudeUpper,
+  "NormalConnectionColumnUpperOrders"->rhoColumnUpper,
+  "OriginalMasterLaurentLowerBounds"->mappedBounds[rhoEntry,amplitudeLower],
+  "NormalConnectionEntryLaurentLowerBounds"->rhoEntry,
+  "CornerConnectionEntryLaurentLowerBounds"->cornerEntry,
+  "Timings"->timings,
+  "Method"->"Exact endpoint values, rational boundary-frame comparison and local Laurent saturation, followed by all connection paths. Upper orders are propagated backward through every multiplication; no circular boundary assumption is made."|>
+ ],"CutFamily"];
+End[];EndPackage[];

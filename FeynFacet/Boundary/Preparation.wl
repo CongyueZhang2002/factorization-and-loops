@@ -2,15 +2,18 @@
    selection is a separate input and must include complete generalized
    eigenspaces. No exponent bound is inferred from a process name. *)
 Clear[PrepareSingularBoundarySystem];
-Options[PrepareSingularBoundarySystem]={"Verbose"->False,"HomogeneousSolveTimeLimit"->20};
+Options[PrepareSingularBoundarySystem]={"Verbose"->False,"HomogeneousSolveTimeLimit"->20,
+ "ParameterVerificationRules"->{}};
 PrepareSingularBoundarySystem[system_Association,OptionsPattern[]] := Catch@Module[
  {clean,normal,primary,rescaling,prepared,gauge,moving,regular,original,
   toPrepared,production,e,z,step,fail},
  fail[x_]:=If[FailureQ[x]||!AssociationQ[x],Throw[x]];
  e=system["DimensionalRegulator"];z=system["Variable"];
- clean=RemoveCoalescingApparentSingularities[system];fail[clean];
+ clean=RemoveCoalescingApparentSingularities[system,
+  "ParameterVerificationRules"->OptionValue["ParameterVerificationRules"]];fail[clean];
  moving=RegularSingularGaugeMatrix[clean];
- normal=NormalizeRegularSingularSystem[clean,"Verbose"->OptionValue["Verbose"]];fail[normal];
+ normal=NormalizeRegularSingularSystem[clean,"Verbose"->OptionValue["Verbose"],
+  "ParameterVerificationRules"->OptionValue["ParameterVerificationRules"]];fail[normal];
  primary=DecomposeResidueEigenspaces[normal];fail[primary];
  rescaling=FindEpsilonRescaling[{normal["ConnectionMatrix"]},e];fail[rescaling];
  prepared=PrepareDifferentialSystemForFiniteIntegration[

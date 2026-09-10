@@ -7,8 +7,14 @@ Get[FileNameJoin[{root,"Addon","Load","LoadFACET.wl"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=3,Print["Expected FORM.wl REQUEST.wl OUTPUT_DIRECTORY"];Exit[2]];
 form=FeynFacet`FamilyArtifactRead[args[[1]]];
-req=Get[args[[2]]];
+req=FeynFacet`FamilyArtifactRead[args[[2]]];
+If[AssociationQ[req]&&AssociationQ[Lookup[req,"Request",None]],req=req["Request"]];
 If[!AssociationQ[form] || !AssociationQ[req],Print["Invalid input"];Exit[2]];
+Do[If[KeyExistsQ[req,key]&&StringQ[req[key]]&&
+   !StringStartsQ[req[key],"/"]&&!StringMatchQ[req[key],RegularExpression["^[A-Za-z]:.*"]],
+ req[key]=ExpandFileName[FileNameJoin[{DirectoryName[ExpandFileName[args[[2]]]],req[key]}]]],
+ {key,{"FiniteIntegrationPreparationFile","MasterIntegralRepresentationsFile",
+   "OriginalDifferentialSystemFile","RationalizingParametrizationFile","ConstructionCheckpointFile"}}];
 If[Lookup[form,"DataType",None]==="FamilyDLogEpsilonForm",
  vars=form["CoefficientVariables"]; ep=form["DimensionalRegulator"];
  system=Join[form,<|"Family"->form["Family"],"KinematicVariables"->vars,"DimensionalRegulator"->ep,
@@ -38,7 +44,19 @@ If[Lookup[form,"DataType",None]==="FamilyDLogEpsilonForm",
 If[KeyExistsQ[req,"EpsilonZeroBlockReductionFiles"],
  system=Join[system,<|"EpsilonZeroBlockReductions"->(FamilyArtifactRead /@ req["EpsilonZeroBlockReductionFiles"])|>]];
 If[KeyExistsQ[req,"FiniteIntegrationPreparationFile"],
- system=ApplyFiniteIntegrationPreparation[system,FamilyArtifactRead[req["FiniteIntegrationPreparationFile"]]];
+ preparationRecord=FamilyArtifactRead[req["FiniteIntegrationPreparationFile"]];
+ If[!AssociationQ[preparationRecord],Print["Invalid finite-integration preparation"];Exit[2]];
+ preparation=Lookup[preparationRecord,"Preparation",preparationRecord];
+ If[!AssociationQ[preparation],Print["Finite-integration preparation failed"];Exit[2]];
+ system=ApplyFiniteIntegrationPreparation[system,preparation];
+ If[!AssociationQ[system],Print[system];Exit[1]];
+];
+If[KeyExistsQ[req,"MasterIntegralRepresentationsFile"],
+ representationRecord=FamilyArtifactRead[req["MasterIntegralRepresentationsFile"]];
+ If[!AssociationQ[representationRecord]||
+    !AssociationQ[Lookup[representationRecord,"MasterIntegralRepresentations",None]],
+  Print["Invalid normalized master-integral representations"];Exit[2]];
+ req=Join[req,<|"MasterIntegralRepresentations"->representationRecord["MasterIntegralRepresentations"]|>]
 ];
 If[KeyExistsQ[req,"RationalizingParametrizationFile"],
  parametrization=FamilyArtifactRead[req["RationalizingParametrizationFile"]];

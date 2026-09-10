@@ -155,10 +155,10 @@ canonicalizeLinearTerms[terms_Association] := KeySortBy[
 linearToExpression[data_?linearIntegralSumQ] :=
   Total[KeyValueMap[#1 #2 &, data["Terms"]]] + data["Remainder"];
 
-linearDropZeros[data_?linearIntegralSumQ] := <|
+linearDropZeros[data_?linearIntegralSumQ, zeroTest_:exactZeroQ] := <|
   "Terms" -> canonicalizeLinearTerms @
-    Select[data["Terms"], ! exactZeroQ[#] &],
-  "Remainder" -> If[exactZeroQ[data["Remainder"]], 0, data["Remainder"]]
+    Select[data["Terms"], ! TrueQ[zeroTest[#]] &],
+  "Remainder" -> If[TrueQ[zeroTest[data["Remainder"]]], 0, data["Remainder"]]
 |>;
 
 linearCanonicalize[data_?linearIntegralSumStructureQ] := <|

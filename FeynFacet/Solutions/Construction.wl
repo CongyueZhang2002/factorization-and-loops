@@ -65,9 +65,21 @@ solutionLaurentCoefficients[m_, e_, upper_Integer, basis_:False] := Module[
 (* Numerical validation evaluates the factors before matrix multiplication.
    Rational point coordinates are exact; elementary functions are evaluated at
    80 digits. Relative residuals below 10^-50 are numerical evidence only. *)
-solutionValidationPoints[vars_,base_,e_] := Table[
- Append[Thread[vars->(base+Table[(j+i)/(1000 (i+1)),{i,Length[vars]}])],
-   e->{1/31,2/37,3/41}[[j]]],{j,3}];
+solutionScalarParameters[expressions_,excluded_] := Sort[DeleteDuplicates[
+ Cases[expressions,s_Symbol /; Context[s]=!="System`" && !MemberQ[excluded,s],
+  Infinity,Heads->False]]];
+solutionValidationExpressions[system_] := Values[KeyTake[system,{
+ "ConnectionMatrices","OriginalConnectionMatrices","PreparedConnectionMatrices",
+ "BasisTransformationMatrix","InverseBasisTransformationMatrix",
+ "HomogeneousFundamentalMatrix","InverseHomogeneousFundamentalMatrix",
+ "AdditionalBasisTransformationMatrix"}]];
+solutionValidationPoints[vars_,base_,e_,expressions_:{}] := Module[{parameters},
+ parameters=solutionScalarParameters[expressions,Append[vars,e]];
+ Table[Join[Thread[vars->(base+Table[(j+i)/(1000 (i+1)),{i,Length[vars]}])],
+   {e->{1/31,2/37,3/41}[[j]]},
+   Thread[parameters->Table[Prime[7j+2i+11]/Prime[7j+2i+10],{i,Length[parameters]}]]],
+ {j,3}]
+];
 solutionNumericalZero[terms_List] := Module[{norms,residual},
  If[!And@@(MatrixQ[#,NumericQ]& /@ terms) ||
    !FreeQ[terms,Indeterminate|DirectedInfinity[_]],Return[False]];
@@ -77,6 +89,9 @@ solutionNumericalZero[terms_List] := Module[{norms,residual},
 ];
 solutionGaugeChecks[t_,a_,b_,vars_,method_,points_] := If[method==="NumericalPoints",
  If[Length[points]<3,solutionFail["AtLeastThreeValidationPointsRequired"]];
+ Do[If[solutionScalarParameters[{t,a,b}/.pt,{}]=!={},
+  solutionFail["IncompleteNumericalValidationPoint",<|"Point"->pt,
+   "UnassignedParameters"->solutionScalarParameters[{t,a,b}/.pt,{}]|>]],{pt,points}];
  Table[And@@Table[With[{tt=N[t/.N[pt,80],80],aa=N[a[[i]]/.N[pt,80],80],bb=N[b[[i]]/.N[pt,80],80]},
    solutionNumericalZero[{N[D[t,vars[[i]]]/.N[pt,80],80],tt.bb,-aa.tt}]],{pt,points}],
  {i,Length[vars]}],
@@ -162,8 +177,10 @@ Options[FeynFacet`ConstructMasterIntegralSolution] = {
   "HomogeneousSolveTimeLimit" -> 30, "Verbose" -> False,
   "RegularityProofTimeLimit"->5,"MaximumSectors"->512,"MaximumSectorDepth"->32};
 
-FeynFacet`ConstructMasterIntegralSolution[system_Association, request_Association,
-    OptionsPattern[]] := If[AnyTrue[{"RequestedMasterIntegralOrderRanges","RequestedMasterIntegralUpperOrders"},KeyExistsQ[request,#]&],
+FeynFacet`ConstructMasterIntegralSolution[input_Association, request_Association,
+    OptionsPattern[]] := Module[{system=solutionNormalizeDifferentialSystem[input]},
+    If[FailureQ[system],Return[system]];
+    If[AnyTrue[{"RequestedMasterIntegralOrderRanges","RequestedMasterIntegralUpperOrders"},KeyExistsQ[request,#]&],
     Catch[solutionConstructFromOrders[system,request,<|
       "FlatnessCheck"->OptionValue["FlatnessCheck"],"ValidationPoints"->OptionValue["ValidationPoints"],
       "OutputDirectory"->OptionValue["OutputDirectory"],"AutomaticPreparation"->OptionValue["AutomaticPreparation"],
@@ -174,7 +191,7 @@ FeynFacet`ConstructMasterIntegralSolution[system_Association, request_Associatio
     Catch[solutionConstruct[system, request,
       OptionValue["FlatnessCheck"], OptionValue["ValidationPoints"],
       OptionValue["OutputDirectory"], OptionValue["AutomaticPreparation"],
-      OptionValue["HomogeneousSolveTimeLimit"], OptionValue["Verbose"]], "FiniteSolution"]];
+      OptionValue["HomogeneousSolveTimeLimit"], OptionValue["Verbose"]], "FiniteSolution"]]];
 FeynFacet`ConstructMasterIntegralSolution[___] :=
   Failure["ExplicitDifferentialSystemAndOrdinaryPointRequestRequired", <||>];
 
@@ -223,7 +240,7 @@ solutionConstruct[system_, request_, method_, points_, directory_, automatic_, s
       !StringQ[Lookup[request, "BranchPrescription", None]],
     solutionFail["AnalyticDomainAndBranchPrescriptionRequired"]];
   baseRules = Thread[vars -> base];
-  validationPoints=If[points===Automatic,solutionValidationPoints[vars,base,e],points];
+  validationPoints=If[points===Automatic,solutionValidationPoints[vars,base,e,solutionValidationExpressions[system]],points];
   If[!ListQ[validationPoints] || !And@@(MatchQ[#,{__Rule}]& /@ validationPoints),
     solutionFail["InvalidValidationPoints"]];
   If[method==="NumericalPoints" &&
@@ -333,6 +350,17 @@ solutionConstruct[system_, request_, method_, points_, directory_, automatic_, s
   needed=orderPlan["MaximumTransformedOrder"];
   entryOrders=orderPlan["TransformedCoefficientUpperOrders"];
   entryLower=orderPlan["TransformedCoefficientLowerBounds"];
+  (* The exact connection valuations already prove these coefficients vanish.
+     Finite gauge convolutions can leave them as unsimplified rational sums.
+     Check only these excluded terms before interning scalar expressions:
+     a formal kernel name must never hide a proved zero. *)
+  connectionBounds=orderPlan["ConnectionEntryLaurentLowerBounds"];
+  bc=Map[Function[coordinate,Association@KeyValueMap[Function[{q,matrix},
+    q->MapIndexed[Function[{value,index},
+      If[q<Extract[connectionBounds,index],
+        If[!solutionZero[value],solutionFail["ConnectionLaurentBoundMismatch",
+          <|"EpsilonOrder"->q,"Entry"->index,"Expression"->value|>]];0,value]],
+      matrix,{2}]],coordinate]],bc];
   progress["Finite integration requires epsilon order "<>ToString[needed]<>
     " with "<>ToString[orderPlan["RequiredTransformedCoefficientCount"]]<>" matrix coefficients"];
   t = FeynFacetSolution`t; s = FeynFacetSolution`s;

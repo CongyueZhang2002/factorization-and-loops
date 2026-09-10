@@ -10,6 +10,7 @@
 | SubTropica | 1.2.9 | Linux Wolfram paclet repository |
 | Libra | 1.2 | Linux FACET-NLO add-on store |
 | HPL | 2.0 | Linux FACET-NLO add-on store |
+| MT | 1.0, weight-six tables | https://www.ttp.kit.edu/Progdata/ttp13/ttp13-27/MT-1.0.tar.gz |
 | PolyLogTools | 1.4 | Linux FACET-NLO add-on store |
 | CANONICA | source snapshot | Local differential-equation probe |
 | AMFlow | source snapshot | Local AMFlow checkout |

@@ -1,0 +1,53 @@
+(* Plan and solve a tangential boundary DE for its actual physical coefficient rows. *)
+BeginPackage["FeynFacet`"];
+PreparePhysicalBoundaryCoefficientIntegration::usage="PreparePhysicalBoundaryCoefficientIntegration[jets,request] propagates epsilon orders from contracted endpoint coefficient rows through the boundary DE, Laurent-saturated physical seed and exact corner constants. It requests no bulk master extension.";
+Begin["`Private`"];
+PreparePhysicalBoundaryCoefficientIntegration[jets_Association,request_Association]:=Catch[Module[
+ {boundary,e,power,target,coefficient,prep,seed,saturated,constants,constantSeries,constantLower,
+ entryData,entries,coefficientValuation,lower,upper,constantUpper,columnUpper,coefficientUpper,
+ outputLower,ranges,n,k,mapBounds},
+ If[Lookup[jets,"Status",None]=!="ContractedPhysicalEndpointJetsConstructed"||
+  !AssociationQ[Lookup[jets,"BoundaryFunctionSystem",None]],
+  tangentialEndpointFail["ContractedEndpointBoundaryFunctionJetsRequired"]];
+ boundary=jets["BoundaryFunctionSystem"];e=jets["DimensionalRegulator"];
+ power=Lookup[request,"IntegerNormalPower",-1];target=Lookup[request,"ThroughOrder",None];
+ If[!IntegerQ[target]||!KeyExistsQ[jets["CoefficientMatrices"],power],
+  tangentialEndpointFail["ExistingNormalCoefficientAndFiniteRegulatorOrderRequired"]];
+ coefficient=jets["CoefficientMatrices"][power];prep=boundary["CornerPreparation"];
+ seed=boundary["CornerSeedMatrix"];n=Length[seed];
+ saturated=FeynFacet`SaturateLaurentColumnBasis[seed,e];
+ If[FailureQ[saturated],Throw[saturated,"TangentialEndpoint"]];
+ constants=Inverse[saturated["BasisChangeMatrix"]].boundary["InitialConstantValues"];k=Length[constants];
+ constantSeries=regulatorSeries[#,e,0]&/@constants;
+ If[AnyTrue[constantSeries,FailureQ],Throw[First[Select[constantSeries,FailureQ]],"TangentialEndpoint"]];
+ constantLower=First/@constantSeries;
+ entryData=FeynFacet`DetermineBoundaryAmplitudeOrders[prep,saturated,ConstantArray[Infinity,n]];
+ If[FailureQ[entryData],Throw[entryData,"TangentialEndpoint"]];
+ entries=entryData["MatrixEntryLaurentLowerBounds"];
+ mapBounds[m_,v_]:=Table[Min[MapThread[If[#1===Infinity||#2===Infinity,Infinity,#1+#2]&,{row,v}]],{row,m}];
+ lower=mapBounds[entries,constantLower];
+ coefficientValuation=Map[FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&,coefficient,{2}];
+ upper=Table[If[lower[[j]]===Infinity,0,Max[lower[[j]],Max[Table[
+  If[coefficientValuation[[i,j]]===Infinity,-Infinity,target-coefficientValuation[[i,j]]],
+  {i,Length[coefficient]}]]]],{j,n}];
+ constantUpper=Table[Max[Table[If[entries[[j,c]]===Infinity,-Infinity,
+  upper[[j]]-entries[[j,c]]],{j,n}]],{c,k}];
+ columnUpper=Table[Max[0,Max[Table[If[entries[[j,c]]===Infinity,-Infinity,
+  upper[[j]]-constantLower[[c]]],{j,n}]]],{c,k}];
+ coefficientUpper=If[#===Infinity,0,target-#]&/@lower;
+ outputLower=mapBounds[coefficientValuation,lower];
+ ranges=Table[{If[outputLower[[i]]===Infinity,0,Min[0,outputLower[[i]]]],target},{i,Length[coefficient]}];
+ <|"DataType"->"PhysicalBoundaryCoefficientIntegrationPreparation","DimensionalRegulator"->e,
+  "CornerPreparation"->prep,"SaturatedCornerSeed"->saturated,"AnalyticConstantValues"->constants,
+  "ConstantLaurentLowerBounds"->constantLower,"ConstantUpperOrders"->constantUpper,
+  "ConnectionEntryLaurentLowerBounds"->entries,"ConnectionColumnUpperOrders"->columnUpper,
+  "BoundaryFunctionLaurentLowerBounds"->lower,"BoundaryFunctionUpperOrders"->upper,
+  "BoundaryFunctionOrderRanges"->MapThread[{If[#1===Infinity,0,#1],#2}&,{lower,upper}],
+  "CoefficientMatrix"->coefficient,"CoefficientColumnUpperOrders"->coefficientUpper,
+  "OutputOrderRanges"->ranges,"CoefficientRowLabels"->jets["CoefficientRowLabels"],
+  "NormalVariable"->jets["NormalVariable"],"TangentialVariable"->jets["TangentialVariable"],
+  "NormalExponent"->jets["NormalExponent"],"IntegerNormalPower"->power,
+  "BoundaryFunctionArgumentRules"->Lookup[boundary,"BoundaryFunctionArgumentRules",{}],
+  "Scope"->"Sufficient orders for this physical open-edge coefficient. Its opposite endpoint subtraction and joint corner terms remain explicit separate inputs."|>
+],"TangentialEndpoint"];
+End[];EndPackage[];

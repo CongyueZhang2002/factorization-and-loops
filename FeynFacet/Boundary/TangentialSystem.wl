@@ -14,6 +14,9 @@ FeynFacet`DetermineTangentialEndpointLaurentBounds::usage =
 FeynFacet`ExtendTangentialEndpointSystem::usage =
  "ExtendTangentialEndpointSystem[acceptedEndpoint,maximumNormalOrder] extends the Frobenius jets of an accepted symbolic endpoint record, reusing its exact connections, gauge, inverse, residue, tangential connection and existing coefficients. It verifies all newly constructed normal and tangential coefficient identities.";
 
+FeynFacet`ConstructEndpointSectorDifferentialSystem::usage =
+ "ConstructEndpointSectorDifferentialSystem[endpoint,exponent] constructs the smallest basis spanning the specified residue primary projector and the induced tangential DE, including derivatives of that basis. Selecting a physical sector requires a separate physical scaling argument.";
+
 Clear[tangentialEndpointFail, tangentialEndpointMatrix,
  tangentialEndpointZeroQ, tangentialEndpointOrder,
  tangentialEndpointJet, tangentialEndpointPolynomial,
@@ -642,4 +645,41 @@ FeynFacet`ConstructTangentialEndpointSolution[___] :=
 FeynFacet`DetermineTangentialEndpointLaurentBounds[___] :=
  Failure["EndpointMatchingAndPhysicalSeedBoundsRequired",<||>];
 
+
+FeynFacet`ConstructEndpointSectorDifferentialSystem[endpoint_Association,exponent_]:=
+ Catch[Module[{sectors,sector,p,rref,columns,basis,rows,left,selection,gamma,
+  v,e,connection,residual,rank,n,projectorChecks},
+ If[Lookup[endpoint,"DataType",None]=!="TangentialEndpointSystem",
+  tangentialEndpointFail["TangentialEndpointSystemRequired"]];
+ sectors=Select[endpoint["PrimarySectors"],tangentialEndpointZeroQ[#[ "Exponent"]-exponent]&];
+ If[Length[sectors]=!=1,tangentialEndpointFail["UniqueEndpointPrimarySectorRequired"]];
+ sector=First[sectors];p=sector["Projector"];n=Length[p];
+ {v,e,gamma}=Lookup[endpoint,{"TangentialVariable","DimensionalRegulator","TangentialConnectionMatrix"}];
+ rref=RowReduce[p];
+ columns=DeleteCases[Map[Function[row,SelectFirst[Range[Length[row]],
+  !epsOrderZero[row[[#]]]&,Missing["NoPivot"]]],rref],_Missing];
+ rank=Length[columns];If[rank===0,tangentialEndpointFail["EmptyEndpointPrimarySector"]];
+ basis=p[[All,columns]];
+ rows=boundaryFunctionSystemIndependentRows[basis];
+ If[rows===$Failed,tangentialEndpointFail["IndependentEndpointSeedRowsRequired"]];
+ selection=IdentityMatrix[n][[rows]];
+ left=tangentialEndpointMatrix[Inverse[basis[[rows]]].selection];
+ connection=tangentialEndpointMatrix[left.(gamma.basis-D[basis,v])];
+ residual=tangentialEndpointMatrix[D[basis,v]+basis.connection-gamma.basis];
+ projectorChecks=tangentialEndpointZeroQ[left.basis-IdentityMatrix[rank]]&&
+  tangentialEndpointZeroQ[p.basis-basis]&&tangentialEndpointZeroQ[residual];
+ If[!projectorChecks,tangentialEndpointFail["EndpointSectorConnectionIdentityFailed"]];
+ <|"DataType"->"EndpointSectorDifferentialSystem","KinematicVariables"->{v},
+  "DimensionalRegulator"->e,"ConnectionMatrices"->{connection},"Dimension"->rank,
+  "OriginalMasterIntegralBasis"->Range[rank],"ResidueExponent"->exponent,
+  "NormalizedLeadingVectorEmbedding"->basis,"NormalizedLeadingVectorLeftInverse"->left,
+  "PrimaryProjector"->p,"SeedColumns"->columns,"SeedRows"->rows,
+  "NormalVariable"->endpoint["NormalVariable"],"NormalGaugeMatrix"->endpoint["NormalGaugeMatrix"],
+  "NormalOrderRange"->sector["OriginalNormalOrderRange"],
+  "OriginalCoefficientMatrices"->Map[tangentialEndpointMatrix[#.basis]&,sector["OriginalCoefficients"],{2}],
+  "NilpotencyIndex"->sector["NilpotencyIndex"],
+  "Verification"-><|"LeftInverse"->True,"PrimaryImage"->True,"TangentialConnection"->True,
+    "Method"->"ExactRationalIdentities"|>,
+  "PhysicalSectorSelectionEstablished"->False|>
+ ],"TangentialEndpoint"];
 End[];

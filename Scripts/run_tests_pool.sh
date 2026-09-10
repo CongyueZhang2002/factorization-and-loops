@@ -215,6 +215,10 @@ for (( index=0; index<${#standalone_queue[@]}; index++ )); do
     taskset -c "$cpu_list" "$wolframscript_cmd" -file "$test_file"
   ) > "$standalone_log" 2>&1
   standalone_rc=$?
+  if (( standalone_rc == 0 )); then
+    source "$root/Tests/Support/wolfram_test_log.sh"
+    ft_wolfram_test_log_valid "$standalone_log" "$test_file" || standalone_rc=65
+  fi
   standalone_wall=$((SECONDS - start_seconds))
   if (( standalone_rc == 0 )); then
     standalone_status=OK

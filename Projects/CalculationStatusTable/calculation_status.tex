@@ -1,0 +1,136 @@
+\documentclass[11pt,a4paper]{article}
+% Compile with pdflatex. Each tabular environment can also be copied into a paper.
+\usepackage[margin=1.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{array,multirow,amssymb,xcolor}
+\usepackage[colorlinks=true,urlcolor=blue,linkcolor=blue]{hyperref}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}m{#1}}
+\newcommand{\verified}{\textcolor{green!45!black}{\ensuremath{\checkmark}}}
+\setlength{\tabcolsep}{4pt}
+\setlength{\arrayrulewidth}{0.4pt}
+\renewcommand{\arraystretch}{1.25}
+\setlength{\parindent}{0pt}
+\pagestyle{plain}
+\hypersetup{pdftitle={Calculation status: NLO and NNLO hard functions},
+pdfauthor={FeynFacet},pdfsubject={Channel results and independent verification}}
+\begin{document}
+\begin{center}
+{\large Calculation status: NLO hard functions}\\[5pt]
+{\small 10 September 2026}
+\end{center}
+\vspace{4pt}
+\begin{center}
+\small
+% Horizontal rules occur only at the header and between process groups.
+\begin{tabular}{|C{2.5cm}|C{1.2cm}|C{2.7cm}|C{2.0cm}|C{1.7cm}|C{1.8cm}|C{2.6cm}|}
+\hline
+Process & Order & Channel & \shortstack{Total time\\per channel} & \shortstack{Size\\{[kB]}} & Verification & Source \\
+\hline
+\multirow{4}{*}{\shortstack{$pp\to hX$\\UU}} & \multirow{4}{*}{NLO} & $qq'\to q+X$ & 2.54\,min & 22.9 & \verified & \href{https://lapth.cnrs.fr/PHOX_FAMILY/readme_inc.html}{INCNLO} \\
+ &  & $q\bar q\to q'+X$ & 2.43\,min & 25.6 & \verified & \href{https://lapth.cnrs.fr/PHOX_FAMILY/readme_inc.html}{INCNLO} \\
+ &  & $qg\to q+X$ &  & 143.3 & \verified & \href{https://lapth.cnrs.fr/PHOX_FAMILY/readme_inc.html}{INCNLO} \\
+ &  & $qg\to g+X$ &  & 71.9 & \verified & \href{https://lapth.cnrs.fr/PHOX_FAMILY/readme_inc.html}{INCNLO} \\
+\hline
+\multirow{4}{*}{\shortstack{$pp\to hX$\\LL}} & \multirow{4}{*}{NLO} & $qq'\to q+X$ & 2.80\,min & 16.9 & \verified & \href{https://github.com/QCDLab/navis}{Navis}$^\dagger$ \\
+ &  & $q\bar q\to q'+X$ & 2.65\,min & 25.7 & \verified & \href{https://github.com/QCDLab/navis}{Navis} \\
+ &  & $qg\to q+X$ &  & 76.3 & \verified & \href{https://github.com/QCDLab/navis}{Navis} \\
+ &  & $qg\to g+X$ &  & 47.8 & \verified & \href{https://github.com/QCDLab/navis}{Navis} \\
+\hline
+{\renewcommand{\arraystretch}{1.05}\begin{tabular}{@{}c@{}}$pp\to hX$\\TT\end{tabular}} & NLO & $qq'\to q+X$ & 26.0\,s & 1.7 & N/A & N/A \\
+\hline
+{\renewcommand{\arraystretch}{1.05}\begin{tabular}{@{}c@{}}$pp\to hX$\\LL transfer\end{tabular}} & NLO & $qq'\to q+X$ & 2.89\,min & 22.9 & N/A & N/A \\
+\hline
+{\renewcommand{\arraystretch}{1.05}\begin{tabular}{@{}c@{}}$pp\to hX$\\TT transfer\end{tabular}} & NLO & $qq'\to q+X$ & 13.57\,min & 20.5 & N/A & N/A \\
+\hline
+\multirow{6}{*}{\shortstack{Drell--Yan\\UU}} & \multirow{6}{*}{NLO} & $q \bar q$ & 21.5\,s & 4.4 & \verified & \href{https://arxiv.org/abs/1307.6925}{1307.6925} \\
+ &  & $\bar q q$ & 19.3\,s & 4.4 & \verified & \href{https://arxiv.org/abs/1307.6925}{1307.6925} \\
+ &  & $q g$ & 8.5\,s & 3.0 & \verified & \href{https://arxiv.org/abs/1307.6925}{1307.6925} \\
+ &  & $g q$ & 5.7\,s & 3.0 & \verified & \href{https://arxiv.org/abs/1307.6925}{1307.6925} \\
+ &  & $\bar q g$ & 6.1\,s & 3.0 & \verified & \href{https://arxiv.org/abs/1307.6925}{1307.6925} \\
+ &  & $g \bar q$ & 5.9\,s & 3.0 & \verified & \href{https://arxiv.org/abs/1307.6925}{1307.6925} \\
+\hline
+\multirow{6}{*}{\shortstack{SIDIS\\UU}} & \multirow{6}{*}{NLO} & $q\to q$ & 26.7\,s & 10.4 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $\bar q\to \bar q$ & 25.0\,s & 10.4 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $q\to g$ & 16.8\,s & 5.6 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $\bar q\to g$ & 18.5\,s & 5.6 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $g\to q$ & 7.7\,s & 4.9 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $g\to \bar q$ & 9.5\,s & 4.9 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+\hline
+\multirow{6}{*}{\shortstack{SIDIS\\LL}} & \multirow{6}{*}{NLO} & $q\to q$ & 21.5\,s & 9.8 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $\bar q\to \bar q$ & 23.2\,s & 9.8 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $q\to g$ & 18.6\,s & 5.2 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $\bar q\to g$ & 17.2\,s & 5.2 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $g\to q$ & 6.5\,s & 4.2 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $g\to \bar q$ & 4.8\,s & 4.2 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+\hline
+\end{tabular}
+\end{center}
+\vspace{4pt}
+{\footnotesize
+\textit{Notes.} Times are historical complete production-driver runtimes,
+excluding startup and independent reference comparisons; an empty cell means
+no complete runtime is recorded. Sizes are final Mathematica files, with
+$1\,\mathrm{kB}=1000$ bytes. \verified\ means the full finite coefficient
+comparison passed; N/A means no retained full external comparison.\\[4pt]
+For $pp\to hX$, LL/TT polarize both incoming partons; \emph{transfer} polarizes
+one incoming and the observed outgoing parton. SIDIS lists incoming $\to$
+observed parton; $q'\ne q$. The incoming-TT $qq'$ result is exactly zero and
+passes internal checks. $^\dagger$Also checked against the supplied Vogelsang
+Mathematica expressions.
+}
+\newpage
+\begin{center}
+{\large Calculation status: SIDIS NNLO hard functions}\\[5pt]
+{\small 10 September 2026}
+\end{center}
+\vspace{4pt}
+\begin{center}
+\small
+% There are no internal horizontal rules within either SIDIS process.
+\begin{tabular}{|C{2.5cm}|C{1.2cm}|C{2.7cm}|C{2.0cm}|C{1.7cm}|C{1.8cm}|C{2.6cm}|}
+\hline
+Process & Order & Channel & \shortstack{Total time\\per channel} & \shortstack{Size\\{[kB]}} & Verification & Source \\
+\hline
+\multirow{13}{*}{\shortstack{SIDIS\\UU}} & \multirow{13}{*}{NNLO} & $q\to q$ &  & 850.5 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $\bar q\to \bar q$ &  & 850.5 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $q\to g$ &  & 208.7 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $\bar q\to g$ &  & 208.7 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $g\to q$ &  & 227.0 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $g\to \bar q$ &  & 227.0 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $q\to \bar q$ &  & 159.8 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $\bar q\to q$ &  & 159.8 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $q\to q'$ &  & 106.5 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $q\to \bar q'$ &  & 106.6 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $\bar q\to q'$ &  & 106.6 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $\bar q\to \bar q'$ &  & 106.5 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+ &  & $g\to g$ &  & 95.9 & \verified & \href{https://arxiv.org/abs/2401.16281v2}{2401.16281} \\
+\hline
+\multirow{13}{*}{\shortstack{SIDIS\\LL}} & \multirow{13}{*}{NNLO} & $q\to q$ &  & 387.3 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $\bar q\to \bar q$ &  & 387.3 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $q\to g$ &  & 135.9 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $\bar q\to g$ &  & 136.0 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $g\to q$ &  & 119.2 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $g\to \bar q$ &  & 119.2 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $q\to \bar q$ &  & 93.6 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $\bar q\to q$ &  & 93.6 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $q\to q'$ &  & 60.4 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $q\to \bar q'$ &  & 60.4 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $\bar q\to q'$ &  & 60.4 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $\bar q\to \bar q'$ &  & 60.4 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+ &  & $g\to g$ &  & 48.3 & \verified & \href{https://arxiv.org/abs/2404.08597v3}{2404.08597} \\
+\hline
+\end{tabular}
+\end{center}
+\vspace{4pt}
+{\footnotesize
+\textit{Notes.} All real, virtual and UV/PDF/FF counterterms are included,
+with the finite helicity-scheme conversion for LL.
+The 26 final files total $5.18\,\mathrm{MB}$ and contain no unknown constants
+or unevaluated integrals.\\[4pt]
+Every delta, plus and regular coefficient passes independent numerical
+comparisons at five parameter points, with approximately 40-digit agreement.
+The master calculation and endpoint analysis are shared across channels;
+complete individual-channel runtimes are not recorded.
+}
+\end{document}

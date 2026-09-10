@@ -92,5 +92,13 @@ If[AssociationQ[prepared],
  FTAssert["the general constructor determines the counterterm order and materializes the solution",
   AssociationQ[connection]&&connection["FiniteNormalCoordinateSolution"]&&
    connection["BoundaryDimension"]===2]];
+
+scParameterInput={{1/scScale,1/(eps scScale)},{0,1}};
+scParameterSaturation=SaturateLaurentColumnBasis[scParameterInput,eps];
+FTAssert["Laurent saturation keeps symbolic coefficient-field parameters",
+ AssociationQ[scParameterSaturation]&&scParameterSaturation["LeadingRank"]===2&&
+ Simplify[scParameterInput.scParameterSaturation["BasisChangeMatrix"]-
+ scParameterSaturation["Basis"]]===ConstantArray[0,{2,2}]];
+
 FTReport[];
 

@@ -2,7 +2,7 @@
    GPL letters are constant with respect to the integration variable.
    The algorithms operate on explicit finite expressions, never a DE generator. *)
 FeynFacetSolution`G::usage="G[{a1,...,an},z] is the Goncharov polylogarithm with kernels dt/(t-ai) and the standard logarithmic regularization at zero. The empty word equals one.";
-FeynFacetSolution`IntegrateGPL::usage="IntegrateGPL[expression,{t,0,s}] constructs an explicit primitive in rational functions and GPLs, with its finite ordinary-point lower-end value subtracted. Rational higher poles are reduced by integration by parts. Unsupported function dependence is reported.";
+FeynFacetSolution`IntegrateGPL::usage="IntegrateGPL[expression,{t,0,s}] constructs an explicit primitive in rational functions and GPLs, with its finite lower-end value subtracted, including integrable logarithmic endpoint singularities. Rational higher poles are reduced by integration by parts. Unsupported function dependence is reported.";
 Clear[FeynFacetSolution`G];
 FeynFacetSolution`G[{},z_]:=1;
 FeynFacetSolution`G /: D[FeynFacetSolution`G[word_List,z_],v_Symbol] /; word=!={} && FreeQ[word,v] :=
@@ -158,14 +158,20 @@ gplAtZero[expression_,t_]:=Module[{words,poles,order,expanded,ell=Unique["logari
   gplFail["GPLLowerEndpointNotFinite",<|"EndpointExpansion"->Short[value]|>]];
  value
 ];
-gplNormalizeLogs[expression_,t_]:=expression/.Log[r_]/;!FreeQ[r,t]:>Module[{v0,derivative,p},
- If[r===t,Return[gplMake[{0},t]]];
+gplNormalizeLogs[expression_,t_]:=expression/.Log[r_]/;!FreeQ[r,t]:>Module[{v0,derivative,p,q,num,den,order},
  If[!gplRationalQ[r,t],gplFail["NonRationalLogarithmArgument"]];
- v0=Cancel[r/.t->0];
+ q=Cancel[Together[r]];{num,den}=NumeratorDenominator[q];
+ If[num===0,gplFail["ZeroLogarithmArgument"]];
+ order=Exponent[num,t,Min]-Exponent[den,t,Min];
+ If[!IntegerQ[order],gplFail["IntegerLogarithmEndpointOrderRequired"]];
+ q=Cancel[q/t^order];v0=Cancel[q/.t->0];
  If[v0===0||!FreeQ[v0,Indeterminate|_DirectedInfinity],gplFail["SingularLogarithmBasePoint"]];
- derivative=Cancel[D[r,t]/r];
+ derivative=Cancel[D[q,t]/q];
  p=gplIntegrateWord[derivative,{},t];
- p-gplAtZero[p,t]+Log[v0]
+ (* For positive real integration parameter t near zero, t^order has
+    positive phase. Log[v0] fixes the branch of the remaining analytic factor.
+    The full primitive must still have a finite lower endpoint. *)
+ order gplMake[{0},t]+p-gplAtZero[p,t]+Log[v0]
 ];
 Options[FeynFacetSolution`IntegrateGPL]={
  "TimeLimit"->30,"MaxExpressionLeaves"->200000,"MaxTerms"->10000,
@@ -181,7 +187,9 @@ FeynFacetSolution`IntegrateGPL[expression_,{t_Symbol,0,s_},OptionsPattern[]]:=
   If[!AllTrue[{$gplMaxLeaves,$gplMaxTerms,$gplMaxWeight,$gplMaxDegree,$gplMaxEndpointOrder},
     IntegerQ[#]&&#>0&],gplFail["InvalidGPLIntegrationOptions"]];
   (* All memoization is confined to this conversion, with the current bounds. *)
-  normalized=gplNormalizeLogs[expression,t];gplBound[normalized];
+  If[!FreeQ[expression,Power[base_,power_Rational]/;Denominator[power]===2&&!FreeQ[base,t]],
+   Return[gplIntegrateQuadraticRoot[expression,t,s],Module]];
+  normalized=gplNormalizeLogs[gplNormalizeArguments[expression,t],t];gplBound[normalized];
   words=gplWords[normalized,t];
   primitive=Total[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]];
   lower=gplAtZero[primitive,t];

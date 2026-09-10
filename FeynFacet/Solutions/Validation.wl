@@ -12,7 +12,7 @@ FeynFacet`VerifyMasterIntegralSolution[r_Association,OptionsPattern[]] := Catch[
  If[!FeynFacet`MasterIntegralSolutionQ[r],solutionFail["FiniteSolutionRequired"]];
  vars=r["KinematicVariables"];e=r["DimensionalRegulator"];
  method=OptionValue["IdentityCheck"];points=OptionValue["ValidationPoints"];
- If[points===Automatic,points=solutionValidationPoints[vars,r["BasePoint"],e]];
+ If[points===Automatic,points=solutionValidationPoints[vars,r["BasePoint"],e,solutionValidationExpressions[r]]];
  If[!MemberQ[{"Exact","NumericalPoints"},method],solutionFail["UnknownIdentityCheck"]];
  If[method==="NumericalPoints" && Length[points]<3,
    solutionFail["AtLeastThreeValidationPointsRequired"]];
@@ -39,7 +39,8 @@ FeynFacet`VerifyMasterIntegralSolution[r_Association,OptionsPattern[]] := Catch[
   resolvedKernels=solutionResolveKernelDefinitions[r["KernelDefinitions"]];
   coefficients=solutionLaurentCoefficients[#,e,Max[orders],True]& /@ b,
   sampleCoefficients=Table[
-    samplePathRules=Thread[vars->(r["Path"]["Coordinates"]/.pt/.t->taus[[1+Mod[j-1,Length[taus]]]])];
+    samplePathRules=Join[Thread[vars->(r["Path"]["Coordinates"]/.pt/.t->taus[[1+Mod[j-1,Length[taus]]]])],
+     Select[pt,!MemberQ[vars,First[#]]&]];
     solutionLaurentCoefficients[N[#/.N[samplePathRules,80],80],e,Max[orders],True]& /@ b,
     {j,Length[coordinatePoints]},{pt,{coordinatePoints[[j]]}}][[All,1]];
   allSampledKernelValues=Table[
@@ -96,9 +97,11 @@ FeynFacet`VerifyMasterIntegralSolution[r_Association,OptionsPattern[]] := Catch[
     And@@Table[solutionNumericalZero[{N[expandOne[solutionCoefficient[lc,k,n]]/.N[pt,80],80],
        -solutionCoefficient[leftExpected,k,n]}],{k,Union[Keys[lc],Keys[leftExpected]]}],
     {pt,coordinatePoints}];
-  rightExpected=solutionLaurentCoefficients[N[g0inv,80],e,rightUpper,True];
-  rightChecks=And@@Table[solutionNumericalZero[{N[expandOne[solutionCoefficient[rc,k,n]],80],
-     -solutionCoefficient[rightExpected,k,n]}],{k,Union[Keys[rc],Keys[rightExpected]]}]
+  rightChecks=And@@Table[
+    rightExpected=solutionLaurentCoefficients[N[g0inv/.N[pt,80],80],e,rightUpper,True];
+    And@@Table[solutionNumericalZero[{N[expandOne[solutionCoefficient[rc,k,n]]/.N[pt,80],80],
+     -solutionCoefficient[rightExpected,k,n]}],{k,Union[Keys[rc],Keys[rightExpected]]}],
+    {pt,coordinatePoints}]
  ];
  convolutionChecks=Table[solutionMatrixZero[Expand[expandOne[w[k]]-
    Total[Table[(values[b]/.FeynFacetSolution`F[j_,t]:>FeynFacetSolution`F[j,1]).

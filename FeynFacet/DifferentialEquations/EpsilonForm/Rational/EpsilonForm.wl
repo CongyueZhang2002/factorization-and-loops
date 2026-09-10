@@ -291,7 +291,7 @@ VerifyOffDiagonalBasisTransformationBlock[record_Association, solution_Associati
   kernelCount = facetKernelCount[
     OptionValue["KernelCount"], Max[1, Length[entries]]];
   If[kernelCount > 1 && Length[Kernels[]] < kernelCount,
-    launched = Quiet[LaunchKernels[kernelCount - Length[Kernels[]]]]];
+    launched = Quiet[facetLaunchKernels[kernelCount - Length[Kernels[]]]]];
   If[kernelCount > 1,
     DistributeDefinitions[entries];
     {seconds, checkedEntries} = AbsoluteTiming[

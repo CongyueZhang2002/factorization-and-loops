@@ -4,7 +4,7 @@ termList[expr_] := With[{expanded = Expand[expr]},
 ];
 
 exactZeroQ[expr_] := TrueQ[
-  Quiet[Cancel[Together[Expand[expr]]]] === 0
+  Quiet[Cancel[Together[expr]]] === 0
 ];
 
 exactRationalQ[value_] := MatchQ[value, _Integer | _Rational];

@@ -136,7 +136,7 @@ finiteDensityParallelCoefficients[entries_,plans_,e_,directory_,workers_] := Mod
  If[Kernels[]=!={},finiteDensityFail["IndependentCoefficientWorkerPoolRequired",
    <|"Reason"->"Existing subkernels are preserved. Run this batch from a kernel without an active pool, or use CoefficientWorkers -> 1."|>]];
  Internal`WithLocalSettings[Null,
-  kernels=LaunchKernels[Min[workers,Length[tasks]]];
+  kernels=facetLaunchKernels[Min[workers,Length[tasks]]];
   If[Length[kernels]=!=Min[workers,Length[tasks]],finiteDensityFail["CoefficientWorkersUnavailable"]];
   With[{directory=$finiteDensityPackageDirectory},ParallelEvaluate[
    $HistoryLength=0;$MaxExtraPrecision=50;

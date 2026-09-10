@@ -1,0 +1,5 @@
+# Wolfram Put output and retained review transcripts preserve their source formatting.
+# Source code and cards continue to use Git's normal whitespace checks.
+Projects/**/Results/**/*.wl -whitespace
+Archive/ProjectLayouts/**/Results/**/*.wl -whitespace
+External/ChatGPT/Records/**/*.md -whitespace

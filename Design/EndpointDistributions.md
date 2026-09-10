@@ -238,3 +238,29 @@ boundary `w=0`. This represents the bare coefficient at the threshold on the
 stated half-open domain; it does not assert joint corner integrability or a
 fully integrated bare cross section. `DomainConvention` records these facts
 in the order plan and extracted result.
+
+## Joint normal-crossing endpoints
+
+`ExtractEndpointDistributions` and `DetermineEndpointDistributionOrders` also
+accept `EndpointGeometry -> "NormalCrossings"`, `NormalVariables -> {u,r}`,
+and `Intervals -> {{0,U},{0,R}}`. Each term supplies `Powers`,
+optional nonnegative `LogPowers`, and a `SmoothFactor` that is exact in epsilon
+or has explicit finite Laurent coefficients and known-order metadata.
+
+The supported exponents have epsilon-zero power -1 or greater than -1.
+Each singular direction is subtracted once. All endpoint restrictions commute;
+the interior remainder is `(1-E_u)(1-E_r)F`, with the intersection restored once.
+Corner, edge and interior terms receive distinct epsilon requirements.
+Output uses the same `EndpointDeltaDerivative` and `EndpointPlusDistribution`
+objects as the one-variable engine, with finite explicit coefficients.
+
+The caller must supply joint smoothness, uniform epsilon expansion and absence
+of other singularities. A nonfinite face/corner restriction is rejected.
+Coupled singularities require resolution into charts before this entry point;
+these declarations do not perform or certify that resolution.
+`EndpointDistributionAction` evaluates the resulting tensor product against a
+smooth test function and rejects multiplication of two distributions on one
+variable. Mass-factorization convolution remains a separate operation.
+
+The physical-result adapter for this tensor basis is still pending.
+Tests: `Tests/Coefficients/t_tensor_product_distributions.wls`.

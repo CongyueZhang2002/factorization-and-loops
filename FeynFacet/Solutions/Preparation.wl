@@ -39,6 +39,50 @@ solutionEpsilonRescaling[a_, e_] := Module[
 FeynFacet`FindEpsilonRescaling[a_List,e_Symbol] :=
  Catch[solutionEpsilonRescaling[Normal/@a,e],"FiniteSolution"];
 
+
+(* Stored sparse matrices are atomic to several expression traversals.
+   Apply a declared dimension rule to their explicit coefficients at every
+   public finite-solution boundary, including saved source/gauge matrices.
+   Integral definitions and geometric momentum dimensions remain untouched. *)
+solutionNormalizeDifferentialSystem[system_Association]:=Module[
+ {rule,dimension,e,matrixFields,connectionFields,result=system,convert,source},
+ rule=Lookup[system,"DimensionRule",None];e=Lookup[system,"DimensionalRegulator",None];
+ If[!MatchQ[e,_Symbol],Return[Failure["DimensionalRegulatorRequired",<||>]]];
+ If[rule=!=None&&!MatchQ[rule,Rule[_Symbol,_]],
+  Return[Failure["ExplicitDimensionRuleRequired",<||>]]];
+ dimension=If[rule===None,None,First[rule]];
+ If[dimension===e||(rule=!=None&&!FreeQ[Last[rule],dimension]),
+  Return[Failure["IndependentRegulatorInDimensionRuleRequired",<||>]]];
+ If[rule=!=None,rule=dimension->(Last[rule]/.
+   symbol_Symbol/;MemberQ[{"eps","ep","Epsilon"},SymbolName[symbol]]:>e)];
+ convert[matrix_]:=Module[{value=Normal[matrix]},
+  If[rule=!=None,value=value/.rule];
+  value=value/.symbol_Symbol/;MemberQ[{"eps","ep","Epsilon"},SymbolName[symbol]]:>e;
+  If[dimension=!=None&&!FreeQ[value,dimension],
+   Return[Failure["IncompleteConnectionDimensionSubstitution",<||>]]];
+  value];
+ connectionFields={"ConnectionMatrices","OriginalConnectionMatrices"};
+ matrixFields={"BasisTransformationMatrix","InverseBasisTransformationMatrix",
+  "HomogeneousFundamentalMatrix","InverseHomogeneousFundamentalMatrix"};
+ Do[If[KeyExistsQ[result,key],
+   If[AssociationQ[result[key]],
+    If[!ListQ[Lookup[result,"KinematicVariables",None]]||
+      Sort[Keys[result[key]]]=!=Sort[result["KinematicVariables"]],
+     Return[Failure["ConnectionAxesMustMatchKinematicVariables",<|"Field"->key|>],Module]];
+    AssociateTo[result,key->Lookup[result[key],result["KinematicVariables"]]]];
+   If[ListQ[result[key]],AssociateTo[result,key->(convert/@result[key])]]],
+  {key,connectionFields}];
+ Do[If[KeyExistsQ[result,key]&&(ListQ[result[key]]||Head[result[key]]===SparseArray),
+   AssociateTo[result,key->convert[result[key]]]],{key,matrixFields}];
+ If[AssociationQ[Lookup[result,"ConnectionCoefficientSource",None]],
+  source=Join[result["ConnectionCoefficientSource"],
+   <|"DimensionRule"->rule,"DimensionalRegulator"->e|>];
+  AssociateTo[result,"ConnectionCoefficientSource"->solutionNormalizeDifferentialSystem[source]]];
+ If[!FreeQ[KeyTake[result,Join[connectionFields,matrixFields,{"ConnectionCoefficientSource"}]],_Failure],
+  Return[Failure["DifferentialSystemDimensionConversionFailed",<||>]]];
+ result
+];
+
 (* ArcTanh(z)=(Log(1+z)-Log(1-z))/2 in the principal-log convention.
    Split exponent sums using exp(a+b)=exp(a)exp(b). Never combine separate
    square roots or apply PowerExpand; their branches must be preserved. *)
@@ -353,14 +397,18 @@ solutionPrepareConnection[a_,vars_,e_,seconds_,options_:<||>] := Module[
 
 Options[FeynFacet`PrepareDifferentialSystemForFiniteIntegration]={"HomogeneousSolveTimeLimit"->30,"Verbose"->False,
   "BlockReductionData"->{},"IntermediateOutputDirectory"->None};
-FeynFacet`PrepareDifferentialSystemForFiniteIntegration[system_Association,OptionsPattern[]] :=
+FeynFacet`PrepareDifferentialSystemForFiniteIntegration[input_Association,OptionsPattern[]] :=
+ Module[{system=solutionNormalizeDifferentialSystem[input]},
+ If[FailureQ[system],Return[system]];
  Block[{$finiteIntegrationVerbose=OptionValue["Verbose"]},Catch[solutionPrepareConnection[Normal/@system["ConnectionMatrices"],
    system["KinematicVariables"],system["DimensionalRegulator"],
    OptionValue["HomogeneousSolveTimeLimit"],
    <|"BlockReductionData"->OptionValue["BlockReductionData"],
-     "IntermediateOutputDirectory"->OptionValue["IntermediateOutputDirectory"]|>],"FiniteSolution"]];
-FeynFacet`ApplyFiniteIntegrationPreparation[system_Association,prepared_Association] := Module[
- {n=Length[First[system["ConnectionMatrices"]]],t,ti,source},
+     "IntermediateOutputDirectory"->OptionValue["IntermediateOutputDirectory"]|>],"FiniteSolution"]]];
+
+FeynFacet`ApplyFiniteIntegrationPreparation[input_Association,prepared_Association] := Module[
+ {system=solutionNormalizeDifferentialSystem[input],n,t,ti,source},
+ If[FailureQ[system],Return[system]];n=Length[First[system["ConnectionMatrices"]]];
  t=Lookup[system,"BasisTransformationMatrix",IdentityMatrix[n]];
  ti=Lookup[system,"InverseBasisTransformationMatrix",Inverse[t]];
  source=Lookup[system,"OriginalConnectionMatrices",

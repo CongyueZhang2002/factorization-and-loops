@@ -1,0 +1,866 @@
+[
+  {
+    "Class": "P1nsp",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -2.651775966806696,
+    "Singular": 58.669208667698896,
+    "Local": 41.0472035755469
+  },
+  {
+    "Class": "P1nsm",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -1.5946686234148757,
+    "Singular": 58.669208667698896,
+    "Local": 41.0472035755469
+  },
+  {
+    "Class": "P1ps",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": 77.18067055428128,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1qg",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": 218.2395742682804,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gq",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": 119.87661703807612,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gg",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": 18.162426404086347,
+    "Singular": 132.00571950232253,
+    "Local": 173.40699241323833
+  },
+  {
+    "Class": "P1Tnsp",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -46.18644496977758,
+    "Singular": 58.669208667698896,
+    "Local": 41.0472035755469
+  },
+  {
+    "Class": "P1Tnsm",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -45.12933762638576,
+    "Singular": 58.669208667698896,
+    "Local": 41.0472035755469
+  },
+  {
+    "Class": "P1Tps",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -77.29654223042243,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tqg",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": 288.5497709562833,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgq",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -22.183686015258445,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgg",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -166.57730693945527,
+    "Singular": 132.00571950232253,
+    "Local": 173.40699241323833
+  },
+  {
+    "Class": "P1polnsp",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -1.5946686234148757,
+    "Singular": 58.669208667698896,
+    "Local": 41.0472035755469
+  },
+  {
+    "Class": "P1polnsm",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -2.651775966806696,
+    "Singular": 58.669208667698896,
+    "Local": 41.0472035755469
+  },
+  {
+    "Class": "P1polps",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -31.60549560906123,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polqg",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": 13.094917299564148,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgq",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": 71.78541466393189,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgg",
+    "FlavorCount": 3,
+    "X": 0.17,
+    "Regular": -60.78512472377568,
+    "Singular": 132.00571950232253,
+    "Local": 173.40699241323833
+  },
+  {
+    "Class": "P1nsp",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -30.85722299532477,
+    "Singular": 85.43060209507031,
+    "Local": 22.747975118442827
+  },
+  {
+    "Class": "P1nsm",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -30.809837245930687,
+    "Singular": 85.43060209507031,
+    "Local": 22.747975118442827
+  },
+  {
+    "Class": "P1ps",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": 8.068196814829072,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1qg",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": 85.6279543612434,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gq",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": 85.99286582775935,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gg",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -2.9726728293932467,
+    "Singular": 192.2188547139082,
+    "Local": 132.23372838475416
+  },
+  {
+    "Class": "P1Tnsp",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -47.20676459292593,
+    "Singular": 85.43060209507031,
+    "Local": 22.747975118442827
+  },
+  {
+    "Class": "P1Tnsm",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -47.15937884353185,
+    "Singular": 85.43060209507031,
+    "Local": 22.747975118442827
+  },
+  {
+    "Class": "P1Tps",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -22.02805598147378,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tqg",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": 1304.5543939474314,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgq",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -4.660388213739078,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgg",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": 107.92979910500847,
+    "Singular": 192.2188547139082,
+    "Local": 132.23372838475416
+  },
+  {
+    "Class": "P1polnsp",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -30.809837245930687,
+    "Singular": 85.43060209507031,
+    "Local": 22.747975118442827
+  },
+  {
+    "Class": "P1polnsm",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -30.85722299532477,
+    "Singular": 85.43060209507031,
+    "Local": 22.747975118442827
+  },
+  {
+    "Class": "P1polps",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -11.093112898338159,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polqg",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": 66.32890731180984,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgq",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": 36.729324550743414,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgg",
+    "FlavorCount": 3,
+    "X": 0.43,
+    "Regular": -145.7877864866784,
+    "Singular": 192.2188547139082,
+    "Local": 132.23372838475416
+  },
+  {
+    "Class": "P1nsp",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -92.17772102528727,
+    "Singular": 231.88306282947661,
+    "Local": -25.875828805994665
+  },
+  {
+    "Class": "P1nsm",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -92.17760651727252,
+    "Singular": 231.88306282947661,
+    "Local": -25.875828805994665
+  },
+  {
+    "Class": "P1ps",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": 0.17694202499504863,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1qg",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": 52.574996174211314,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gq",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": 49.66772171167938,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gg",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -230.1782995787314,
+    "Singular": 521.7368913663224,
+    "Local": 22.83016955476981
+  },
+  {
+    "Class": "P1Tnsp",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -54.84188343407911,
+    "Singular": 231.88306282947661,
+    "Local": -25.875828805994665
+  },
+  {
+    "Class": "P1Tnsm",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -54.84176892606436,
+    "Singular": 231.88306282947661,
+    "Local": -25.875828805994665
+  },
+  {
+    "Class": "P1Tps",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -6.772591496821274,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tqg",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": 847.1292463580221,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgq",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -9.534761820206468,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgg",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": 2.173038445440625,
+    "Singular": 521.7368913663224,
+    "Local": 22.83016955476981
+  },
+  {
+    "Class": "P1polnsp",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -92.17760651727252,
+    "Singular": 231.88306282947661,
+    "Local": -25.875828805994665
+  },
+  {
+    "Class": "P1polnsm",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -92.17772102528727,
+    "Singular": 231.88306282947661,
+    "Local": -25.875828805994665
+  },
+  {
+    "Class": "P1polps",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -3.398415681212365,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polqg",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": 56.327233621305496,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgq",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": 38.642728097991046,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgg",
+    "FlavorCount": 3,
+    "X": 0.79,
+    "Regular": -274.52325283141124,
+    "Singular": 521.7368913663224,
+    "Local": 22.83016955476981
+  },
+  {
+    "Class": "P1nsp",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 6.189418762676382,
+    "Singular": 44.3898690871545,
+    "Local": 30.669356323192034
+  },
+  {
+    "Class": "P1nsm",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 7.2465261060682025,
+    "Singular": 44.3898690871545,
+    "Local": 30.669356323192034
+  },
+  {
+    "Class": "P1ps",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 128.63445092380212,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1qg",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 363.73262378046735,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gq",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 14.08665379726176,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gg",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -240.59743151660882,
+    "Singular": 99.87720544609762,
+    "Local": 157.04244783167817
+  },
+  {
+    "Class": "P1Tnsp",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -37.345250240294504,
+    "Singular": 44.3898690871545,
+    "Local": 30.669356323192034
+  },
+  {
+    "Class": "P1Tnsm",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -36.288142896902684,
+    "Singular": 44.3898690871545,
+    "Local": 30.669356323192034
+  },
+  {
+    "Class": "P1Tps",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -128.8275703840374,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tqg",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 480.9162849271388,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgq",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -22.378020257841854,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgg",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -195.55836693884982,
+    "Singular": 99.87720544609762,
+    "Local": 157.04244783167817
+  },
+  {
+    "Class": "P1polnsp",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 7.2465261060682025,
+    "Singular": 44.3898690871545,
+    "Local": 30.669356323192034
+  },
+  {
+    "Class": "P1polnsm",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 6.189418762676382,
+    "Singular": 44.3898690871545,
+    "Local": 30.669356323192034
+  },
+  {
+    "Class": "P1polps",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -52.67582601510205,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polqg",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 21.824862165940246,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgq",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": 64.32573913035276,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgg",
+    "FlavorCount": 5,
+    "X": 0.17,
+    "Regular": -77.21463431301883,
+    "Singular": 99.87720544609762,
+    "Local": 157.04244783167817
+  },
+  {
+    "Class": "P1nsp",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -20.19853988395176,
+    "Singular": 64.63787954796182,
+    "Local": 16.823927450823337
+  },
+  {
+    "Class": "P1nsm",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -20.15115413455768,
+    "Singular": 64.63787954796182,
+    "Local": 16.823927450823337
+  },
+  {
+    "Class": "P1ps",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": 13.446994691381786,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1qg",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": 142.713257268739,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gq",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": 58.733904595634655,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gg",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -67.78871193323744,
+    "Singular": 145.43522898291405,
+    "Local": 125.89023286884861
+  },
+  {
+    "Class": "P1Tnsp",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -36.54808148155291,
+    "Singular": 64.63787954796182,
+    "Local": 16.823927450823337
+  },
+  {
+    "Class": "P1Tnsm",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -36.500695732158846,
+    "Singular": 64.63787954796182,
+    "Local": 16.823927450823337
+  },
+  {
+    "Class": "P1Tps",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -36.71342663578963,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tqg",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": 2174.2573232457194,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgq",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -6.321834881354653,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgg",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": 107.777602623934,
+    "Singular": 145.43522898291405,
+    "Local": 125.89023286884861
+  },
+  {
+    "Class": "P1polnsp",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -20.15115413455768,
+    "Singular": 64.63787954796182,
+    "Local": 16.823927450823337
+  },
+  {
+    "Class": "P1polnsm",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -20.19853988395176,
+    "Singular": 64.63787954796182,
+    "Local": 16.823927450823337
+  },
+  {
+    "Class": "P1polps",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -18.488521497230263,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polqg",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": 110.54817885301641,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgq",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": 32.504329242899104,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgg",
+    "FlavorCount": 5,
+    "X": 0.43,
+    "Regular": -157.69508476649668,
+    "Singular": 145.43522898291405,
+    "Local": 125.89023286884861
+  },
+  {
+    "Class": "P1nsp",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -76.58175671846706,
+    "Singular": 175.44567305875353,
+    "Local": -19.965460709334124
+  },
+  {
+    "Class": "P1nsm",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -76.58164221045232,
+    "Singular": 175.44567305875353,
+    "Local": -19.965460709334124
+  },
+  {
+    "Class": "P1ps",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": 0.2949033749917477,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1qg",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": 87.62499362368553,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gq",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": 43.053539071310084,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1gg",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -229.5006198183176,
+    "Singular": 394.7527643821954,
+    "Local": 43.11410950849432
+  },
+  {
+    "Class": "P1Tnsp",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -39.2459191272589,
+    "Singular": 175.44567305875353,
+    "Local": -19.965460709334124
+  },
+  {
+    "Class": "P1Tnsm",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -39.245804619244154,
+    "Singular": 175.44567305875353,
+    "Local": -19.965460709334124
+  },
+  {
+    "Class": "P1Tps",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -11.287652494702122,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tqg",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": 1411.8820772633703,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgq",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -10.188447628252963,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1Tgg",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": 38.001658278825346,
+    "Singular": 394.7527643821954,
+    "Local": 43.11410950849432
+  },
+  {
+    "Class": "P1polnsp",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -76.58164221045232,
+    "Singular": 175.44567305875353,
+    "Local": -19.965460709334124
+  },
+  {
+    "Class": "P1polnsm",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -76.58175671846706,
+    "Singular": 175.44567305875353,
+    "Local": -19.965460709334124
+  },
+  {
+    "Class": "P1polps",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -5.664026135353941,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polqg",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": 93.87872270217585,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgq",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": 40.717160871207625,
+    "Singular": 0.0,
+    "Local": 0.0
+  },
+  {
+    "Class": "P1polgg",
+    "FlavorCount": 5,
+    "X": 0.79,
+    "Regular": -264.0609156956686,
+    "Singular": 394.7527643821954,
+    "Local": 43.11410950849432
+  }
+]

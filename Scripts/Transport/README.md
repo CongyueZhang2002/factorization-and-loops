@@ -242,3 +242,12 @@ serial master-discovery jobs from the dynamic family pool. The optional
 `SkipTargetReduction -> True` omits the initial reduction only when the supplied
 objects are already individual scalar IBP masters; required auxiliary-DE masters
 are still constructed. It is not enabled by default.
+
+The same export_finite_master_integral_solution.wls driver accepts a generated
+multivariable connection or a retained epsilon-form input. A request can name
+FiniteIntegrationPreparationFile and MasterIntegralRepresentationsFile; paths
+are relative to the request file. The former may contain the preparation
+directly or the timing wrapper written by the common preparation driver.
+The latter supplies normalized integral definitions so the planner derives
+the bounds itself. No process name or number of variables is selected in
+the exporter.

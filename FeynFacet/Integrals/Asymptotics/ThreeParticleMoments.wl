@@ -32,4 +32,64 @@ coalescingTwoPairEulerTerms[alpha_,single_,complement_,pairPowerList_,constant_,
   {k,0,degree}]];
  terms
 ];
+
+FeynFacet`EvaluateSphericalBetaMoment::usage =
+ "EvaluateSphericalBetaMoment[expression,{r,u,y},alpha] evaluates rational endpoint monomials with independent Beta(alpha,alpha) polar variables r,u and the rotated angular fraction y=r+u-2ru-2 Sqrt[r(1-r)u(1-u)] cos(phi). It returns Gamma products or 3F2(1), by spherical convolution and Euler integration, with meromorphic continuation from the common convergence domain.";
+
+sphericalBetaMonomial[term_,variables_] := Module[
+ {factors,constant=1,exponents=ConstantArray[0,{Length[variables],2}],p,k,ratio,match},
+ factors=Join[FactorList[Numerator[term]],({First[#],-Last[#]}&/@FactorList[Denominator[term]])];
+ Do[{p,k}=factor;
+  If[FreeQ[p,Alternatives@@variables],constant*=p^k;Continue[]];
+  match=None;
+  Do[
+   ratio=Cancel[p/If[side===1,variables[[j]],1-variables[[j]]]];
+   If[FreeQ[ratio,Alternatives@@variables],
+    match={j,side};constant*=ratio^k;Break[]],{j,Length[variables]},{side,2}];
+  If[match===None,Return[Failure["SphericalEndpointMonomialRequired",<|"Factor"->p|>],Module]];
+  exponents[[Sequence@@match]]+=k,
+ {factor,factors}];
+ <|"Constant"->constant,"Exponents"->exponents|>
+];
+
+sphericalBetaConvolution[alpha_,b_,c_] :=
+ Gamma[2alpha]Gamma[alpha-b]Gamma[alpha-c]/(Gamma[alpha]^2 Gamma[2alpha-b-c]);
+
+sphericalBetaThreeMoment[alpha_,radial_,polar_,relative_] := Module[
+ {rr=First[radial],tt=Last[radial],b,c,opposite,aa,bb,k,degree,conv,third},
+ If[Count[polar,Except[0]]>1||Count[relative,Except[0]]>1,
+  Return[Failure["SingleAngularEndpointTermRequired",<||>]]];
+ b=-Total[relative];c=-Total[polar];
+ opposite=Xor[Last[relative]=!=0,Last[polar]=!=0];
+ aa=alpha+rr;bb=alpha+tt;third=If[opposite,aa,bb];
+ conv=sphericalBetaConvolution[alpha,b,c];
+ degree=Select[{-b,-c},IntegerQ[#]&&#>=0&];
+ If[degree=!={},
+  Return[conv Sum[Pochhammer[b,k]Pochhammer[c,k]/
+   (Pochhammer[alpha,k]Factorial[k])*
+   If[opposite,Beta[aa+k,bb],Beta[aa,bb+k]]/Beta[alpha,alpha],
+   {k,0,Min[degree]}]]];
+ If[(!opposite&&tt===0)||(opposite&&rr===0),
+  k=If[opposite,-tt,-rr];
+  Return[Gamma[2alpha]^2 Gamma[alpha-k]Gamma[alpha-b]Gamma[alpha-c]Gamma[2alpha-k-b-c]/
+   (Gamma[alpha]^3 Gamma[2alpha-k-b]Gamma[2alpha-k-c]Gamma[2alpha-b-c])]];
+ conv Beta[aa,bb]/Beta[alpha,alpha]*
+  HypergeometricPFQ[{b,c,third},{alpha,aa+bb},1]
+];
+
+FeynFacet`EvaluateSphericalBetaMoment[expression_,variables:{_Symbol,_Symbol,_Symbol},alpha_]:=
+ Catch[Module[{expanded,terms,result=0,data,value},
+ If[!DuplicateFreeQ[variables]||!FreeQ[alpha,Alternatives@@variables],
+  Throw[Failure["IndependentSphericalMomentParametersRequired",<||>]]];
+ expanded=Expand[Apart[Apart[Cancel[expression],variables[[3]]],variables[[2]]]];
+ terms=If[Head[expanded]===Plus,List@@expanded,{expanded}];
+ Do[
+  If[term===0,Continue[]];
+  data=sphericalBetaMonomial[term,variables];If[FailureQ[data],Throw[data]];
+  value=sphericalBetaThreeMoment[alpha,Sequence@@data["Exponents"]];
+  If[FailureQ[value],Throw[value]];
+  result+=data["Constant"]value,{term,terms}];
+ result
+]];
+
 End[];

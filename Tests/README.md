@@ -143,7 +143,7 @@ residual.
 
 Reproducible initial-assembly comparisons and the controlled three-root
 benchmark are in
-[the 2026-09-06 evidence](../ppHX_NNLO_DoubleReal/Results/Validation/Stage1CostsAndEpsilonFormCriteria_2026-09-06).
+[the 2026-09-06 evidence](../Archive/ProjectLayouts/2026-09-08/ppHX_NNLO_DoubleReal/Results/Validation/Stage1CostsAndEpsilonFormCriteria_2026-09-06).
 
 The standalone numerical evaluator is covered by
 `Transport/t_numerical_finite_integrals.wls`: convergence, panel propagation,
@@ -226,3 +226,37 @@ and reloading the runtime with colliding caller variable names.
 Transport/t_amflow_system_cache.wls checks exact numerical-input compatibility,
 backend/source handling, complete integral keys and epsilon grids, stale output
 rejection and nonfinite-number rejection for completed auxiliary systems.
+
+
+## Project/card/result contracts
+
+`Core/t_project_cards_and_results.wls` checks inheritance, explicit LO
+dependencies and epsilon coverage, finite scheme channel enumeration, actual
+NNLO components, normalization/basis mismatches, Born epsilon^2, and common
+NNLO coefficient storage. The three fresh NLO projects are checked by
+`Scripts/Validation/check_nlo_qqprime_references.wls` (53 checks).
+Historical fixtures explicitly point into Archive/ProjectLayouts; they are
+never a production input. Validation outputs use active order/channel Results.
+
+
+`Core/t_intermediate_zero_pruning.wls` checks conservative pruning and spin
+harmonics. `Coefficients/t_zero_reconstruction_prefix.wls` ensures a finite
+zero prefix cannot supply uncomputed epsilon orders. `Core/t_compressed_records.wls`
+checks exact compressed record I/O. Current coefficient-format tests reject
+retired version-8 records. Old NLO data-dependent replay tests were moved to
+`Archive/RetiredCode/2026-09-08-cleanup` after the user requested deletion of
+their generated inputs.
+
+The NLO regeneration checks include `Scripts/Validation/check_nlo_spin_transfer.wls`:
+same-line helicity conservation, transverse Born ratios and spin-angle
+correlations, leading soft emission, all three factorization-scale derivatives,
+exact pole cancellation and explicit integral-free output. They supplement
+the independent UU/LL reference driver. A full finite TT external reference
+has not been established.
+`Coefficients/t_analytic_sum_orders.wls` checks sufficient order bounds for
+sums of analytic prefactors and rejection of an insufficient master tail.
+
+`Core/t_parallel_kernel_startup.wls` checks eight-worker startup and preservation
+of a caller's existing worker pool. `Core/t_compressed_records.wls` checks
+plain/compressed exact recovery, including package symbols, the regulator,
+and System symbols shadowed by packages.

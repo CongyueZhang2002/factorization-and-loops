@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate the unmodified INCNLO 1.4 reference for channel J0=1.
+"""Evaluate the unmodified INCNLO 1.4 reference for a selected partonic channel.
 
 Only used for validation. Production FeynFacet never imports these results.
 The compiled reference is temporary; only the small comparison data survives.
@@ -9,8 +9,8 @@ from pathlib import Path
 from fractions import Fraction
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument("project",type=Path);parser.add_argument("output",type=Path);args=parser.parse_args()
-    source=args.project/"References/INCNLO/inc1_4/hadlib/src"
+    parser=argparse.ArgumentParser();parser.add_argument("references",type=Path);parser.add_argument("output",type=Path);parser.add_argument("--channel",type=int,choices=range(1,17),default=1);args=parser.parse_args()
+    source=args.references/"INCNLO/inc1_4/hadlib/src"
     wrapper=Path(__file__).with_name("hard_function_probe.f90")
     points=[
       ["2/5","3/7","1","1","1","1","5"],
@@ -27,13 +27,16 @@ def main():
         command=["gfortran","-O1","-std=legacy","-ffixed-line-length-none","-ffunction-sections","-fdata-sections","-fallow-argument-mismatch",
           "-I"+str(source),str(source/"hadlib.f"),str(source/"cdel.f"),str(wrapper),"-Wl,--gc-sections","-o",str(binary)]
         subprocess.run(command,check=True,capture_output=True,text=True)
-        result=subprocess.run([str(binary)],input=stdin,check=True,capture_output=True,text=True)
+        result=subprocess.run([str(binary),str(args.channel)],input=stdin,check=True,capture_output=True,text=True)
     values=[[float(x) for x in line.split()] for line in result.stdout.splitlines() if line.strip()]
     if len(values)!=len(points) or any(len(row)!=4 for row in values):raise RuntimeError("Reference output coverage incomplete")
     record={"Source":"INCNLO 1.4, unmodified hadlib.f and cdel.f","SourceURL":"https://lapth.cnrs.fr/PHOX_FAMILY/readme_inc.html",
-      "Channel":"J0=1: q_j q_k -> observed q_j, distinct flavors","Scheme":"JMAR=0, AL=1, CQ=0: original MSbar conversion included",
+      "ChannelIndex":args.channel,"Channel":{1:"q_j q_k -> observed q_j, distinct flavors",5:"q qbar -> observed different-flavor qprime",13:"q g -> observed q",14:"q g -> observed g"}.get(args.channel,"INCNLO channel "+str(args.channel)),"Scheme":"JMAR=0, AL=1, CQ=0: original MSbar conversion included",
       "InputVariables":["v","w","s","muF2","muD2","muR2","nf"],"OutputCoefficients":["Delta","Plus0","Plus1","Regular"],
-      "PhysicalMultiplier":"alpha_s^3/(8 CA^2 pi s^2)","Points":points,"Values":values}
+      "PhysicalMultiplier":"alpha_s^3/(8 CC pi s^2)",
+      "IncomingColorDimensionProduct":"(CA^2-1)^2" if args.channel in (15,16) else "CA (CA^2-1)" if args.channel in (8,9,10,13,14) else "CA^2",
+      "NormalizationSource":"cdel.f lines 70-78, 131-137 and 230-237, 320-330; the common invariant-density Jacobian is the same as the qqprime benchmark",
+      "TagNormalizationVerified":args.channel in (1,5,13,14),"Points":points,"Values":values}
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(record,indent=2)+"\n")
     print("INCNLO_REFERENCE_POINTS",len(values))
 if __name__=="__main__":main()

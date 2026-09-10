@@ -81,6 +81,9 @@ phaseInput=<|"Topology"->phaseTop,"DimensionalRegulator"->ee,"Prescription"->{0}
   FeynCalc`GLI[phaseFamily,{1,3}],FeynCalc`GLI[phaseFamily,{0,1}]}|>;
 phase=ConstructMasterIntegralRepresentations[phaseInput];
 ph=phase["MasterIntegralRepresentations"];
+(* The production constructor may evaluate simple dotted volumes directly.
+   Test the underlying Gram representation explicitly, independently of that optimization. *)
+phaseBaikov=FeynFacet`Private`miRepBaikov[ph[2]];
 FTAssert["all cut powers are processed without hand-written representations",
  phase["Status"]==="IntegralRepresentationsConstructed" && Length[ph]===4];
 FTAssert["the massless two-particle volume has the standard AMFlow normalization",
@@ -89,15 +92,15 @@ FTAssert["the two-particle volume is epsilon regular",
  DetermineIntegralLaurentBound[ph[1]]["LowerBound"]===0];
 FTAssert["a double cut propagator is a signed delta derivative",
  ph[2]["CutDistributions"][[2,"DistributionCoefficient"]]===-1 &&
- !FreeQ[ph[2]["Integrand"],Derivative[1][DiracDelta]] &&
- ph[2]["UnitCutRepresentation"]===None];
+ !FreeQ[phaseBaikov["Integrand"],Derivative[1][DiracDelta]] &&
+ phaseBaikov["UnitCutRepresentation"]===None];
 FTAssert["a triple cut propagator includes the derivative factorial",
  ph[3]["CutDistributions"][[2,"DistributionCoefficient"]]===1/2];
 FTAssert["nonpositive cut powers give zero",
  DetermineIntegralLaurentBound[ph[4]]["LowerBound"]===Infinity];
 FTAssert["the Gram construction retains its Jacobian and energy domain",
- ph[2]["ScalarProductJacobian"]===1/2 && ph[2]["KinematicConditions"]===True &&
- ph[2]["DomainConditions"]=!=True];
+ phaseBaikov["ScalarProductJacobian"]===1/2 && ph[2]["KinematicConditions"]===True &&
+ phaseBaikov["DomainConditions"]=!=True];
 dotBound=DetermineIntegralLaurentBound[ph[2]];
 tripleBound=DetermineIntegralLaurentBound[ph[3]];
 FTAssert["localized double cuts have a finite pole bound",
@@ -119,9 +122,9 @@ FTAssert["recursive phase space works at a different loop and cut count",
 incomplete=ConstructMasterIntegralRepresentations[<|"Topology"->threeTop,
  "Master"->FeynCalc`GLI[phaseFamily,{1,1,2}],"CutIndices"->{1,2,3},
  "CutMomenta"->{kl,ll,pp-kl-ll},"Prescription"->{0,0},"DimensionalRegulator"->ee|>];
+incompleteBaikov=FeynFacet`Private`miRepBaikov[incomplete["MasterIntegralRepresentations"][1]];
 FTAssert["incomplete denominator coordinates are completed by scalar products",
- incomplete["MasterIntegralRepresentations"][1]["Representation"]==="BaikovCut" &&
- Length[incomplete["MasterIntegralRepresentations"][1]["IntegrationVariables"]]===5];
+ incompleteBaikov["Representation"]==="BaikovCut" && Length[incompleteBaikov["IntegrationVariables"]]===5];
 badCut=ConstructMasterIntegralRepresentations[Join[phaseInput,<|"Prescription"->{1}|>]];
 FTAssert["cuts cannot depend on virtual momenta",badCut["UnresolvedIntegralDefinitions"]=!=<||>];
 badDirection=ConstructMasterIntegralRepresentations[Join[phaseInput,<|"CutDirections"->{0,1}|>]];

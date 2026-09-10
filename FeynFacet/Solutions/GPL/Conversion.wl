@@ -86,3 +86,30 @@ gplCanEvaluate[data_]:=TrueQ[Catch[Module[{needed},
  AllTrue[needed,KeyExistsQ[data["GPLRepresentation"]["IntegralExpressions"],#]&]
 ],"NumericalSolution"]];
 
+
+FeynFacetSolution`MaterializeGPLExpressions::usage =
+ "MaterializeGPLExpressions[data,expressions] resolves the stored finite-expression references to the already constructed standard GPLs. It performs no integration and rejects missing conversions.";
+FeynFacetSolution`MaterializeGPLExpressions[data_Association,expressions_] := Catch[Module[
+ {representation=Lookup[data,"GPLRepresentation",None],parameter,converted,aa,kd,
+  resolve,resolveA,resolveF,resolveK,result},
+ If[!gplRepresentationCurrentQ[data],numericalFailure["CurrentStoredGPLRepresentationRequired"]];
+ parameter=representation["Parameter"];converted=representation["IntegralExpressions"];
+ aa=data["AlgebraicDefinitions"];kd=data["KernelDefinitions"];
+ resolveA[i_Integer]:=resolveA[i]=If[1<=i<=Length[aa],resolve[aa[[i]]],
+  numericalFailure["GPLArithmeticReferenceInvalid"]];
+ resolveF[i_Integer,arg_]:=If[KeyExistsQ[converted,i],
+  resolve[converted[i]/.parameter->arg],numericalFailure["GPLIntegralNotConverted",<|"Index"->i|>]];
+ resolveK[i_Integer,arg_]:=If[1<=i<=Length[kd],
+  resolve[kd[[i,"Expression"]]/.kd[[i,"Parameter"]]->arg],
+  numericalFailure["GPLKernelReferenceInvalid"]];
+ resolve[x_]:=replaceFiniteExpressionReferences[x,{
+  FeynFacetSolution`a[i_Integer]:>resolveA[i],
+  FeynFacetSolution`F[i_Integer,arg_]:>resolveF[i,arg],
+  FeynFacetSolution`K[i_Integer,arg_]:>resolveK[i,arg]}];
+ result=resolve[expressions];
+ result=result/.FeynFacetSolution`G[word_List,arg_]/;word=!={}&&AllTrue[word,#===0&]:>
+   Log[arg]^Length[word]/Factorial[Length[word]];
+ If[!FreeQ[result,_FeynFacetSolution`a|_FeynFacetSolution`F|_FeynFacetSolution`K],
+  numericalFailure["GPLReferencesRemainUnresolved"]];
+ result
+],"NumericalSolution"];

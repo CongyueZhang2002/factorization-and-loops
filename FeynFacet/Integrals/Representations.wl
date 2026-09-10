@@ -14,7 +14,7 @@ miRepFC[z_] := Module[{symbols,rules},
  rules=(#->Symbol["FeynCalc`"<>SymbolName[#]]& /@ symbols);
  z/.Dispatch[rules]
 ];
-miRepFamilyName[z_] := If[StringQ[z],z,ToString[z,InputForm]];
+miRepFamilyName[z_] := If[StringQ[z],z,If[Head[z]===Symbol,SymbolName[z],ToString[z,InputForm]]];
 
 miRepReadReference[ref_,root_] := Module[{path},
  If[!AssociationQ[ref] || !StringQ[Lookup[ref,"RelativePath",None]],
@@ -49,6 +49,8 @@ miRepKiraRules[path_,momenta_,invariants_] := Module[{lines,result={},m,parts,a,
 ];
 
 miRepSourceData[input_,root_] := Module[{s=input,ref,base,definition,registry,kin={},rules={},presentation},
+ If[!KeyExistsQ[s,"Topologies"]&&ListQ[Lookup[s,"Families",None]],
+  s=Append[s,"Topologies"->s["Families"]]];
  If[Lookup[s,"DataType",None]==="FamilyDLogEpsilonForm",
   ref=Lookup[Lookup[s,"BlockDecomposition",<||>],"FamilyDifferentialSystemReference",None];
   base=miRepReadReference[ref,root];
@@ -83,15 +85,17 @@ miRepSourceData[input_,root_] := Module[{s=input,ref,base,definition,registry,ki
  miRepFC[s]
 ];
 
-miRepFamilyData[source_,master_] := Module[{family,records,record,top,s,flow,loops,sectors,pres},
+miRepFamilyData[source_,master_] := Module[{family,records,record,top,s,flow,loops,sectors,pres,matches,particles,cutRank},
  family=master[[1]];
  records=Replace[Lookup[source,"Topologies",{}],
    t_FeynCalc`FCTopology:><|"Topology"->t|>,{1}];
  record=Lookup[source,"TopologyRecord",source];
  If[records=!={},
-  record=SelectFirst[records,Function[r,
+  matches=Select[records,Function[r,
    top=Lookup[r,"Topology",None];
-   MatchQ[top,_FeynCalc`FCTopology] && miRepFamilyName[top[[1]]]===miRepFamilyName[family]],None]];
+   MatchQ[top,_FeynCalc`FCTopology] && miRepFamilyName[top[[1]]]===miRepFamilyName[family]]];
+  If[Length[matches]>1,epsOrderFail["AmbiguousMasterTopologyName",<|"Family"->family|>]];
+  record=If[matches==={},None,First[matches]]];
  If[!AssociationQ[record],epsOrderFail["MasterTopologyNotFound",<|"MasterIntegral"->master|>]];
  s=Join[KeyDrop[source,{"Topologies","TopologyRecord"}],record];
  top=Lookup[s,"Topology",None];
@@ -103,6 +107,11 @@ miRepFamilyData[source_,master_] := Module[{family,records,record,top,s,flow,loo
  loops=top[[3]];
  If[!KeyExistsQ[s,"Prescription"],
   flow=Which[
+   MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[s,"Format",None]],
+    particles=Select[s["Cuts"],#["Type"]==="Particle"&];
+    cutRank=MatrixRank[Table[Coefficient[cut["Momentum"],ell],{cut,particles},{ell,loops}]];
+    If[cutRank=!=Length[loops],epsOrderFail["MixedCutAndVirtualLoopPrescriptionsRequired"]];
+    <|"LoopMomenta"->loops,"Prescription"->ConstantArray[0,Length[loops]]|>,
    AssociationQ[Lookup[s,"Setup",None]],FeynFacet`AMFlowPrescription[s["Setup"]],
    AssociationQ[Lookup[s,"LoopSectorData",None]],
     sectors=s["LoopSectorData"];
@@ -120,7 +129,9 @@ miRepFamilyData[source_,master_] := Module[{family,records,record,top,s,flow,loo
 
 miRepDefinition[s_,master_,e_] := Module[
  {top=s["Topology"],loops,dim,nu,cuts,dirs,cm,pres,desc,cores,kin,virt,phase,measure,extra,
-  components,sideSets,cutData,eta,standard},
+  components,sideSets,cutData,eta,standard,definition,certificate},
+ If[MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[s,"Format",None]],
+  Return[miRepTypedDefinition[s,master,e]]];
  loops=top[[3]];nu=master[[2]];dim=Lookup[s,"Dimension",4-2e];
  cuts=Lookup[s,"CutIndices",{}];dirs=Lookup[s,"CutDirections",ConstantArray[1,Length[cuts]]];
  pres=s["Prescription"];
@@ -148,7 +159,10 @@ miRepDefinition[s_,master_,e_] := Module[
  If[AnyTrue[sideSets[[cuts]],#=!={}&],epsOrderFail["CutDependsOnVirtualMomentum"]];
  If[AnyTrue[Select[Range[Length[nu]],nu[[#]]>0 && !MemberQ[cuts,#]&],
    Length[sideSets[[#]]]>1&],epsOrderFail["DenominatorMixesVirtualPrescriptions"]];
- eta=Table[If[sideSets[[i]]==={},0,First[sideSets[[i]]]],{i,Length[nu]}];
+ (* Preserve the eta sign of the actual stored polynomial, including any
+    minus sign absorbed by FCLoopSwitchEtaSign. Side labels fix the measure. *)
+ eta=Table[If[MemberQ[cuts,i]||nu[[i]]<=0,0,
+   FirstCase[FeynCalc`FCI[top[[2,i]]],FeynCalc`StandardPropagatorDenominator[___,{_,sign_}]:>sign,1,Infinity]],{i,Length[nu]}];
  virt=Count[pres,1]+Count[pres,-1];phase=Count[pres,0];
  components=Length[cuts]-phase;
  If[(cuts==={} && phase>0) || (cuts=!={} && (phase<1 || components<1)),
@@ -162,7 +176,7 @@ miRepDefinition[s_,master_,e_] := Module[
    "InversePropagator"->cores[[#1]],"Power"->nu[[#1]],
    "DeltaDerivativeOrder"->Max[0,nu[[#1]]-1],
    "DistributionCoefficient"->If[nu[[#1]]>0,(-1)^(nu[[#1]]-1)/(nu[[#1]]-1)!,0]|>&,{cuts,cm}];
- <|"MasterIntegral"->master,"LoopMomenta"->loops,"ExternalMomenta"->top[[4]],
+ definition=<|"MasterIntegral"->master,"LoopMomenta"->loops,"ExternalMomenta"->top[[4]],
   "DimensionalRegulator"->e,"Dimension"->dim,"InversePropagators"->cores,
   "PropagatorMomenta"->Lookup[desc,"Momentum"],
   "PropagatorTypes"->Lookup[desc,"Type"],
@@ -176,7 +190,71 @@ miRepDefinition[s_,master_,e_] := Module[
   "MomentumConservationDeltaCount"->If[cuts==={},0,components],
   "CutDistributionConvention"->"theta(q^0) (-1)^(a-1) delta^(a-1)(D)/(a-1)!; a<=0 gives zero.",
   "MeasureConvention"->"d^D l/(i pi^(D/2)) for +i0 virtual loops, -d^D l/(i pi^(D/2)) for -i0 virtual loops; standard Lorentz-invariant phase space for cut particles.",
-  "BoundaryNormalizationChanged"->False|>
+  "BoundaryNormalizationChanged"->False|>;
+ If[TrueQ[$constructingPrescriptionCertificate],Return[definition]];
+ certificate=ordinaryPrescriptionCertificate[definition];
+ definition=Append[definition,"OriginalPropagatorPrescriptions"->eta];
+ If[TrueQ[certificate["OrdinaryPrescriptionRemoved"]],
+   definition["PropagatorPrescriptions"]=ConstantArray[0,Length[nu]]];
+ Append[definition,"OrdinaryPrescriptionCertificate"->certificate]
+];
+
+
+(* Typed cuts provide their exact measure explicitly. Counting a measurement
+   delta as an additional on-shell particle would change the normalization.
+   Both typed and legacy inputs return the same momentum-space definition
+   fields; only the geometric cut metadata differ. *)
+miRepTypedDefinition[source_,master_,e_]:=Module[
+ {family,top,nu,loops,dim,kin,descriptors,cores,cuts,particles,measurements,
+  cm,pres,eta,cutData,prefactor,extra,definition,certificate,cutMaster},
+ family=FeynFacet`CreateCutIntegralDefinition[source];
+ If[!AssociationQ[family],epsOrderFail["TypedCutDefinitionInvalid",<|"Cause"->family|>]];
+ top=family["Topology"];nu=master[[2]];loops=top[[3]];
+ If[Length[nu]=!=Length[top[[2]]]||!VectorQ[nu,IntegerQ]||
+  miRepFamilyName[master[[1]]]=!=miRepFamilyName[top[[1]]],
+  epsOrderFail["IntegralDefinitionIndicesInvalid"]];
+ dim=Lookup[family,"Dimension",D]/.D->4-2e;kin=FeynCalc`FCI[top[[5]]];
+ descriptors=propagatorDescriptor[#,kin]&/@top[[2]];cores=family["InversePropagators"];
+ cuts=family["CutIndices"];particles=Select[family["Cuts"],#["Type"]==="Particle"&];
+ measurements=Select[family["Cuts"],#["Type"]==="Measurement"&];
+ cm=(#["EnergyDirection"]#["Momentum"]&/@particles);
+ pres=source["Prescription"];
+ If[Length[pres]=!=Length[loops]||!VectorQ[pres,MemberQ[{-1,0,1},#]&],
+  epsOrderFail["IntegralLoopPrescriptionsRequired"]];
+ eta=Table[If[MemberQ[cuts,i]||nu[[i]]<=0,0,
+  family["OrdinaryPropagatorPrescriptions"][[i]]],{i,Length[nu]}];
+ prefactor=family["MeasurePrefactor"]/.D->dim;
+ extra=Lookup[source,"MasterIntegralPrefactor",1];
+ If[!FreeQ[{prefactor,extra},Alternatives@@loops],epsOrderFail["ExternalMasterNormalizationRequired"]];
+ cutData=Map[Function[cut,With[{i=cut["Index"]},
+  Join[<|"PropagatorIndex"->i,"Type"->cut["Type"],"InversePropagator"->cores[[i]],
+   "Power"->nu[[i]],"DeltaDerivativeOrder"->Max[0,nu[[i]]-1],
+   "DistributionCoefficient"->If[nu[[i]]>0,(-1)^(nu[[i]]-1)/(nu[[i]]-1)!,0]|>,
+   KeyTake[cut,{"Momentum","EnergyDirection","MassSquared","PositiveEnergyCondition"}]]]],family["Cuts"]];
+ definition=<|"MasterIntegral"->master,"LoopMomenta"->loops,"ExternalMomenta"->top[[4]],
+  "DimensionalRegulator"->e,"Dimension"->dim,"InversePropagators"->cores,
+  "PropagatorMomenta"->Lookup[descriptors,"Momentum",None],
+  "PropagatorTypes"->Lookup[descriptors,"Type"],"TimeDirection"->family["TimeDirection"],
+  "PropagatorPowers"->nu,"CutIndices"->cuts,"ParticleCutIndices"->Lookup[particles,"Index",{}],
+  "MeasurementCutIndices"->Lookup[measurements,"Index",{}],"OrientedCutMomenta"->cm,
+  "CutDistributions"->cutData,"Prescription"->pres,"PropagatorPrescriptions"->eta,
+  "OriginalPropagatorPrescriptions"->eta,"MomentumSpaceConvention"->"ExplicitMeasure",
+  "MeasurePrefactor"->prefactor,"MasterIntegralPrefactor"->extra,"KinematicRules"->kin,
+  "KinematicConditions"->Lookup[source,"KinematicConditions",family["Assumptions"]],
+  "VirtualLoopCount"->Count[pres,1]+Count[pres,-1],"PhaseSpaceLoopCount"->Count[pres,0],
+  "MomentumConservationDeltaCount"->Length[particles]-Count[pres,0],
+  "CutDistributionConvention"->family["CutConvention"],
+  "MeasureConvention"->"The declared prefactor multiplies product d^D loop momenta and all typed cut distributions.",
+  "SourceCutDefinition"->family,"BoundaryNormalizationChanged"->False|>;
+ If[TrueQ[$constructingPrescriptionCertificate],Return[definition]];
+ cutMaster=FeynCalc`GLI[top[[1]],nu];
+ certificate=FeynFacet`CertifyOrdinaryPrescriptionRemoval[family,cutMaster,
+  <|"DimensionalRegulator"->e|>];
+ If[FailureQ[certificate],certificate=<|"OrdinaryPrescriptionRemoved"->False,
+  "EndpointDistributionStatus"->"NotCertified","Reason"->ToString[certificate,InputForm]|>];
+ If[TrueQ[certificate["OrdinaryPrescriptionRemoved"]],
+  definition["PropagatorPrescriptions"]=ConstantArray[0,Length[nu]]];
+ Append[definition,"OrdinaryPrescriptionCertificate"->certificate]
 ];
 
 miRepOrdinary[s_,definition_,seconds_] := Module[{top,master,dim,e,fp,xs,vars,rules},
@@ -255,7 +333,7 @@ miRepFactorized[s_,d_,seconds_] := Module[
 miRepBaikov[definition_] := Module[
  {loops,ext,l,nExt,spPairs,spVars,z,all,matrix,dot,externalGram,projections,loopGram,
   t,polys,a,c,spRules,jac,pref,exponent,domain,energyRef,energies,cuts,nu,ordinary,
-  distributions,cutValues,reduced,n,minorConditions,kin,dim,e,timeSquare,externalSpatial,kinematicConditions},
+  distributions,cutValues,reduced,n,minorConditions,kin,dim,e,timeSquare,externalSpatial,kinematicConditions,ordinaryEta},
  loops=definition["LoopMomenta"];ext=definition["ExternalMomenta"];
  l=Length[loops];nExt=Length[ext];all=Join[loops,ext];kin=definition["KinematicRules"];
  dim=definition["Dimension"];e=definition["DimensionalRegulator"];
@@ -301,7 +379,8 @@ miRepBaikov[definition_] := Module[
  If[kinematicConditions===False,epsOrderFail["PhysicalExternalGramSignatureRequired"]];
  energies=(Factor[dot[#,energyRef]/.spRules]& /@ definition["OrientedCutMomenta"]);
  cuts=definition["CutIndices"];nu=definition["PropagatorPowers"];
- ordinary=Times@@Table[If[MemberQ[cuts,j],1,z[[j]]^-nu[[j]]],{j,Length[nu]}];
+ ordinaryEta=Unique["ordinaryEta"];
+ ordinary=miRepPrescribedPowers[z,definition,ordinaryEta];
  distributions=Times@@Table[
    (-1)^(nu[[j]]-1)/(nu[[j]]-1)! Derivative[nu[[j]]-1][DiracDelta][z[[j]]],{j,cuts}];
  cutValues=Thread[z[[cuts]]->0];
@@ -312,7 +391,9 @@ miRepBaikov[definition_] := Module[
  <|"Representation"->"BaikovCut","IntegrationVariables"->z,"ParametricPrefactor"->pref,
    "Integrand"->ordinary Det[t]^exponent distributions,
    "DomainConditions"->And@@Join[minorConditions,Thread[energies>0]],
-   "ExternalGramMatrix"->externalGram,"TransverseGramMatrix"->t,
+   "OrdinaryPrescriptionParameter"->ordinaryEta,
+  "OrdinaryPrescriptionLimit"->"Take eta -> 0 from positive real values at fixed dimension in an established convergence domain, then continue dimension meromorphically.",
+  "ExternalGramMatrix"->externalGram,"TransverseGramMatrix"->t,
    "BaikovPolynomial"->Factor[Det[t]],"BaikovExponent"->exponent,
    "ScalarProductSubstitution"->spRules,"InversePropagatorVariables"->Take[z,Length[nu]],
    "CoordinateInversePropagators"->(polys/.Thread[spVars->
@@ -361,13 +442,15 @@ miRepBuild[input_,request_,root_,seconds_,definitionsOnly_:False] := Module[
  {source,e,masters,result=<||>,failures=<||>,familyData=<||>,prepared=<||>,d,s,key,def,rep,pref,rows,kin},
  If[!StringQ[root] || !(seconds===Infinity || TrueQ[NumericQ[seconds] && seconds>0]),
   epsOrderFail["RepresentationConstructionOptionsInvalid"]];
+ If[!MemberQ[{"GenericKinematics","EndpointDistributions"},Lookup[request,"PrescriptionScope","GenericKinematics"]],
+  epsOrderFail["UnknownPrescriptionScope"]];
  source=miRepSourceData[Join[input,request],root];
  e=Lookup[source,"DimensionalRegulator",None];
  If[!MatchQ[e,_Symbol],epsOrderFail["DimensionalRegulatorRequired"]];
  source=epsOrderNormalize[source,e];
- If[Lookup[source,"MomentumSpaceConvention","AMFlow"]=!="AMFlow",
+ If[!MemberQ[{"AMFlow","ExplicitMeasure"},Lookup[source,"MomentumSpaceConvention","AMFlow"]],
   epsOrderFail["UnsupportedMomentumSpaceConvention"]];
- masters=Lookup[input,"OriginalMasterIntegralBasis",Lookup[input,"Master",{}]];
+ masters=Lookup[input,"OriginalMasterIntegralBasis",Lookup[input,"MasterIntegralBasis",Lookup[input,"Master",{}]]];
  If[MatchQ[miRepFC[masters],_FeynCalc`GLI],masters={masters}];
  If[masters==={} || !AllTrue[miRepFC[masters],MatchQ[#,_FeynCalc`GLI]&],
   epsOrderFail["MasterIntegralIdentifiersRequired"]];
@@ -389,6 +472,10 @@ miRepBuild[input_,request_,root_,seconds_,definitionsOnly_:False] := Module[
    s=familyData[key];
    pref=Lookup[Lookup[request,"MasterIntegralPrefactors",<||>],j,Lookup[s,"MasterIntegralPrefactor",1]];
    def=miRepDefinition[Join[s,<|"MasterIntegralPrefactor"->pref|>],miRepFC[masters[[j]]],e];
+   If[Lookup[request,"PrescriptionScope","GenericKinematics"]==="EndpointDistributions" &&
+     FailureQ[FeynFacet`RequireOrdinaryPrescriptionCertificate[
+       def["OrdinaryPrescriptionCertificate"],"EndpointDistributions"]],
+     epsOrderFail["EndpointDistributionPrescriptionCertificateRequired"]];
    If[AnyTrue[def["PropagatorPowers"][[def["CutIndices"]]],#<=0&],
     d=<|"Representation"->"UnitCube","Terms"->{<|"IntegrationVariables"->{},"Prefactor"->0|>}|>,
     d=Which[
@@ -415,12 +502,19 @@ miRepBuild[input_,request_,root_,seconds_,definitionsOnly_:False] := Module[
   "Status"->If[failures===<||>,"IntegralRepresentationsConstructed","SomeIntegralDefinitionsUnresolved"],
   "MasterIntegralRepresentations"->result,"UnresolvedIntegralDefinitions"->failures,
   "FamilyCount"->Length[familyData],"DimensionalRegulator"->e,
-  "NormalizationConvention"->"AMFlow","BoundaryNormalizationChanged"->False|>
+  "NormalizationConvention"->"The convention and explicit prefactor are recorded for each integral.","BoundaryNormalizationChanged"->False|>
+];
+
+miRepPrescribedPowers[variables_,definition_,eta_]:=Module[{nu,cuts,signs},
+ nu=definition["PropagatorPowers"];cuts=definition["CutIndices"];
+ signs=Lookup[definition,"PropagatorPrescriptions",ConstantArray[0,Length[nu]]];
+ Times@@Table[If[MemberQ[cuts,j],1,
+   (variables[[j]]+If[nu[[j]]>0,I signs[[j]]eta,0])^-nu[[j]]],{j,Length[nu]}]
 ];
 
 miRepCutFromFamily[family_,def_] := Module[{r=family,z,nu,cuts,powers,delta,zero,unit},
  z=r["IntegrationVariables"];nu=def["PropagatorPowers"];cuts=def["CutIndices"];
- powers=Times@@Table[If[MemberQ[cuts,j],1,z[[j]]^-nu[[j]]],{j,Length[nu]}];
+ powers=miRepPrescribedPowers[z,def,r["OrdinaryPrescriptionParameter"]];
  delta=Times@@Table[(-1)^(nu[[j]]-1)/(nu[[j]]-1)! Derivative[nu[[j]]-1][DiracDelta][z[[j]]],{j,cuts}];
  r["ParametricPrefactor"]=def["MasterIntegralPrefactor"] r["ParametricPrefactor"];
  r["Integrand"]=powers r["BaikovPolynomial"]^r["BaikovExponent"] delta;

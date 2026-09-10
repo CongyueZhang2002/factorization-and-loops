@@ -79,8 +79,11 @@ coefficientResultTestVersion8=<|"Format"->"FeynFacet-IBP","FormatVersion"->8,
  "Masters"->{<|"Master"->FeynCalc`GLI["testCoefficientFamily",{1}],"PreFactor"->1,"Coefficient"->2|>},"Remainder"->0|>;
 coefficientResultTestVersion8Read=FeynFacet`ReadMasterIntegralCoefficients[coefficientResultTestVersion8,
  "DimensionalRegulator"->coefficientResultTestEpsilon];
-FTAssert["absent regulator metadata does not rewrite None sentinels",
- coefficientResultTestVersion8Read["Definitions"]["Setup"]["UnusedSentinel"]===None];
+FTAssert["retired coefficient format is rejected",FailureQ[coefficientResultTestVersion8Read]];
+coefficientResultTestVersion8Read=FeynFacet`ReadMasterIntegralCoefficients[
+ coefficientResultTestTable[{coefficientResultTestEntry[{coefficientResultTestExact[2]}]}],
+ "DimensionalRegulator"->coefficientResultTestEpsilon];
+FTAssert["None sentinels remain data",coefficientResultTestVersion8Read["Definitions"]["Setup"]["UnusedSentinel"]===None];
 coefficientResultTestDirect=coefficientResultTestEntry[{
  coefficientResultTestFinite[{2,3},0,1/coefficientResultTestRho,coefficientResultTestRho]}];
 FTAssert["direct finite expansion honors its own SeriesVariable",

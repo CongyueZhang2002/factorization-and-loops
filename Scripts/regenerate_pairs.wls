@@ -1,13 +1,13 @@
 (* Regenerate pre-IBP pair artifacts for any process card on the full
-   forward x conjugate diagram grid, in parallel over subkernels.
+   independent Hermitian diagram pairs (full rectangles when ineligible), in parallel over subkernels.
 
    Usage:
      wolframscript -file Scripts/regenerate_pairs.wls \
-       <processDirectory> <cardName> <resultName> [kernels]
+       <processDirectory> <cardName> <resultName> [kernels] [Full]
 
    Example:
      wolframscript -file Scripts/regenerate_pairs.wls \
-       ppHX_NNLO_DoubleReal UU_Ghost UU_Ghost_08_10_1 6
+       Projects/ppHX_UU_NNLO/NNLO/qqp-qqp DoubleReal.Ghosts DoubleReal/Ghosts/Amplitudes 8
 
    The diagram grid is the card's own DiagramIndices declaration. Pair
    files are written to <processDirectory>/Results/<resultName>/Pairs;
@@ -26,7 +26,7 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 arguments = Rest[$ScriptCommandLine];
 If[Length[arguments] < 3,
-  Print["Usage: regenerate_pairs.wls <processDirectory> <cardName> <resultName> [kernels]"];
+  Print["Usage: regenerate_pairs.wls <processDirectory> <cardName> <resultName> [kernels] [Full]"];
   Exit[1]
 ];
 processDirectory = FileNameJoin[{root, arguments[[1]]}];
@@ -35,7 +35,7 @@ resultName = arguments[[3]];
 kernelCount = If[Length[arguments] >= 4, ToExpression[arguments[[4]]], 6];
 If[!IntegerQ[kernelCount]||!TrueQ[1<=kernelCount<=8],Print["Expected 1 to 8 subkernels."];Exit[1]];
 
-card = Get[FileNameJoin[{processDirectory, "Cards", cardName <> ".wl"}]];
+card = FeynFacet`ReadProcessCard[processDirectory,cardName];
 If[! AssociationQ[card],
   Print["Could not read the card."];
   Exit[1]
@@ -69,34 +69,45 @@ pairSetup[forward_Integer, conjugate_Integer] := Join[
   |>
 ];
 
+savedPairValidQ[setup_,file_] := If[!FileExistsQ[file],False,
+ Module[{saved=Quiet@Check[Get[file],$Failed]},
+ FeynFacet`Private`validPreIBPResultQ[saved] && Lookup[saved,"Setup",None]===setup &&
+ Lookup[Lookup[saved,"AnalyticContext",<||>],"FeynFacetSourceHash",None]===FeynFacet`Private`$feynFacetSourceHash]];
 processPair[{forward_Integer, conjugate_Integer}] := Module[
-  {setup, result, artifact, file},
+  {setup, result, artifact, file, rows, requiredPairs, rowSetup, rowPair},
   file = pairFile[forward, conjugate];
   setup = pairSetup[forward, conjugate];
-  If[FileExistsQ[file],
-    Module[{saved = Quiet @ Check[Get[file], $Failed]},
-      If[FeynFacet`Private`validPreIBPResultQ[saved]&&Lookup[saved,"Setup",None]===setup &&
-        Lookup[Lookup[saved,"AnalyticContext",<||>],"FeynFacetSourceHash",None]===FeynFacet`Private`$feynFacetSourceHash,
-        Return[{forward, conjugate, "Skipped"}]
-      ]
-    ]
-  ];
-  result = FeynFacet`CollinearFactorizePreIBP[setup];
+  requiredPairs=If[TrueQ[interferencePlan["HermitianReduction"]] && forward=!=conjugate,
+    {{forward,conjugate},{conjugate,forward}},{{forward,conjugate}}];
+  If[AllTrue[requiredPairs,savedPairValidQ[pairSetup@@#,pairFile@@#]&],
+    Return[{forward,conjugate,"Skipped"}]];
+  If[! ValueQ[preparedDiagrams], preparedDiagrams = FeynFacet`PrepareProcessDiagrams[card]];
+  If[preparedDiagrams === $Failed, Return[{forward, conjugate, "DiagramGenerationFailed"}]];
+  rows = FeynFacet`CollinearFactorizeInterferencesPreIBP[setup,
+    "PreparedDiagrams" -> preparedDiagrams,"HermitianReduction"->hermitianMode];
+  If[!ListQ[rows],Return[{forward,conjugate,"PreIBPFailed"}]];
+  Do[
+  rowSetup=row["Setup"];result=row["Result"];
+  rowPair=Lookup[Lookup[rowSetup,{"ForwardAmplitudes","ConjugateAmplitudes"}],"SelectedIndex"];
+  file=pairFile@@rowPair;
   If[! MatchQ[result, {_, _, _, _, _List}],
-    Return[{forward, conjugate, "PreIBPFailed"}]
+    Return[{forward, conjugate, "PreIBPFailed"},Module]
   ];
   artifact = FeynFacet`GenerateCollinearFactorizePreIBPResult[
-    setup,
+    rowSetup,
     result[[1]], result[[2]], result[[3]], result[[4]], result[[5]],
     resultDirectory
   ];
   If[! AssociationQ[artifact],
-    Return[{forward, conjugate, "PackagingFailed"}]
+    Return[{forward, conjugate, "PackagingFailed"},Module]
   ];
   If[! FeynFacet`Private`validPreIBPResultQ[artifact],
-    Return[{forward, conjugate, "ValidationFailed"}]
+    Return[{forward, conjugate, "ValidationFailed"},Module]
   ];
-  If[FeynFacet`FamilyArtifactWrite[artifact,file]=!=file,Return[{forward,conjugate,"WriteFailed"}]];
+  artifact=Append[artifact,"InterferenceConstruction"-><|"Method"->row["ConstructionMethod"],
+    "DirectPair"->{forward,conjugate}|>];
+  If[FeynFacet`FamilyArtifactWrite[artifact,file,"Compression"->Automatic]=!=file,Return[{forward,conjugate,"WriteFailed"},Module]],
+  {row,rows}];
   {forward, conjugate, "OK"}
 ];
 
@@ -122,18 +133,23 @@ processPairGuarded[{forward_Integer, conjugate_Integer}] := Module[
 ];
 (* PAIRQUEUE-GUARD-END *)
 
-pairs = Tuples[{forwardIndices, conjugateIndices}];
+If[Length[arguments]>5 || (Length[arguments]===5 && arguments[[5]]=!="Full"),
+  Print["The optional fifth argument must be Full."];Exit[1]];
+hermitianMode=If[Length[arguments]===5,False,Automatic];
+interferencePlan=FeynFacet`DiagramInterferencePlan[card,"HermitianReduction"->hermitianMode];
+If[!AssociationQ[interferencePlan],Print["Invalid interference plan"];Exit[1]];
+pairs = interferencePlan["Pairs"];
 Print["GRID: ", Length[forwardIndices], " x ", Length[conjugateIndices],
-  " = ", Length[pairs], " pairs -> ", resultDirectory];
+  " = ", interferencePlan["FullPairCount"], " orientations; ",Length[pairs]," direct contractions -> ", resultDirectory];
 
-LaunchKernels[kernelCount];
+FeynFacet`Private`facetLaunchKernels[kernelCount];
 With[{loadFile = FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]},
-  ParallelEvaluate[$HistoryLength=0;$MaxExtraPrecision=50;
+  ParallelEvaluate[$HistoryLength=0;$MaxExtraPrecision=50;Clear[Global`preparedDiagrams];
     SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
     Block[{$Output = {}}, Quiet[Get[loadFile], General::shdw]]]
 ];
 DistributeDefinitions[
-  pairSetup, processPair, processPairGuarded, pairFile, card, cardName,
+  pairSetup, processPair, processPairGuarded, pairFile, savedPairValidQ, interferencePlan, hermitianMode, card, cardName,
   scriptPath, resultDirectory, pairDirectory
 ];
 

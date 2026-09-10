@@ -1,0 +1,79 @@
+(* Complete virtual scalar densities enter the same affine IBP algebra.
+   Ordinary prescriptions are retained. No forward-cut theorem is invoked. *)
+BeginPackage["FeynFacet`"];
+DecomposeVirtualLoopIntegrands::usage="DecomposeVirtualLoopIntegrands[values,loops,external,kinematicRules,request] converts full-D scalar virtual integrands to explicit GLI coefficient rules and complete ordinary integral families. Equal denominator products share one family across named tensor structures. Ordinary prescriptions and the original density are retained.";
+Begin["`Private`"];
+DecomposeVirtualLoopIntegrands[values_Association,loops:{__Symbol},external:{__Symbol},
+ kin_List,request_Association:<||>]:=Catch[Module[
+ {internal,objects,aliases,polynomials,products,product,families={},records=<||>,top,converted,
+  base,complete,mapped,master,rules,basis,scalar,coordinateRules,powers,coefficients,
+  output=<||>,targets={},family,prefix,assumptions,name,positions,allProducts,
+  unitPropagators,propagatorPowers,standard,unit,index},
+ If[!DuplicateFreeQ[Join[loops,external]]||!AllTrue[kin,MatchQ[#,_Rule]&],
+  cutFamilyFail["DistinctVirtualLoopAndExternalMomentaRequired"]];
+ internal=FeynCalc`FCI/@values;
+ If[!FreeQ[internal,_FeynCalc`Eps|_FeynCalc`DiracGamma|_FeynCalc`LorentzIndex|_Real|_Failure],
+  cutFamilyFail["FullDimensionScalarVirtualDensityRequired"]];
+ objects=DeleteDuplicates[Cases[Values[internal],_FeynCalc`FeynAmpDenominator,{0,Infinity}]];
+ aliases=Table[Unique["virtualDenominator"],{Length[objects]}];
+ polynomials=FeynFacet`PolynomialCoefficientRules[#/.Thread[objects->aliases],aliases]&/@internal;
+ If[AnyTrue[Values[polynomials],FailureQ],cutFamilyFail["PolynomialPrescribedDenominatorProductsRequired"]];
+ allProducts=DeleteDuplicates[Flatten[First/@#&/@Values[polynomials],1]];
+ prefix=Lookup[request,"FamilyNamePrefix","VirtualLoopFamily"];assumptions=Lookup[request,"Assumptions",True];
+ Do[
+  product=Times@@MapThread[Power,{objects,powers}];
+  unitPropagators={};propagatorPowers={};
+  Do[
+   If[powers[[j]]===0,Continue[]];
+   standard=FeynCalc`ToSFAD[objects[[j]]];
+   If[Head[standard]=!=FeynCalc`FeynAmpDenominator||
+      !AllTrue[List@@standard,MatchQ[#,_FeynCalc`StandardPropagatorDenominator]&],
+    cutFamilyFail["ExplicitOrdinaryPropagatorProductRequired"]];
+   Do[
+    unit=ReplacePart[prop,{4,1}->1];
+    index=FirstPosition[unitPropagators,unit,Missing[],{1},Heads->False];
+    If[MissingQ[index],AppendTo[unitPropagators,unit];
+      AppendTo[propagatorPowers,powers[[j]]prop[[4,1]]],
+      propagatorPowers[[First[index]]]+=powers[[j]]prop[[4,1]]],
+   {prop,List@@standard}],
+  {j,Length[objects]}];
+  name=Symbol["FeynFacet`IntegralFamilies`"<>prefix<>ToString[Length[families]+1]];
+  top=FeynCalc`FCTopology[name,FeynCalc`FeynAmpDenominator/@unitPropagators,
+   loops,external,FeynCalc`FCI[kin],{}];
+  complete=FeynFacet`CompleteAffineIntegralTopology[top];
+  If[!MatchQ[complete,_FeynCalc`FCTopology],Throw[complete,"CutFamily"]];
+  master=FeynCalc`GLI[name,PadRight[propagatorPowers,Length[complete[[2]]]]];
+  mapped=master;
+  family=FeynFacet`CreateLoopIntegralFamily[<|"Topology"->complete,
+   "MeasurePrefactor"->Lookup[request,"MeasurePrefactor",1],"Assumptions"->assumptions|>];
+  If[!AssociationQ[family],Throw[family,"CutFamily"]];
+  AppendTo[families,family];AssociateTo[records,powers-><|"Family"->family,"Master"->master,
+   "Coefficient"->(mapped/.master->1)|>],
+ {powers,allProducts}];
+ KeyValueMap[Function[{label,terms},
+  coefficients=<||>;
+  Do[
+   {powers,scalar}=List@@term;family=records[[Key[powers]]]["Family"];
+   master=records[[Key[powers]]]["Master"];
+   scalar=FeynCalc`ExpandScalarProduct[scalar]/.FeynCalc`FCI[kin];
+   scalar=scalar/.family["ScalarProductRules"];
+   coordinateRules=FeynFacet`PolynomialCoefficientRules[scalar,family["DenominatorVariables"]];
+   If[FailureQ[coordinateRules]||!FreeQ[coordinateRules,_FeynCalc`Pair],
+    cutFamilyFail["PolynomialVirtualNumeratorRequired"]];
+   Do[
+    base=FeynCalc`GLI[master[[1]],master[[2]]-First[rule]];
+    AssociateTo[coefficients,base->(Lookup[coefficients,base,0]+
+     records[[Key[powers]]]["Coefficient"]Last[rule])],
+   {rule,coordinateRules}],
+  {term,terms}];
+  coefficients=Select[Factor/@coefficients,#=!=0&];
+  targets=Join[targets,Keys[coefficients]];
+  AssociateTo[output,label->coefficients]
+ ],polynomials];
+ <|"Format"->"FeynFacet-VirtualIntegralFamilies","FormatVersion"->1,
+  "Families"->families,"CoefficientRules"->output,"Targets"->DeleteDuplicates[targets],
+  "SourceValues"->values,"LoopMomenta"->loops,"ExternalMomenta"->external,
+  "KinematicRules"->kin,"OrdinaryPrescriptionLimitEstablished"->False,
+  "LoopMeasure"->"Integral measure is declared by MeasurePrefactor; generated amplitude factors remain in CoefficientRules."|>
+],"CutFamily"];
+End[];EndPackage[];

@@ -463,12 +463,12 @@ FTAssert["S7 KallenQ4a's pulled-back squares are carried at 16 and 4",
    state is 76 MiB of run data and stays out of git; this block reads its
    24x24 LEADING TRUNCATION, a tracked few hundred KiB with a SHA-256
    provenance manifest, so a fresh clone runs it. *)
-fixtureDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+fixtureDirectory = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "FrozenTestFixtures_2026-08-25"}];
 stateFile = FileNameJoin[{fixtureDirectory, "cf259_frozen_rows24.wl"}];
 manifestFile = FileNameJoin[{fixtureDirectory, "SHA256SUMS"}];
-familyChartFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+familyChartFile = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
   "UU_08_10_canonical", "TransportFamilyCharts.wl"}];
 If[! (FileExistsQ[stateFile] && FileExistsQ[familyChartFile] &&
     FileExistsQ[manifestFile]),

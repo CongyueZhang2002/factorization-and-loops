@@ -511,7 +511,7 @@ BuildSimplificationContext[config_Association] := Catch[
       sourceVariables, sourceKinematicAssumptions,
       mappedSourceKinematics, sourceNonempty, coordinateNonempty,
       forwardChamberCheck, backwardChamberCheck,
-      dimensionlessAssumptions, distributionHeads
+      dimensionlessAssumptions, distributionHeads, colorRules
     },
     (* "DistributionHeads": the collinear-distribution heads of THIS
        channel.  The default is the quark twist-2 set the front end
@@ -529,6 +529,11 @@ BuildSimplificationContext[config_Association] := Catch[
       ];
       Return[$Failed]
     ];
+    colorRules=Lookup[config,"ColorRules",{}];
+    If[!MatchQ[colorRules,{(_Rule)...}]||!exactDataQ[colorRules]||
+      !AllTrue[colorRules,MatchQ[First[#],_Symbol]&&FreeQ[Last[#],First[#]]&],
+      Message[BuildSimplificationContext::invalid,"ColorRules","expected exact nonrecursive symbol replacement rules"];
+      Return[$Failed]];
     hadronic = cardHadronicVariables[config];
     kinematics = coefficientKinematicsFromCard[config];
     If[kinematics === $Failed, Return[$Failed]];
@@ -681,6 +686,8 @@ BuildSimplificationContext[config_Association] := Catch[
       kinematics["DimensionlessRules"]
     ];
     <|
+      "ColorRules" -> colorRules,
+      "CoordinateEqualities" -> Select[If[Head[coordinateRegion]===And,List@@coordinateRegion,{coordinateRegion}],Head[#]===Equal&],
       "FractionVariables" -> fractions,
       "FractionRootVariables" -> roots,
       "PositiveQuantities" -> positiveQuantities,

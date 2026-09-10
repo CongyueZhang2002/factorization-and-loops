@@ -1,0 +1,85 @@
+(* Current processes use the same cards and physical result schema as scattering. *)
+BeginPackage["FeynFacet`"];
+RunNLOCurrentProject::usage="RunNLOCurrentProject[directory,mode] generates current Born dependencies and NLO real, virtual and PDF/FF counterterms, verifies pole cancellation, and saves an explicit common-format result.";
+Begin["`Private`"];
+RunNLOCurrentProject[directory_String,mode_String:"all"]:=Catch[Module[
+ {location,project,channel,ctCard,needed,borns=<||>,declarations,dependency,loDirectory,loCard,loSetup,
+  request,value,file,contributions=<||>,names,card,setup,density,combined,coefficients,range,e,
+  conditions,color,negative,meta,started=AbsoluteTime[],seconds,timings=<||>,check,write},
+ If[!MemberQ[{"all","resume","assemble"},mode],projectFail["ProjectRunModeRequired"]];
+ location=projectChannelLocation[directory];project=location["ProjectCard"];channel=location["Channel"];
+ If[location["Order"]=!="NLO"||!KeyExistsQ[project,"Current"]||
+  !MemberQ[{1,2},Length[project["Channels"][channel]["Incoming"]]],
+  projectFail["OneOrTwoIncomingPartonCurrentProjectRequired"]];
+ check[x_,tag_]:=projectCheck[x,tag];
+ write[x_,suffix_]:=projectWrite[x,FileNameJoin[{directory,"Results",suffix}]];
+ ctCard=check[ReadContributionCard[directory,"Counterterm"],"CurrentCountertermCardRequired"];
+ needed={0,Last[ctCard["EpsilonRange"]]+1};declarations=ctCard["LowerOrderResults"];
+ If[!AssociationQ[declarations]||declarations===<||>,projectFail["ExplicitLowerOrderResultsRequired"]];
+ Do[dependency=declarations[name];
+  If[!AssociationQ[dependency]||!ContainsAll[Keys[dependency],{"File","EpsilonRange"}]||
+   First[dependency["EpsilonRange"]]>0||Last[dependency["EpsilonRange"]]<Last[needed],
+   projectFail["DeclaredLowerOrderEpsilonRangeInsufficient",<|"Channel"->name,"Required"->needed|>]];
+  loDirectory=FileNameJoin[{project["Directory"],"LO",name}];
+  file=projectAbsolutePath[FileNameJoin[{DirectoryName[ctCard["CardFile"]],dependency["File"]}]];
+  If[!StringStartsQ[file,loDirectory<>"/Results/"],projectFail["LowerOrderResultMustBelongToDeclaredChannel"]];
+  loCard=check[ReadContributionCard[loDirectory,"Born"],"CurrentBornCardRequired"];
+  loSetup=check[ReadProcessCard[loDirectory,"Born"],"CurrentBornSetupRequired"];
+  request=Join[projectAssemblyRequest[loCard,name,"Born"],projectResultIdentity[project,name,loSetup],
+   <|"EpsilonRange"->{0,Max[Last[needed],Last[loCard["EpsilonRange"]]]},"BornCouplingPower"->project["BornCouplingPower"]|>];
+  value=If[mode==="all",Failure["RegenerationRequested",<||>],ReadPartonicResult[file,
+   Join[projectResultIdentity[project,name,loSetup],<|"EpsilonRange"->request["EpsilonRange"],
+    "DistributionBasis"->project["Assembly"]["DistributionBasis"]|>]]];
+  If[!AssociationQ[value],
+   If[mode==="assemble",projectFail["CompleteMatchingBornResultRequired",<|"Channel"->name|>]];
+   {seconds,value}=AbsoluteTiming[ConstructBornResult[loSetup,request]];
+   check[value,"CurrentBornGenerationFailed"];projectWrite[value,file];AssociateTo[timings,"LO/"<>name->seconds]];
+  AssociateTo[borns,name->check[ReadPartonicResult[file,<|"EpsilonRange"->needed|>],"CurrentBornReadBackFailed"]],
+ {name,Keys[declarations]}];
+ names=If[MemberQ[project["Orders"]["LO"],channel],{"Real","Virtual"},{"Real"}];
+ Do[card=check[ReadContributionCard[directory,name],"CurrentContributionCardRequired"];
+  setup=check[ReadProcessCard[directory,name],"CurrentContributionSetupRequired"];
+  request=Join[projectAssemblyRequest[card,channel,name],projectResultIdentity[project,channel,setup],
+   <|"EpsilonRange"->card["EpsilonRange"]|>];
+  file=FileNameJoin[{directory,"Results",name,"Result.wl"}];
+  value=If[mode==="all",Failure["RegenerationRequested",<||>],ReadPartonicResult[file,
+   Join[projectResultIdentity[project,channel,setup],<|"EpsilonRange"->card["EpsilonRange"],
+    "DistributionBasis"->project["Assembly"]["DistributionBasis"]|>]]];
+  If[!AssociationQ[value],
+   If[mode==="assemble",projectFail["CompleteMatchingCurrentContributionRequired",<|"Contribution"->name|>]];
+   {seconds,value}=AbsoluteTiming[If[name==="Real",
+     density=check[ConstructCurrentRealDensity[setup,request],"CurrentRealDensityFailed"];
+     ConstructCurrentRealContribution[density,Join[request["EndpointExpansion"],<|"EpsilonRange"->card["EpsilonRange"]|>]],
+     ConstructCurrentVirtualContribution[setup,request]]];
+   check[value,"CurrentAnalyticContributionFailed"];projectWrite[value,file];AssociateTo[timings,name->seconds]];
+  AssociateTo[contributions,name->value],{name,names}];
+ request=Join[projectAssemblyRequest[ctCard,channel,"Real"],<|"EpsilonRange"->ctCard["EpsilonRange"],
+  "Counterterms"->ctCard["Counterterms"],"Include"->ctCard["Include"],"LowerOrderResults"->declarations,
+  "StructureFunctions"->project["StructureFunctions"]|>];
+ {seconds,value}=AbsoluteTiming[ConstructCurrentCollinearCounterterm[borns,request]];
+ check[value,"CurrentCollinearCountertermFailed"];write[value,"Counterterm/Result.wl"];
+ AssociateTo[contributions,"Counterterm"->value];AssociateTo[timings,"Counterterm"->seconds];
+ combined=check[CombinePartonicResults[contributions,<|"Contribution"->"Total"|>],"CurrentContributionCombinationFailed"];
+ e=combined["DimensionalRegulator"];range=project["ResultEpsilonRanges"]["NLO"];
+ If[FailureQ[RequirePartonicEpsilonRange[combined,range]],projectFail["CurrentOutputEpsilonRangeInsufficient"]];
+ color=Lookup[project,"ColorRules",{}];
+ conditions=Lookup[request,"Assumptions",True]&&
+  And@@(#>0&/@Values[ctCard["Counterterms"]["FactorizationScalesSquared"]]);
+ coefficients=Map[partonicMap[Function[value,
+   FullSimplify[FunctionExpand[value/.color],Assumptions->conditions]],#]&,combined["Coefficients"]];
+ negative=KeySelect[coefficients,#<First[range]&];
+ If[!partonicZeroTreeQ[negative],projectFail["CurrentPolesDoNotCancel",<|"Residues"->negative|>]];
+ coefficients=KeySelect[coefficients,First[range]<=#<=Last[range]&];
+ If[!FreeQ[coefficients,_Integrate|_NIntegrate|_Inactive|_FeynCalc`GLI|_FeynCalc`PaVe|_FeynCalc`B0|_FeynCalc`C0|_Gamma|_PolyGamma|_Conjugate|_Re|_Im|_Failure],
+  projectFail["ExplicitIntegralFreeCurrentResultRequired"]];
+ meta=Join[KeyDrop[combined,{"Coefficients","EpsilonRange","LaurentLowerBound"}],
+  <|"Contribution"->"Total","RequiredContributions"->Keys[contributions],"EpsilonRange"->range,
+   "Assumptions"->conditions,"Schemes"->ctCard["Counterterms"]["Schemes"],"LowerOrderResults"->declarations|>];
+ value=check[CreatePartonicResult[coefficients,meta],"CurrentFinalResultFailed"];file=write[value,"Result.wl"];
+ If[ReadPartonicResult[file]=!=value,projectFail["CurrentFinalResultReadBackFailed"]];
+ meta=<|"Status"->"Completed","Project"->project["Project"],"Order"->"NLO","Channel"->channel,
+  "Seconds"->AbsoluteTime[]-started,"StageSeconds"->timings,"ResultFile"->file,"EpsilonRange"->range,
+  "StructureFunctions"->project["StructureFunctions"],"RequiredContributions"->Keys[contributions]|>;
+ write[meta,"Validation/RunReport.wl"];meta
+],"ProjectCards"];
+End[];EndPackage[];

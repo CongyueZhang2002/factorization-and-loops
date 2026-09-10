@@ -870,7 +870,7 @@ multiquadraticOffDiagonalBlockConstructDLogBatch[letters_List, roots_List,
 
    True,
     If[Length[Kernels[]] < requested,
-      launched = Quiet[Check[LaunchKernels[requested - Length[Kernels[]]], {}]]];
+      launched = Quiet[Check[facetLaunchKernels[requested - Length[Kernels[]]], {}]]];
     If[Length[Kernels[]] < requested,
       {seconds, data} = AbsoluteTiming[
         multiquadraticOffDiagonalBlockLetterDLogDataInField[#1, roots, variables] & /@

@@ -1,0 +1,28 @@
+{
+  "Repository": "https://github.com/QCDLab/navis",
+  "Commit": "89dab06673c4b6d2a142236d5d0109642cfc3b57",
+  "ValidationOnly": true,
+  "Files": [
+    "Cargo.toml",
+    "LICENSE",
+    "README.md",
+    "navis-core/Cargo.toml",
+    "navis-core/src/constants.rs",
+    "navis-core/src/grid_setup.rs",
+    "navis-core/src/kinematics.rs",
+    "navis-core/src/lib.rs",
+    "navis-core/src/pdg_channels.rs",
+    "navis-core/src/runcard.rs",
+    "navis-core/src/vegas.rs",
+    "navis-pol/Cargo.toml",
+    "navis-pol/src/integrand.rs",
+    "navis-pol/src/lib.rs",
+    "navis-pol/src/mes.rs",
+    "navis-pol/src/pdfs.rs",
+    "navis-unpol/Cargo.toml",
+    "navis-unpol/src/integrand.rs",
+    "navis-unpol/src/lib.rs",
+    "navis-unpol/src/mes.rs",
+    "navis-unpol/src/pdfs.rs"
+  ]
+}

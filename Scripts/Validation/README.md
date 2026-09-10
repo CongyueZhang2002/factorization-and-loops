@@ -90,7 +90,7 @@ requests and `stage3.wxf`. Boundary demands come from the amplitude order plan.
 Before running, changes to the family list, master identities or requested
 orders require regeneration; an old inventory cannot silently omit new work.
 The current process example and demonstrated coverage are in
-`ppHX_NNLO_DoubleReal/Results/Validation/TwoLevelValidation_2026-09-07`.
+`Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/Validation/TwoLevelValidation_2026-09-07`.
 
 AMFlow runtime calls release their own parent subkernels before external
 Wolfram solvers, allowing those solvers to use the requested worker licenses.
@@ -147,3 +147,15 @@ FeynFacetAMFlowRuntime, outside the contexts reset by FeynFacet.m. On Wolfram
 and explicit attribute/option/default/message assignments instead. Both
 Global and DESolver subcontexts are isolated. Existing workers are not reused
 for another family.
+
+## Full finite NLO scattering coefficients
+
+`check_nlo_navis_references.wls UU_PROJECT LL_PROJECT` compares saved full
+qq-prime, distinct-flavor annihilation and both qg observed tags against pinned
+public Navis coefficients. It checks delta, both plus terms and the whole
+regular coefficient at ten points. `Tests/Support/Navis/evaluate_reference.py`
+compiles the unmodified upstream Rust files with `rustc`, without loading PDFs
+or running Monte Carlo. Original sources remain under External/References,
+and compact reports belong to each project/order/channel Results/Validation.
+Missing inputs, unresolved symbols, wrong physical tags or failed comparisons
+return a nonzero exit code. This is numerical finite-coefficient validation.

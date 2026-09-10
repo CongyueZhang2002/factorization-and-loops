@@ -288,12 +288,14 @@ kiraSolveDataQ[solveData_] := AssociationQ[solveData] &&
 
 (* ---------- stage 1: solve only ------------------------------------- *)
 
+Options[KiraSolve] = {"Threads" -> Automatic};
 KiraSolve[
     inputs : ({__String} | {__Association}),
-    resultDirectory_String
+    resultDirectory_String, OptionsPattern[]
   ] := Catch[
   Module[
-    {prepared, location, projectState, project, solveSeconds, solveData},
+    {prepared, location, projectState, project, solveSeconds, solveData, threadCount},
+    threadCount = ibpKiraThreadCount[OptionValue["Threads"]];
     prepared = kiraStreamPrepare[inputs, resultDirectory];
     location = prepared["ProjectLocation"];
     projectState = ibpResetProject[
@@ -312,12 +314,13 @@ KiraSolve[
       "Running Kira on ", Length[project["Manifest"]], " families (",
       Length[prepared["Targets"]], " targets)"
     ];
-    solveSeconds = First @ AbsoluteTiming[ibpRunKira[project]];
+    solveSeconds = First @ AbsoluteTiming[ibpRunKira[project, threadCount]];
     solveData = kiraStreamSolveData[
       prepared,
       project,
       <|
         "SolveSeconds" -> solveSeconds,
+        "Threads" -> threadCount,
         "PeakMemoryInUseBytes" -> MemoryInUse[]
       |>
     ];
@@ -764,6 +767,8 @@ kiraStreamImportCore[solveData_Association] := Module[
     ]
   ];
   ibpValidateMasters[masters, declaredMasters, physicalRecords];
+  If[checkCompletedPropagators[data["Setup"], physicalRecords, masters] =!= True,
+    ibpFail["master validation", "an active master denominator is outside the admitted phase-space sign criterion"]];
   If[! exactDataQ[Values[images]],
     ibpFail["streaming closure", "a reduced target image is not exact"]
   ];
@@ -1065,6 +1070,7 @@ KiraStreamResult[streamDirectory_String] := Catch[
         {"CardName", "ResultDirectory", "Pairs", "Setup", "AnalyticContext"}
       ],
       <|
+        "Created" -> manifest["Created"],
         "Targets" -> targets,
         "Masters" -> storedMasters,
         "DeclaredMasters" -> context["DeclaredMasters"],

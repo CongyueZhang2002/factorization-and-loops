@@ -32,8 +32,11 @@ cutEquivalenceScalarProducts[expr_, momenta_List, gram_] :=
 
 cutEquivalenceTopology[record_Association, normalization_] := Module[
   {top, momenta, loops, external, n, gram, descriptors, polynomials,
-   kinematics, cutVectors, indices, directions},
-  top = Lookup[record, "Topology", None];
+   kinematics, cutVectors, indices, directions, typed, validated, particles, cutTypes, particleIndices},
+  typed=MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[record,"Format",None]];
+  validated=If[typed,FeynFacet`CreateCutIntegralDefinition[record],record];
+  If[!AssociationQ[validated],Return[$Failed]];
+  top = Lookup[validated, "Topology", None];
   If[! MatchQ[top, _FeynCalc`FCTopology], Return[$Failed]];
   loops = top[[3]]; external = top[[4]];
   momenta = Join[loops, external]; n = Length[momenta];
@@ -44,12 +47,18 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
   polynomials = cutEquivalenceScalarProducts[#, momenta, gram] & /@
     Lookup[descriptors, "UnitCore"];
   kinematics = cutEquivalenceScalarProducts[#, momenta, gram] & /@ top[[5]];
-  indices = Lookup[record, "CutIndices", {}];
-  directions = Lookup[record, "CutDirections", {}];
-  cutVectors = cutEquivalenceVector[#, momenta] & /@
-    Lookup[record, "CutMomenta", {}];
-  If[Length[indices] =!= Length[cutVectors] ||
-      Length[directions] =!= Length[indices] || ! DuplicateFreeQ[indices] ||
+  indices = Lookup[validated, "CutIndices", {}];
+  If[typed,
+    particles=Select[validated["Cuts"],#["Type"]==="Particle"&];
+    particleIndices=Lookup[particles,"Index",{}];
+    directions=Lookup[particles,"EnergyDirection",{}];
+    cutTypes=Lookup[validated["Cuts"],"Type"];
+    cutVectors=cutEquivalenceVector[#,momenta]&/@Lookup[particles,"Momentum",{}],
+    particleIndices=indices;directions=Lookup[record,"CutDirections",{}];
+    cutTypes=ConstantArray["Particle",Length[indices]];
+    cutVectors=cutEquivalenceVector[#,momenta]&/@Lookup[record,"CutMomenta",{}]];
+  If[Length[particleIndices] =!= Length[cutVectors] ||
+      Length[directions] =!= Length[particleIndices] || ! DuplicateFreeQ[indices] ||
       ! AllTrue[indices, IntegerQ[#] && 1 <= # <= Length[polynomials] &] ||
       ! AllTrue[directions, MemberQ[{1, -1}, #] &] ||
       MemberQ[cutVectors, $Failed] || ! FreeQ[polynomials, $Failed],
@@ -59,15 +68,31 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
     "KinematicRules" -> kinematics, "PropagatorPolynomials" -> polynomials,
     "Prescriptions" -> (Last[#[[4]]] & /@
       Cases[top[[2]], _FeynCalc`StandardPropagatorDenominator, Infinity]),
-    "CutIndices" -> indices,
+    "CutIndices" -> indices, "ParticleCutIndices"->particleIndices, "CutTypes"->cutTypes,
     "OrientedCutMomenta" -> MapThread[Times, {directions, cutVectors}],
-    "Normalization" -> Lookup[record, "Normalization", normalization]|>
+    "LoopFrameChangesPermitted" -> (
+      MemberQ[{None,{},True},Lookup[validated,"AdditionalAcceptanceBoundaries",None]]&&
+      FreeQ[If[typed,{validated["MeasurePrefactor"],Lookup[validated,"Assumptions",True],
+        Lookup[validated,"TimeDirection",None]},Lookup[record,"Normalization",normalization]],
+       Alternatives@@loops]),
+    "Normalization" -> If[typed,
+     {validated["MeasurePrefactor"],Lookup[validated,"Dimension",D],
+      validated["CutConvention"],validated["Definition"],Lookup[validated,"AdditionalAcceptanceBoundaries",None],
+      Lookup[validated,"Assumptions",True],Lookup[validated,"TimeDirection",None]},
+     Lookup[record,"Normalization",normalization]]|>
 ];
 
 cutEquivalenceFrames[top_Association] := Module[
   {l, n, cuts, choices, frames = {}, a, b, t, mappedGram, rules},
   l = Length[top["Loops"]]; n = Length[top["GramMatrix"]];
   cuts = top["OrientedCutMomenta"];
+  (* A loop-dependent measure or acceptance condition must itself be mapped.
+     Until such a domain map is supplied, only the identity frame is valid. *)
+  If[!TrueQ[Lookup[top,"LoopFrameChangesPermitted",False]],
+   Return[{<|"ChosenCutMomenta"->{},
+     "LoopTransformation"->IdentityMatrix[n][[1;;l]],
+     "CutMomenta"->cuts,
+     "Polynomials"->(Expand[#/.top["KinematicRules"]]&/@top["PropagatorPolynomials"])|>}]];
   choices = Flatten[Permutations /@ Subsets[Range[Length[cuts]], {l}], 1];
   Do[
     a = cuts[[chosen, 1 ;; l]];
@@ -88,7 +113,7 @@ cutEquivalenceFrames[top_Association] := Module[
 ];
 
 cutEquivalenceSignature[integral_, top_, frames_] := Module[
-  {powers, cuts, ordinary, candidates, key},
+  {powers, cuts, ordinary, candidates, key,cutRows,particleIndex},
   powers = integral[[2]]; cuts = top["CutIndices"];
   If[Length[powers] =!= Length[top["PropagatorPolynomials"]] ||
       ! VectorQ[powers, IntegerQ], Return[$Failed]];
@@ -100,8 +125,10 @@ cutEquivalenceSignature[integral_, top_, frames_] := Module[
   candidates = Table[
     key = {top["External"], Sort[top["KinematicRules"]],
       top["Normalization"],
-      Sort[MapThread[List, {frame["CutMomenta"], powers[[cuts]],
-        frame["Polynomials"][[cuts]]}]],
+      Sort[MapIndexed[Function[{index,position},
+        particleIndex=FirstPosition[top["ParticleCutIndices"],index,None,{1},Heads->False];
+        {top["CutTypes"][[First[position]]],powers[[index]],frame["Polynomials"][[index]],
+         If[particleIndex===None,None,Extract[frame["CutMomenta"],particleIndex]]}],cuts]],
       Sort[Select[Table[{frame["Polynomials"][[i]],
           top["Prescriptions"][[i]], powers[[i]]}, {i, ordinary}],
         Last[#] =!= 0 &]]};
@@ -111,24 +138,32 @@ cutEquivalenceSignature[integral_, top_, frames_] := Module[
 ];
 
 Options[FindCutIntegralEquivalences] = {
-  "PreferredMasterIntegrals" -> {}, "Normalization" -> Automatic};
+  "PreferredMasterIntegrals" -> {}, "Normalization" -> Automatic,
+  "OrdinaryPrescriptionGeometry" -> None};
 
 FindCutIntegralEquivalences[integrals_List, records_List,
     OptionsPattern[]] := Catch@Module[
   {ms, tops, selectedRecords, frames, signatures, groups, mappings = {},
    representatives = {}, preferred, rep, repSig, sig, original, fam,
-   normalization = OptionValue["Normalization"]},
+   normalization = OptionValue["Normalization"], originalByIntegral},
+  If[OptionValue["OrdinaryPrescriptionGeometry"]=!=None,
+    Return[cutCertifiedPrescriptionEquivalences[integrals,records,
+      OptionValue["OrdinaryPrescriptionGeometry"],normalization,
+      OptionValue["PreferredMasterIntegrals"]]]];
   If[normalization === Automatic,
     Throw[Failure["NormalizationRequired", <|
       "MessageTemplate" -> "Supply the common integral normalization explicitly."|>]]];
   ms = cutEquivalenceIntegral /@ integrals;
   If[! AllTrue[ms, MatchQ[#, FeynCalc`GLI[_String, {_Integer ..}]] &] ||
       ! DuplicateFreeQ[ms], Throw[Failure["InvalidMasterIntegrals", <||>]]];
+  originalByIntegral=AssociationThread[ms,integrals];
   preferred = cutEquivalenceIntegral /@ OptionValue["PreferredMasterIntegrals"];
   selectedRecords = Select[records,
     MemberQ[DeleteDuplicates[ms[[All, 1]]], cutEquivalenceFamilyName[#["Topology"][[1]]]] &];
   tops = cutEquivalenceTopology[#, normalization] & /@ selectedRecords;
   If[MemberQ[tops, $Failed], Throw[Failure["UnsupportedCutTopology", <||>]]];
+  If[!DuplicateFreeQ[Lookup[tops,"Family"]],
+    Throw[Failure["DistinctCutEquivalenceFamilyNamesRequired",<||>]]];
   tops = Association[(#["Family"] -> #) & /@ tops];
   If[Complement[ms[[All, 1]], Keys[tops]] =!= {},
     Throw[Failure["MissingCutTopology", <||>]]];
@@ -138,28 +173,68 @@ FindCutIntegralEquivalences[integrals_List, records_List,
     If[sig === $Failed, Throw[Failure["InvalidPoweredCutIntegral", <|"Integral" -> m|>]]];
     m -> sig, {m, ms}]];
   groups = GatherBy[ms, signatures[#]["Key"] &];
-  Do[
-    rep = First[SortBy[group, {If[MemberQ[preferred, #], 0, 1] &,
-      LeafCount, ToString[#, InputForm] &}]];
-    repSig = signatures[rep]; AppendTo[representatives, rep];
-    Do[
-      original = integrals[[First@FirstPosition[ms, m]]];
-      AppendTo[mappings, <|"Source" -> original,
-        "Representative" -> integrals[[First@FirstPosition[ms, rep]]],
-        "Factor" -> If[TrueQ[signatures[m]["Zero"]], 0, 1],
-        "SourceFrame" -> KeyTake[Replace[Lookup[signatures[m], "Frame", <||>], _Missing -> <||>],
-          {"ChosenCutMomenta", "LoopTransformation"}],
-        "RepresentativeFrame" -> KeyTake[Replace[Lookup[repSig, "Frame", <||>], _Missing -> <||>],
-          {"ChosenCutMomenta", "LoopTransformation"}]|>],
-      {m, group}],
-    {group, groups}];
+  representatives=Map[Function[group,
+    First[SortBy[group,{If[MemberQ[preferred,#],0,1]&,LeafCount,ToString[#,InputForm]&}]]],groups];
+  mappings=Flatten[MapThread[Function[{group,representative},
+    Map[Function[member,
+      <|"Source"->originalByIntegral[member],
+        "Representative"->originalByIntegral[representative],
+        "Factor"->If[TrueQ[signatures[member]["Zero"]],0,1],
+        "SourceFrame"->KeyTake[Replace[Lookup[signatures[member],"Frame",<||>],_Missing-><||>],
+          {"ChosenCutMomenta","LoopTransformation"}],
+        "RepresentativeFrame"->KeyTake[Replace[Lookup[signatures[representative],"Frame",<||>],_Missing-><||>],
+          {"ChosenCutMomenta","LoopTransformation"}]|>],group]],{groups,representatives}],1];
   <|"DataType" -> "CutIntegralEquivalences", "SchemaVersion" -> 1,
     "Method" -> "ExactAffineLoopMomentumChanges",
     "InputCount" -> Length[ms], "EquivalenceClassCount" -> Length[groups],
     "Normalization" -> normalization, "Mappings" -> mappings,
     "RepresentativeMasterIntegrals" ->
-      (integrals[[First@FirstPosition[ms, #]]] & /@ representatives),
+      (originalByIntegral /@ representatives),
     "UnmappedMasterIntegrals" ->
       Select[ms, MatchQ[Lookup[signatures[#], "Frame", None], _Missing] &],
     "MinimalIBPMasterCountDetermined" -> False|>
 ];
+
+
+(* The existing compact-cut certificate is applied separately to each powered
+   integral. A certificate for the original source product is not transferred
+   to its partial fractions. These are generic-kinematic identities only. *)
+cutCertifiedPrescriptionEquivalences[integrals_List,records_List,geometry_,
+ normalization_,preferred_List]:=Catch[Module[
+ {families,certificates=<||>,certificate,family,top,props,normalized,result,name},
+ If[!AssociationQ[geometry]||normalization===Automatic,
+  Throw[Failure["ExplicitPrescriptionGeometryAndNormalizationRequired",<||>]]];
+ If[Lookup[geometry,"PrescriptionScope","GenericKinematics"]=!="GenericKinematics",
+  Throw[Failure["JointEndpointPrescriptionEqualityNotEstablished",<||>]]];
+ If[!AllTrue[records,AssociationQ]||!AllTrue[integrals,MatchQ[#,_FeynCalc`GLI]&],
+  Throw[Failure["TypedPrescribedCutIntegralsRequired",<||>]]];
+ families=Association[(#["Topology"][[1]]->#)&/@records];
+ If[Length[families]=!=Length[records],
+  Throw[Failure["DistinctCutEquivalenceFamilyNamesRequired",<||>]]];
+ Do[
+  family=Lookup[families,master[[1]],Missing[]];
+  If[!AssociationQ[family],Throw[Failure["MissingCutTopology",<|"Integral"->master|>]]];
+  certificate=FeynFacet`CertifyOrdinaryPrescriptionRemoval[family,master,geometry];
+  If[!AssociationQ[certificate]||
+    FeynFacet`RequireOrdinaryPrescriptionCertificate[certificate,"GenericKinematics"]=!=True,
+   Throw[Failure["PoweredIntegralPrescriptionLimitRequired",<|"Integral"->master,"Cause"->certificate|>]]];
+  AssociateTo[certificates,master->certificate],
+ {master,integrals}];
+ normalized=Map[Function[record,
+  top=record["Topology"];
+  props=MapIndexed[If[MemberQ[record["CutIndices"],First[#2]],#1,
+    #1/.FeynCalc`StandardPropagatorDenominator[a_,b_,c_,{power_,eta_}]:>
+      FeynCalc`StandardPropagatorDenominator[a,b,c,{power,1}]]&,top[[2]]];
+  FeynFacet`CreateCutIntegralFamily[Join[record,<|"Topology"->ReplacePart[top,2->props]|>]]
+ ],Select[records,MemberQ[First/@integrals,#["Topology"][[1]]]&]];
+ If[!AllTrue[normalized,AssociationQ],Throw[Failure["NormalizedTypedCutFamiliesRequired",<||>]]];
+ result=FindCutIntegralEquivalences[integrals,normalized,
+  "Normalization"->normalization,"PreferredMasterIntegrals"->preferred];
+ If[!AssociationQ[result],Throw[result]];
+ Join[result,<|"Method"->"CertifiedOrdinaryPrescriptionLimitsAndExactAffineLoopChanges",
+  "OrdinaryPrescriptionCertificates"->certificates,
+  "OriginalIntegralDefinitions"->Select[records,MemberQ[First/@integrals,#["Topology"][[1]]]&],
+  "OrdinaryPrescriptionEqualityScope"->"GenericKinematics",
+  "ExternalEndpointUniformityEstablished"->False,
+  "Scope"->"Equality of the stated powered integrals at generic external kinematics. Measurement-distribution scope is recorded by each certificate. No joint external-endpoint distribution identity is asserted."|>]
+]];

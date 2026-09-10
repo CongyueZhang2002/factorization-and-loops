@@ -1,0 +1,14 @@
+$HistoryLength=0;$MaxExtraPrecision=50;
+root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+diagramCard=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/NLO/qqp-qqp","Real"];
+diagramPrepared=FeynFacet`PrepareProcessDiagrams[diagramCard];
+FTTest`FTAssert["preparation preserves generated diagrams",AssociationQ[diagramPrepared]&&FeynFacet`GenerateDiagram[diagramCard,"PreparedDiagrams"->diagramPrepared]===diagramPrepared["DiagramsBySide"]];
+diagramSelected=Join[diagramCard,<|"ForwardAmplitudes"->Append[diagramCard["ForwardAmplitudes"],"SelectedIndex"->1],"ConjugateAmplitudes"->Append[diagramCard["ConjugateAmplitudes"],"SelectedIndex"->2]|>];
+FTTest`FTAssert["pair selection reuses the same process diagrams",FeynFacet`GenerateDiagram[diagramSelected,"PreparedDiagrams"->diagramPrepared]===diagramPrepared["DiagramsBySide"]];
+FTTest`FTAssert["model changes reject stale prepared diagrams",Quiet[FeynFacet`GenerateDiagram[Append[diagramSelected,"Model"->"DifferentModel"],"PreparedDiagrams"->diagramPrepared]]===$Failed];
+diagramBad=Join[diagramSelected,<|"ForwardAmplitudes"->Join[diagramCard["ForwardAmplitudes"],<|"DiagramIndices"->{999},"SelectedIndex"->999|>]|>];
+FTTest`FTAssert["reuse still validates the generated diagram count",Quiet[FeynFacet`GenerateDiagram[diagramBad,"PreparedDiagrams"->diagramPrepared]]===$Failed];
+diagramLoop=Join[diagramSelected,<|"ForwardAmplitudes"->Join[diagramCard["ForwardAmplitudes"],<|"LoopOrder"->1,"LoopMomenta"->{diagramLoopMomentum}|>]|>];
+FTTest`FTAssert["loop order changes reject stale prepared diagrams",Quiet[FeynFacet`GenerateDiagram[diagramLoop,"PreparedDiagrams"->diagramPrepared]]===$Failed];
+FTTest`FTReport[];

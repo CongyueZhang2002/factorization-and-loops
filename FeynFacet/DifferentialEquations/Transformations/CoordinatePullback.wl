@@ -115,4 +115,31 @@ FeynFacet`PullBackMasterIntegralDifferentialSystem[system_Association,param_Asso
     "DomainConvention"->"A nonsingular simply connected neighborhood of the chosen lift; continuous roots from their stated base values."|>|>];
  Clear[pull,rootImage];result
 ],"FiniteSolution"],OptionValue["TimeLimit"],Failure["RationalizingPullbackTimeLimit",<||>]];
+
+FeynFacet`PullBackRationalDifferentialSystem::usage="PullBackRationalDifferentialSystem[system,targetVariables,rules] pulls a rational multivariable connection through an explicit generically nonsingular rational coordinate map. It retains the original master definitions separately and does not infer a physical boundary condition or a distributional Jacobian.";
+FeynFacet`PullBackRationalDifferentialSystem[input_Association,target:{__Symbol},substitution:{__Rule}]:=Catch[Module[
+ {system,source,matrices,images,jacobian,connection,entries,n},
+ system=solutionNormalizeDifferentialSystem[input];
+ If[!AssociationQ[system],solutionFail["RationalPullbackSourceSystemRequired",<|"Cause"->system|>]];
+ source=system["KinematicVariables"];matrices=Normal/@system["ConnectionMatrices"];
+ If[Length[source]=!=Length[target]||First/@substitution=!=source||
+   !DuplicateFreeQ[Join[source,target]],solutionFail["IndependentRationalPullbackCoordinatesRequired"]];
+ images=source/.substitution;jacobian=Table[D[images[[i]],target[[j]]],{i,Length[source]},{j,Length[target]}];
+ If[!AllTrue[images,PolynomialQ[Numerator[Together[#]],target]&&PolynomialQ[Denominator[Together[#]],target]&]||
+   Cancel[Together[Det[jacobian]]]===0,solutionFail["GenericallyNonsingularRationalCoordinateMapRequired"]];
+ n=Length[First[matrices]];
+ connection=Table[
+  entries=FeynFacet`CancelRationalCoefficients[Flatten[Total[Table[
+    jacobian[[j,i]](matrices[[j]]/.substitution),{j,Length[source]}]]]];
+  If[!ListQ[entries],solutionFail["ExactRationalConnectionPullbackFailed",<|"Cause"->entries|>]];
+  Partition[entries,n],{i,Length[target]}];
+ <|"DataType"->"FamilyDifferentialSystem","KinematicVariables"->target,
+  "DimensionalRegulator"->system["DimensionalRegulator"],"DimensionRule"->Lookup[system,"DimensionRule",None],
+  "ConnectionMatrices"->connection,
+  "MasterIntegralBasis"->Lookup[system,"MasterIntegralBasis",Range[n]],
+  "OriginalMasterIntegralBasis"->Lookup[system,"MasterIntegralBasis",Range[n]],
+  "CoordinatePullback"-><|"SourceVariables"->source,"Substitution"->substitution,
+   "JacobianMatrix"->jacobian,"SignedJacobian"->Factor[Det[jacobian]],
+   "SourceDifferentialSystem"->system,"ConnectionRule"->"A'_i=Sum_j (d x_j/d t_i) A_j(x(t))."|>|>
+],"FiniteSolution"];
 End[];

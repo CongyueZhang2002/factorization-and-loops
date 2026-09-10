@@ -14,8 +14,9 @@ finiteFieldAssembleResult[
     recordsByName, equivalence, classByName, masterData,
     reconstructed, forbiddenMomenta, remainingMomenta,
     remainingFractionObjects, cutCheck,
-    reconstructionData, certifiedColumn, rootSubstitutions
+    reconstructionData, certifiedColumn, rootSubstitutions, supportContext
   },
+  supportContext=Join[context,<|"ExternalDistribution"->data["PhaseSpace"]|>];
   outputs = MapThread[
     Join[#1, <|"RationalExpression" -> #2|>] &,
     {
@@ -29,7 +30,7 @@ finiteFieldAssembleResult[
      coefficient carrying a root variable is a regression of the
      descend, not a parity accident.  The check stays where it is
      cheap: on the small reconstructed output, never on trace inputs. *)
-  certifiedColumn[entries_List] := finiteFieldCertifyRootFree[
+  certifiedColumn[entries_List] := finiteFieldCertifyPhysicalVariables[
     Total[
       Function[entry,
         ReleaseHold[
@@ -37,7 +38,7 @@ finiteFieldAssembleResult[
         ] entry["RationalExpression"]
       ] /@ entries
     ],
-    context
+    supportContext
   ];
   coefficients = AssociationMap[
     Function[index, certifiedColumn[Lookup[grouped, index, {}]]],
@@ -63,7 +64,6 @@ finiteFieldAssembleResult[
       Function[{master, position},
         Module[{coefficient, record},
           coefficient = coefficients[First[position]];
-          If[TrueQ[coefficient === 0], Return[Nothing]];
           record = recordsByName[master[[1]]];
           <|
             "Master" -> master,
@@ -151,7 +151,7 @@ finiteFieldAssembleResult[
     ]
   |>;
   Join[
-    resultHeader["FeynFacet-IBP", 8],
+    <||>,
     resultContext[data],
     <|
       "FractionMeasure" -> data["FractionMeasure"],
@@ -165,6 +165,8 @@ finiteFieldAssembleResult[
         "DistributionFactor" -> context["ExpectedDistributionFactor"],
         "LaurentValuation" -> context["ExpectedLaurentValuation"],
         "DimensionlessCoordinates" -> context["DimensionlessCoordinates"],
+        "CoordinateRestriction" -> <|"Equalities"->Lookup[context,"CoordinateEqualities",{}],
+          "ExternalDistribution"->data["PhaseSpace"],"NormalDerivativeDataAvailable"->False|>,
         "BranchGrammar" -> context["BranchGrammar"],
         (* Provenance of the root treatment.  The root variables are no
            longer a representation of the result - they are the

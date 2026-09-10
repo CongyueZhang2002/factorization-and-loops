@@ -10,6 +10,7 @@ $FACETMathematicaAddonDirectories = <|
   "SubTropica" -> FileNameJoin[{$FACETMathematicaAddonRoot, "SubTropica"}],
   "Libra" -> FileNameJoin[{$FACETMathematicaAddonRoot, "Libra", "Source"}],
   "HPL" -> FileNameJoin[{$FACETMathematicaAddonRoot, "HPL", "HPL-2.0"}],
+  "MT" -> FileNameJoin[{$FACETMathematicaAddonRoot, "MT"}],
   "PolyLogTools" -> FileNameJoin[{$FACETMathematicaAddonRoot, "PolyLogTools"}],
   "CANONICA" -> FileNameJoin[{$FACETMathematicaAddonRoot, "CANONICA", "src"}],
   "AMFlow" -> FileNameJoin[{$FACETMathematicaAddonRoot, "AMFlow"}],
@@ -37,6 +38,7 @@ $FACETMathematicaAddonEntryPoints = <|
   "HPL" -> FileNameJoin[{
     $FACETMathematicaAddonDirectories["HPL"], "HPL.m"
   }],
+  "MT" -> FileNameJoin[{$FACETMathematicaAddonDirectories["MT"], "MT.m"}],
   "PolyLogTools" -> FileNameJoin[{
     $FACETMathematicaAddonDirectories["PolyLogTools"], "PolyLogTools.m"
   }],
@@ -88,6 +90,12 @@ FACETAddonFile[name_String] := (
 FACETLoadAddon[name_String] /;
     KeyExistsQ[$FACETMathematicaAddonEntryPoints, name] :=
   Get[$FACETMathematicaAddonEntryPoints[name]];
+
+(* HPL 2.0 resolves its exact tables through this documented global path. *)
+FACETLoadAddon["HPL"] := (
+  Global`$HPLPath = $FACETMathematicaAddonDirectories["HPL"];
+  Get[$FACETMathematicaAddonEntryPoints["HPL"]]
+);
 
 FACETLoadAddon[name_String] := (
   Message[FACETLoadAddon::name, name];

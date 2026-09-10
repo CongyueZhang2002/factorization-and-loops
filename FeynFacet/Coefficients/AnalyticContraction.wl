@@ -31,9 +31,11 @@ FeynFacet`ContractAnalyticMasterCoefficients[table_Association,values_Associatio
   converted=Join[entry,<|"Terms"->(Join[#,<|"PreFactor"->((#["PreFactor"]mult)/.rules),
       "Coefficient"->(#["Coefficient"]/.rules)|>]& /@ entry["Terms"])|>];
   expr=Total[(#["PreFactor"]#["Coefficient"]& /@ converted["Terms"])];
-  valuation=FeynFacet`DetermineLaurentValuation[expr,e];
+  (* A structural lower bound covers analytic sums and remains sufficient
+     when leading terms cancel. Reciprocals still require exact valuations. *)
+  valuation=FeynFacet`DetermineMeromorphicLaurentLowerBound[expr,e];
   If[!IntegerQ[valuation],
-    If[TrueQ[expr===0],Continue[],epsOrderFail["AnalyticCoefficientLaurentValuationRequired",<|"Master"->master,"Valuation"->valuation|>]]];
+    If[valuation===Infinity,Continue[],epsOrderFail["AnalyticCoefficientLaurentBoundRequired",<|"Master"->master,"LowerBound"->valuation|>]]];
   needed=high-valuation;
   If[!exact&&mhigh<needed,epsOrderFail["InsufficientAnalyticMasterOrders",<|"Master"->master,"RequiredThroughOrder"->needed,"KnownThroughOrder"->mhigh|>]];
   If[!exact,epsilonAuditMultiplier[expr,e,mlow,mhigh,high,"AnalyticMasterContraction",master]];
@@ -41,9 +43,53 @@ FeynFacet`ContractAnalyticMasterCoefficients[table_Association,values_Associatio
   If[FailureQ[coefficients],epsOrderFail["AnalyticCoefficientExpansionFailed",<|"Master"->master,"Cause"->coefficients|>]];
   one=Association@Table[j->Total[KeyValueMap[Function[{k,value},value Lookup[coefficients["Coefficients"],j-k,0]],cs]],{j,low,high}];
   output=Merge[{output,one},Total];AppendTo[contributions,<|"MasterIntegral"->master,"RequiredThroughOrder"->needed,
-   "KnownThroughOrder"->mhigh,"Coefficients"->one|>],{entry,table["Masters"]}];
+   "KnownThroughOrder"->mhigh,"CoefficientLaurentLowerBound"->valuation,"Coefficients"->one|>],{entry,table["Masters"]}];
  <|"Format"->"FeynFacet-AnalyticMasterContraction","FormatVersion"->1,"DimensionalRegulator"->e,
   "EpsilonOrderRange"->range,"Coefficients"->output,"MasterContributions"->contributions,
   "PhaseSpace"->Lookup[table,"PhaseSpace",1],"MasterCount"->Length[table["Masters"]]|>
+ ],"EpsilonOrders"];
+
+FeynFacet`ContractExplicitMasterSolution::usage="ContractExplicitMasterSolution[rows,solution,request] contracts sparse exact coefficient rows with a fully explicit saved master Laurent solution in the common normalization. It checks every master order and returns finite Laurent coefficients; endpoint continuation remains a separate operation.";
+FeynFacet`ContractExplicitMasterSolution[rows_Association,solution_Association,request_Association]:=
+ Catch[Module[{basis,e,known,low,upper,values,rules,table,result,results=<||>,progress,range,
+   current,master,orders},
+ basis=Lookup[solution,"MasterIntegralBasis",None];e=Lookup[solution,"DimensionalRegulator",None];
+ known=Lookup[solution,"Coefficients",None];low=Lookup[solution,"OriginalMasterLaurentLowerBounds",None];
+ upper=Lookup[solution,"MasterIntegralUpperOrders",None];rules=Lookup[request,"MasterKinematicRules",{}];
+ range=Lookup[request,"EpsilonOrderRange",None];
+ If[!ListQ[basis]||!AssociationQ[known]||!MatchQ[e,_Symbol]||
+  !VectorQ[low,IntegerQ]||!VectorQ[upper,IntegerQ]||Length[low]=!=Length[basis]||
+  Length[upper]=!=Length[basis]||!AllTrue[Values[rows],AssociationQ[#]&&ContainsAll[basis,Keys[#]]&]||
+  !MatchQ[range,{_Integer,_Integer}]||
+  !TrueQ[Lookup[solution,"BoundaryValuesApplied",False]]||
+  !AllTrue[Lookup[solution,{"AlgebraicDefinitions","KernelDefinitions","IntegralDefinitions"},{}],#==={}&],
+  epsOrderFail["FullyExplicitMatchedMasterSolutionRequired"]];
+ If[Cases[Values[known],_Derivative,{0,Infinity},Heads->True]=!={}||
+  !FreeQ[Values[known],_FeynCalc`GLI|_Integrate|_Inactive|_Missing|_Failure|
+    _FeynFacetSolution`F|_FeynFacetSolution`C|_FeynFacetSolution`a|_FeynFacetSolution`i],
+  epsOrderFail["UnresolvedMasterSolutionDefinitions"]];
+ values=Association@Table[
+  master=basis[[j]];orders=Range[low[[j]],upper[[j]]];
+  If[!AllTrue[orders,KeyExistsQ[known,{j,#}]&],
+   epsOrderFail["ContiguousExplicitMasterLaurentCoefficientsRequired",<|"Master"->master|>]];
+  j-><|"MasterIntegral"->master,"DimensionalRegulator"->e,"LaurentLowerBound"->low[[j]],
+   "KnownThroughOrder"->upper[[j]],"Coefficients"->Association@Table[
+    k->(known[[Key[{j,k}]]]/.rules),{k,orders}]|>,{j,Length[basis]}];
+ progress=Lookup[request,"ProgressFunction",None];
+ Do[
+  If[progress=!=None,progress[label]];
+  table=<|"PreFactor"->1,"DimensionalRegulator"->e,"RemainderTerms"->{},
+   "Masters"->KeyValueMap[Function[{mi,c},<|"Master"->mi,
+    "Terms"->{<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->c|>}|>],rows[label]]|>;
+  result=FeynFacet`ContractAnalyticMasterCoefficients[table,values,
+   <|"EpsilonOrderRange"->range,"Normalization"->1,
+    "MeasureConversions"->AssociationThread[basis,ConstantArray[1,Length[basis]]]|>];
+  If[FailureQ[result],epsOrderFail["ExplicitMasterRowContractionFailed",<|"Row"->label,"Cause"->result|>]];
+  AssociateTo[results,label->KeyDrop[result,{"MasterContributions","PhaseSpace"}]],
+ {label,Keys[rows]}];
+ <|"Format"->"FeynFacet-ExplicitMasterCoefficientRows","DimensionalRegulator"->e,
+  "EpsilonOrderRange"->range,"Rows"->results,"MasterIntegralBasis"->basis,
+  "MasterKinematicRules"->rules,"EndpointDistributionsConstructed"->False,
+  "Scope"->"Pointwise Laurent coefficients on the open physical domain, in the already common normalization."|>
  ],"EpsilonOrders"];
 End[];EndPackage[];

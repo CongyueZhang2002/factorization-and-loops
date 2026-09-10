@@ -1,9 +1,5 @@
-(* FeynFacet/Core/Records.wl -- split out of Core/Base/Core.wl in round 5
-   (2026-09-02, substructure ruling): the context-guarded artifact reader/writer
-   FamilyArtifactRead/Write (from EpsForm in round 4) and the length-prefixed
-   binary record I/O coefficient*Record (from Reduction in round 4).
-   Verbatim moves of whole top-level statements; loads after Base/Core.wl
-   (Kernel/Modules.wl), inside the FeynFacet`Private` context. *)
+(* Context-guarded Wolfram records, atomic writes, and length-prefixed
+   binary coefficient records. *)
 
 Begin["FeynFacet`Private`"];
 
@@ -18,39 +14,10 @@ ClearAll[
   coefficientReadRecord
 ];
 
-(* Context-guarded artifact reader. After CANONICA is on the context
-   path, a bare Get parses eps/x/y into CANONICA` and every later
-   symbolic comparison silently fails (measured 2026-08-20: in one
-   kernel the first family certified and every later one failed its
-   connection-transformation equation). All campaign and worker reads of .wl artifacts go
-   through this function.
-
-   FamilyArtifactRead[file] keeps the historical default context exactly:
-   the file is parsed with $Context = "Global`" and
-   $ContextPath = {"System`", "Global`"}.  FamilyArtifactRead[file,
-   context] parses it into an explicit context instead, so a caller can
-   isolate an artifact's symbols from Global` (the pattern of
-   MultiquadraticOffDiagonalBlockSolve.wl's hydration).
-
-   Failure discrimination, rebased 2026-08-23 (port-agent defect J).
-   The old body was Quiet[Check[Get[file], $Failed]], which treats ANY
-   message as a read failure and therefore threw away a perfectly valid
-   artifact whose evaluation emitted a benign message.  Measured on
-   14.2.1, the three failure modes are distinct:
-     - a missing or unopenable file: Get returns $Failed;
-     - an aborted read: CheckAbort returns $Aborted (the old body let the
-       abort propagate into the caller);
-     - a syntax-corrupt file (truncated Association, stray bracket,
-       binary garbage): Get returns Null, NOT $Failed, and the parser
-       messages (Syntax::sntue, Syntax::com, Syntax::sntx) are NOT
-       recorded in $MessageList -- the old body typed those failures only
-       as a side effect of Check firing on every message.  They are
-       therefore named explicitly below, so a corrupt artifact still
-       fails typed while a benign message no longer discards a good one.
-   $MessageList collects the benign messages of the last read into
-   $familyArtifactReadMessages; that variable is a diagnostic, not part
-   of the contract.  An empty file still reads as Null, exactly as
-   before. *)
+(* Parse unqualified symbols in the requested context, independent of
+   optional packages on the caller's context path. Qualified names remain unchanged. New records qualify symbols, including shadowable System names, so that both guarded reads and ordinary Get preserve identities.
+   Syntax errors and aborted reads fail; benign evaluation messages are
+   retained separately and do not discard an otherwise valid record. *)
 $familyArtifactReadMessages = {};
 
 FamilyArtifactRead[file_String] := FamilyArtifactRead[file, "Global`"];
@@ -74,12 +41,18 @@ FamilyArtifactRead[file_String, context_String] := Module[{value, messages},
   If[value === $Aborted, $Failed, value]];
 
 (* Atomic artifact writer: Put to a temporary name, then RenameFile. *)
-FamilyArtifactWrite[value_, file_String] := Module[{directory, temporary},
+Options[FamilyArtifactWrite]={"Compression"->False};
+FamilyArtifactWrite[value_, file_String,OptionsPattern[]] := Module[{directory, temporary,stream},
   directory = DirectoryName[ExpandFileName[file]];
   If[directory =!= "" && ! DirectoryQ[directory],
     CreateDirectory[directory, CreateIntermediateDirectories -> True]];
   temporary = file <> ".partial-" <> ToString[$ProcessID];
-  Put[value, temporary];
+  If[TrueQ[OptionValue["Compression"]]||(OptionValue["Compression"]===Automatic&&ByteCount[value]>8*1024^2),
+    stream=OpenWrite[temporary];
+    WriteString[stream,"Uncompress[",ToString[Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Compress[value]],InputForm],"]\n"];Close[stream],
+    (* Both package names and System names shadowed by packages must
+       retain their explicit contexts in small uncompressed records. *)
+    Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Put[value, temporary]]];
   RenameFile[temporary, file, OverwriteTarget -> True];
   file
 ];

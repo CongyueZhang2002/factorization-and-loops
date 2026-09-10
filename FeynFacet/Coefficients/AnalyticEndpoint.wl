@@ -30,7 +30,11 @@ analyticEndpointLeading[x_,e_,z_,assum_]:=Module[{parts,germ,order,coefficient,r
   True,
    If[!PolynomialQ[Numerator[Together[x]],z]||!PolynomialQ[Denominator[Together[x]],z],
     analyticEndpointFail["RationalEndpointFactorRequired",<|"Expression"->x|>]];
-   order=FeynFacet`DetermineLaurentValuation[x,z];
+   (* The endpoint coordinate and dimensional regulator are independent.
+      The epsilon-order API intentionally normalizes regulator aliases, so
+      it must not be used for this rational valuation in the coordinate. *)
+   germ=Together[x];
+   order=Exponent[Numerator[germ],z,Min]-Exponent[Denominator[germ],z,Min];
    If[!IntegerQ[order],analyticEndpointFail["RationalEndpointFactorRequired",<|"Expression"->x,"Valuation"->order|>]];
    coefficient=Cancel[SeriesCoefficient[x,{z,0,order}]];
    If[!FreeQ[coefficient,z|_SeriesCoefficient|_Failure],analyticEndpointFail["ExplicitEndpointLeadingCoefficientRequired"]];

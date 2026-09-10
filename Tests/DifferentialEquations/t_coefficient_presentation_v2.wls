@@ -61,7 +61,7 @@ badSpecification =
       "SourceVariableRepresentation", "Unexpected" -> True|>];
 
 projectSpecifications = FeynFacet`FamilyArtifactRead[FileNameJoin[{root,
-  "ppHX_NNLO_DoubleReal", "Cards", "DifferentialEquations",
+  "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Geometry", "DifferentialEquations",
   "FamilyCoefficientPresentationSpecifications.wl"}]];
 projectPresentations = Association@KeyValueMap[
   Function[{family, specification}, family ->

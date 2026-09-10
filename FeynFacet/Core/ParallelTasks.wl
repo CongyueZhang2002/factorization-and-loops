@@ -1,3 +1,15 @@
+(* Starting many local WSTP links simultaneously can lose one connection
+   on this runtime. Small launch batches avoid that startup race. The return
+   value contains only newly opened kernels; existing caller pools are retained. *)
+Clear[facetLaunchKernels];
+facetLaunchKernels[count_Integer?NonNegative]:=Module[{opened={},batch,left=count},
+ While[left>0,
+  batch=LaunchKernels[Min[2,left]];
+  If[!ListQ[batch]||batch==={},Break[]];
+  opened=Join[opened,batch];left=count-Length[opened]];
+ opened
+];
+
 (* Task broker: farm the parallelizable pieces of a mission to the FREE
    subkernels of the same KernelPool through its file queue.
 

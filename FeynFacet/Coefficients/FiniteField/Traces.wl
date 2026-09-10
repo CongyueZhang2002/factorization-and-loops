@@ -345,7 +345,7 @@ finiteFieldTraceInputs[
     If[workerCount > 1,
       existingKernels = Kernels[];
       If[Length[existingKernels] < workerCount,
-        launchedKernels = LaunchKernels[
+        launchedKernels = facetLaunchKernels[
           workerCount - Length[existingKernels]
         ]
       ];

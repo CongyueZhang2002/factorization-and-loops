@@ -17,4 +17,24 @@ shortAudit=FeynFacet`WithEpsilonRemainderChecks[FeynFacet`ContractAnalyticMaster
 check["deliberately shortened cutoff independently detected",shortAudit["EpsilonRemainderAudit"]["Status"]==="Failed"];
 check["missing measure conversion rejected",FailureQ[FeynFacet`ContractAnalyticMasterCoefficients[table,<|1->value|>,Join[request,<|"MeasureConversions"-><||>|>]]]];
 check["missing master rejected",FailureQ[FeynFacet`ContractAnalyticMasterCoefficients[table,<||>,request]]];
+
+explicitSolution=<|"MasterIntegralBasis"->{master},"DimensionalRegulator"->epTest,
+ "OriginalMasterLaurentLowerBounds"->{-1},"MasterIntegralUpperOrders"->{1},
+ "BoundaryValuesApplied"->True,"AlgebraicDefinitions"->{},"KernelDefinitions"->{},
+ "IntegralDefinitions"->{},"Coefficients"-><|{1,-1}->bm1,{1,0}->b0,{1,1}->b1|>|>;
+explicitRows=<|"channel"-><|master->1/epTest|>|>;
+explicitAudit=FeynFacet`WithEpsilonRemainderChecks[
+ FeynFacet`ContractExplicitMasterSolution[explicitRows,explicitSolution,<|"EpsilonOrderRange"->{0,0}|>]];
+check["sparse rows contract a matched explicit solution with the same order audit",
+ AssociationQ[explicitAudit["Result"]]&&explicitAudit["Result"]["Rows"]["channel"]["Coefficients"][0]===b1&&
+ explicitAudit["EpsilonRemainderAudit"]["Status"]==="Passed"];
+largeMultiplier=(Sum[(ax+az)^j epTest^j,{j,0,30}])Gamma[1-epTest]^2/epTest^2;
+largeAudit=FeynFacet`WithEpsilonRemainderChecks[
+ FeynFacet`Private`epsilonAuditMultiplier[largeMultiplier,epTest,0,2,0,"LargeRational",master]];
+check["a large rational coefficient does not need a full marked-function series",
+ largeAudit["EpsilonRemainderAudit"]["Status"]==="Passed"];
+gammaPole=FeynFacet`WithEpsilonRemainderChecks[
+ FeynFacet`Private`epsilonAuditMultiplier[Gamma[epTest]/epTest,epTest,0,0,0,"GammaPole",master]];
+check["analytic-factor poles cannot be ignored by the fast remainder check",
+ gammaPole["EpsilonRemainderAudit"]["Status"]==="Failed"];
 Print["ANALYTIC_CONTRACTION_TESTS ",passed,"/",passed+failed];Exit[If[failed===0,0,1]];

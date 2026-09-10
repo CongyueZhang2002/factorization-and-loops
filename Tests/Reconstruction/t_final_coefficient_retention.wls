@@ -4,7 +4,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{root,"Tests","TestKit.wl"}]];
 Get[FileNameJoin[{root,"Addon","Load","LoadFACET.wl"}]];
 run="retention_test_"<>StringReplace[CreateUUID[],"-"->""];
-resultDirectory=FileNameJoin[{root,"ppHX_NLO","Results",run}];
+resultDirectory=FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NLO","qqp-qqp","Results",run}];
 CreateDirectory[resultDirectory];
 kira=FileNameJoin[{resultDirectory,"KiraResult.wl"}];
 work=FeynFacet`Private`coefficientWorkDirectory[kira];

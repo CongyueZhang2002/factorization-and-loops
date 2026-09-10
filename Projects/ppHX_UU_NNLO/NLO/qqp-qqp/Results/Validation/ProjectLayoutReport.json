@@ -1,0 +1,57 @@
+{
+  "Tests": [
+    {
+      "Test": "Tests/Core/t_project_cards_and_results.wls",
+      "ExitCode": 0,
+      "Seconds": 4.488741189998109
+    },
+    {
+      "Test": "Tests/Core/t_hermitian_interferences.wls",
+      "ExitCode": 0,
+      "Seconds": 13.092705404007575
+    },
+    {
+      "Test": "Tests/Core/t_prepared_process_diagrams.wls",
+      "ExitCode": 0,
+      "Seconds": 2.9548267489881255
+    },
+    {
+      "Test": "Tests/Core/t_coefficient_work_paths.wls",
+      "ExitCode": 0,
+      "Seconds": 3.0014884599950165
+    },
+    {
+      "Test": "Tests/Core/t_collinear_counterterms.wls",
+      "ExitCode": 0,
+      "Seconds": 1.272747042006813
+    },
+    {
+      "Test": "Tests/Core/t_nlo_counterterm_workflow.wls",
+      "ExitCode": 0,
+      "Seconds": 2.951217282010475
+    },
+    {
+      "Test": "Tests/Coefficients/t_nlo_hard_function_assembly.wls",
+      "ExitCode": 0,
+      "Seconds": 2.8716225270181894
+    }
+  ],
+  "NLOIndependentReferenceChecks": 53,
+  "FullRegenerationSeconds": {
+    "UU": 135.751851,
+    "LL": 150.488686
+  },
+  "CardCounts": {
+    "OldNLO": 41,
+    "NewNLOAcrossPolarizations": 9,
+    "NewBornAcrossPolarizations": 5,
+    "NewProjectRootCards": 3,
+    "NewNNLODoubleReal": 1
+  },
+  "AllListedTestsPassed": true,
+  "NewNLOConfigurationCardCount": 17,
+  "PackageLayout": {
+    "Sources": 171,
+    "Errors": 0
+  }
+}

@@ -67,10 +67,23 @@ normalizeAmplitudeSelection[
 ];
 
 
-GenerateDiagram[setup_Association] := Module[
+(* Prepared diagrams are scoped to one run with fixed FeynArts model data.
+   Their explicit generation inputs, not a hash or pair index, establish reuse. *)
+diagramGenerationInput[setup_Association] := {
+  Lookup[setup, {"Partons", "Model", "InsertionLevel", "ExcludeTopologies", "ExcludeParticles"}],
+  Lookup[setup,"ElectromagneticCharges",<||>],
+  Lookup[Lookup[setup, {"ForwardAmplitudes", "ConjugateAmplitudes"}], "LoopOrder"]
+};
+PrepareProcessDiagrams[setup_Association] := Module[{diagrams = GenerateDiagram[setup]},
+  If[diagrams === $Failed, $Failed,
+    <|"GenerationInput" -> diagramGenerationInput[setup], "DiagramsBySide" -> diagrams|>]
+];
+GenerateDiagram::prepared = "Prepared diagrams do not match the requested process and loop orders. Prepare them again after changing model data.";
+Options[GenerateDiagram] = {"PreparedDiagrams" -> Automatic};
+GenerateDiagram[setup_Association, OptionsPattern[]] := Module[
   {
     setupKeys, sideSetups, generateAtLoopOrder,
-    loopOrders, diagramsByLoopOrder, diagramsBySide, resolved
+    loopOrders, diagramsByLoopOrder, diagramsBySide, resolved, prepared
   },
 
   setupKeys = {
@@ -100,6 +113,7 @@ GenerateDiagram[setup_Association] := Module[
     }
   ];
   If[MemberQ[resolved, $Failed], Return[$Failed]];
+  If[modelInitializeCurrentCharges[setup]=!=True,Return[$Failed]];
   generateAtLoopOrder[loopOrder_Integer] := FeynArts`InsertFields[
     FeynArts`CreateTopologies[
       loopOrder,
@@ -116,19 +130,30 @@ GenerateDiagram[setup_Association] := Module[
     Values[sideSetups],
     "LoopOrder"
   ];
-  diagramsByLoopOrder = AssociationMap[generateAtLoopOrder, loopOrders];
-  diagramsBySide = <|
-    "Amplitude" -> diagramsByLoopOrder[
-      sideSetups["Amplitude"]["LoopOrder"]
-    ],
-    "Conjugate" -> diagramsByLoopOrder[
-      sideSetups["Conjugate"]["LoopOrder"]
-    ]
-  |>;
+  prepared = OptionValue["PreparedDiagrams"];
+  If[prepared === Automatic,
+    diagramsByLoopOrder = AssociationMap[generateAtLoopOrder, loopOrders];
+    diagramsBySide = <|
+      "Amplitude" -> diagramsByLoopOrder[
+        sideSetups["Amplitude"]["LoopOrder"]
+      ],
+      "Conjugate" -> diagramsByLoopOrder[
+        sideSetups["Conjugate"]["LoopOrder"]
+      ]
+    |>;
+  ,
+    If[! AssociationQ[prepared] ||
+        Lookup[prepared, "GenerationInput", None] =!= diagramGenerationInput[setup] ||
+        ! AssociationQ[Lookup[prepared, "DiagramsBySide", None]],
+      Message[GenerateDiagram::prepared]; Return[$Failed]];
+    diagramsBySide = prepared["DiagramsBySide"];
+    If[Sort[Keys[diagramsBySide]] =!= Sort[sideNames],
+      Message[GenerateDiagram::prepared]; Return[$Failed]]
+  ];
   resolved = MapThread[
     normalizeAmplitudeSelection,
     {
-      Values[diagramsBySide],
+      Lookup[diagramsBySide, sideNames],
       Values[sideSetups],
       {"ForwardAmplitudes", "ConjugateAmplitudes"}
     }
@@ -201,7 +226,11 @@ optionalKeys = Join[
     "CoefficientKinematics",
     "KinematicMassDimensions",
     "MasslessQuarkFlavors",
-    "BornDensity"
+    "ElectromagneticCharges",
+    "BornDensity",
+    "GluonPolarizationReferences",
+    "ComplexParameters",
+    "ColorRules"
   },
   feynArtsKeys
 ];
@@ -424,6 +453,19 @@ cardHadronicVariables[config_Association] := inferPartonCoordinates[
   ]
 ];
 
+(* Express the declared coefficient region in the original invariants. *)
+coefficientKinematicsAssumptions[config_Association] := Module[
+  {kinematics, coordinates, fractions, region},
+  kinematics = Lookup[config, "CoefficientKinematics", <||>];
+  If[!AssociationQ[kinematics], Return[$Failed]];
+  coordinates = Lookup[kinematics, "DimensionlessCoordinates", <||>];
+  fractions = Lookup[kinematics, "PositiveFractions", Automatic];
+  If[!AssociationQ[coordinates] || !MatchQ[fractions, Automatic | {_Symbol ...}],
+    Return[$Failed]];
+  region = Lookup[kinematics, "PhysicalRegion", True] /. Normal[coordinates];
+  region && If[fractions === Automatic, True, And @@ (# > 0 & /@ fractions)]
+];
+
 cardAssumptions[config_Association, hadronic_Association] := Module[
   {coefficientAssumptions},
   coefficientAssumptions = coefficientKinematicsAssumptions[config];
@@ -523,7 +565,7 @@ normalizeProcess[config_Association] := Module[
     phaseMomenta, integratedMomenta, allMomenta, amplitudeSides,
     declaredVectors, zeroDistributions, zeroEvanescent, zeroMass,
     fractionAssumptions, hadronicVariables, coefficientKinematics,
-    massDimensions
+    massDimensions, gluonReferences, gluonProducts
   },
 
   missing = Complement[requiredKeys, Keys[config]];
@@ -544,6 +586,8 @@ normalizeProcess[config_Association] := Module[
     ]
   ];
 
+  If[!MatchQ[Lookup[config,"ComplexParameters",{}],{_Symbol ...}],
+    fail["ComplexParameters",Lookup[config,"ComplexParameters"],"Expected a list of complex scalar parameters."]];
   partonSides = Lookup[config, "Partons"];
   If[Head[partonSides] =!= Rule || ! AllTrue[List @@ partonSides, ListQ],
     fail["Partons", partonSides, "Expected incoming -> outgoing lists."]
@@ -661,10 +705,32 @@ normalizeProcess[config_Association] := Module[
       hadronicVariables["Assumptions"] &&
       coefficientKinematics["PhysicalRegion"];
 
+  gluonReferences=Lookup[config,"GluonPolarizationReferences",<||>];
+  If[!AssociationQ[gluonReferences]||
+   !AllTrue[Keys[gluonReferences],MemberQ[
+    Lookup[Select[Join[makeLegs[1],makeLegs[2]],MatchQ[#["Parton"],FeynArts`V[5]]&&!MissingQ[#["HadronMomentum"]]&],"Momentum",{}],#]&]||
+   !AllTrue[Values[gluonReferences],MatchQ[#,_Symbol]&&MemberQ[zeroEvanescent,#]&]||
+   AnyTrue[Normal[gluonReferences],First[#]===Last[#]&],
+   fail["GluonPolarizationReferences",gluonReferences,
+    "References must be distinct declared four-dimensional momenta, indexed by external leg momenta."]];
+  gluonProducts=Association@KeyValueMap[Function[{momentum,reference},
+   Module[{product},
+    If[!MemberQ[zeroMass,momentum],fail["GluonPolarizationReferences",momentum,
+     "The projected gluon must be declared on shell."]];
+    product=FullSimplify[Factor[expandPositiveMonomialPowers[
+     applyHadronicVariables[FeynCalc`SPD[momentum,reference],hadronicVariables],fractionAssumptions]],
+     Assumptions->fractionAssumptions];
+    If[!TrueQ[FullSimplify[product!=0,Assumptions->fractionAssumptions]],
+     fail["GluonPolarizationReferences",{momentum,reference},
+      "The reference scalar product must be nonzero on the declared physical domain."]];
+    momentum->product]],gluonReferences];
   <|
     "Type" -> "FeynFacetProcess",
     "Model" -> config["Model"],
     "MasslessQuarkFlavors" -> modelMasslessFlavorDeclarations[config],
+    "ElectromagneticCharges" -> modelElectromagneticCharges[config],
+    "GluonPolarizationReferences" -> gluonReferences,
+    "GluonPolarizationScalarProducts" -> gluonProducts,
     "Version" -> 2,
     "Sides" -> amplitudeSides["Sides"],
     "VirtualLoopMomenta" -> amplitudeSides["VirtualLoopMomenta"],
@@ -705,6 +771,8 @@ analyticContext[process_Association] := Module[{scheme, context},
     "DistributionConvention" -> "FeynFacet/Distributions.wl",
     "FeynFacetSourceHash" -> $feynFacetSourceHash
   |>;
+  If[Lookup[process,"GluonPolarizationReferences",<||>]=!=<||>,
+   AssociateTo[context,"GluonPolarizationReferences"->process["GluonPolarizationReferences"]]];
   Append[context, "Fingerprint" -> reductionFingerprint[context]]
 ];
 

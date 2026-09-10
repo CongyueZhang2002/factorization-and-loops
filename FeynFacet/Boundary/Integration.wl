@@ -11,14 +11,6 @@ boundaryTermExpression[term_] := Module[{xs=Lookup[term,"IntegrationVariables",{
   Times@@MapThread[(1-#1)^#2&,{xs,Lookup[term,"UpperEndpointPowers",ConstantArray[0,n]]}] *
   Times@@MapThread[Log[#1]^#2&,{xs,Lookup[term,"LogPowers",ConstantArray[0,n]]}] *
   Times@@((#["Polynomial"]^#["Exponent"])&/@Lookup[term,"PolynomialFactors",{}])];
-boundaryLaurentValuation[value_,eps_] := Module[{order=0,s},
- If[value===0,Return[Infinity]];
- While[order<=64,
-  s=Quiet[Series[value,{eps,0,order}]];
-  If[Head[s]===SeriesData&&s[[3]]=!={},Return[s[[4]]/s[[6]]]];
-  If[FreeQ[s,eps],Return[0]];
-  order=If[order===0,1,2 order]];
- boundaryIntegrationFail["BoundaryPrefactorValuationUnresolved"]];
 (* Remove one Beta measure only when the remaining factor is a polynomial.
    Simplification is performed inside the positive integration domain; no
    unrestricted PowerExpand is used. This includes polynomial moments. *)

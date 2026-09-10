@@ -103,14 +103,13 @@ If[longTestsQ,
 (* The CF300 (12,9) fixture                                             *)
 (* ------------------------------------------------------------------ *)
 
-FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
-   "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`FamilyRootData["CF300"];
 (* FROZEN INPUT (2026-08-25): the live campaign directory rewrites this
    strip input under a running suite (it was rewritten at 13:41 by
    round 6), so the test reads an immutable copy with recorded
    provenance.  See the README of FrozenTestFixtures_2026-08-25/. *)
-stripFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+stripFile = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
    "UU_08_10_canonical", "FamilyEpsFormsSolving",
    "FrozenTestFixtures_2026-08-25", "cf300_frozen_strip_12_9_input.wl"}];
 check["the CF300 (12,9) fixture is frozen in the repository",

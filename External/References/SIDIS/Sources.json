@@ -1,0 +1,14 @@
+[
+  {
+    "File": "ancillary_UU_2401.16281v2.inc",
+    "URL": "https://arxiv.org/src/2401.16281v2/anc/ancillary.inc",
+    "Bytes": 1060439,
+    "Use": "Independent validation only; never production coefficients or boundary data"
+  },
+  {
+    "File": "ancillary_LL_2404.08597v3.inc",
+    "URL": "https://arxiv.org/src/2404.08597v3/anc/ancillary_pol.inc",
+    "Bytes": 696880,
+    "Use": "Independent validation only; never production coefficients or boundary data"
+  }
+]

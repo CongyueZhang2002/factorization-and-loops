@@ -1178,7 +1178,7 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
     ];
     kiraFile = storeManifest["KiraFile"];
     resultDirectory = DirectoryName[kiraFile];
-    projectDirectory = ParentDirectory[ParentDirectory[resultDirectory]];
+    projectDirectory = projectResultLocation[resultDirectory,coefficientWorkspaceRoot[]]["OwnerDirectory"];
     pairFiles = SortBy[
       FileNames["F*_C*.wl", FileNameJoin[{resultDirectory, "Pairs"}]],
       coefficientPairFileKey
@@ -1192,12 +1192,7 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
       _Association, options["CoefficientSetup"],
       _String, Quiet @ Check[Get[options["CoefficientSetup"]], $Failed],
       _,
-        cardFile = FileNameJoin[{
-          projectDirectory, "Cards", metadata["CardName"] <> ".wl"}];
-        If[FileExistsQ[cardFile],
-          Quiet @ Check[Get[cardFile], $Failed],
-          Missing["NoCard"]
-        ]
+        ReadProcessCard[projectDirectory,metadata["CardName"]]
     ];
     data = Block[
       {analyticContextQ = coefficientAnalyticContextQ},
@@ -1371,9 +1366,8 @@ reconstructionMergeOrders[
     ],
     orders
   ];
-  (* A master drops out of an order whose coefficient vanishes, so the
-     union over the orders is the master set and the trace order is what
-     puts it back in a stable sequence. *)
+  (* The in-memory constructor retains zero columns. In a finite series an
+     all-zero known prefix still has an unknown higher-order tail. *)
   masterKeys = Select[
     masterOrder,
     Function[key, AnyTrue[Values[byKey], KeyExistsQ[#, key] &]]
@@ -1382,7 +1376,7 @@ reconstructionMergeOrders[
     present = Select[values, ! TrueQ[# === 0] &];
     If[
       present === <||>,
-      <||>,
+      KeyTake[values, Range[Min[Keys[values]], truncation]],
       KeyTake[values, Range[Min[Keys[present]], truncation]]
     ]
   ];
@@ -1736,8 +1730,9 @@ reconstructionAssembledArtifact[
    reach (the trace inputs run to tens of MB of plus-concatenated
    contributions), but a slice is cheap: fix every variable but one to a
    random rational and both sides become univariate rational functions
-   that must agree exactly.  A wrong identity survives a random rational
-   point with probability zero in exact arithmetic.
+   that must agree exactly.  A nonzero residual disproves the identity. Agreement on sampled slices
+   is probabilistic validation unless independent deterministic bounds cover
+   all remaining variables; exact arithmetic alone does not make it a proof.
 
    The original input is substituted TEXTUALLY, before the file is
    parsed, so the giant symbolic expression is never built. *)
@@ -2216,6 +2211,8 @@ ReconstructCoefficients[traceDirectory_String, OptionsPattern[]] := Catch[
         result = Append[result, "SeriesOrderVerification" -> outcome]
       ]
     ];
+    result=coefficientResultFromReconstruction[result];
+    If[FailureQ[result],Return[$Failed]];
     resultFile = Switch[OptionValue["ResultFile"],
       None, None,
       Automatic, FileNameJoin[{DirectoryName[inputs["KiraFile"]], "CoefficientResult.wl"}],

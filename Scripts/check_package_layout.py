@@ -16,6 +16,9 @@ ENTRY_FILES = {
     "Kernel/Loader.wl", "Kernel/Modules.wl", "Kernel/Formatting.wl",
 }
 
+# Executed in isolated kernels; these scripts must never enter a package load profile.
+STANDALONE_WORKERS = {"Tools/hypergeometric_series_worker.wls"}
+
 def check():
     errors = []
     text = (PACKAGE / "Kernel/Modules.wl").read_text()
@@ -39,7 +42,12 @@ def check():
         for path in PACKAGE.rglob("*")
         if path.is_file() and path.suffix in {".m", ".wl", ".wls"}
     }
-    unlisted = actual - set(paths) - ENTRY_FILES
+    for path in STANDALONE_WORKERS:
+        if not (PACKAGE / path).is_file():
+            errors.append(f"Missing standalone worker: {path}")
+    if set(paths) & STANDALONE_WORKERS:
+        errors.append("Standalone workers must not be loaded as package modules.")
+    unlisted = actual - set(paths) - ENTRY_FILES - STANDALONE_WORKERS
     if unlisted:
         errors.append("Unlisted package sources: " + ", ".join(sorted(unlisted)))
     if any("/EpsilonForm/" in p or p == "Interfaces/Libra.wl"
@@ -82,6 +90,7 @@ def check():
     print(json.dumps({
         "profiles": {k: len(v) for k, v in profiles.items()},
         "manifest_sources": len(paths),
+        "standalone_workers": len(STANDALONE_WORKERS),
         "literal_source_references_checked": checked,
         "errors": errors,
     }, indent=2))

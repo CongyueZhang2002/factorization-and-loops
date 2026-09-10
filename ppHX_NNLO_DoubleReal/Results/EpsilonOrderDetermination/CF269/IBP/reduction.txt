@@ -1,753 +1,0 @@
-2 Fermat/Blackbox instances will be run in parallel.
-The user defined environment variable FERMATPATH for Fermat is set:
-/home/maxzhang/factorization-and-loops/Addon/Other_Addon/Kira/bin/fer64
-The directories for the temporary files, result files and the sector mapping files are: 
-./tmp
-./results
-./sectormappings
-One variable is set to 1: {sc0==1}
-Kira prepares topology: CF269 and top level sector: 
-255 
-
-*****Integral ordering*************************************
-VERSION table created successfully
-Kira database version number: 2.1
-WEIGHTBITS table created successfully
-INTEGRALORDERING table created successfully
-Kira will use the integral ordering: 2.
-With topology: CF269 use intermediate permutation
-0 1 2 3 6 4 5 7 8 
-Following reductions will be performed for the topology: CF269
-Sector: 255 rmax: 10 smax: 5 
-
-***********************************************************
-Prepare numerical values for the generation of the system
-***********************************************************
-set numerics
-***********************************************************
-Find IBP LI and symmetry relations for the topology: CF269
-***********************************************************
-
-*****Generate IBP identities*******************************
-There are 10 IBP identities
-( 0.005646 s )
-
-*****Generate LI identities********************************
-There are 3 LI identities
-( 0.003729 s )
-
-*****Search trivial sectors********************************
-  1.2% []  2.3% [=]  3.5% [=]  4.7% [==]  5.9% [==]  7.0% [===]  8.2% [====]  9.4% [====] 10.5% [=====] 11.7% [=====] 12.9% [======] 14.1% [=======] 15.2% [=======] 16.4% [========] 17.6% [========] 18.8% [=========] 19.9% [=========] 21.1% [==========] 22.3% [===========] 23.4% [===========] 24.6% [============] 25.8% [============] 27.0% [=============] 28.1% [==============] 29.3% [==============] 30.5% [===============] 31.6% [===============] 32.8% [================] 34.0% [================] 35.2% [=================] 36.3% [==================] 38.7% [===================] 39.8% [===================] 41.0% [====================] 42.2% [=====================] 43.4% [=====================] 44.5% [======================] 45.7% [======================] 37.5% [==================] 46.9% [=======================] 48.0% [========================] 49.2% [========================] 50.4% [=========================] 51.6% [=========================] 52.7% [==========================] 53.9% [==========================] 55.1% [===========================] 56.2% [============================] 57.4% [============================] 58.6% [=============================] 59.8% [=============================] 60.9% [==============================] 62.1% [===============================] 63.3% [===============================] 64.5% [================================] 65.6% [================================] 66.8% [=================================] 68.0% [=================================] 69.1% [==================================] 70.3% [===================================] 71.5% [===================================] 72.7% [====================================] 73.8% [====================================] 75.0% [=====================================] 76.2% [======================================] 77.3% [======================================] 78.5% [=======================================] 79.7% [=======================================] 80.9% [========================================] 82.0% [=========================================] 83.2% [=========================================] 84.4% [==========================================] 85.5% [==========================================] 86.7% [===========================================] 87.9% [===========================================] 89.1% [============================================] 90.2% [=============================================] 91.4% [=============================================] 92.6% [==============================================] 93.8% [==============================================] 94.9% [===============================================] 96.1% [================================================] 97.3% [================================================] 98.4% [=================================================] 99.6% [=================================================]100.0% [==================================================]
-Non trivial sectors in total: 64
-Trivial sectors in total: 448
-( 0.0 s )
-
-Search symmetry relations: 
-  0.0% [] 12.5% [======] 25.0% [============] 37.5% [==================] 50.0% [=========================] 62.5% [===============================] 75.0% [=====================================] 87.5% [===========================================]100.0% [==================================================]
-( 0.0 s )
-***********************************************************
-Prepare Symmetries for the topology: CF269
-***********************************************************
-Build symmetries for CF269 x CF269 
- 11.1% [=====] 22.2% [===========] 33.3% [================] 44.4% [======================] 55.6% [===========================] 66.7% [=================================] 77.8% [======================================] 88.9% [============================================]100.0% [==================================================]
-Sector relations: 3
-Sector symmetries: 13
-( 0.0 s )
-***********************************************************
-Prepare numerical values for the generation of the system
-***********************************************************
-set numerics
-
-***********************************************************
-Kira starts the reduction of the topology: CF269
-***********************************************************
-
-***** Select equations recursively ************************
-length of mandatory list: 1028
-Algebraic reconstruction is switched off.
-Generate equations for topology CF269, sector 131 (1 of 32)
-Generate equations for topology CF269, sector 135 (2 of 32)
-Generate equations for topology CF269, sector 139 (3 of 32)
-Generate equations for topology CF269, sector 143 (4 of 32)
-Generate equations for topology CF269, sector 195 (5 of 32)
-Generate equations for topology CF269, sector 199 (6 of 32)
-Generate equations for topology CF269, sector 203 (7 of 32)
-Generate equations for topology CF269, sector 207 (8 of 32)
-Generate equations for topology CF269, sector 147 (9 of 32)
-Generate equations for topology CF269, sector 151 (10 of 32)
-Generate equations for topology CF269, sector 155 (11 of 32)
-Generate equations for topology CF269, sector 159 (12 of 32)
-Generate equations for topology CF269, sector 211 (13 of 32)
-Generate equations for topology CF269, sector 215 (14 of 32)
-Generate equations for topology CF269, sector 219 (15 of 32)
-Generate equations for topology CF269, sector 223 (16 of 32)
-Generate equations for topology CF269, sector 163 (17 of 32)
-Generate equations for topology CF269, sector 167 (18 of 32)
-Generate equations for topology CF269, sector 171 (19 of 32)
-Generate equations for topology CF269, sector 175 (20 of 32)
-Generate equations for topology CF269, sector 227 (21 of 32)
-Generate equations for topology CF269, sector 231 (22 of 32)
-Generate equations for topology CF269, sector 235 (23 of 32)
-Generate equations for topology CF269, sector 239 (24 of 32)
-Generate equations for topology CF269, sector 179 (25 of 32)
-Generate equations for topology CF269, sector 183 (26 of 32)
-Generate equations for topology CF269, sector 187 (27 of 32)
-Generate equations for topology CF269, sector 191 (28 of 32)
-Generate equations for topology CF269, sector 243 (29 of 32)
-Generate equations for topology CF269, sector 247 (30 of 32)
-Generate equations for topology CF269, sector 251 (31 of 32)
-Generate equations for topology CF269, sector 255 (32 of 32)
-10659528 equations: 8356379 zero + 2303149 independent
-solve backward: 0.8
-prepare content for selector: 0.2
-Equation table created successfully
-2167 independent coefficients
-directory to the masters: CF269
-Number of master integrals: 23
-CF269[1,1,0,0,0,0,0,1,0] # 131
-CF269[1,1,1,1,0,0,0,1,0] # 143
-CF269[1,1,0,0,1,0,0,1,0] # 147
-CF269[1,1,1,0,1,0,0,1,0] # 151
-CF269[1,1,1,0,1,0,0,2,0] # 151
-CF269[1,1,1,1,1,0,0,1,0] # 159
-CF269[1,1,1,1,2,0,0,1,0] # 159
-CF269[1,1,0,0,1,0,1,1,0] # 211
-CF269[1,1,1,0,1,0,1,1,0] # 215
-CF269[1,1,0,1,1,0,1,1,0] # 219
-CF269[1,1,1,1,1,0,1,1,0] # 223
-CF269[1,1,1,1,1,0,1,2,0] # 223
-CF269[1,1,0,1,0,1,1,1,0] # 235
-CF269[1,1,0,1,0,1,1,2,0] # 235
-CF269[1,1,1,1,0,1,1,1,0] # 239
-CF269[1,1,0,0,1,1,0,1,0] # 179
-CF269[1,1,1,1,1,1,0,1,0] # 191
-CF269[1,1,0,0,1,1,1,1,0] # 243
-CF269[1,1,1,0,1,1,1,1,0] # 247
-CF269[1,1,0,1,1,1,1,1,0] # 251
-CF269[1,1,0,1,1,1,1,2,0] # 251
-CF269[1,1,1,1,1,1,1,1,0] # 255
-CF269[1,1,1,1,1,1,1,2,0] # 255
-Generate equations for topology CF269, sector 131 (1 of 32)
-Generate equations for topology CF269, sector 135 (2 of 32)
-Generate equations for topology CF269, sector 139 (3 of 32)
-Generate equations for topology CF269, sector 143 (4 of 32)
-Generate equations for topology CF269, sector 195 (5 of 32)
-Generate equations for topology CF269, sector 199 (6 of 32)
-Generate equations for topology CF269, sector 203 (7 of 32)
-Generate equations for topology CF269, sector 207 (8 of 32)
-Generate equations for topology CF269, sector 147 (9 of 32)
-Generate equations for topology CF269, sector 151 (10 of 32)
-Generate equations for topology CF269, sector 155 (11 of 32)
-Generate equations for topology CF269, sector 159 (12 of 32)
-Generate equations for topology CF269, sector 211 (13 of 32)
-Generate equations for topology CF269, sector 215 (14 of 32)
-Generate equations for topology CF269, sector 219 (15 of 32)
-Generate equations for topology CF269, sector 223 (16 of 32)
-Generate equations for topology CF269, sector 163 (17 of 32)
-Generate equations for topology CF269, sector 167 (18 of 32)
-Generate equations for topology CF269, sector 171 (19 of 32)
-Generate equations for topology CF269, sector 175 (20 of 32)
-Generate equations for topology CF269, sector 227 (21 of 32)
-Generate equations for topology CF269, sector 231 (22 of 32)
-Generate equations for topology CF269, sector 235 (23 of 32)
-Generate equations for topology CF269, sector 239 (24 of 32)
-Generate equations for topology CF269, sector 179 (25 of 32)
-Generate equations for topology CF269, sector 183 (26 of 32)
-Generate equations for topology CF269, sector 187 (27 of 32)
-Generate equations for topology CF269, sector 191 (28 of 32)
-Generate equations for topology CF269, sector 243 (29 of 32)
-Generate equations for topology CF269, sector 247 (30 of 32)
-Generate equations for topology CF269, sector 251 (31 of 32)
-Generate equations for topology CF269, sector 255 (32 of 32)
-
-Number of selected equations to reduce: 0 equations
-solve forward:      0.0
-max insertions:     0
-solve backward: 0.0
-prepare content for selector: 0.0
-total solve time:   0.0
-   43989 equations: 0 zero + 43989 independent
-master integrals which should be avoided
-CF269[1,1,-1,-3,0,0,0,1,0]
-CF269[1,1,-1,-2,-1,0,0,1,0]
-CF269[1,1,-1,-1,0,0,-2,1,0]
-CF269[1,1,1,1,-2,-2,0,1,0]
-CF269[1,1,-1,0,-2,0,1,1,0]
-CF269[1,1,0,1,-3,0,1,1,0]
-CF269[1,1,-1,1,-3,1,1,1,0]
-Generate equations for topology CF269, sector 131 (1 of 32)
-Generate equations for topology CF269, sector 135 (2 of 32)
-Generate equations for topology CF269, sector 139 (3 of 32)
-Generate equations for topology CF269, sector 143 (4 of 32)
-Generate equations for topology CF269, sector 195 (5 of 32)
-Generate equations for topology CF269, sector 199 (6 of 32)
-Generate equations for topology CF269, sector 203 (7 of 32)
-Generate equations for topology CF269, sector 207 (8 of 32)
-Generate equations for topology CF269, sector 147 (9 of 32)
-Generate equations for topology CF269, sector 151 (10 of 32)
-Generate equations for topology CF269, sector 155 (11 of 32)
-Generate equations for topology CF269, sector 159 (12 of 32)
-Generate equations for topology CF269, sector 211 (13 of 32)
-Generate equations for topology CF269, sector 215 (14 of 32)
-Generate equations for topology CF269, sector 219 (15 of 32)
-Generate equations for topology CF269, sector 223 (16 of 32)
-Generate equations for topology CF269, sector 163 (17 of 32)
-Generate equations for topology CF269, sector 167 (18 of 32)
-Generate equations for topology CF269, sector 171 (19 of 32)
-Generate equations for topology CF269, sector 175 (20 of 32)
-Generate equations for topology CF269, sector 227 (21 of 32)
-Generate equations for topology CF269, sector 231 (22 of 32)
-Generate equations for topology CF269, sector 235 (23 of 32)
-Generate equations for topology CF269, sector 239 (24 of 32)
-Generate equations for topology CF269, sector 179 (25 of 32)
-Generate equations for topology CF269, sector 183 (26 of 32)
-Generate equations for topology CF269, sector 187 (27 of 32)
-Generate equations for topology CF269, sector 191 (28 of 32)
-Generate equations for topology CF269, sector 243 (29 of 32)
-Generate equations for topology CF269, sector 247 (30 of 32)
-Generate equations for topology CF269, sector 251 (31 of 32)
-Generate equations for topology CF269, sector 255 (32 of 32)
-
-Number of selected equations to reduce: 0 equations
-solve forward:      0.0
-max insertions:     0
-solve backward: 0.0
-prepare content for selector: 0.0
-total solve time:   0.0
-   44066 equations: 0 zero + 44066 independent
-master integrals which should be avoided
-Regenerate:
-Generate equations for topology CF269, sector 131 (1 of 32)
-Generate equations for topology CF269, sector 135 (2 of 32)
-Generate equations for topology CF269, sector 139 (3 of 32)
-Generate equations for topology CF269, sector 143 (4 of 32)
-Generate equations for topology CF269, sector 195 (5 of 32)
-Generate equations for topology CF269, sector 199 (6 of 32)
-Generate equations for topology CF269, sector 203 (7 of 32)
-Generate equations for topology CF269, sector 207 (8 of 32)
-Generate equations for topology CF269, sector 147 (9 of 32)
-Generate equations for topology CF269, sector 151 (10 of 32)
-Generate equations for topology CF269, sector 155 (11 of 32)
-Generate equations for topology CF269, sector 159 (12 of 32)
-Generate equations for topology CF269, sector 211 (13 of 32)
-Generate equations for topology CF269, sector 215 (14 of 32)
-Generate equations for topology CF269, sector 219 (15 of 32)
-Generate equations for topology CF269, sector 223 (16 of 32)
-Generate equations for topology CF269, sector 163 (17 of 32)
-Generate equations for topology CF269, sector 167 (18 of 32)
-Generate equations for topology CF269, sector 171 (19 of 32)
-Generate equations for topology CF269, sector 175 (20 of 32)
-Generate equations for topology CF269, sector 227 (21 of 32)
-Generate equations for topology CF269, sector 231 (22 of 32)
-Generate equations for topology CF269, sector 235 (23 of 32)
-Generate equations for topology CF269, sector 239 (24 of 32)
-Generate equations for topology CF269, sector 179 (25 of 32)
-Generate equations for topology CF269, sector 183 (26 of 32)
-Generate equations for topology CF269, sector 187 (27 of 32)
-Generate equations for topology CF269, sector 191 (28 of 32)
-Generate equations for topology CF269, sector 243 (29 of 32)
-Generate equations for topology CF269, sector 247 (30 of 32)
-Generate equations for topology CF269, sector 251 (31 of 32)
-Generate equations for topology CF269, sector 255 (32 of 32)
-
-Number of selected equations to reduce: 44066 equations
-( 117.2 s )
-Algebraic reconstruction is switched off.
-
-***** Select equations recursively ************************
-length of mandatory list: 1028
-
-***** Bring system in triangular form *********************
-
-Iterate the system until it is in triangular form: 
-iteration: 0; items left: 10861; time: ( 1.7 s )
-iteration: 1; items left: 8776; time: ( 3.1 s )
-iteration: 2; items left: 7328; time: ( 4.2 s )
-iteration: 3; items left: 5809; time: ( 5.1 s )
-iteration: 4; items left: 4601; time: ( 6.0 s )
-iteration: 5; items left: 3916; time: ( 6.7 s )
-iteration: 6; items left: 3316; time: ( 7.3 s )
-iteration: 7; items left: 2734; time: ( 7.8 s )
-iteration: 8; items left: 2361; time: ( 8.3 s )
-iteration: 9; items left: 2086; time: ( 8.7 s )
-iteration: 10; items left: 1838; time: ( 9.0 s )
-iteration: 11; items left: 1608; time: ( 9.4 s )
-iteration: 12; items left: 1452; time: ( 9.7 s )
-iteration: 13; items left: 1290; time: ( 10.0 s )
-iteration: 14; items left: 1182; time: ( 10.2 s )
-iteration: 15; items left: 1062; time: ( 10.5 s )
-iteration: 16; items left: 978; time: ( 10.7 s )
-iteration: 17; items left: 893; time: ( 10.9 s )
-iteration: 18; items left: 825; time: ( 11.0 s )
-iteration: 19; items left: 762; time: ( 11.2 s )
-iteration: 20; items left: 703; time: ( 11.3 s )
-iteration: 21; items left: 627; time: ( 11.5 s )
-iteration: 22; items left: 572; time: ( 11.6 s )
-iteration: 23; items left: 528; time: ( 11.7 s )
-iteration: 24; items left: 471; time: ( 11.8 s )
-iteration: 25; items left: 442; time: ( 11.9 s )
-iteration: 26; items left: 421; time: ( 12.0 s )
-iteration: 27; items left: 382; time: ( 12.1 s )
-iteration: 28; items left: 352; time: ( 12.2 s )
-iteration: 29; items left: 333; time: ( 12.3 s )
-iteration: 30; items left: 318; time: ( 12.3 s )
-iteration: 31; items left: 296; time: ( 12.4 s )
-iteration: 32; items left: 275; time: ( 12.5 s )
-iteration: 33; items left: 250; time: ( 12.6 s )
-iteration: 34; items left: 230; time: ( 12.6 s )
-iteration: 35; items left: 218; time: ( 12.7 s )
-iteration: 36; items left: 207; time: ( 12.7 s )
-iteration: 37; items left: 182; time: ( 12.8 s )
-iteration: 38; items left: 168; time: ( 12.8 s )
-iteration: 39; items left: 158; time: ( 12.9 s )
-iteration: 40; items left: 148; time: ( 12.9 s )
-iteration: 41; items left: 142; time: ( 12.9 s )
-iteration: 42; items left: 127; time: ( 13.0 s )
-iteration: 43; items left: 119; time: ( 13.0 s )
-iteration: 44; items left: 112; time: ( 13.0 s )
-iteration: 45; items left: 106; time: ( 13.1 s )
-iteration: 46; items left: 101; time: ( 13.1 s )
-iteration: 47; items left: 96; time: ( 13.1 s )
-iteration: 48; items left: 89; time: ( 13.1 s )
-iteration: 49; items left: 87; time: ( 13.2 s )
-iteration: 50; items left: 79; time: ( 13.2 s )
-iteration: 51; items left: 75; time: ( 13.2 s )
-iteration: 52; items left: 72; time: ( 13.2 s )
-iteration: 53; items left: 71; time: ( 13.3 s )
-iteration: 54; items left: 71; time: ( 13.3 s )
-iteration: 55; items left: 67; time: ( 13.3 s )
-iteration: 56; items left: 64; time: ( 13.3 s )
-iteration: 57; items left: 60; time: ( 13.3 s )
-iteration: 58; items left: 60; time: ( 13.3 s )
-iteration: 59; items left: 58; time: ( 13.4 s )
-iteration: 60; items left: 56; time: ( 13.4 s )
-iteration: 61; items left: 56; time: ( 13.4 s )
-iteration: 62; items left: 54; time: ( 13.4 s )
-iteration: 63; items left: 51; time: ( 13.5 s )
-iteration: 64; items left: 49; time: ( 13.5 s )
-iteration: 65; items left: 49; time: ( 13.5 s )
-iteration: 66; items left: 48; time: ( 13.5 s )
-iteration: 67; items left: 45; time: ( 13.5 s )
-iteration: 68; items left: 43; time: ( 13.5 s )
-iteration: 69; items left: 41; time: ( 13.5 s )
-iteration: 70; items left: 40; time: ( 13.5 s )
-iteration: 71; items left: 38; time: ( 13.6 s )
-iteration: 72; items left: 36; time: ( 13.6 s )
-iteration: 73; items left: 34; time: ( 13.6 s )
-iteration: 74; items left: 35; time: ( 13.6 s )
-iteration: 75; items left: 35; time: ( 13.6 s )
-iteration: 76; items left: 34; time: ( 13.6 s )
-iteration: 77; items left: 31; time: ( 13.6 s )
-iteration: 78; items left: 29; time: ( 13.6 s )
-iteration: 79; items left: 28; time: ( 13.6 s )
-iteration: 80; items left: 28; time: ( 13.6 s )
-iteration: 81; items left: 28; time: ( 13.7 s )
-iteration: 82; items left: 25; time: ( 13.7 s )
-iteration: 83; items left: 25; time: ( 13.7 s )
-iteration: 84; items left: 23; time: ( 13.7 s )
-iteration: 85; items left: 22; time: ( 13.7 s )
-iteration: 86; items left: 21; time: ( 13.7 s )
-iteration: 87; items left: 20; time: ( 13.7 s )
-iteration: 88; items left: 20; time: ( 13.7 s )
-iteration: 89; items left: 20; time: ( 13.7 s )
-iteration: 90; items left: 20; time: ( 13.7 s )
-iteration: 91; items left: 17; time: ( 13.7 s )
-iteration: 92; items left: 16; time: ( 13.7 s )
-iteration: 93; items left: 15; time: ( 13.7 s )
-iteration: 94; items left: 14; time: ( 13.7 s )
-iteration: 95; items left: 13; time: ( 13.8 s )
-iteration: 96; items left: 13; time: ( 13.8 s )
-iteration: 97; items left: 13; time: ( 13.8 s )
-iteration: 98; items left: 13; time: ( 13.8 s )
-iteration: 99; items left: 12; time: ( 13.8 s )
-iteration: 100; items left: 12; time: ( 13.8 s )
-iteration: 101; items left: 12; time: ( 13.8 s )
-iteration: 102; items left: 12; time: ( 13.8 s )
-iteration: 103; items left: 10; time: ( 13.8 s )
-iteration: 104; items left: 10; time: ( 13.8 s )
-iteration: 105; items left: 10; time: ( 13.8 s )
-iteration: 106; items left: 10; time: ( 13.8 s )
-iteration: 107; items left: 10; time: ( 13.8 s )
-iteration: 108; items left: 10; time: ( 13.8 s )
-iteration: 109; items left: 10; time: ( 13.8 s )
-iteration: 110; items left: 10; time: ( 13.8 s )
-iteration: 111; items left: 9; time: ( 13.8 s )
-iteration: 112; items left: 9; time: ( 13.8 s )
-iteration: 113; items left: 8; time: ( 13.8 s )
-iteration: 114; items left: 6; time: ( 13.8 s )
-iteration: 115; items left: 6; time: ( 13.8 s )
-iteration: 116; items left: 5; time: ( 13.8 s )
-iteration: 117; items left: 5; time: ( 13.8 s )
-iteration: 118; items left: 5; time: ( 13.8 s )
-iteration: 119; items left: 5; time: ( 13.8 s )
-iteration: 120; items left: 5; time: ( 13.8 s )
-iteration: 121; items left: 4; time: ( 13.8 s )
-iteration: 122; items left: 4; time: ( 13.8 s )
-iteration: 123; items left: 4; time: ( 13.8 s )
-iteration: 124; items left: 4; time: ( 13.8 s )
-iteration: 125; items left: 4; time: ( 13.8 s )
-iteration: 126; items left: 4; time: ( 13.8 s )
-iteration: 127; items left: 4; time: ( 13.8 s )
-iteration: 128; items left: 4; time: ( 13.8 s )
-iteration: 129; items left: 4; time: ( 13.8 s )
-iteration: 130; items left: 4; time: ( 13.8 s )
-iteration: 131; items left: 4; time: ( 13.8 s )
-iteration: 132; items left: 4; time: ( 13.8 s )
-iteration: 133; items left: 4; time: ( 13.8 s )
-iteration: 134; items left: 4; time: ( 13.8 s )
-iteration: 135; items left: 4; time: ( 13.8 s )
-iteration: 136; items left: 4; time: ( 13.8 s )
-iteration: 137; items left: 3; time: ( 13.8 s )
-iteration: 138; items left: 3; time: ( 13.8 s )
-iteration: 139; items left: 3; time: ( 13.8 s )
-iteration: 140; items left: 3; time: ( 13.8 s )
-iteration: 141; items left: 3; time: ( 13.8 s )
-iteration: 142; items left: 3; time: ( 13.8 s )
-iteration: 143; items left: 3; time: ( 13.8 s )
-iteration: 144; items left: 2; time: ( 13.8 s )
-iteration: 145; items left: 2; time: ( 13.8 s )
-iteration: 146; items left: 2; time: ( 13.8 s )
-iteration: 147; items left: 1; time: ( 13.8 s )
-iteration: 148; items left: 1; time: ( 13.8 s )
-iteration: 149; items left: 1; time: ( 13.8 s )
-iteration: 150; items left: 1; time: ( 13.8 s )
-iteration: 151; items left: 1; time: ( 13.8 s )
-iteration: 152; items left: 1; time: ( 13.8 s )
-iteration: 153; items left: 1; time: ( 13.8 s )
-iteration: 154; items left: 1; time: ( 13.8 s )
-iteration: 155; items left: 1; time: ( 13.8 s )
-iteration: 156; items left: 1; time: ( 13.8 s )
-iteration: 157; items left: 1; time: ( 13.8 s )
-iteration: 158; items left: 1; time: ( 13.8 s )
-iteration: 159; items left: 1; time: ( 13.8 s )
-iteration: 160; items left: 1; time: ( 13.8 s )
-iteration: 161; items left: 1; time: ( 13.8 s )
-iteration: 162; items left: 1; time: ( 13.8 s )
-iteration: 163; items left: 1; time: ( 13.8 s )
-iteration: 164; items left: 1; time: ( 13.8 s )
-iteration: 165; items left: 1; time: ( 13.8 s )
-iteration: 166; items left: 1; time: ( 13.9 s )
-iteration: 167; items left: 1; time: ( 13.9 s )
-iteration: 168; items left: 1; time: ( 13.9 s )
-iteration: 169; items left: 1; time: ( 13.9 s )
-iteration: 170; items left: 1; time: ( 13.9 s )
-iteration: 171; items left: 1; time: ( 13.9 s )
-iteration: 172; items left: 1; time: ( 13.9 s )
-iteration: 173; items left: 1; time: ( 13.9 s )
-iteration: 174; items left: 1; time: ( 13.9 s )
-iteration: 175; items left: 1; time: ( 13.9 s )
-iteration: 176; items left: 1; time: ( 13.9 s )
-iteration: 177; items left: 1; time: ( 13.9 s )
-iteration: 178; items left: 1; time: ( 13.9 s )
-iteration: 179; items left: 1; time: ( 13.9 s )
-iteration: 180; items left: 1; time: ( 13.9 s )
-iteration: 181; items left: 1; time: ( 13.9 s )
-iteration: 182; items left: 1; time: ( 13.9 s )
-iteration: 183; items left: 1; time: ( 13.9 s )
-redundant: 0; insertions 100043
-All coefficients will be normalized
-
-Equations out of bounds rmax and smax: 24626
-Equations in the bounds rmax and smax: 19440
-( 17.3 s )
-
-Write the triangular system to ./tmp/ on hard disk
-(--> ./tmp/CF269/VERconfig, ./tmp/CF269/VER###) 
-
-Triangular form completed after ( 17.6 s )
-FIREFLY table created successfully
-Algebraic reconstruction is switched off.
-
-***** Run the back substitution ***********************
-
-Load all files from ./tmp/
-Take 19440 equations to reduce 19440 missing equations
-
-Back substitution: 
-  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.0% []  0.2% []  0.2% []  0.2% []  0.2% []  0.2% []  0.2% []  0.2% []  0.2% []  0.2% []  0.2% []  0.2% []  0.4% []  0.4% []  0.4% []  0.4% []  0.4% []  0.4% []  0.4% []  0.4% []  0.4% []  0.5% []  0.5% []  0.5% []  0.5% []  0.5% []  0.5% []  0.5% []  0.5% []  0.5% []  0.5% []  0.5% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.7% []  0.9% []  0.9% []  0.9% []  0.9% []  0.9% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.0% []  1.2% []  1.3% []  1.5% []  2.1% []  2.2% []  2.3% []  2.3% []  2.3% []  2.3% []  2.3% []  2.3% []  2.3% []  2.3% []  2.3% []  2.3% []  2.5% []  2.5% []  2.5% []  2.6% []  2.6% []  2.6% []  2.6% []  2.6% []  2.6% []  2.6% []  2.6% []  2.7% []  2.7% []  2.7% []  2.7% []  2.7% []  2.8% []  2.8% []  2.8% []  2.8% []  2.8% []  2.8% []  2.8% []  3.0% []  3.4% []  3.4% []  3.4% []  3.4% []  3.5% []  3.5% []  3.5% []  3.5% []  3.7% []  3.7% []  3.7% []  3.7% []  3.7% []  3.7% []  3.8% []  3.8% []  4.0% []  4.0% []  4.2% []  4.3% []  4.5% []  5.0% []  5.3% []  5.3% []  5.5% []  5.5% []  5.5% []  5.5% []  5.5% []  5.5% []  5.5% []  5.7% []  5.7% []  6.0% []  6.3% []  6.3% []  6.3% []  6.3% []  6.3% []  6.3% []  6.3% []  6.3% []  6.6% []  6.6% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.7% []  6.9% []  6.9% []  6.9% []  6.9% []  6.9% []  6.9% []  6.9% []  6.9% []  7.0% []  7.0% []  7.0% []  7.0% []  7.0% []  7.0% []  7.0% []  7.0% []  7.1% []  7.5% []  7.5% []  7.5% []  7.5% []  7.5% []  7.7% []  7.7% []  7.7% []  7.7% []  7.9% []  7.9% []  8.6% []  8.6% []  8.6% []  9.2% []  9.2% []  9.3% []  9.3% []  9.3% []  9.4% []  9.4% []  9.4% []  9.4% []  9.5% []  9.8% []  9.9% []  9.9% [] 10.1% [] 10.1% [] 10.1% [] 10.1% [] 10.1% [] 10.1% [] 10.1% [] 10.1% [] 10.2% [] 10.3% [] 10.3% [] 10.3% [] 10.3% [] 10.3% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.4% [] 10.5% [] 10.7% [] 10.7% [] 10.7% [] 10.7% [] 10.8% [] 11.0% [] 11.0% [] 11.0% [] 11.0% [] 11.0% [] 11.0% [] 11.0% [] 11.1% [] 11.1% [] 11.1% [] 11.1% [] 11.1% [] 11.1% [] 11.1% [] 11.1% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.2% [] 11.3% [] 11.4% [] 11.4% [] 11.4% [] 11.4% [] 11.4% [] 11.4% [] 11.4% [] 11.4% [] 11.4% [] 11.4% [] 11.5% [] 11.8% [] 11.8% [] 11.8% [] 11.8% [] 11.8% [] 11.8% [] 11.8% [] 11.8% [] 11.8% [] 12.2% [] 12.3% [] 12.3% [] 12.3% [] 12.3% [] 12.3% [] 12.3% [] 12.3% [] 12.3% [] 12.3% [] 12.3% [] 12.6% [] 12.6% [] 13.1% [] 13.1% [] 13.1% [] 13.1% [] 13.1% [] 13.4% [] 13.4% [] 13.4% [] 13.4% [] 13.4% [] 13.4% [] 13.6% [] 13.8% [] 13.8% [] 13.8% [] 14.0% [] 14.0% [] 14.0% [] 14.0% [] 14.0% [] 14.3% [] 14.3% [] 14.3% [] 14.4% [] 14.4% [] 14.4% [] 15.0% [] 15.0% [] 15.0% [] 15.0% [] 15.0% [] 15.3% [] 15.6% [] 15.6% [] 15.6% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 15.9% [] 16.4% [] 16.5% [] 16.5% [] 16.5% [] 16.5% [] 16.5% [] 16.5% [] 16.5% [] 16.5% [] 16.5% [] 16.6% [] 16.8% [] 16.8% [] 16.8% [] 16.9% [] 16.9% [] 17.3% [] 17.3% [] 17.4% [] 17.8% [] 18.2% [] 18.3% [] 18.3% [] 18.4% [] 18.6% [] 18.6% [] 18.6% [] 19.5% [] 19.5% [] 21.1% [] 21.9% [] 21.9% [] 22.0% [] 22.0% [] 22.0% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.1% [] 22.3% [] 22.3% [] 22.3% [] 22.3% [] 22.3% [] 22.3% [] 22.6% [] 22.6% [] 22.6% [] 22.6% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.8% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 22.9% [] 23.3% [] 23.3% [] 23.3% [] 23.3% [] 23.3% [] 23.3% [] 23.3% [] 23.7% [] 23.7% [] 23.8% [] 23.8% [] 24.1% [] 24.2% [] 24.2% [] 24.2% [] 24.4% [] 24.4% [] 24.4% [] 24.5% [] 24.5% [] 24.5% [] 24.5% [] 24.5% [] 24.5% [] 24.5% [] 24.7% [] 24.8% [] 24.8% [] 24.8% [] 24.8% [] 24.8% [] 24.8% [] 24.8% [] 24.8% [] 24.8% [] 24.9% [] 24.9% [] 24.9% [] 24.9% [] 24.9% [] 24.9% [] 25.0% [] 25.0% [] 25.3% [] 25.3% [] 25.3% [] 25.3% [] 25.3% [] 25.3% [] 25.3% [] 25.3% [] 25.3% [] 25.3% [] 25.5% [] 25.5% [] 25.5% [] 25.5% [] 25.5% [] 25.6% [] 25.6% [] 25.7% [] 25.7% [] 25.7% [] 25.7% [] 25.7% [] 26.0% [] 26.0% [] 26.1% [] 26.3% [] 26.3% [] 26.3% [] 26.4% [] 26.6% [] 26.6% [] 26.6% [] 26.6% [] 27.1% [] 27.1% [] 27.3% [] 27.3% [] 27.5% [] 27.5% [] 27.5% [] 27.8% [] 27.8% [] 27.8% [] 27.8% [] 27.8% [] 28.6% [] 28.7% [] 28.7% [] 29.2% [] 29.3% [] 29.4% [] 29.7% [] 29.9% [] 29.9% [] 29.9% [] 29.9% [] 29.9% [] 30.3% [] 30.8% [] 30.9% [] 30.9% [] 31.3% [] 31.4% [] 31.4% [] 31.4% [] 31.4% [] 31.4% []
-
-Equations reduced: 6125 / 19440
-Kira committed results ( 2.4 s )
- 32.2% [] 32.2% [] 32.2% [] 32.2% [] 32.2% [] 32.2% [] 32.2% [] 32.2% [] 32.2% [] 32.4% []
-
-Equations reduced: 6397 / 19440
-Kira committed results ( 2.5 s )
-
-
-Equations reduced: 6402 / 19440
-Kira committed results ( 2.5 s )
- 33.3% [] 33.3% [] 33.3% []
-
-Equations reduced: 6554 / 19440
-Kira committed results ( 2.5 s )
- 33.8% []
-
-Equations reduced: 6752 / 19440
-Kira committed results ( 2.5 s )
- 34.9% []
-
-Equations reduced: 6909 / 19440
-Kira committed results ( 2.5 s )
- 35.6% [] 35.6% [] 35.6% [] 35.6% [] 35.9% [] 35.9% [] 35.9% [] 35.9% [] 36.1% [] 36.1% [] 36.1% [] 36.3% [] 36.3% [] 36.3% [] 36.3% [] 36.5% [] 36.5% [] 36.5% [] 36.5% [] 36.9% [] 36.9% [] 37.0% [] 37.0% [] 37.0% [] 37.0% [] 37.0% [] 37.6% [] 37.7% [] 37.9% [] 37.9% [] 37.9% [] 37.9% [] 38.1% [] 38.5% [] 38.5% []
-
-Equations reduced: 7514 / 19440
-Kira committed results ( 2.7 s )
- 38.7% [] 38.7% [] 38.8% [] 38.8% [] 38.8% [] 38.9% [] 38.9% [] 38.9% [] 39.0% [] 39.0% [] 39.0% [] 39.3% [] 39.3% [] 39.3% [] 39.3% []
-
-Equations reduced: 7648 / 19440
-Kira committed results ( 2.8 s )
- 39.5% [] 39.5% [] 39.5% [] 39.8% [] 40.0% [] 40.2% [] 40.4% [] 40.4% [] 40.5% [] 40.7% [] 40.7% [] 40.7% [] 41.2% [] 41.7% [] 41.7% [] 41.7% [] 41.9% [] 41.9% [] 43.3% [] 43.3% [] 43.4% [] 43.4% [] 43.7% [] 44.4% [] 44.7% [] 45.6% [] 46.4% [] 48.3% [] 48.3% [] 48.3% [] 48.3% [] 48.6% [] 48.6% [] 48.9% [] 49.7% [] 49.7% [] 50.7% [] 50.7% [] 50.7% [] 51.9% [] 51.9% [] 51.9% [] 51.9% [] 51.9% [] 51.9% [] 51.9% [] 51.9% [] 52.3% [] 52.3% [] 52.3% [] 52.3% [] 53.1% [] 53.1% [] 53.1% [] 53.6% [] 53.6% [] 54.6% [] 54.6% [] 54.6% [] 54.8% [] 55.2% [] 55.2% [] 55.5% [] 55.5% [] 57.0% [] 57.0% [] 57.3% [] 57.3% [] 57.3% [] 57.8% [] 57.8% [] 57.8% [] 57.9% [] 57.9% [] 57.9% [] 57.9% [] 57.9% [] 58.0% [] 58.0% [] 58.1% [] 58.1% [] 58.1% [] 58.3% [] 58.4% [] 58.4% [] 58.4% []
-
-Equations reduced: 11430 / 19440
-Kira committed results ( 3.7 s )
- 58.8% [] 58.8% [] 59.1% [] 59.1% [] 59.1% [] 59.3% [] 59.3% [] 59.5% []
-
-Equations reduced: 11681 / 19440
-Kira committed results ( 3.7 s )
- 60.2% [] 60.4% [] 60.5% [] 60.8% [] 61.2% [] 61.5% [] 61.8% [] 61.8% [] 61.8% [] 61.8% [] 61.9% [] 61.9% [] 62.2% []
-
-Equations reduced: 12213 / 19440
-Kira committed results ( 3.8 s )
- 63.1% [] 63.5% [] 63.5% [] 63.6% [] 63.8% [] 63.8% [] 63.8% [] 63.8% [] 63.8% [] 63.8% [] 63.8% [] 63.8% [] 63.8% [] 63.9% [] 63.9% [] 63.9% []
-
-Equations reduced: 12476 / 19440
-Kira committed results ( 3.9 s )
- 65.3% [] 65.8% []
-
-Equations reduced: 12916 / 19440
-Kira committed results ( 3.9 s )
- 66.7% [] 67.4% [] 68.1% [] 68.3% [] 68.3% [] 68.5% [] 68.5% [] 68.6% [] 68.6% [] 68.7% [] 68.8% [] 69.4% [] 69.4% [] 69.9% [] 69.9% [] 69.9% [] 70.1% [] 70.9% [] 70.9% [] 71.5% [] 71.8% [] 72.9% [] 72.9% [] 72.9% [] 73.4% [] 73.5% [] 73.7% []
-
-Equations reduced: 14374 / 19440
-Kira committed results ( 4.0 s )
- 74.3% [] 74.3% []
-
-Equations reduced: 14759 / 19440
-Kira committed results ( 4.1 s )
- 76.0% [] 76.4% [] 76.6% [] 76.9% [] 77.0% []
-
-Equations reduced: 14985 / 19440
-Kira committed results ( 4.1 s )
- 77.5% []
-
-Equations reduced: 15186 / 19440
-Kira committed results ( 4.1 s )
- 78.5% []
-
-Equations reduced: 15262 / 19440
-Kira committed results ( 4.1 s )
- 79.6% []
-
-Equations reduced: 15721 / 19440
-Kira committed results ( 4.2 s )
- 81.8% []
-
-Equations reduced: 16051 / 19440
-Kira committed results ( 4.2 s )
-
-
-Equations reduced: 16070 / 19440
-Kira committed results ( 4.2 s )
- 83.7% []
-
-Equations reduced: 16332 / 19440
-Kira committed results ( 4.2 s )
- 86.6% [] 86.6% [] 86.8% [] 86.8% [] 88.6% [] 88.6% [] 88.6% [] 88.6% [] 88.6% [] 88.7% [] 90.4% []
-
-Equations reduced: 17592 / 19440
-Kira committed results ( 4.3 s )
-
-
-Equations reduced: 17724 / 19440
-Kira committed results ( 4.3 s )
- 91.4% [] 92.4% [] 92.7% [] 92.8% [] 92.8% [] 92.8% [] 92.8% [] 92.8% [] 93.1% [] 93.1% [] 93.4% [] 93.5% [] 93.6% [] 95.4% [] 95.4% [] 95.6% []
-
-Equations reduced: 18676 / 19440
-Kira committed results ( 4.4 s )
- 96.1% [] 96.1% [] 96.3% []
-
-Equations reduced: 18808 / 19440
-Kira committed results ( 4.5 s )
- 97.5% []
-
-Equations reduced: 18960 / 19440
-Kira committed results ( 4.5 s )
- 98.6% []
-
-Equations reduced: 19210 / 19440
-Kira committed results ( 4.5 s )
-
-
-Equations reduced: 19258 / 19440
-Kira committed results ( 4.5 s )
-
-
-Equations reduced: 19277 / 19440
-Kira committed results ( 4.5 s )
- 99.5% []
-
-Equations reduced: 19389 / 19440
-Kira committed results ( 4.6 s )
-100.0% [=]
-
-Equations reduced: 19440 / 19440
-Kira committed results ( 4.6 s )
-
-19440 equations were reduced
-
-*****Master integrals***********************************
-CF269[1,1,0,0,0,0,0,1,0] # 131
-CF269[1,1,1,1,0,0,0,1,0] # 143
-CF269[1,1,0,0,1,0,0,1,0] # 147
-CF269[1,1,1,0,1,0,0,1,0] # 151
-CF269[1,1,1,0,1,0,0,2,0] # 151
-CF269[1,1,1,1,1,0,0,1,0] # 159
-CF269[1,1,1,1,2,0,0,1,0] # 159
-CF269[1,1,0,0,1,0,1,1,0] # 211
-CF269[1,1,1,0,1,0,1,1,0] # 215
-CF269[1,1,0,1,1,0,1,1,0] # 219
-CF269[1,1,1,1,1,0,1,1,0] # 223
-CF269[1,1,1,1,1,0,1,2,0] # 223
-CF269[1,1,0,1,0,1,1,1,0] # 235
-CF269[1,1,0,1,0,1,1,2,0] # 235
-CF269[1,1,1,1,0,1,1,1,0] # 239
-CF269[1,1,0,0,1,1,0,1,0] # 179
-CF269[1,1,1,1,1,1,0,1,0] # 191
-CF269[1,1,0,0,1,1,1,1,0] # 243
-CF269[1,1,1,0,1,1,1,1,0] # 247
-CF269[1,1,0,1,1,1,1,1,0] # 251
-CF269[1,1,0,1,1,1,1,2,0] # 251
-CF269[1,1,1,1,1,1,1,1,0] # 255
-CF269[1,1,1,1,1,1,1,2,0] # 255
-
-Total number of master integrals: 23
-
-*****Not selected integrals******
-CF269[1,1,5,-1,-2,0,0,1,0]  # 135
-CF269[2,1,4,-1,-2,0,0,1,0]  # 135
-CF269[1,1,5,0,-2,0,-1,1,0]  # 135
-CF269[1,1,2,-2,-2,0,-1,1,0] # 135
-CF269[1,1,2,-2,-3,0,0,1,0]  # 135
-CF269[1,1,2,-1,-3,0,-1,1,0] # 135
-CF269[1,1,2,-1,-4,0,0,1,0]  # 135
-CF269[1,1,2,0,-4,0,-1,1,0]  # 135
-CF269[1,1,3,-5,0,0,0,1,0]   # 135
-CF269[3,1,1,-5,0,0,0,1,0]   # 135
-CF269[1,1,3,-4,0,0,-1,1,0]  # 135
-CF269[1,1,3,-4,-1,0,0,1,0]  # 135
-CF269[1,1,3,-3,0,0,-2,1,0]  # 135
-CF269[1,1,3,-3,-1,0,-1,1,0] # 135
-CF269[1,1,3,-3,-2,0,0,1,0]  # 135
-CF269[2,1,2,-3,-2,0,0,1,0]  # 135
-CF269[1,1,3,-2,-1,0,-2,1,0] # 135
-CF269[1,1,3,-2,-2,0,-1,1,0] # 135
-CF269[1,1,3,-2,-3,0,0,1,0]  # 135
-CF269[2,1,2,-2,-3,0,0,1,0]  # 135
-CF269[1,1,3,-1,-3,0,-1,1,0] # 135
-CF269[1,1,3,-1,-4,0,0,1,0]  # 135
-CF269[2,1,2,-1,-4,0,0,1,0]  # 135
-CF269[3,1,1,-1,-4,0,0,1,0]  # 135
-CF269[1,1,3,0,-4,0,-1,1,0]  # 135
-CF269[1,1,-3,3,0,0,0,1,0]   # 139
-CF269[1,2,-2,2,0,0,-1,1,0]  # 139
-CF269[1,1,-2,3,-1,0,0,1,0]  # 139
-CF269[1,1,1,0,1,-3,0,2,0]   # 151
-CF269[1,1,2,-1,1,0,-3,1,0]  # 151
-CF269[1,1,2,0,1,0,-4,1,0]   # 151
-CF269[1,1,1,0,1,-3,-1,2,0]  # 151
-CF269[1,1,0,0,1,0,2,6,0]    # 211
-CF269[1,1,0,0,1,0,3,5,0]    # 211
-CF269[1,2,0,0,1,0,1,6,0]    # 211
-CF269[1,1,-3,0,1,0,2,3,0]   # 211
-CF269[1,1,-3,0,1,0,3,2,0]   # 211
-CF269[1,2,-3,0,1,0,1,3,0]   # 211
-CF269[1,1,2,-2,1,0,1,4,0]   # 215
-CF269[1,1,3,-3,1,0,1,1,0]   # 215
-CF269[2,1,-4,1,1,0,1,1,0]   # 219
-CF269[2,1,-3,1,1,-1,1,1,0]  # 219
-CF269[1,1,1,1,1,-4,1,2,0]   # 223
-CF269[1,1,2,0,0,1,-1,3,0]   # 167
-CF269[1,1,2,-1,0,1,0,4,0]   # 167
-CF269[1,1,2,0,0,1,-1,4,0]   # 167
-CF269[1,1,4,0,0,1,-1,2,0]   # 167
-CF269[1,1,5,0,0,1,-1,1,0]   # 167
-CF269[1,1,1,0,-1,1,0,5,0]   # 167
-CF269[1,1,2,0,0,1,-3,1,0]   # 167
-CF269[1,1,1,0,0,1,-2,2,-1]  # 167
-CF269[1,1,1,0,-3,1,0,2,0]   # 167
-CF269[1,1,1,0,-2,1,0,2,-1]  # 167
-CF269[1,1,1,2,0,1,-1,2,0]   # 175
-CF269[1,1,2,1,0,1,-1,2,0]   # 175
-CF269[1,1,3,1,0,1,-1,1,0]   # 175
-CF269[1,1,1,1,-1,1,0,3,0]   # 175
-CF269[1,1,1,2,-1,1,0,2,0]   # 175
-CF269[3,1,0,-2,0,1,1,1,0]   # 227
-CF269[1,1,0,0,-3,1,3,1,0]   # 227
-CF269[1,1,0,-1,-1,1,1,2,-2] # 227
-CF269[1,1,0,0,-4,1,2,2,0]   # 227
-CF269[1,1,3,0,0,1,1,2,0]    # 231
-CF269[1,1,4,0,0,1,1,1,0]    # 231
-CF269[1,1,2,-2,0,1,1,1,0]   # 231
-CF269[1,1,2,-1,-1,1,1,1,0]  # 231
-CF269[1,1,-1,-1,1,5,0,1,0]  # 179
-CF269[1,1,0,-2,1,4,0,2,0]   # 179
-CF269[1,1,0,-1,1,1,-1,5,0]  # 179
-CF269[1,1,-1,-3,1,3,0,1,0]  # 179
-CF269[1,1,0,-3,1,3,-1,1,0]  # 179
-CF269[1,1,1,0,1,1,0,1,-3]   # 183
-CF269[1,1,2,0,1,1,-3,1,0]   # 183
-CF269[1,1,0,1,1,1,-1,3,-1]  # 187
-CF269[1,1,0,1,1,1,0,2,-3]   # 187
-CF269[1,1,-3,1,1,3,0,1,0]   # 187
-CF269[1,1,0,1,1,1,-2,2,-2]  # 187
-CF269[1,1,1,1,1,1,0,2,-3]   # 191
-CF269[1,1,0,0,1,2,1,5,0]    # 243
-CF269[1,1,0,0,1,3,1,4,0]    # 243
-CF269[1,1,0,-2,1,1,1,5,0]   # 243
-CF269[1,1,0,-2,1,3,1,3,0]   # 243
-CF269[1,1,0,0,1,1,1,2,-3]   # 243
-CF269[1,1,0,-4,1,1,1,2,0]   # 243
-CF269[1,1,0,-4,1,2,1,1,0]   # 243
-CF269[1,1,0,-2,1,1,1,2,-2]  # 243
-CF269[1,1,0,-1,1,1,1,2,-3]  # 243
-CF269[1,1,0,1,1,1,1,2,-4]   # 251
-
-Number of not selected integrals: 88
-( 4.6 s )
-One variable is set to 1: {sc0==1}
-One variable is set to 1: {sc0==1}
-The input directory is set to:
-./results
-################################################
-kira2math: Reconstruct results for CF269
-################################################
-
-Algebraic reconstruction is switched off.
-This requested integral is a master integral: CF269[1,1,1,1,1,0,1,1,0] # 223
-This requested integral is a master integral: CF269[1,1,1,1,1,0,1,2,0] # 223
-This requested integral is a master integral: CF269[1,1,1,1,1,1,1,1,0] # 255
-This requested integral is a master integral: CF269[1,1,1,1,1,1,1,2,0] # 255
-This requested integral is a master integral: CF269[1,1,0,0,0,0,0,1,0] # 131
-This requested integral is a master integral: CF269[1,1,0,0,1,0,0,1,0] # 147
-This requested integral is a master integral: CF269[1,1,0,0,1,0,1,1,0] # 211
-This requested integral is a master integral: CF269[1,1,0,0,1,1,0,1,0] # 179
-This requested integral is a master integral: CF269[1,1,0,0,1,1,1,1,0] # 243
-This requested integral is a master integral: CF269[1,1,0,1,0,1,1,1,0] # 235
-This requested integral is a master integral: CF269[1,1,0,1,0,1,1,2,0] # 235
-This requested integral is a master integral: CF269[1,1,0,1,1,0,1,1,0] # 219
-This requested integral is a master integral: CF269[1,1,0,1,1,1,1,1,0] # 251
-This requested integral is a master integral: CF269[1,1,0,1,1,1,1,2,0] # 251
-This requested integral is a master integral: CF269[1,1,1,0,1,0,0,1,0] # 151
-This requested integral is a master integral: CF269[1,1,1,0,1,0,0,2,0] # 151
-This requested integral is a master integral: CF269[1,1,1,0,1,0,1,1,0] # 215
-This requested integral is a master integral: CF269[1,1,1,0,1,1,1,1,0] # 247
-This requested integral is a master integral: CF269[1,1,1,1,0,0,0,1,0] # 143
-This requested integral is a master integral: CF269[1,1,1,1,0,1,1,1,0] # 239
-This requested integral is a master integral: CF269[1,1,1,1,1,0,0,1,0] # 159
-This requested integral is a master integral: CF269[1,1,1,1,1,1,0,1,0] # 191
-This requested integral is a master integral: CF269[1,1,1,1,2,0,0,1,0] # 159
-unreduced integrals: 0.
-
-Total time:
-( 144.4 s )
-SQLite3: table EQUATION already exists

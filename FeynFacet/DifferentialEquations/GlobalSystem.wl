@@ -5,7 +5,7 @@
    Rational specializations select independent rows; the stored elimination
    is exact. Different base points are handled later, not equated here. *)
 Clear[ConstructGlobalMasterDifferentialSystem];
-ClearAll[globalDEIndependentRows, globalDEZeroQ, globalDEIdentity];
+ClearAll[globalDEIndependentRows, globalDEZeroQ, globalDEIdentity,globalDECloseRelations];
 
 globalDEZeroQ[x_] := Together[x] === 0;
 globalDEIdentity[x_] := cutEquivalenceIntegral[x];
@@ -17,8 +17,43 @@ globalDEIndependentRows[matrix_List] := Module[{reduced},
     row[[#]] =!= 0 &, Missing["ZeroRow"]]], reduced], _Missing]
 ];
 
+
+(* Differential consequences of exact integral relations are relations too.
+   Work at generic epsilon; rational samples only select candidate pivots.
+   The retained row reduction and every final embedding are exact. *)
+globalDECloseRelations[initial_,matrices_,variables_,samples_,limit_]:=Module[
+ {constraints=initial,selected,rows,rank=-1,newRank,consequences,history={},n,closed=False,pivots,remainder},
+ n=Length[First[matrices]];
+ If[constraints==={},Return[<|"Rows"->{},"History"->{},"Closed"->True|>]];
+ Do[
+  If[AnyTrue[samples,!AllTrue[Flatten[constraints/.#],MatchQ[#,_Integer|_Rational]&]&],
+    Return[Failure["SingularOrNonrationalRelationSample",<||>]]];
+  selected=Union@@(globalDEIndependentRows[constraints/.#]&/@samples);
+  rows=If[selected==={},{},Select[RowReduce[constraints[[selected]]],
+    !AllTrue[#,globalDEZeroQ]&]];
+  (* A special sample may lose rank. Check the whole rational row space
+     before accepting the sampled selection or declaring closure. *)
+  pivots=Map[Function[row,SelectFirst[Range[n],!globalDEZeroQ[row[[#]]]&]],rows];
+  remainder=If[rows==={},constraints,
+    Map[Together,constraints-constraints[[All,pivots]].rows,{2}]];
+  remainder=Select[remainder,!AllTrue[#,globalDEZeroQ]&];
+  If[remainder=!={},rows=Select[RowReduce[Join[rows,remainder]],!AllTrue[#,globalDEZeroQ]&]];
+  newRank=Length[rows];
+  AppendTo[history,<|"Iteration"->iteration,"RelationRank"->newRank|>];
+  If[newRank===0||newRank===rank||newRank===n,closed=True;Break[]];
+  rank=newRank;
+  consequences=Flatten[Table[
+    Map[Together,D[rows,variables[[axis]]]+rows.Normal[matrices[[axis]]],{2}],
+    {axis,Length[variables]}],1];
+  constraints=DeleteDuplicates[Join[rows,consequences]],
+ {iteration,limit}];
+ If[!closed,Return[Failure["IntegralRelationClosureIncomplete",<|"History"->history|>]]];
+ <|"Rows"->rows,"History"->history,"Closed"->True|>
+];
+
 Options[ConstructGlobalMasterDifferentialSystem] = {
-  "PreferredMasterIntegrals" -> {}, "ValidationPoints" -> Automatic};
+  "PreferredMasterIntegrals" -> {}, "ValidationPoints" -> Automatic,
+  "MaximumRelationClosureIterations"->Automatic};
 
 ConstructGlobalMasterDifferentialSystem[systems_List,
     equivalences_Association, OptionsPattern[]] := Catch@Module[
@@ -27,7 +62,8 @@ ConstructGlobalMasterDifferentialSystem[systems_List,
    masters, positions, embedding, matrices, localRows, row, key, difference,
    n, m, sample, samples, independent, c, support, eliminate, order,
    preferred, reduced, pivots, free, e, globalMatrices, transformed,
-   residual, checks, maxResidual, tags, rowBasis, point, old, identityRules},
+   residual, checks, maxResidual, tags, rowBasis, point, old, identityRules,d,
+   relationClosure,relationLimit,flatnessChecks,bi,bj},
   fail[tag_, extra_: <||>] := Throw[Failure[tag, extra]];
   If[systems === {} || Lookup[equivalences, "DataType", None] =!=
       "CutIntegralEquivalences", fail["GlobalDifferentialSystemInputsRequired"]];
@@ -35,7 +71,9 @@ ConstructGlobalMasterDifferentialSystem[systems_List,
     fail["NonunitIntegralMapUnsupported"]];
   variables = systems[[1]]["KinematicVariables"];
   epsilon = systems[[1]]["DimensionalRegulator"];
-  normalized = Map[Function[d,
+  normalized = Map[Function[input,
+    d=solutionNormalizeDifferentialSystem[input];
+    If[FailureQ[d],fail["GlobalConnectionDimensionNormalizationFailed",<|"Cause"->d|>]];
     If[Length[d["KinematicVariables"]] =!= Length[variables] ||
         (SymbolName /@ d["KinematicVariables"]) =!= (SymbolName /@ variables),
       fail["KinematicCoordinatesDiffer"]];
@@ -90,9 +128,11 @@ ConstructGlobalMasterDifferentialSystem[systems_List,
     If[! AllTrue[Flatten[sample], MatchQ[#, _Integer | _Rational] &],
       fail["SingularOrNonrationalValidationPoint", <|"Point" -> point|>]],
     {point, samples}];
-  independent = If[constraints === {}, {},
-    globalDEIndependentRows[constraints /. First[samples]]];
-  c = If[independent === {}, {}, constraints[[independent]]];
+  relationLimit=Replace[OptionValue["MaximumRelationClosureIterations"],Automatic->n+1];
+  If[!IntegerQ[relationLimit]||relationLimit<1,fail["PositiveRelationClosureLimitRequired"]];
+  relationClosure=globalDECloseRelations[constraints,globalMatrices,variables,samples,relationLimit];
+  If[FailureQ[relationClosure],Throw[relationClosure]];
+  c=relationClosure["Rows"];constraints=c;independent=Range[Length[c]];
   support = If[c === {}, {}, Select[Range[n],
     AnyTrue[c[[All, #]], # =!= 0 &] &]];
   (* Eliminate nonpreferred integrals first. This avoids solving simple
@@ -130,6 +170,14 @@ ConstructGlobalMasterDifferentialSystem[systems_List,
     {point, samples}];
   (* The free rows are coordinate projections, so dE is zero there. *)
   transformed = (# [[free]].e & /@ globalMatrices);
+  flatnessChecks=Table[
+    residual=Table[
+      bi=Normal[transformed[[i]]]/.point;bj=Normal[transformed[[j]]]/.point;
+      (D[Normal[transformed[[j]]],variables[[i]]]/.point)-
+       (D[Normal[transformed[[i]]],variables[[j]]]/.point)+bj.bi-bi.bj,
+      {i,Length[variables]},{j,i+1,Length[variables]}];
+    If[!AllTrue[Flatten[residual],#===0&],fail["SharedConnectionNotFlat",<|"Point"->point|>]];
+    <|"Point"->point,"FlatnessPassed"->True|>,{point,samples}];
   familyMaps = (Join[#, <|"IntegralEmbedding" ->
     (#["IntegralEmbedding"].e)|>] &) /@ familyMaps;
   identityRules = Thread[basis -> (Normal[e].basis[[free]])];
@@ -145,11 +193,12 @@ ConstructGlobalMasterDifferentialSystem[systems_List,
     "InputMasterCount" -> Total[Length[#["Basis"]] & /@ normalized],
     "EquivalenceClassCount" -> n,
     "IndependentRelationCount" -> Length[independent],
+    "RelationClosureHistory"->relationClosure["History"],
     "GlobalSpanningMasterCount" -> Length[free],
     "MinimalMasterCountDetermined" -> False,
     "PhysicalBoundaryConditionsApplied" -> False,
     "Validation" -> <|"Method" -> "ExactRationalSpecializations",
-      "Checks" -> checks,
+      "Checks" -> checks,"FlatnessChecks"->flatnessChecks,
       "Scope" -> "Selected exact identities and differential compatibility; no minimality or physical-mode claim."|>|>
 ];
 
@@ -190,3 +239,48 @@ ConstructRequestedMasterDifferentialSystem[system_Association, requested_List] :
     "Dimension" -> Length[active],
     "ClosureVerification" -> "Exact rational zero tests of all excluded columns in retained derivative rows."|>
 ];
+
+(* Restrict a flat connection to the differential closure of independently
+   established homogeneous linear relations. This is also used for physical
+   asymptotic conditions; it does not supply a proof of their physical input. *)
+FeynFacet`RestrictDifferentialSystemToRelations::usage =
+ "RestrictDifferentialSystemToRelations[system,rows,request] closes supplied exact homogeneous relations under every kinematic derivative, constructs a basis of their common nullspace, and verifies the induced connection and full embedding identities.";
+FeynFacet`RestrictDifferentialSystemToRelations[system_Association,relations_List,
+ request_Association:<||>] := Catch[Module[
+ {s,variables,e,a,n,samples,closed,c,basis,rows,left,selection,connection,residual,m},
+ s=solutionNormalizeDifferentialSystem[system];If[FailureQ[s],Throw[s]];
+ variables=s["KinematicVariables"];e=s["DimensionalRegulator"];
+ a=Normal/@s["ConnectionMatrices"];n=Length[First[a]];
+ If[!AllTrue[a,Dimensions[#]==={n,n}&]||
+   (relations=!={}&&Dimensions[relations]=!={Length[relations],n}),
+  Throw[Failure["DifferentialRelationDimensionsInvalid",<||>]]];
+ samples=Lookup[request,"ValidationPoints",Table[
+  Thread[Append[variables,e]->Table[1/Prime[7k+j+3],{j,Length[variables]+1}]],{k,2}]];
+ closed=globalDECloseRelations[relations,a,variables,samples,n+1];
+ If[FailureQ[closed],Throw[closed]];c=closed["Rows"];
+ basis=If[c==={},IdentityMatrix[n],Transpose[NullSpace[c]]];
+ m=If[basis==={},0,Last[Dimensions[basis]]];
+ If[m===0,Throw[Failure["RelationsForceZeroSolution",<|"RelationClosure"->closed|>]]];
+ rows=globalDEIndependentRows[basis];selection=IdentityMatrix[n][[rows]];
+ left=Map[Cancel,Inverse[basis[[rows]]].selection,{2}];
+ connection=Table[Map[Together,left.(a[[j]].basis-D[basis,variables[[j]]]),{2}],
+  {j,Length[variables]}];
+ residual=Flatten@Table[D[basis,variables[[j]]]+basis.connection[[j]]-a[[j]].basis,
+  {j,Length[variables]}];
+ If[!AllTrue[residual,globalDEZeroQ]||
+   !AllTrue[Flatten[left.basis-IdentityMatrix[m]],globalDEZeroQ]||
+   (c=!={}&&!AllTrue[Flatten[c.basis],globalDEZeroQ]),
+  Throw[Failure["RestrictedConnectionEmbeddingFailed",<||>]]];
+ If[!And@@Flatten@Table[
+   AllTrue[Flatten[D[connection[[i]],variables[[j]]]-D[connection[[j]],variables[[i]]]+
+    connection[[i]].connection[[j]]-connection[[j]].connection[[i]]],globalDEZeroQ],
+  {i,Length[variables]},{j,i+1,Length[variables]}],
+  Throw[Failure["RestrictedConnectionNotFlat",<||>]]];
+ <|"DataType"->"ConstrainedDifferentialSystem","KinematicVariables"->variables,
+  "DimensionalRegulator"->e,"ConnectionMatrices"->connection,"Dimension"->m,
+  "OriginalMasterIntegralBasis"->Range[m],"SourceDimension"->n,
+  "SolutionEmbedding"->basis,"SolutionLeftInverse"->left,
+  "RelationClosure"->closed,"RelationProvenance"->Lookup[request,"RelationProvenance",None],
+  "Verification"-><|"DifferentialClosure"->True,"Embedding"->True,"LeftInverse"->True,
+   "Flatness"->True,"Method"->"ExactRationalIdentities"|>|>
+]];

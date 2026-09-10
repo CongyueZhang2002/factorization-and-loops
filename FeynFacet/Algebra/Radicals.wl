@@ -122,4 +122,21 @@ masterTransportRadicalZeroQ[e_] := Module[
   AllTrue[Flatten[coefficients], TrueQ[Together[#] === 0] &]
 ];
 
+(* Expand rational powers of positive monomials without changing branches.
+   Positivity is established once per base from the caller's assumptions;
+   powers with any unresolved factor remain in their original form. *)
+expandPositiveMonomialPowers[expression_, assumptions_] := Module[
+  {powers, positive, split, rules},
+  positive[base_] := positive[base] = TrueQ[Refine[base > 0, assumptions]];
+  split[power_] := Module[{factors, entries, exponent = power[[2]]},
+    factors = If[Head[power[[1]]] === Times, List @@ power[[1]], {power[[1]]}];
+    entries = (If[MatchQ[#, Power[_, _Integer]], {#[[1]], #[[2]]}, {#, 1}] & /@ factors);
+    If[AllTrue[entries, positive[First[#]] &],
+      Times @@ (First[#]^(Last[#] exponent) & /@ entries), power]
+  ];
+  powers = DeleteDuplicates[Cases[expression, Power[_, _Rational], {0, Infinity}]];
+  rules = (# -> split[#] & /@ powers);
+  expression /. Dispatch[rules]
+];
+
 End[];

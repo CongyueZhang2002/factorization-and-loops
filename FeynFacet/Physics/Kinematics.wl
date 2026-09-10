@@ -8,7 +8,11 @@ DeclareScalar[scalars_List] := Module[{pieces},
     {1, Infinity},
     Heads -> False
   ];
-  Scan[(FeynCalc`DataType[#, FeynCalc`FCVariable] = True) &, pieces];
+  (* Reassigning an existing FeynCalc scalar declaration invalidates its
+     algebra caches. Coordinate substitutions repeatedly use the same scalars. *)
+  Scan[Function[piece,
+    If[! TrueQ[FeynCalc`DataType[piece, FeynCalc`FCVariable]],
+      FeynCalc`DataType[piece, FeynCalc`FCVariable] = True]], pieces];
   scalars
 ];
 
@@ -145,7 +149,7 @@ internalScalarProductObjects[expr_] := DeleteDuplicates[
     ] :> object,
     Infinity
   ],
-  SameTest -> SameQ
+  SameQ
 ];
 
 feynFacetFormQ[expr_] := internalScalarProductObjects[expr] === {};
@@ -165,6 +169,6 @@ ToFeynFacetForm[expr_] := Module[{converted, remaining},
 ];
 
 remainingDeclaredMomenta[expression_, momenta_List] := Select[
-  DeleteDuplicates[momenta, SameTest -> SameQ],
+  DeleteDuplicates[momenta, SameQ],
   ! FreeQ[HoldComplete[expression], #] &
 ];

@@ -1,0 +1,156 @@
+(* Joint endpoint subtraction on a rectangular normal-crossing chart.
+   Each term is SmoothFactor Times@@(x_i^Power_i Log[x_i]^LogPower_i).
+   The smooth factor must be jointly smooth at every declared face/corner.
+   Overlapping singularities must be resolved before calling this module. *)
+BeginPackage["FeynFacet`"];
+EndpointDistributionAction::usage="EndpointDistributionAction[expression,testFunction,intervals,assumptions] evaluates a finite distribution against a smooth test function. intervals is an association of variable->{0,upper}. Delta and plus factors may occur at most once per variable.";
+Begin["`Private`"];
+tensorEndpointFiniteQ[x_]:=FreeQ[x,_Failure|_Missing|$Failed|$Aborted|Indeterminate|_DirectedInfinity|_SeriesData|_Series|_SeriesCoefficient];
+tensorEndpointProjection[f_,variables_,regular_]:=Module[{boundary,value},
+ boundary=Complement[variables,regular];
+ value=f/.Thread[boundary->0];
+ Fold[#1-(#1/.#2->0)&,value,regular]
+];
+tensorEndpointGeometry[d_,r_]:=Module[{xs,e,intervals,conditions,assumptions,support,excluded},
+ xs=Lookup[d,"NormalVariables",{}];e=d["DimensionalRegulator"];
+ intervals=Lookup[d,"Intervals",{}];conditions=Lookup[d,"EndpointConditions",<||>];
+ assumptions=Lookup[d,"Assumptions",True];
+ If[xs==={}||!MatchQ[xs,{_Symbol...}]||!DuplicateFreeQ[xs]||MemberQ[xs,e]||
+  Length[intervals]=!=Length[xs]||!AllTrue[intervals,MatchQ[#,{0,_}]&]||
+  !FreeQ[{intervals,assumptions},e]||!FreeQ[intervals,Alternatives@@xs]||
+  !AllTrue[Last/@intervals,TrueQ[FullSimplify[0<#<Infinity,Assumptions->assumptions]]&],
+  endpointDistributionFail["RectangularEndpointChartRequired"]];
+ If[!AssociationQ[conditions]||!AllTrue[
+  {"JointlySmoothFactors","UniformEpsilonExpansion","NoOtherSingularities"},
+  TrueQ[Lookup[conditions,#,False]]&],
+  endpointDistributionFail["JointEndpointConditionsRequired"]];
+ support=Lookup[d,"TestFunctionSupport",<|"ExcludedFaces"->{}|>];
+ excluded=If[AssociationQ[support],Lookup[support,"ExcludedFaces",None],None];
+ If[!MatchQ[excluded,{(_Rule)...}]||!DuplicateFreeQ[First/@excluded]||
+  !AllTrue[excluded,MemberQ[xs,First[#]]&&Last[#]===Last[intervals[[First@FirstPosition[xs,First[#]]]]]&],
+  endpointDistributionFail["OnlyOppositeEndpointFacesMayBeExcluded"]];
+ If[!IntegerQ[Lookup[r,"ThroughOrder",None]]||!MatchQ[Lookup[d,"Terms",None],{_Association...}],
+  endpointDistributionFail["FiniteEndpointTermsAndTargetOrderRequired"]];
+ <|"Variables"->xs,"DimensionalRegulator"->e,"Intervals"->intervals,
+   "Assumptions"->assumptions,"TestFunctionSupport"->support,"ThroughOrder"->r["ThroughOrder"]|>
+];
+tensorEndpointTermPlan[t_,g_,index_]:=Module[
+ {xs=g["Variables"],e=g["DimensionalRegulator"],powers,logs,a,b,singular,f,lo,strata,lower},
+ powers=Lookup[t,"Powers",{}];logs=Lookup[t,"LogPowers",ConstantArray[0,Length[xs]]];
+ If[Length[powers]=!=Length[xs]||Length[logs]=!=Length[xs]||
+  !VectorQ[logs,IntegerQ[#]&&#>=0&]||!FreeQ[powers,Alternatives@@xs]||
+  !AllTrue[powers,PolynomialQ[#,e]&&Exponent[#,e]<=1&],
+  endpointDistributionFail["AffineNormalEndpointPowersRequired",<|"Term"->index|>]];
+ a=powers/.e->0;b=Coefficient[#,e]&/@powers;
+ If[!AllTrue[a,MatchQ[#,_Integer|_Rational]&&(#===-1||#>-1)&],
+  endpointDistributionFail["SimpleNormalEndpointPolesRequired",<|"Term"->index|>]];
+ singular=Flatten[Position[a,-1]];
+ If[!AllTrue[singular,TrueQ[FullSimplify[b[[#]]!=0,Assumptions->g["Assumptions"]]]&],
+  endpointDistributionFail["EndpointNotRegulated",<|"Term"->index|>]];
+ f=Lookup[t,"SmoothFactor",Missing[]];
+ If[!tensorEndpointFiniteQ[f],endpointDistributionFail["ExplicitSmoothFactorRequired"]];
+ If[!AssociationQ[f]&&!tensorEndpointFiniteQ[Quiet[f/.Thread[xs[[singular]]->0]]],
+  endpointDistributionFail["JointEndpointProjectionNotFinite",<|"Term"->index|>]];
+ lo=If[AssociationQ[f],endpointDistributionSeriesMetadata[f,{index,"SmoothFactor"}]["LaurentLowerBound"],
+  DetermineMeromorphicLaurentLowerBound[f,e]];
+ If[lo===Infinity,lo=0];
+ If[!IntegerQ[lo],endpointDistributionFail["SmoothFactorLaurentBoundRequired"]];
+ strata=Table[
+  lower=Total[-logs[[#]]-1&/@Complement[singular,regular]];
+  <|"RegularIndices"->regular,"BoundaryIndices"->Complement[singular,regular],
+   "MomentLaurentLowerBound"->lower,"RequiredSmoothFactorOrder"->g["ThroughOrder"]-lower|>,
+ {regular,Subsets[singular]}];
+ <|"TermIndex"->index,"PowersAtZero"->a,"RegulatorSlopes"->b,"LogPowers"->logs,
+   "SingularIndices"->singular,"SmoothFactorLaurentLowerBound"->lo,"Strata"->strata|>
+];
+tensorEndpointPlan[d_,r_]:=Module[{g=tensorEndpointGeometry[d,r]},
+ <|"DataType"->"EndpointDistributionEpsilonOrders","Status"->"SufficientOrdersDetermined",
+ "ThroughOrder"->g["ThroughOrder"],"TermRequirements"->
+  MapIndexed[tensorEndpointTermPlan[#1,g,First[#2]]&,d["Terms"]],
+ "TestFunctionSupport"->g["TestFunctionSupport"],
+ "Scope"->"Jointly smooth factors up to every resolved face and corner on each compact subset of the declared test-function domain."|>
+];
+tensorEndpointAxisSeries[i_,boundary_,lo_,hi_,plan_,g_]:=Module[
+ {x=g["Variables"][[i]],upper=Last[g["Intervals"][[i]]],a,b,p,cs,m},
+ {a,b,p}={plan["PowersAtZero"][[i]],plan["RegulatorSlopes"][[i]],plan["LogPowers"][[i]]};
+ If[boundary,m=endpointDistributionMomentSeries[0,b,p,upper,lo,hi]["Coefficients"]];
+ cs=Association@Table[k->If[boundary,
+   m[k] EndpointDeltaDerivative[x,0,upper]+If[k>=0,
+     endpointDistributionPower[b,k]/Factorial[k] EndpointPlusDistribution[x,-1,p+k,1,upper],0],
+   If[k>=0,endpointDistributionPower[b,k]/Factorial[k] x^a Log[x]^(p+k),0]],
+ {k,lo,hi}];
+ <|"LaurentLowerBound"->lo,"KnownThroughOrder"->hi,"Coefficients"->cs,"ExactInEpsilon"->False|>
+];
+tensorEndpointExtract[d_,r_]:=Module[
+ {g,plan,terms={},source,lo,boundary,regular,project,series,factorLows,lower,records,cs,allLower,coefficients},
+ g=tensorEndpointGeometry[d,r];plan=tensorEndpointPlan[d,r];
+ Do[source=d["Terms"][[t["TermIndex"]]]["SmoothFactor"];lo=t["SmoothFactorLaurentLowerBound"];
+  Do[
+   boundary=stratum["BoundaryIndices"];regular=stratum["RegularIndices"];
+   If[lo+stratum["MomentLaurentLowerBound"]>g["ThroughOrder"],Continue[]];
+   project[f_]:=tensorEndpointProjection[f,g["Variables"][[t["SingularIndices"]]],g["Variables"][[regular]]];
+   series=If[AssociationQ[source],
+    endpointDistributionSeries[source,stratum["RequiredSmoothFactorOrder"],
+     g["DimensionalRegulator"],None,False,{t["TermIndex"],"SmoothFactor"}],
+    endpointDistributionExactSeries[project[source],lo,stratum["RequiredSmoothFactorOrder"],
+     g["DimensionalRegulator"],g["Assumptions"]]];
+   If[AssociationQ[source],series=Join[series,<|"Coefficients"->Map[project,series["Coefficients"]]|>]];
+   If[!tensorEndpointFiniteQ[series["Coefficients"]],
+    endpointDistributionFail["JointEndpointProjectionNotFinite",
+     <|"Term"->t["TermIndex"],"RegularVariables"->g["Variables"][[regular]]|>]];
+   If[AllTrue[Values[series["Coefficients"]],#===0&],Continue[]];
+   factorLows=Table[If[MemberQ[boundary,i],-t["LogPowers"][[i]]-1,0],{i,Length[g["Variables"]]}];
+   lower=lo+Total[factorLows];
+   records=Prepend[Table[tensorEndpointAxisSeries[i,MemberQ[boundary,i],factorLows[[i]],
+     g["ThroughOrder"]-lower+factorLows[[i]],t,g],{i,Length[factorLows]}],series];
+   cs=Map[Factor,endpointDistributionConvolve[records,lower,g["ThroughOrder"]]];
+   AppendTo[terms,<|"TermIndex"->t["TermIndex"],"RegularVariables"->g["Variables"][[regular]],
+    "BoundaryVariables"->g["Variables"][[boundary]],"LaurentLowerBound"->lower,
+    "Coefficients"->cs|>],
+  {stratum,t["Strata"]}],{t,plan["TermRequirements"]}];
+ allLower=Min[Append[Lookup[terms,"LaurentLowerBound",{}],g["ThroughOrder"]]];
+ coefficients=Map[Factor,endpointDistributionCoefficientSum[Lookup[terms,"Coefficients",{}],allLower,g["ThroughOrder"]]];
+ <|"DataType"->"FiniteEndpointDistributions","Status"->"ExplicitFiniteCoefficients",
+  "EndpointGeometry"->"NormalCrossings","DimensionalRegulator"->g["DimensionalRegulator"],
+  "NormalVariables"->g["Variables"],"Intervals"->g["Intervals"],
+  "Assumptions"->g["Assumptions"],"EndpointConditions"->d["EndpointConditions"],"TestFunctionSupport"->g["TestFunctionSupport"],
+  "LaurentLowerBound"->allLower,"ThroughOrder"->g["ThroughOrder"],
+  "OmittedEpsilonOrderLowerBound"->g["ThroughOrder"]+1,"Coefficients"->coefficients,
+  "Expression"->endpointDistributionPolynomial[coefficients,g["DimensionalRegulator"]],
+  "Terms"->terms,"OrderRequirements"->plan,
+  "Convention"->"Tensor product of endpoint delta and plus distributions at zero on the declared intervals. Normal-coordinate Jacobians must be included in SmoothFactor.",
+  "PhysicalNNLOCoverageInferred"->False|>
+];
+EndpointDistributionAction[expression_,test_,intervals_Association,assumptions_:True]:=Catch[Module[
+ {terms,value=0,objects,variables,coefficient,integrand,remaining,x,j,upper,kernel,answer},
+ If[!AllTrue[Keys[intervals],MatchQ[#,_Symbol]&]||
+  !AllTrue[Values[intervals],MatchQ[#,{0,_}]&&
+  TrueQ[FullSimplify[0<Last[#]<Infinity,Assumptions->assumptions]]&],
+  endpointDistributionFail["RectangularEndpointChartRequired"]];
+ terms=With[{sum=Expand[expression]},If[Head[sum]===Plus,List@@sum,{sum}]];
+ Do[
+  objects=Cases[term,_EndpointDeltaDerivative|_EndpointPlusDistribution,{0,Infinity}];
+  variables=First/@objects;
+  If[!DuplicateFreeQ[variables]||!AllTrue[objects,Exponent[term,#]===1&]||
+   !SubsetQ[Keys[intervals],variables],
+   endpointDistributionFail["OneDistributionPerVariableRequired"]];
+  coefficient=term/.Thread[objects->1];integrand=coefficient test;remaining=Keys[intervals];kernel=1;
+  Do[x=First[object];upper=Last[object];
+   If[intervals[x]=!={0,upper},endpointDistributionFail["DistributionIntervalMismatch"]];
+   If[Head[object]===EndpointDeltaDerivative,
+    j=object[[2]];If[!IntegerQ[j]||j<0,endpointDistributionFail["DeltaDerivativeOrderRequired"]];
+    integrand=(-1)^j D[integrand,{x,j}]/.x->0;remaining=DeleteCases[remaining,x]],
+  {object,objects}];
+  Do[If[Head[object]===EndpointPlusDistribution,
+   {x,j,upper}={object[[1]],object[[4]],object[[5]]};
+   integrand=integrand-Sum[(D[integrand,{x,k}]/.x->0)x^k/Factorial[k],{k,0,j-1}];
+   kernel*=x^object[[2]] Log[x]^object[[3]]],
+  {object,objects}];
+  integrand=Factor[integrand kernel];
+  answer=If[remaining==={},integrand,
+   Integrate[integrand,Sequence@@({#,0,Last[intervals[#]]}&/@remaining),Assumptions->assumptions]];
+  If[!tensorEndpointFiniteQ[answer]||!FreeQ[answer,_Integrate],
+   endpointDistributionFail["DistributionActionUnresolved"]];
+  value+=answer,
+ {term,terms}];value],"EndpointDistributions"];
+End[];EndPackage[];

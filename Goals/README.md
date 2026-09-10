@@ -4,7 +4,21 @@ The deliverable is general NNLO code. Process cards, integral definitions,
 coefficient tables, boundary values and numerical comparison points are inputs;
 individual families test the general code.
 
-The user authorized the following sequence on 2026-09-07.
+The latest requested SIDIS NNLO UU/LL campaign is complete. All26 channel
+hard coefficients are stored as explicit finite Mathematica results and
+validated against independent NNLO expressions in all four kinematic regions.
+See [UU](../Projects/SIDIS_UU_NNLO/NNLO/README.md) and
+[LL](../Projects/SIDIS_LL_NNLO/NNLO/README.md) for the results and replay commands.
+
+The general framework remains the deliverable: endpoint profiles and their
+joint uniformity, finite epsilon-order propagation, symbolic special functions,
+counterterms and the shared result format are reusable package code. No
+reference hard coefficient enters production.
+
+## Earlier ppHX campaign scope
+
+The user authorized the following sequence on 2026-09-07. These records
+describe that earlier campaign; they are not outstanding SIDIS prerequisites.
 
 1. Complete: all 91 families, 345 requested masters and 2,220 coefficients
    pass the independent AMFlow comparison at v=1/4,w=1/5. The aggregate

@@ -33,4 +33,10 @@ FTAssert["orders below the valuation and zero functions are explicit zeros",
  ListQ[series]&&Values[series[[1]]]===ConstantArray[0,7]&&Values[series[[3]]]===ConstantArray[0,7]];
 FTAssert["an expansion variable must be declared",
  FailureQ[FeynFacet`RationalLaurentCoefficients[{1/(1-e)},{x},e,{0,3}]]];
+
+coefficientInput={(x-y)/(x^2-y^2)*model["g"]^4,2^(3-4e)+16*2^(-4e-1),
+ Log[x]*(x^2-y^2)/(x-y),0};
+coefficientOutput=FeynFacet`CancelRationalCoefficients[coefficientInput];
+FTAssert["batch coefficient cancellation restores common analytic factors exactly",
+ ListQ[coefficientOutput]&&And@@(FullSimplify[#]===0&/@(coefficientOutput-coefficientInput))];
 FTReport[];

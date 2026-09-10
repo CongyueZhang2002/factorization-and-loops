@@ -213,6 +213,33 @@ restoreCutTerm[term_, cutRecords_List] := Module[{descriptors},
 ];
 
 
+(* Outside an established ordinary-i0 limit, the proposed rational identity
+   must also hold with the prescriptions retained. Common eta syntax alone
+   does not permit cancellation of opposite cores across a pinch. *)
+PartialFraction::prescription="The partial-fraction identity was not established with finite causal regulators. Supply an applicable whole-integral prescription proof or a regulator-preserving reduction.";
+prescribedPartialFractionIdentityQ[source_,target_]:=Module[
+ {eta=Unique["ordinaryEta"],cutObjects,cutCores,uniqueCores,cutTags,cutRules,convert,left,right,difference},
+ cutObjects=DeleteDuplicates[Cases[{source,target},_Cut,Infinity],SameQ];
+ cutCores=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[First[List@@#]]]& /@ cutObjects;
+ uniqueCores=DeleteDuplicates[cutCores,SameQ];
+ cutTags=AssociationThread[uniqueCores,Table[Unique["cutEta"],{Length[uniqueCores]}]];
+ cutRules=MapThread[Function[{cut,core},cut->1/(core+I cutTags[core])],{cutObjects,cutCores}];
+ convert[expr_]:=Module[{internal,objects,values,rules},
+   internal=FeynCalc`ToSFAD[FeynCalc`FCI[expr/.cutRules]];
+   objects=DeleteDuplicates[Cases[internal,_FeynCalc`StandardPropagatorDenominator,Infinity],SameQ];
+   values=Map[Function[object,With[{descriptor=propagatorDescriptor[object]},
+     If[descriptor===$Failed,$Failed,
+       (descriptor["UnitCore"]+I object[[4,2]]eta)^(-descriptor["Power"])]]],objects];
+   If[MemberQ[values,$Failed],Return[$Failed]];
+   rules=Thread[objects->values];
+   FeynCalc`ExpandScalarProduct[(internal/.rules)/.FeynCalc`FeynAmpDenominator->Times]
+ ];
+ left=convert[source];right=convert[target];
+ If[MemberQ[{left,right},$Failed],Return[False]];
+ difference=TimeConstrained[Cancel[Together[left-right]],3,$TimedOut];
+ TrueQ[difference===0]
+];
+
 (* Cut-aware partial fractions. *)
 PartialFraction[expr_, loopMomenta_List, OptionsPattern[]] := Module[
   {cutRecords, descriptors, collision, algebraic, reduced, result},
@@ -233,6 +260,7 @@ PartialFraction[expr_, loopMomenta_List, OptionsPattern[]] := Module[
     HoldPattern[Cut[FeynCalc`SPD[q_]]] :> FeynCalc`FAD[q],
     HoldPattern[Cut[FeynCalc`SPD[q_], _]] :> FeynCalc`FAD[q]
   };
+  algebraic = FeynCalc`FCLoopSwitchEtaSign[algebraic,1];
   reduced = FeynCalc`ApartFF[
     algebraic,
     loopMomenta,
@@ -241,14 +269,16 @@ PartialFraction[expr_, loopMomenta_List, OptionsPattern[]] := Module[
     FeynCalc`FCE -> False
   ];
 
-  If[cutRecords === {}, Return[ToFeynFacetForm[reduced]]];
-  result = restoreCutTerm[#, cutRecords, descriptors] & /@ termList[reduced];
-  If[MemberQ[result, $Failed], Return[$Failed]];
-  If[result === {},
-    Message[PartialFraction::nocut, cutRecords];
-    Return[$Failed]
+  If[cutRecords === {},result=ToFeynFacetForm[reduced],
+    result = restoreCutTerm[#, cutRecords, descriptors] & /@ termList[reduced];
+    If[MemberQ[result, $Failed], Return[$Failed]];
+    If[result === {},Message[PartialFraction::nocut, cutRecords];Return[$Failed]];
+    result=Total[result]
   ];
-  Total[result]
+  If[!TrueQ[$ordinaryPrescriptionLimitEstablished] &&
+    !prescribedPartialFractionIdentityQ[expr,result],
+    Message[PartialFraction::prescription];Return[$Failed]];
+  result
 ];
 
 PartialFraction[expr_, loopMomenta_, OptionsPattern[]] := (
@@ -288,13 +318,13 @@ IdentifySafePropagator::setup =
   "Setup must define two incoming and at least two outgoing massless parton momenta, together with valid forward and conjugate loop-momentum lists.";
 
 IdentifySafePropagator::form =
-  "The ordinary propagator `1` is not a massless quadratic denominator Q^2 with an exact linear momentum core.";
+  "The ordinary propagator `1` is outside the supported massless quadratic or null-bilinear phase-space sign criterion.";
 
 IdentifySafePropagator::virtual =
   "The propagator `1` contains a virtual loop momentum and is outside this phase-space sign check.";
 
 IdentifySafePropagator::unsafe =
-  "The propagator `1` is not sign-safe: Q^2/s ranges from `2` to `3` over massless phase space.";
+  "A strict interior sign was not established for `1`: its inverse denominator divided by s ranges from `2` to `3` on unrestricted massless phase space. This is not a slice-specific or endpoint-convergence test.";
 
 $buildTopologiesFailure = "FeynFacetBuildTopologiesFailure";
 
@@ -374,7 +404,7 @@ masslessSquareBounds[coefficients_List, finalCount_Integer] := Module[
 safePropagatorData[setup_Association, propagator_] := Module[
   {
     partonRule, incoming, outgoing, partonMomenta, massless,
-    virtualLoops, descriptor, coefficients, squareScale = 1,
+    virtualLoops, descriptor, coefficients, squareScale = 1, squareCore, squareMomentum, squareCoordinates,
     pairObjects, pair, pairScale, pairMomenta, pairCoordinates,
     rawBounds, scaledBounds, lower, upper, a, b, c, key, coreKey, first
   },
@@ -408,9 +438,29 @@ safePropagatorData[setup_Association, propagator_] := Module[
     Return[$Failed]
   ];
 
+  (* Do not infer absence of a mass/constant shift from a quotient that
+     could simplify on a preassigned kinematic slice. Inspect the field too. *)
+  If[! FreeQ[FeynCalc`FCI[propagator],
+      object_FeynCalc`StandardPropagatorDenominator /; ! exactZeroQ[object[[3]]]],
+    Message[IdentifySafePropagator::form, propagator]; Return[$Failed]];
+
   coefficients = Switch[descriptor["Type"],
     "QuadraticLorentzian",
-      momentumCoordinates[descriptor["Momentum"], partonMomenta],
+      (* Check the ACTUAL inverse propagator, including its scale and mass
+         field. A momentum-only descriptor also describes shifted virtual
+         propagators and must not certify their unshifted square here. *)
+      squareMomentum = descriptor["Momentum"];
+      squareCoordinates = momentumCoordinates[squareMomentum, partonMomenta];
+      If[squareCoordinates === $Failed,
+        squareMomentum = Expand[-I squareMomentum];
+        squareCoordinates = momentumCoordinates[squareMomentum, partonMomenta]];
+      squareCore = FeynCalc`ExpandScalarProduct[
+        FeynCalc`FCI[FeynCalc`SPD[squareMomentum]]];
+      squareScale = If[exactZeroQ[squareCore], $Failed,
+        Quiet @ Check[Cancel[descriptor["UnitCore"]/squareCore], $Failed]];
+      If[! exactRationalQ[squareScale] || exactZeroQ[squareScale],
+        $Failed,
+        squareCoordinates],
     "LinearLorentzian",
       pairObjects = Cases[
         descriptor["UnitCore"],
@@ -485,8 +535,21 @@ IdentifySafePropagator[setup_, propagator_] := (
 );
 
 
-checkCompletedPropagators[setup_Association, families_List] := Module[
-  {virtualLoops, propagators, candidates, data, unique},
+checkCompletedPropagators[setup_Association, families_List, integrals_: Automatic] := Module[
+  {virtualLoops, propagators, candidates, data, unique, targets, grouped, names, bad},
+  targets = If[integrals === Automatic, If[families === {}, {}, Lookup[families, "BaseGLI"]], integrals];
+  If[! ListQ[targets] || ! AllTrue[targets, MatchQ[#, FeynCalc`GLI[_, {_Integer ...}]] &],
+    Return[$Failed]];
+  names = #["Topology"][[1]] & /@ families;
+  If[! ContainsAll[names, First /@ targets], Return[$Failed]];
+  grouped = GroupBy[targets, First];
+  bad = AnyTrue[families, Function[family,
+    ! MatchQ[family["CutIndices"], {_Integer ...}] ||
+    ! AllTrue[family["CutIndices"], 1 <= # <= Length[family["Topology"][[2]]] &] ||
+    AnyTrue[Lookup[grouped, family["Topology"][[1]], {}],
+      Length[#[[2]]] =!= Length[family["Topology"][[2]]] ||
+        ! AllTrue[#[[2, family["CutIndices"]]], # > 0 &] &]]];
+  If[bad, Return[$Failed]];
   virtualLoops = setupVirtualLoopMomenta[setup];
   If[virtualLoops === $Failed,
     Message[IdentifySafePropagator::setup];
@@ -497,15 +560,17 @@ checkCompletedPropagators[setup_Association, families_List] := Module[
       With[
         {
           all = family["Topology"][[2]],
-          cuts = family["CutIndices"]
+          cuts = family["CutIndices"],
+          active = Lookup[grouped, family["Topology"][[1]], {}]
         },
-        all[[Complement[Range[Length[all]], cuts]]]
+        all[[Select[Complement[Range[Length[all]], cuts],
+          Function[position, AnyTrue[active, #[[2, position]] > 0 &]]]]]
       ]
     ],
     families
   ];
   candidates = Select[
-    propagators,
+    DeleteDuplicates[propagators, SameQ],
     Function[propagator,
       AllTrue[virtualLoops, FreeQ[propagator, #] &]
     ]

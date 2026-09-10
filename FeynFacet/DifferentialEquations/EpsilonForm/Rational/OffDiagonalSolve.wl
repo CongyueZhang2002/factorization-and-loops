@@ -3429,7 +3429,7 @@ SolveOffDiagonalBasisTransformationBlockFiniteField[record_Association,
       "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
       "PlanDiscoveryBackendUsed" -> "Wolfram"|>]];
   If[kernelCount > 1 && Length[Kernels[]] < kernelCount,
-    launched = Quiet[LaunchKernels[kernelCount - Length[Kernels[]]]]];
+    launched = Quiet[facetLaunchKernels[kernelCount - Length[Kernels[]]]]];
   (* the subkernel bootstrap goes through the installation loader
      (B3, generality pass 2026-08-23; default unchanged) *)
   loadFile = $feynFacetLoader;

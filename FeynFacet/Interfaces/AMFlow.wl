@@ -12,6 +12,8 @@ MasterIntegralAmFlow::kinematics =
 MasterIntegralAmFlow::cut =
   "The cut data are inconsistent with the topology: `1`.";
 
+MasterIntegralAmFlow::realprescription =
+  "AMFlow assigns no ordinary i0 prescription to pure phase-space propagators. Active slots `1` still have explicit prescriptions. Establish their removal, reduce to compatible integrals, or use another evaluator; the exporter will not discard them.";
 MasterIntegralAmFlow::amflow =
   "AMFlow could not be loaded from `1`.";
 
@@ -138,7 +140,7 @@ masterIntegralTopologyData[data_Association] := Module[
   {
     record, topology, setup, flow, cutIndices, cutDirections,
     prescription, topologyLoops, flowLoops, prescriptionByMomentum,
-    sideSets, mixedIndices, invalidCuts
+    sideSets, mixedIndices, invalidCuts, explicitPrescriptions, targets, powers, active, unsupported
   },
 
   record = Lookup[data, "TopologyRecord", Missing["NotAvailable"]];
@@ -237,6 +239,31 @@ masterIntegralTopologyData[data_Association] := Module[
         "VirtualLoopCuts" -> invalidCuts
       |>]
     ]
+  ];
+
+  (* Prescription=0 is AMFlow's integral convention for phase-space loops,
+     not an instruction to forget an explicitly retained ordinary prescription.
+     A bare family requested in that convention can still be evaluated; this
+     does not itself prove its equality to a prescribed physical source. *)
+  explicitPrescriptions=Lookup[data,"PropagatorPrescriptions",
+    If[AssociationQ[record],Lookup[record,"PropagatorPrescriptions",Missing["NotSpecified"]],
+      Missing["NotSpecified"]]];
+  If[!MissingQ[explicitPrescriptions],
+    If[!MatchQ[explicitPrescriptions,{(0|1|-1)...}] ||
+      Length[explicitPrescriptions]=!=Length[topology[[2]]],
+      masterIntegralFail[MasterIntegralAmFlow::data]];
+    targets=Lookup[data,"Master",Lookup[data,"MasterIntegral",Missing["NotSpecified"]]];
+    If[MatchQ[targets,_FeynCalc`GLI],targets={targets}];
+    powers=Which[
+      MatchQ[targets,{__FeynCalc`GLI}],Last /@ targets,
+      KeyExistsQ[data,"PropagatorPowers"],{data["PropagatorPowers"]},
+      True,{ConstantArray[1,Length[topology[[2]]]]}];
+    If[!AllTrue[powers,MatchQ[#,{___Integer}]&&Length[#]===Length[topology[[2]]]&],
+      masterIntegralFail[MasterIntegralAmFlow::data]];
+    active=Select[Complement[Range[Length[topology[[2]]]],cutIndices],
+      Function[slot,AnyTrue[powers,#[[slot]]>0&]]];
+    unsupported=Select[active,sideSets[[#]]==={} && explicitPrescriptions[[#]]=!=0&];
+    If[unsupported=!={},masterIntegralFail[MasterIntegralAmFlow::realprescription,unsupported]]
   ];
 
   <|

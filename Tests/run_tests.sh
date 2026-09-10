@@ -9,13 +9,21 @@ set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 fail=0
+source "$root/Tests/Support/wolfram_test_log.sh"
+test_log="$(mktemp)"
+trap 'rm -f -- "$test_log"' EXIT
 while IFS= read -r -d '' t; do
   echo "== ${t}"
   case "$t" in
-    *.wls) timeout "${FT_TEST_TIMEOUT:-7200}" wolframscript -file "$t" ;;
-    *.sh)  timeout "${FT_TEST_TIMEOUT:-7200}" bash "$t" ;;
+    *.wls)
+      timeout "${FT_TEST_TIMEOUT:-7200}" wolframscript -file "$t" > "$test_log" 2>&1
+      code=$?
+      cat "$test_log"
+      if (( code == 0 )); then
+        ft_wolfram_test_log_valid "$test_log" "$t" || code=65
+      fi ;;
+    *.sh) timeout "${FT_TEST_TIMEOUT:-7200}" bash "$t"; code=$? ;;
   esac
-  code=$?
   if [ "${code}" -ne 0 ]; then
     echo "** FAILED (exit ${code}): ${t}"
     fail=1

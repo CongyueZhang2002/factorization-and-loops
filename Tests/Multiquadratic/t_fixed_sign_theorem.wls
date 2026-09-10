@@ -88,7 +88,7 @@ FTTest`FTAssert["theorem containment: 0 violations in 6000 random trials",
 (* Load the full stack for the implementation checks. *)
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
-card = Get[FileNameJoin[{root, "ppHX_NLO", "Cards", "UU.wl"}]];
+card = Get[FileNameJoin[{root, "Archive","ProjectLayouts","2026-09-08","ppHX_NLO", "Cards", "UU.wl"}]];
 
 (* Part B: implementation vs direct mu_ij min/max, and MC containment. *)
 implementationMatches = True;

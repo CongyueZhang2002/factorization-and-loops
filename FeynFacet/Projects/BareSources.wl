@@ -1,0 +1,251 @@
+(* Bare lower-order results are complete Laurent distributions, never finite
+   renormalized hard coefficients. Flavor covariance is declared by the card
+   and the electromagnetic charge factor is checked in every scalar entry. *)
+BeginPackage["FeynFacet`"];
+ReadBarePartonicSourceCatalog::usage="ReadBarePartonicSourceCatalog[countertermCard] reads explicit LO/NLO contribution files, checks their cards, bare stage, normalization and epsilon coverage, and combines each declared source channel. Missing files are errors.";
+ResolveBarePartonicSource::usage="ResolveBarePartonicSource[catalog,order,species,flavorClasses,through] resolves a lower-order massless-flavor source. Explicit minimum channel orders determine exact zeros. Single-quark-line relabeling requires an exactly factored squared charge and a charge-independent remainder; hidden flavor-charge sums are rejected.";
+ConstructPartonicCounterterm::usage="ConstructPartonicCounterterm[countertermCard] constructs the UV and collinear correction through relative order two from explicit bare lower-order results and physical PDF/FF leg declarations. BareOperatorSchemes names the schemes of the generated sources. A finite operator-scheme conversion is a separate step.";
+
+ConstructSubtractedPartonicSourceCatalog::usage="ConstructSubtractedPartonicSourceCatalog[countertermCard] applies UV and raw-scheme collinear subtraction to its explicit lower-order bare sources, verifies exact pole cancellation, and retains finite LO/NLO coefficients for a later operator scheme change.";
+ResolveRenormalizedPartonicSource::usage="ResolveRenormalizedPartonicSource[catalog,order,species,flavorClasses,through] resolves a finite lower-order coefficient with the same checked massless-flavor and external-charge covariance as the bare source resolver.";
+ConstructFiniteFactorizationCounterterm::usage="ConstructFiniteFactorizationCounterterm[card,catalog] constructs the finite change from the declared bare operator scheme to the target scheme through relative order two, using a verified subtracted lower-order catalog.";
+Begin["`Private`"];
+
+bareSourceFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"BarePartonicSources"];
+bareFlavorPattern[species_List]:=Module[{flavors=DeleteDuplicates[Last/@Select[species,#=!="g"&]],index},
+ index=AssociationThread[flavors,Range[Length[flavors]]];
+ (If[#==="g","g",{First[#],index[Last[#]]}]&/@species)
+];
+bareChannelSpecies[channel_Association]:=Append[channel["Incoming"],channel["Observed"]];
+ReadBarePartonicSourceCatalog[card_Association]:=Catch[Module[
+ {entries,project,channels,classes,minimum,rows=<||>,byOrder,sources,value,file,owner,
+  directory,sourceCard,setup,combined,order,n,name,specification,parts,chargeSymbols,conditions,axes,coefficients},
+ entries=Lookup[card,"LowerOrderResults",None];classes=Lookup[card,"FlavorClasses",None];
+ minimum=Lookup[card,"MinimumChannelOrders",None];channels=Lookup[card,"Channels",None];
+ If[!AssociationQ[entries]||!AssociationQ[classes]||!AssociationQ[minimum]||
+   !AssociationQ[channels]||!ContainsAll[Keys[card],{"ProjectDirectory","CardFile","StructureFunctions"}],
+  bareSourceFail["ExplicitBareSourceDeclarationsRequired"]];
+ If[Lookup[card,"LowerOrderFlavorCovariance",None]=!="SingleMasslessQuarkLine"||
+   !AllTrue[Values[classes],AssociationQ[#]&&ContainsAll[Keys[#],{"Members","Multiplicity","Charge"}]&]||
+   !ContainsAll[Keys[minimum],Keys[channels]]||
+   !AllTrue[Values[minimum],IntegerQ[#]&&#>=0&],
+  bareSourceFail["DeclaredMasslessFlavorCovarianceAndChannelOrdersRequired"]];
+ chargeSymbols=DeleteDuplicates[Lookup[Values[classes],"Charge"]];
+ If[!VectorQ[chargeSymbols,MatchQ[#,_Symbol]&],bareSourceFail["SymbolicFlavorChargesRequired"]];
+ project=card["ProjectDirectory"];
+ axes=card["Assembly"]["DistributionBasis"]["Axes"];
+ conditions=Lookup[card["Assembly"],"Assumptions",True]&&
+   And@@Map[#[["Interval",1]]<#["Variable"]<#[["Interval",2]]&,axes];
+ Do[
+  n=Switch[order,"LO",0,"NLO",1,_,bareSourceFail["LowerOrderBareSourceOnly"]];
+  byOrder=<||>;
+  Do[
+   specification=entries[order][name];
+   If[!KeyExistsQ[channels,name]||!AssociationQ[specification]||
+    !AssociationQ[Lookup[specification,"Contributions",None]]||
+    !MatchQ[Lookup[specification,"EpsilonRange",None],{_Integer,_Integer}],
+    bareSourceFail["ExplicitBareContributionFilesAndRangeRequired"]];
+   directory=FileNameJoin[{project,order,name}];owner=directory<>"/Results/";
+   sources=Association@KeyValueMap[Function[{contribution,relativeFile},
+    If[!StringQ[relativeFile],bareSourceFail["BareSourceFilePathRequired"]];
+    file=ExpandFileName[FileNameJoin[{DirectoryName[card["CardFile"]],relativeFile}]];
+    If[!StringStartsQ[file,owner],bareSourceFail["BareSourceFileMustBelongToDeclaredOrderAndChannel",<|"File"->file|>]];
+    value=FeynFacet`ReadPartonicResult[file,<|"Order"->order,"RenormalizationStage"->"Bare",
+      "StructureFunctions"->card["StructureFunctions"],"EpsilonRange"->specification["EpsilonRange"]|>];
+    If[!AssociationQ[value],bareSourceFail["CompleteBareSourceFileRequired",<|"File"->file,"Cause"->value|>]];
+    setup=FeynFacet`ReadProcessCard[directory,contribution];
+    If[!AssociationQ[setup]||FeynFacet`RequireMatchingProcessDefinition[value,setup]=!=True,
+      bareSourceFail["BareSourceDoesNotMatchCurrentCard",<|"File"->file|>]];
+    contribution->value],specification["Contributions"]];
+   combined=FeynFacet`CombinePartonicResults[sources,<|"Contribution"->"Bare",
+     "RenormalizationStage"->"Bare","SourceFiles"->specification["Contributions"]|>];
+   If[!AssociationQ[combined],bareSourceFail["BareSourceCombinationFailed",<|"Cause"->combined|>]];
+   coefficients=FeynFacet`ExpandPositiveLogarithms[combined["Coefficients"],conditions];
+   coefficients=Map[partonicMap[Function[value,Cancel[Together[value]]],#]&,coefficients];
+   combined=FeynFacet`CreatePartonicResult[coefficients,Join[KeyDrop[combined,{"Coefficients","EpsilonRange"}],
+    <|"LogarithmFactorizationAssumptions"->conditions|>]];
+   AssociateTo[byOrder,name->combined],
+  {name,Keys[entries[order]]}];
+  AssociateTo[rows,n->byOrder],
+ {order,Keys[entries]}];
+ <|"Format"->"FeynFacet-BarePartonicSourceCatalog","Sources"->rows,
+  "Channels"->channels,"MinimumChannelOrders"->minimum,"FlavorClasses"->classes,
+  "ChargeSymbols"->chargeSymbols,"FlavorCovariance"->"SingleMasslessQuarkLine",
+  "Project"->card["Project"],"Polarization"->card["Polarization"]|>
+],"BarePartonicSources"];
+resolvePartonicSource[catalog_Association,order_Integer,species_List,
+ classMap_Association,through_Integer,stage_String]:=Catch[Module[
+ {names,name,pattern,channel,source,originalSpecies,sourceFlavors,targetFlavors,sourceClass,
+  targetClass,sourceCharge,targetCharge,quotient,coefficients,transform,metadata,classes},
+ If[!MemberQ[{"FeynFacet-BarePartonicSourceCatalog","FeynFacet-SubtractedPartonicSourceCatalog"},Lookup[catalog,"Format",None]]||
+   !MemberQ[{0,1},order]||!AllTrue[species,collinearKernelSpeciesQ],
+   bareSourceFail["LowerOrderBareSourceCatalogRequired"]];
+ pattern=bareFlavorPattern[species];
+ names=Select[Keys[catalog["Channels"]],
+   bareFlavorPattern[bareChannelSpecies[catalog["Channels"][#]]]===pattern&];
+ If[Length[names]=!=1,bareSourceFail["UniqueDeclaredFlavorChannelRequired",<|"Species"->species|>]];
+ name=First[names];channel=catalog["Channels"][name];
+ If[order<catalog["MinimumChannelOrders"][name],Return[0]];
+ source=Lookup[Lookup[catalog["Sources"],order,<||>],name,Missing[]];
+ If[!AssociationQ[source]||Lookup[source,"RenormalizationStage",None]=!=stage,
+  bareSourceFail["DeclaredNonzeroBareSourceMissing",<|"Order"->order,"Channel"->name|>]];
+ If[FeynFacet`RequirePartonicEpsilonRange[source,{source["LaurentLowerBound"],through}]=!=True,
+  bareSourceFail["BareSourceEpsilonOrdersInsufficient",<|"Order"->order,"Channel"->name,"ThroughOrder"->through|>]];
+ originalSpecies=bareChannelSpecies[channel];
+ sourceFlavors=DeleteDuplicates[Last/@Select[originalSpecies,#=!="g"&]];
+ targetFlavors=DeleteDuplicates[Last/@Select[species,#=!="g"&]];
+ If[Length[sourceFlavors]=!=1||Length[targetFlavors]=!=1,
+  bareSourceFail["SingleMasslessQuarkLineRequired"]];
+ classes=catalog["FlavorClasses"];
+ sourceClass=Select[Keys[classes],MemberQ[classes[#]["Members"],First[sourceFlavors]]&];
+ targetClass=Lookup[classMap,First[targetFlavors],Missing[]];
+ If[Length[sourceClass]=!=1||!KeyExistsQ[classes,targetClass],
+  bareSourceFail["SourceAndTargetFlavorChargeClassesRequired"]];
+ sourceCharge=classes[First[sourceClass]]["Charge"];targetCharge=classes[targetClass]["Charge"];
+ transform[value_]:=Module[{q=Cancel[Together[value/sourceCharge^2]]},
+   If[!FreeQ[q,Alternatives@@catalog["ChargeSymbols"]],
+    bareSourceFail["SingleExternalChargeFactorNotEstablished",<|"Channel"->name|>]];
+   targetCharge^2 q];
+ coefficients=Map[partonicMap[transform,#]&,source["Coefficients"]];
+ metadata=Join[KeyDrop[source,{"Coefficients","EpsilonRange","ProcessDefinition"}],
+  <|"PhysicalChannel"-><|"Incoming"->Most[species],"Observed"->Last[species]|>,
+    "SourceFlavorChannel"->channel,"ResolvedFlavorSpecies"->species,
+    "FlavorRelabeling"-><|"SourceFlavor"->First[sourceFlavors],"TargetFlavor"->First[targetFlavors],
+      "SourceCharge"->sourceCharge,"TargetCharge"->targetCharge,
+      "ChargeIndependentRemainderVerified"->True|>|>];
+ FeynFacet`CreatePartonicResult[coefficients,metadata]
+],"BarePartonicSources"];
+
+ResolveBarePartonicSource[catalog_Association,order_Integer,species_List,classes_Association,through_Integer]:=
+ resolvePartonicSource[catalog,order,species,classes,through,"Bare"];
+ResolveRenormalizedPartonicSource[catalog_Association,order_Integer,species_List,classes_Association,through_Integer]:=
+ resolvePartonicSource[catalog,order,species,classes,through,"Renormalized"];
+
+(* Shared physical-leg construction for pole subtraction and finite changes. *)
+partonicCardFactorizationLegs[card_,mode_]:=Module[{ct=card["Counterterms"],raw=card["BareOperatorSchemes"],role,spin,source,target,redefinition},
+ KeyValueMap[Function[{name,definition},
+  role=definition["Role"];
+  spin=If[role==="PDF",card["Polarization"]["Incoming"][[Lookup[definition,"Index",1]]],card["Polarization"]["Observed"]];
+  source=raw[name];target=ct["Schemes"][name];
+  redefinition=Which[source===target,"MSbar",
+   source==="Larin"&&(target==="HelicityMSbar"||
+      (AssociationQ[target]&&Lookup[target,"DefaultScheme","MSbar"]==="HelicityMSbar")),target,
+   source==="MSbar"&&AssociationQ[target]&&Lookup[target,"DefaultScheme","MSbar"]==="MSbar",target,
+   True,If[mode==="Finite",bareSourceFail["ExplicitFiniteOperatorSchemeRelationRequired",
+     <|"SourceScheme"->source,"TargetScheme"->target|>],"MSbar"]];
+  Join[<|"Name"->name,"Role"->role,"Spin"->spin,"Variable"->definition["Variable"],
+   "ScaleLog"->Log[ct["FactorizationScalesSquared"][name]/ct["RenormalizationScaleSquared"]]|>,
+   If[mode==="Finite",<|"OperatorRedefinition"->redefinition|>,<|"OperatorScheme"->source|>]]
+ ],card["Assembly"]["FactorizationLegs"]]
+];
+
+ConstructSubtractedPartonicSourceCatalog[card_Association]:=Catch[Module[
+ {catalog,legs,ct,e,a,source,request,plan,metadata,value,coefficients,poles,rows=<||>,
+  orderRows,name,order,conditions,axes,output},
+ catalog=ReadBarePartonicSourceCatalog[card];
+ If[!AssociationQ[catalog],bareSourceFail["BareSourceCatalogRequired",<|"Cause"->catalog|>]];
+ legs=partonicCardFactorizationLegs[card,"Raw"];ct=card["Counterterms"];e=Global`Epsilon;a=ct["Coupling"]/(2Pi);
+ axes=card["Assembly"]["DistributionBasis"]["Axes"];
+ conditions=Lookup[card["Assembly"],"Assumptions",True]&&
+  And@@Map[#[["Interval",1]]<#["Variable"]<#[["Interval",2]]&,axes];
+ source[n_,species_,classes_,hi_]:=source[n,species,classes,hi]=ResolveBarePartonicSource[catalog,n,species,classes,hi];
+ Do[orderRows=<||>;
+  Do[
+   metadata=Join[KeyDrop[catalog["Sources"][order][name],{"Coefficients","EpsilonRange","LaurentLowerBound","ProcessDefinition"}],
+    <|"Contribution"->"Subtracted","RenormalizationStage"->"Renormalized",
+     "OperatorSchemes"->card["BareOperatorSchemes"]|>];
+   request=<|"PerturbativeOrder"->order,"ThroughOrder"->0,"DimensionalRegulator"->e,
+    "PerturbativeParameter"->a,"BornCouplingPower"->card["BornCouplingPower"],
+    "Legs"->legs,"FlavorClasses"->card["FlavorClasses"],"KernelParameters"->ct["KernelParameters"]|>;
+   plan=FeynFacet`PlanCollinearRenormalization[bareChannelSpecies[card["Channels"][name]],request];
+   If[!AssociationQ[plan],bareSourceFail["RawLowerOrderSubtractionPlanFailed",<|"Cause"->plan|>]];
+   value=FeynFacet`ApplyPartonicRenormalization[plan,source,metadata];
+   If[!AssociationQ[value],bareSourceFail["RawLowerOrderSubtractionFailed",<|"Channel"->name,"Cause"->value|>]];
+   coefficients=FeynFacet`ExpandPositiveLogarithms[value["Coefficients"]/.Lookup[card,"ColorRules",{}],conditions];
+   coefficients=Map[partonicMap[Function[scalar,Cancel[Together[scalar]]],#]&,coefficients];
+   poles=KeySelect[coefficients,#<0&];
+   If[!AllTrue[Values[poles],partonicZeroTreeQ],
+    bareSourceFail["LowerOrderRawSchemePolesDidNotCancel",<|"Order"->order,"Channel"->name,"Poles"->poles|>]];
+   output=FeynFacet`CreatePartonicResult[KeyTake[coefficients,{0}],Join[metadata,
+    <|"RawSchemePoleCancellation"->True,"FiniteSchemeConversionApplied"->False|>]];
+   AssociateTo[orderRows,name->output],
+  {name,Keys[catalog["Sources"][order]]}];
+  AssociateTo[rows,order->orderRows],
+ {order,Keys[catalog["Sources"]]}];
+ Join[catalog,<|"Format"->"FeynFacet-SubtractedPartonicSourceCatalog","Sources"->rows,
+  "OperatorSchemes"->card["BareOperatorSchemes"],"RawSchemePoleCancellation"->True|>]
+],"BarePartonicSources"];
+
+ConstructFiniteFactorizationCounterterm[card_Association,catalog_Association]:=Catch[Module[
+ {ct,legs,order,target,e,a,request,plan,source,metadata,result,rawSchemes},
+ If[Lookup[catalog,"Format",None]=!="FeynFacet-SubtractedPartonicSourceCatalog"||
+  !TrueQ[Lookup[catalog,"RawSchemePoleCancellation",False]]||
+  catalog["Project"]=!=card["Project"]||catalog["Polarization"]=!=card["Polarization"]||
+  catalog["OperatorSchemes"]=!=card["BareOperatorSchemes"],
+  bareSourceFail["MatchingVerifiedSubtractedSourceCatalogRequired"]];
+ order=Switch[card["Order"],"NLO",1,"NNLO",2,_,bareSourceFail["FiniteNLOOrNNLOSchemeChangeRequired"]];
+ If[Last[card["EpsilonRange"]]=!=0,bareSourceFail["FiniteSchemeDefinesOnlyEpsilonZero"]];
+ ct=card["Counterterms"];e=Global`Epsilon;a=ct["Coupling"]/(2Pi);
+ legs=partonicCardFactorizationLegs[card,"Finite"];
+ target=bareChannelSpecies[card["Channels"][card["Channel"]]];
+ request=<|"PerturbativeOrder"->order,"ThroughOrder"->0,"DimensionalRegulator"->e,
+  "PerturbativeParameter"->a,"BornCouplingPower"->card["BornCouplingPower"],
+  "Legs"->legs,"FlavorClasses"->card["FlavorClasses"],"KernelParameters"->ct["KernelParameters"]|>;
+ plan=FeynFacet`PlanFiniteFactorizationSchemeChange[target,request];
+ If[!AssociationQ[plan],bareSourceFail["FiniteFactorizationSchemePlanFailed",<|"Cause"->plan|>]];
+ plan=Join[plan,<|"Terms"->Select[plan["Terms"],#["SourceOrder"]<order&]|>];
+ source[n_,species_,classes_,hi_]:=source[n,species,classes,hi]=ResolveRenormalizedPartonicSource[catalog,n,species,classes,hi];
+ metadata=Join[KeyTake[card["Assembly"],{"Scale","Variables","DensityConvention","DistributionBasis","CurrentNormalization"}],
+  <|"DimensionalRegulator"->e,"DimensionalPrefactor"->ct["RenormalizationScaleSquared"]^(card["BornCouplingPower"]e),
+   "Project"->card["Project"],"Order"->card["Order"],"Channel"->card["Channel"],
+   "PhysicalChannel"->card["Channels"][card["Channel"]],"Polarization"->card["Polarization"],
+   "StructureFunctions"->card["StructureFunctions"],"Coupling"->ct["Coupling"],
+   "CouplingPower"->card["BornCouplingPower"]+order,"Contribution"->"FiniteFactorizationCounterterm",
+   "RenormalizationStage"->"Counterterm","SourceOperatorSchemes"->card["BareOperatorSchemes"],
+   "OperatorSchemes"->ct["Schemes"],"FiniteSchemeConversionApplied"->True|>];
+ result=FeynFacet`ApplyPartonicRenormalization[plan,source,metadata];
+ If[!AssociationQ[result],bareSourceFail["FiniteFactorizationSchemeApplicationFailed",<|"Cause"->result|>]];
+ result=FeynFacet`CreatePartonicResult[
+  Map[partonicMap[Function[value,Cancel[Together[value/.Lookup[card,"ColorRules",{}]]]],#]&,result["Coefficients"]],
+  KeyDrop[result,{"Coefficients","EpsilonRange"}]];
+ Join[result,<|"FiniteSchemePlan"->plan,"PositiveEpsilonSchemeContinuationDefined"->False|>]
+],"BarePartonicSources"];
+
+ConstructPartonicCounterterm[card_Association]:=Catch[Module[
+ {catalog,order,through,e,a,legs,ct,schemes,target,request,plan,correction,metadata,
+  source,answer,role,spin,rawScheme,legNames},
+ order=Switch[Lookup[card,"Order",None],"NLO",1,"NNLO",2,_,bareSourceFail["NLOOrNNLOCountertermCardRequired"]];
+ If[!ContainsAll[Keys[card],{"EpsilonRange","Assembly","Counterterms","BareOperatorSchemes","Include"}],
+  bareSourceFail["ExplicitBareOperatorSchemesAndCountertermCardRequired"]];
+ through=Last[card["EpsilonRange"]];e=Global`Epsilon;
+ ct=card["Counterterms"];schemes=card["BareOperatorSchemes"];a=ct["Coupling"]/(2Pi);
+ target=bareChannelSpecies[card["Channels"][card["Channel"]]];
+ legNames=Keys[card["Assembly"]["FactorizationLegs"]];
+ If[!ContainsAll[Keys[schemes],legNames],bareSourceFail["RawSchemeOfEveryFactorizationLegRequired"]];
+ legs=partonicCardFactorizationLegs[card,"Raw"];
+ If[Length[legs]=!=Length[target]||!ContainsAll[card["Include"],legNames],
+  bareSourceFail["CompletePhysicalCollinearLegSelectionRequired"]];
+ catalog=ReadBarePartonicSourceCatalog[card];
+ If[!AssociationQ[catalog],bareSourceFail["BareCountertermSourceCatalogFailed",<|"Cause"->catalog|>]];
+ request=<|"PerturbativeOrder"->order,"ThroughOrder"->through,"DimensionalRegulator"->e,
+  "PerturbativeParameter"->a,"BornCouplingPower"->card["BornCouplingPower"],
+  "Legs"->legs,"FlavorClasses"->card["FlavorClasses"],"KernelParameters"->ct["KernelParameters"]|>;
+ If[!MemberQ[card["Include"],"UV"],AssociateTo[request,"CouplingRenormalization"-><|1->0,2->0|>]];
+ plan=FeynFacet`PlanCollinearRenormalization[target,request];
+ If[!AssociationQ[plan],bareSourceFail["CountertermPlanFailed",<|"Cause"->plan|>]];
+ correction=Join[plan,<|"Terms"->Select[plan["Terms"],#["SourceOrder"]<order&]|>];
+ source[n_,species_,classes_,hi_]:=source[n,species,classes,hi]=
+  ResolveBarePartonicSource[catalog,n,species,classes,hi];
+ metadata=Join[KeyTake[card["Assembly"],{"Scale","Variables","DensityConvention","DistributionBasis","CurrentNormalization"}],
+  <|"DimensionalRegulator"->e,"DimensionalPrefactor"->ct["RenormalizationScaleSquared"]^(card["BornCouplingPower"]e),
+   "Project"->card["Project"],"Order"->card["Order"],"Channel"->card["Channel"],
+   "PhysicalChannel"->card["Channels"][card["Channel"]],"Polarization"->card["Polarization"],
+   "StructureFunctions"->card["StructureFunctions"],"Coupling"->ct["Coupling"],
+   "CouplingPower"->card["BornCouplingPower"]+order,"Contribution"->"Counterterm",
+   "RenormalizationStage"->"Counterterm","BareOperatorSchemes"->schemes|>];
+ answer=FeynFacet`ApplyPartonicRenormalization[correction,source,metadata];
+ If[!AssociationQ[answer],bareSourceFail["PartonicCountertermApplicationFailed",<|"Cause"->answer|>]];
+ Join[answer,<|"SourceOrderRequirements"->(KeyTake[#,{"SourceOrder","SourceSpecies","RequiredSourceThroughOrder"}]&/@correction["Terms"]),
+  "LowerOrderResults"->card["LowerOrderResults"],"FiniteSchemeConversionApplied"->False|>]
+],"BarePartonicSources"];
+End[];EndPackage[];

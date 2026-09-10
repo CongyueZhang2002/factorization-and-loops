@@ -12,11 +12,7 @@ cutDrrSave[value_,path_] := Module[{temporary=path<>".tmp-"<>ToString[$ProcessID
 cutDrrDefinitions[reps_] := Table[Association[Table[key->miRepFC[rep[key]],
  {key,Keys[KeyTake[rep,{"MasterIntegral","LoopMomenta","ExternalMomenta","InversePropagators",
   "CutIndices","OrientedCutMomenta","Prescription","KinematicRules","TimeDirection"}]]}]],{rep,reps}];
-cutDrrGeometry[reps_,seconds_] := Table[With[{g=cutOrderGeometry[rep]},
- <|"Geometry"->KeyDrop[g,"ConeBases"],
-   "PropagatorBoundaryCertificates"->cutOrderSingularityCertificates[rep,g,seconds],
-   "NonnegativeCutMassDeformation"->True,
-   "EventualHighDimensionHolomorphy"->True|>],{rep,reps}];
+cutDrrGeometry[reps_,seconds_] := cutIntegralConvergenceCertificate[#,seconds]& /@ reps;
 
 cutDrrInsertions[reps_] := Module[{r,basis,z,cuts,n,polyRules,rows,targets,l,e,dimension},
  r=SelectFirst[reps,Lookup[#,"Representation",None]==="BaikovCut"&,None];

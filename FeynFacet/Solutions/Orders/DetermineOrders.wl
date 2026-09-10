@@ -528,8 +528,10 @@ epsOrderMasterExpansion[s_,request_,automatic_,homSeconds_,proofSeconds_,sectorL
   "OrderDerivation"->"Integral definitions bound C. Fixed local normalization and its inverse bound b without solving global evolution. Laurent product remainders then determine evolution, matching, and boundary coefficient orders.",
   "GlobalEvolutionComputed"->False,"BoundaryCoefficientsEvaluated"->False|>
 ];
-FeynFacet`DetermineMasterIntegralExpansionOrders[s_Association,r_Association,OptionsPattern[]] :=
+FeynFacet`DetermineMasterIntegralExpansionOrders[input_Association,r_Association,OptionsPattern[]] :=
+ Module[{s=solutionNormalizeDifferentialSystem[input]},
+ If[FailureQ[s],Return[s]];
  Catch[epsOrderMasterExpansion[s,r,OptionValue["AutomaticPreparation"],
   OptionValue["HomogeneousSolveTimeLimit"],OptionValue["RegularityProofTimeLimit"],
-  OptionValue["MaximumSectors"],OptionValue["MaximumSectorDepth"]],"EpsilonOrders"];
+  OptionValue["MaximumSectors"],OptionValue["MaximumSectorDepth"]],"EpsilonOrders"]];
 End[];

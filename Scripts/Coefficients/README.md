@@ -51,7 +51,7 @@ domain, and [CoefficientPoleCancellation.md](../../Design/CoefficientPoleCancell
 for moving reduction poles and the exact rational-series backend.
 
 The current process demonstration and precise coverage are documented in
-`ppHX_NNLO_DoubleReal/Results/Assembly/Stage4_2026-09-07/README.md`.
+`Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/Assembly/Stage4_2026-09-07/README.md`.
 The bare double-real result retains dimensional poles. Other NNLO cuts and
 factorization counterterms must be added before calling it a finite hard
 coefficient.
@@ -72,10 +72,16 @@ and output must be different files. No integrals are reevaluated by either check
 complete NLO hard function using contribution cards, exact analytic masters,
 automatically sufficient epsilon orders and generated PDF/FF/UV counterterms.
 The worked UU/double-incoming-LL/TT example is documented in
-`ppHX_NLO_qqprime/README.md`. The output is an ordinary Mathematica association
-with explicit LO and finite NLO delta, plus and regular coefficients.
+`Design/ProjectCardsAndResults.md`. The output is an ordinary Mathematica association
+with explicit epsilon coefficients for that order in the common `FeynFacet-PartonicResult` format. LO is stored under its own order/channel.
 
 `assemble_endpoint_subtracted_density.wls` now applies the same compact format
 by default after color collection. A request can set `CompactOutput -> False`
 when redundant uncolored views are explicitly needed for a separate comparison.
 Timings report assembly, color collection and compaction separately.
+
+The endpoint assembly driver requires `ResultMetadata` declaring `Order`,
+`Contribution`, `Scale`, `Variables` (tangential, normal), and `DensityConvention`;
+also supply project/channel identity, coupling and dimensional prefactor for a
+physical project result. It writes the common partonic format and retains the
+actual endpoint interval and finite shared definitions.

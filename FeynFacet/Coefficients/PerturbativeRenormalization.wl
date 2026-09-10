@@ -1,0 +1,144 @@
+(* Coefficients of Z_coupling^(p+r) times one transition matrix per
+   factorized leg. Physical powers of the perturbative parameter are retained. *)
+BeginPackage["FeynFacet`"];
+PlanPartonicRenormalization::usage="PlanPartonicRenormalization[targetSpecies,request] constructs the exact flavor-correlated UV and leg-transition sum through relative order two, and determines the required epsilon order of each bare source. TransitionKernel[leg,sourceSpecies,targetSpecies,order] supplies a kernel without its perturbative parameter. CouplingRenormalization contains the coefficients of Z_alpha=1+a z1+a^2 z2.";
+ApplyPartonicRenormalization::usage="ApplyPartonicRenormalization[plan,sourceProvider,metadata] evaluates a renormalization plan using common PartonicResults. sourceProvider[order,species,flavorClasses,requiredThroughOrder] must return the complete coefficient at the plan\'s declared renormalization stage (with its physical coupling power), or the explicit exact zero 0. Missing input is never zero.";
+Begin["`Private`"];
+partonicRenormalizationFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"PartonicRenormalization"];
+partonicKernelValuation[kernel_,e_]:=Module[{values,orders},
+ collinearKernelValidate[kernel];
+ values=Join[{kernel["DeltaCoefficient"],kernel["RegularCoefficient"]},Values[kernel["PlusCoefficients"]]];
+ orders=FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&/@values;
+ If[!AllTrue[orders,IntegerQ[#]||#===Infinity&],
+  partonicRenormalizationFail["TransitionKernelLaurentBoundRequired"]];
+ Min[orders]
+];
+PlanPartonicRenormalization[target_List,request_Association]:=Catch[Catch[Module[
+ {order,through,e,a,p,legs,classes,provider,z1,z2,compositions,terms,positions,flavors,
+  uvOrder,sourceOrder,uv,factor,factorLower,kernels,kernel,lower,required,cache=<||>,key,
+  kernelFor,record,sourceStage},
+ {order,through,e,a,p,legs,classes,provider}=Lookup[request,
+  {"PerturbativeOrder","ThroughOrder","DimensionalRegulator","PerturbativeParameter",
+   "BornCouplingPower","Legs","FlavorClasses","TransitionKernel"},None];
+ If[!MemberQ[{0,1,2},order]||!IntegerQ[through]||!MatchQ[e,_Symbol]||e===None||
+  !IntegerQ[p]||p<0||!FreeQ[a,e]||MemberQ[{None,0},a]||
+  !MatchQ[legs,{_Association..}]||Length[legs]=!=Length[target]||
+  !AllTrue[legs,MatchQ[Lookup[#,"Variable",None],_Symbol]&&Lookup[#,"Variable",None]=!=None&]||
+  !AssociationQ[classes]||!MatchQ[provider,_Function|_Symbol]||provider===None,
+  partonicRenormalizationFail["ExplicitPerturbativeRenormalizationRequestRequired"]];
+ z1=Lookup[Lookup[request,"CouplingRenormalization",<||>],1,0];
+ z2=Lookup[Lookup[request,"CouplingRenormalization",<||>],2,0];
+ sourceStage=Lookup[request,"SourceRenormalizationStage","Bare"];
+ If[!MemberQ[{"Bare","Renormalized"},sourceStage]||
+   (sourceStage==="Renormalized"&&(through=!=0||z1=!=0||z2=!=0)),
+  partonicRenormalizationFail["FiniteSchemeConversionRequiresFiniteSourcesAndNoUVRenormalization"]];
+ If[!FreeQ[{a,z1,z2},Alternatives@@Lookup[legs,"Variable"]],
+  partonicRenormalizationFail["ExternalCouplingRenormalizationRequired"]];
+ kernelFor[j_,src_,dst_,n_]:=Module[{k={j,src,dst,n},v},
+  If[KeyExistsQ[cache,k],Return[cache[[Key[k]]]]];
+  v=provider[j,src,dst,n];
+  If[!AssociationQ[v]||Lookup[v,"Variable",None]=!=legs[[j]]["Variable"],
+   partonicRenormalizationFail["ExplicitLegTransitionKernelRequired",<|"Leg"->j,"Cause"->v|>]];
+  If[sourceStage==="Renormalized"&&!FreeQ[
+    Join[{v["DeltaCoefficient"],v["RegularCoefficient"]},Values[v["PlusCoefficients"]]],e],
+   partonicRenormalizationFail["FiniteSchemeKernelMustBeRegulatorIndependent"]];
+  AssociateTo[cache,k->v];v];
+ compositions=Select[Tuples[Range[0,order],Length[legs]],Total[#]<=order&];
+ terms=Reap[Do[
+  positions=Flatten[Position[powers,_Integer?Positive,{1}]];
+  flavors=FeynFacet`QuarkFlavorSumTerms[target,positions,classes];
+  If[!ListQ[flavors],partonicRenormalizationFail["CorrelatedFlavorSumFailed",<|"Cause"->flavors|>]];
+  uvOrder=order-Total[powers];
+  Do[
+   kernels={};lower=0;
+   Do[kernel=kernelFor[j,flavor["Species"][[j]],target[[j]],powers[[j]]];
+    record=partonicKernelValuation[kernel,e];
+    If[record===Infinity,lower=Infinity;Break[]];
+    AppendTo[kernels,<|"Leg"->j,"Variable"->legs[[j]]["Variable"],
+      "PerturbativeOrder"->powers[[j]],"Kernel"->kernel,"LaurentLowerBound"->record|>];
+    lower+=record,{j,positions}];
+   If[lower===Infinity,Continue[]];
+   Do[
+    uv=Switch[uvOrder-sourceOrder,0,1,1,(p+sourceOrder)z1,
+     2,(p+sourceOrder)z2+(p+sourceOrder)(p+sourceOrder-1)z1^2/2];
+    factor=uv a^(order-sourceOrder)flavor["Multiplicity"];
+    factorLower=FeynFacet`DetermineMeromorphicLaurentLowerBound[factor,e];
+    If[factorLower===Infinity,Continue[]];
+    If[!IntegerQ[factorLower],partonicRenormalizationFail["UVLaurentBoundRequired"]];
+    required=through-factorLower-lower;
+    Sow[<|"SourceOrder"->sourceOrder,"SourceSpecies"->flavor["Species"],
+      "FlavorClasses"->flavor["FlavorClasses"],"Factor"->factor,
+      "FactorLaurentLowerBound"->factorLower,"Kernels"->kernels,
+      "RequiredSourceThroughOrder"->required|>],
+   {sourceOrder,0,uvOrder}],
+  {flavor,flavors}],
+ {powers,compositions}]][[2]];
+ terms=If[terms==={},{},First[terms]];
+ <|"Format"->"FeynFacet-PartonicRenormalizationPlan","FormatVersion"->1,
+   "PerturbativeOrder"->order,"ThroughOrder"->through,"TargetSpecies"->target,
+   "DimensionalRegulator"->e,"PerturbativeParameter"->a,"BornCouplingPower"->p,"SourceRenormalizationStage"->sourceStage,
+   "Terms"->terms,
+   "Convention"->"Bare sources contain a^(BornCouplingPower+SourceOrder); every transition kernel omits its a power. All lower Laurent coefficients are retained for pole cancellation."|>
+],"CollinearCounterterms"],"PartonicRenormalization"];
+
+ApplyPartonicRenormalization[plan_Association,sourceProvider_,metadata_Association]:=Catch[Module[
+ {through,e,terms,rows=<||>,value,needed,remaining,lower,name,entry,meta,check,sourceStage},
+ If[Lookup[plan,"Format",None]=!="FeynFacet-PartonicRenormalizationPlan"||
+  !MatchQ[sourceProvider,_Function|_Symbol],
+  partonicRenormalizationFail["ExplicitPartonicRenormalizationPlanAndSourcesRequired"]];
+ {through,e,terms}=Lookup[plan,{"ThroughOrder","DimensionalRegulator","Terms"}];
+ sourceStage=Lookup[plan,"SourceRenormalizationStage","Bare"];
+ If[!MemberQ[{"Bare","Renormalized"},sourceStage]||
+   (sourceStage==="Renormalized"&&(through=!=0||!FreeQ[terms,e])),
+  partonicRenormalizationFail["ExplicitFiniteSchemePlanRequired"]];
+ If[Lookup[metadata,"DimensionalRegulator",e]=!=e,
+  partonicRenormalizationFail["RenormalizationRegulatorMismatch"]];
+ Do[
+  entry=terms[[i]];
+  value=sourceProvider[entry["SourceOrder"],entry["SourceSpecies"],
+    entry["FlavorClasses"],entry["RequiredSourceThroughOrder"]];
+  If[value===0,Continue[]];
+  If[!AssociationQ[value]||!partonicResultValidQ[value]||
+   Lookup[value,"RenormalizationStage",None]=!=sourceStage||
+   value["DimensionalRegulator"]=!=e||
+   (sourceStage==="Renormalized"&&value["LaurentLowerBound"]<0)||
+   First[value["EpsilonRange"]]=!=value["LaurentLowerBound"],
+   partonicRenormalizationFail["CompleteBarePartonicSourceRequired",<|"Term"->i,"Cause"->value|>]];
+  needed=entry["RequiredSourceThroughOrder"];
+  If[needed>=value["LaurentLowerBound"]&&
+    FailureQ[RequirePartonicEpsilonRange[value,{value["LaurentLowerBound"],needed}]],
+   partonicRenormalizationFail["BareSourceEpsilonOrdersInsufficient",<|
+    "Term"->i,"RequiredThroughOrder"->needed,"Available"->value["EpsilonRange"]|>]];
+  remaining=Total[Lookup[entry["Kernels"],"LaurentLowerBound",{}]];
+  Do[
+   remaining-=kernel["LaurentLowerBound"];
+   lower=value["LaurentLowerBound"]+kernel["LaurentLowerBound"];
+   needed=through-entry["FactorLaurentLowerBound"]-remaining;
+   If[lower>needed,value=0;Break[]];
+   value=FeynFacet`ApplyPartonicCollinearKernel[value,kernel["Kernel"],kernel["Variable"],{lower,needed}];
+   If[!AssociationQ[value],partonicRenormalizationFail["PartonicTransitionApplicationFailed",<|"Term"->i,"Cause"->value|>]],
+  {kernel,entry["Kernels"]}];
+  If[value===0,Continue[]];
+  lower=value["LaurentLowerBound"]+entry["FactorLaurentLowerBound"];
+  If[lower>through,Continue[]];
+  value=FeynFacet`MultiplyPartonicLaurentFactor[value,entry["Factor"],{lower,through}];
+  If[!AssociationQ[value],partonicRenormalizationFail["PartonicUVApplicationFailed",<|"Term"->i,"Cause"->value|>]];
+  (* Only the target's discrete identity changes under flavor convolution.
+     Coordinates, density, regulator and measure must still match exactly. *)
+  check=KeyTake[metadata,{"Scale","Variables","DimensionalRegulator","DensityConvention",
+    "DistributionBasis","DimensionalPrefactor","CurrentNormalization"}];
+  If[KeyTake[value,Keys[check]]=!=check,
+   partonicRenormalizationFail["PartonicRenormalizationConventionMismatch",<|"Term"->i|>]];
+  name="RenormalizationTerm"<>ToString[i];
+  meta=Join[partonicLaurentProductMetadata[value],
+   KeyTake[metadata,{"Order","Project","Channel","PhysicalChannel","Polarization",
+     "Coupling","CouplingPower","StructureFunctions"}],<|"Contribution"->name|>];
+  value=CreatePartonicResult[value["Coefficients"],meta];
+  AssociateTo[rows,name->value],
+ {i,Length[terms]}];
+ If[rows===<||>,Return[CreatePartonicResult[
+   Association@Table[k->partonicDistributionZero[partonicDistributionDepth[metadata["DistributionBasis"]]],
+    {k,Min[0,through],through}],metadata]]];
+ CombinePartonicResults[rows,metadata]
+],"PartonicRenormalization"];
+End[];EndPackage[];

@@ -33,14 +33,36 @@ localNormalizeSpectralProjector[r_,e_,choose_] := Module[
   {k,Length[coefficients],1,-1}];
  answer];
 
+(* An Euler-derivative cyclic vector supplies a companion frame. Accept it
+   only if its exact transformed connection is Fuchsian. Failure of this
+   finite set of cyclic vectors makes no irregularity/nonexistence claim. *)
+localNormalizeCyclicGauge[a_,z_] := Module[
+ {n=Length[a],candidates,rows,row,c,ci,b,result=None},
+ candidates=Join[IdentityMatrix[n],{ConstantArray[1,n],Range[n]}];
+ Do[
+  rows={candidate};row=candidate;
+  Do[row=Cancel/@(z D[row,z]+z row.a);AppendTo[rows,row],{n-1}];
+  c=rows;If[TrueQ[Cancel[Det[c]]===0],Continue[]];
+  ci=localNormalizeMatrix[Inverse[c]];
+  b=localNormalizeMatrix[c.a.ci+D[c,z].ci];
+  If[localNormalizePoleOrder[b,z]<=1,
+   result=<|"Gauge"->ci,"InverseGauge"->c,"Connection"->b|>;Break[]],
+ {candidate,candidates}];
+ result
+];
+
 localNormalizeDiagonalBlock[a_,z_,e_,limit_] := Catch@Module[
  {b=localNormalizeMatrix[a],n=Length[a],data,g,gi,p,t,ti,r,sign,steps=0,
   zero=ConstantArray[0,{Length[a],Length[a]}],factors={}},
  data=boundaryBlockDiagonalGauge[b,z];
- If[data===None,Throw[Failure["NondiagonalFuchsificationRequired",<||>]]];
- g=DiagonalMatrix[z^(-data["DiagonalPowers"])];
- gi=DiagonalMatrix[z^data["DiagonalPowers"]];
- b=localNormalizeMatrix[gi.b.g-gi.D[g,z]];
+ If[data===None,
+  data=localNormalizeCyclicGauge[b,z];
+  If[data===None,Throw[Failure["LocalFuchsianGaugeNotFound",
+   <|"Methods"->{"DiagonalPowers","EulerCyclicVectors"}|>]]];
+  {g,gi,b}=Lookup[data,{"Gauge","InverseGauge","Connection"}],
+  g=DiagonalMatrix[z^(-data["DiagonalPowers"])];
+  gi=DiagonalMatrix[z^data["DiagonalPowers"]];
+  b=localNormalizeMatrix[gi.b.g-gi.D[g,z]]];
  If[g=!=IdentityMatrix[n],AppendTo[factors,<|"Matrix"->g,"Inverse"->gi|>]];
  Do[
   While[True,
@@ -195,7 +217,8 @@ DecomposeResidueEigenspaces[record_Association] := Catch@Module[
   n=record["Dimension"],x=Unique["eigenvalue"],diag,small,values,cols,counts,
   s=IdentityMatrix[record["Dimension"]],si,indices={},eigenvalues={},
   blocks={},cursor,transformed,rr,ni,nj,op,c,t,steps={},original,
-  check,groups,point={record["DimensionalRegulator"]->1/97},i,j,group,offset},
+  check,groups,point=Join[{record["DimensionalRegulator"]->1/97},
+   Lookup[Lookup[record,"Verification",<||>],"ParameterVerificationRules",{}]],i,j,group,offset},
  Do[
   small=r[[rr,rr]];
   values=DeleteDuplicates[(-Coefficient[#[[1]],x,0]/Coefficient[#[[1]],x,1])&/@

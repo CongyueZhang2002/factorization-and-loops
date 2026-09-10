@@ -1,0 +1,50 @@
+(* A kinematic restriction is made on the typed integral geometry, never
+   by specializing a previously solved reduction with singular coefficients. *)
+BeginPackage["FeynFacet`"];
+SpecializeCutIntegralFamily::usage="SpecializeCutIntegralFamily[family,rules,conditions] checks a finite kinematic restriction of a typed cut family. The full affine scalar-product rank, mandatory cut rank and external Gram rank must remain unchanged; no ordinary propagator may become identically zero on the cut surface.";
+Begin["`Private`"];
+SpecializeCutIntegralFamily[family_Association,rules_List,conditions_]:=Catch[Module[
+ {special,sp,variables,props,oldProps,matrix,oldMatrix,cut,ordinary,cutMatrix,affine,solution,
+  indices,rows,pivots,replacements,restricted,external,gram,oldGram,kin,directionNorm,rank},
+ If[Lookup[family,"Format",None]=!="FeynFacet-CutIntegralFamily",
+  Throw[Failure["TypedCutIntegralFamilyRequired",<||>],"CutSpecialization"]];
+ special=family/.rules;sp=family["LoopScalarProducts"];
+ variables=Table[Unique["scalarProductCoordinate"],{Length[sp]}];
+ props=special["InversePropagators"]/.Thread[sp->variables];
+ oldProps=family["InversePropagators"]/.Thread[sp->variables];
+ If[!AllTrue[props,PolynomialQ[#,variables]&]||
+  !FreeQ[props,Indeterminate|_DirectedInfinity|_Failure],
+  Throw[Failure["FiniteAffinePropagatorsAfterSpecializationRequired",<||>],"CutSpecialization"]];
+ matrix=Table[Coefficient[p,v],{p,props},{v,variables}];
+ oldMatrix=Table[Coefficient[p,v],{p,oldProps},{v,variables}];
+ If[!AllTrue[MapThread[Cancel[#1-#2.variables]&,{props,matrix}],FreeQ[#,Alternatives@@variables]&]||
+  MatrixRank[matrix]=!=MatrixRank[oldMatrix],
+  Throw[Failure["PropagatorCoordinateRankChangedAtSpecialization",<||>],"CutSpecialization"]];
+ cut=special["CutIndices"];ordinary=Complement[Range[Length[props]],cut];cutMatrix=matrix[[cut]];
+ If[MatrixRank[cutMatrix]=!=Length[cut]||MatrixRank[oldMatrix[[cut]]]=!=Length[cut],
+  Throw[Failure["IndependentMandatoryCutConstraintsRequired",<||>],"CutSpecialization"]];
+ affine=props[[cut]]/.Thread[variables->0];
+ rows=RowReduce[Join[cutMatrix,Transpose[{-affine}],2]];
+ pivots=Table[SelectFirst[Range[Length[variables]],rows[[i,#]]=!=0&],{i,Length[cut]}];
+ replacements=Table[variables[[pivots[[i]]]]->Cancel[Last[rows[[i]]]-
+  Total[MapThread[If[#1===pivots[[i]],0,#2 variables[[#1]]]&,{Range[Length[variables]],Most[rows[[i]]]}]]],
+ {i,Length[cut]}];
+ restricted=Cancel/@(props[[ordinary]]/.replacements);
+ If[MemberQ[restricted,0],Throw[Failure["OrdinaryPropagatorCollapsesOntoCutSurface",<||>],"CutSpecialization"]];
+ external=family["Topology"][[4]];kin=special["Topology"][[5]];
+ gram=Table[Cancel[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[FeynCalc`SPD[a,b]]]/.kin],{a,external},{b,external}];
+ If[!TrueQ[FullSimplify[Det[gram]!=0,Assumptions->conditions]],
+  Throw[Failure["NondegenerateSpecializedExternalGramRequired",<||>],"CutSpecialization"]];
+ directionNorm=Cancel[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[FeynCalc`SPD[special["TimeDirection"]]]]/.kin];
+ If[!TrueQ[FullSimplify[directionNorm>0,Assumptions->conditions]],
+  Throw[Failure["TimelikeSpecializedCutEnergyDirectionRequired",<||>],"CutSpecialization"]];
+ If[!FreeQ[special["ScalarProductRules"],Indeterminate|_DirectedInfinity]||
+   !AllTrue[(Cancel[Together[#]]&)/@((special["InversePropagators"]/.special["ScalarProductRules"])-special["DenominatorVariables"]),#===0&],
+  Throw[Failure["SpecializedInverseScalarProductMapInvalid",<|"Residual"->((Cancel[Together[#]]&)/@((special["InversePropagators"]/.special["ScalarProductRules"])-special["DenominatorVariables"]))|>],"CutSpecialization"]];
+ Join[special,<|"KinematicRestriction"-><|"Rules"->rules,"Assumptions"->conditions,
+   "AffineScalarProductRank"->MatrixRank[matrix],"MandatoryCutRank"->Length[cut],
+   "NoOrdinaryPropagatorVanishesIdenticallyOnCuts"->True,
+   "ExternalGramDeterminant"->Factor[Det[gram]],"TimelikeEnergyNorm"->Factor[directionNorm],
+   "Status"->"RegularTypedKinematicRestrictionVerified"|>|>]
+],"CutSpecialization"];
+End[];EndPackage[];

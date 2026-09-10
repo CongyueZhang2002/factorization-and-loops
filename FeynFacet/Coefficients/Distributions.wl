@@ -246,8 +246,8 @@ endpointDistributionExtract[d_,r_] := Module[{g,orderPlan,terms,groups,component
    "PhysicalNNLOCoverageInferred"->False|>
 ];
 FeynFacet`DetermineEndpointDistributionOrders[d_Association,r_Association] :=
- Catch[endpointDistributionPlan[endpointDistributionNormalize[d],r],"EndpointDistributions"];
+ Catch[If[Lookup[d,"EndpointGeometry",None]==="NormalCrossings",tensorEndpointPlan,endpointDistributionPlan][endpointDistributionNormalize[d],r],"EndpointDistributions"];
 FeynFacet`ExtractEndpointDistributions[d_Association,r_Association] :=
- Catch[endpointDistributionExtract[endpointDistributionNormalize[d],r],"EndpointDistributions"];
+ Catch[If[Lookup[d,"EndpointGeometry",None]==="NormalCrossings",tensorEndpointExtract,endpointDistributionExtract][endpointDistributionNormalize[d],r],"EndpointDistributions"];
 End[];
 EndPackage[];

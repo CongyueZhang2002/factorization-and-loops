@@ -16,14 +16,15 @@ Read `STATUS.md` for current state
   optional epsilon-form and standalone solution modules. Retired code is in
   `Archive/RetiredCode/FeynFacet/`, outside loading and active source scans.
 - `Scripts/` drivers and launchers; `Tests/` the tests; each has a README.
-- `<process>/Cards/` process definitions; `<process>/Results/` generated
-  mathematical data; `Stale/` retains only the old-result removal notice.
+- `Projects/<project>/card.wl` common physics; `Projects/<project>/<order>/<channel>/Cards/`
+  contribution cards; `Results/` and `Kira/` belong to that order/channel.
+  Read `Design/ProjectCardsAndResults.md`. Old layouts are archived; no adapters.
 - `Design/` current methods; `Goals/README.md` current roadmap;
   `Archive/History/` superseded plans and correspondence.
 - `Codex/` Pro consultation bridge state; `Tests/Support/` independent test
   implementations. Upstream reduction/reconstruction data stays with its process.
-- Persistent computed outputs and validation records live in <process>/Results;
-  Kira workspaces live in <process>/Kira. Do not write result trees under Codex,
+- Persistent outputs and validation records live in Projects/<project>/<order>/<channel>/Results;
+  Kira workspaces live in Projects/<project>/<order>/<channel>/Kira. Do not write result trees under Codex,
   Design, Scripts or Examples. Scratch is temporary and removed after retained
   results are saved in the process folder.
 - `~/FACET` is the frozen legacy tree, read-only.
@@ -34,12 +35,17 @@ Read `STATUS.md` for current state
 
 ## Traps (each one cost real time)
 
+- DeleteDuplicates takes its equality predicate directly as its second argument.
+  SameTest -> SameQ silently leaves duplicates. SameTest is valid for Complement
+  and Intersection; do not replace those option rules.
+
 - Prevent using hashes if possibke, it often turned out to be counterproductive.
 - Regulator symbols differ per package (`eps`, `ep`, `Epsilon`,
   `CANONICA`eps`): normalize by `SymbolName` at every boundary, never by
   symbol identity.
 - After LoadFACET a bare `Names` binds to the empty `FeynCalc`Names`
   shadow: write `System`Names` in scripts and tests.
+- Qualify cross-module public function calls when the callee declaration loads later. Otherwise a private undefined shadow can be captured at definition time.
 - Packages dump symbols into `Global`` (asy, SubTropica's `line`,
   PolyLogTools).
 - `Lookup[{}, key, default]` returns the default: check the container's
@@ -50,7 +56,15 @@ Read `STATUS.md` for current state
 - Parse reloadable runtime packages with BeginPackage so caller Global names cannot capture private locals. Uninstall native WSTP links inside InheritedBlock, before it restores caller definitions; Uninstall also removes installed functions. MPSolve needs its own -j 1 thread limit.
 - Do not initialize generic script/evaluation scopes with unlimited extra precision. N can chase relative digits of exact-zero Gamma/digamma combinations indefinitely; keep a finite extra-precision budget and use explicit working-precision/accuracy controls. AMFlow DESolver may choose its own setting inside its isolated scope.
 - FLINT 3.0.x generic complex-ball method tables initialize lazily without synchronization. Initialize gr_ctx_init_complex_acb before the first OpenMP region using polynomial operations.
+- FileNameSplit on Unix uses an empty first component for the filesystem root.
+  Preserve it when removing redundant path separators; DirectoryName can retain a trailing slash.
+- For `Exists`/`ForAll` with a computed variable list, inject the list and condition using `With` before `Resolve`; a held symbol with an OwnValue is not the intended quantified list.
 - `Put` is not atomic: write to a temporary file and `RenameFile`.
+- `Put` and `Compress` can omit context names using the caller's context path.
+  Artifact writes use an empty `$ContextPath` and a neutral output context,
+  qualifying package symbols and shadowable System names. Otherwise
+  ``Global`Epsilon`` or ``System`Generic`` can be rebound by `Get`;
+  a guarded reader alone is insufficient.
 - `Together` rationalizes square-root denominators and destroys
   algebraic-letter expressions.
 - Libra `Projector` returns a zero matrix on Wolfram 14.2 unless

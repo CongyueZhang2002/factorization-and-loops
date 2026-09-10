@@ -1,0 +1,143 @@
+(* Inclusion-exclusion for precomputed physical face profiles. Unlike the
+   smooth-factor tensor adapter, complementary variables may have integrable
+   logarithms. Their uniform L1 bounds are supplied and retained explicitly. *)
+BeginPackage["FeynFacet`"];
+AssembleProjectedEndpointDistributions::usage="AssembleProjectedEndpointDistributions[data,request] expands a density from its explicit bulk series and every nonempty coordinate-face profile. FaceSeries[S] is the coefficient of Product[x_i^(-1+b_i epsilon),i in S], with full dependence on complementary coordinates. Jointly integrable subtracted strata and uniform meromorphic continuation must be established upstream.";
+CreatePartonicResultFromProfileCoefficients::usage="CreatePartonicResultFromProfileCoefficients[bulkVector,profiles,metadata,conditions] assembles all structure functions from explicit bulk and face Laurent coefficient vectors and writes their shared tensor-product partonic-result representation.";
+Begin["`Private`"];
+projectedEndpointFail[tag_,details_:<||>]:=Throw[Failure[tag,details],"ProjectedEndpoint"];
+AssembleProjectedEndpointDistributions[data_Association,request_Association]:=Catch[Module[
+ {xs,e,powers,slopes,intervals,n,subsets,faces,bulk,conditions,q,records,kernels=<||>,
+  coefficient,finite,ordinary,product,subtract,lower,upper,strata={},cs,total,allLow,
+  kernel,source,required,tailConditions,groups,group,groupIndex=0,zeroBulk,batches},
+ {xs,e,intervals}=Lookup[data,{"NormalVariables","DimensionalRegulator","Intervals"},None];
+ q=Lookup[request,"ThroughOrder",None];conditions=Lookup[data,"ProjectionConditions",<||>];
+ If[!MatchQ[xs,{__Symbol}]||!DuplicateFreeQ[xs]||!MatchQ[e,_Symbol]||MemberQ[xs,e]||
+  !IntegerQ[q]||!ListQ[intervals]||
+  Length[intervals]=!=Length[xs],projectedEndpointFail["ProjectedEndpointVariablesRequired"]];
+ n=Length[xs];subsets=Subsets[Range[n]];
+ If[!AllTrue[{"JointlyIntegrableSubtractedStrata","UniformMeromorphicContinuation",
+   "CompleteNonintegrableDivisorTerms"},TrueQ[Lookup[conditions,#,False]]&]||
+  !AssociationQ[Lookup[conditions,"Justification",None]],
+  projectedEndpointFail["VerifiedIntegrableEndpointProjectionConditionsRequired"]];
+ groups=Lookup[data,"ProfileGroups",{KeyTake[data,{"Powers","FaceSeries"}]}];
+ bulk=Lookup[data,"BulkSeries",None];
+ If[!AssociationQ[bulk]||!MatchQ[groups,{_Association..}],
+  projectedEndpointFail["FiniteBulkAndRegulatedProfileGroupsRequired"]];
+ zeroBulk=<|"LaurentLowerBound"->q,"KnownThroughOrder"->q,"Coefficients"-><|q->0|>,"ExactInEpsilon"->True|>;
+ Do[
+ groupIndex++;kernels=<||>;powers=Lookup[group,"Powers",None];faces=Lookup[group,"FaceSeries",None];
+ If[!ListQ[powers]||Length[powers]=!=n||
+  !AllTrue[powers,PolynomialQ[#,e]&&Exponent[#,e]===1&&(#/.e->0)===-1&],
+  projectedEndpointFail["SimpleRegulatedEndpointPowersRequired"]];
+ slopes=Coefficient[#,e]&/@powers;
+ If[!AssociationQ[faces]||Sort[Keys[faces]]=!=Sort[Rest[subsets]],
+  projectedEndpointFail["EveryCoordinateFaceAndBulkSeriesRequired"]];
+ records=Join[<|{}->If[groupIndex===1,bulk,zeroBulk]|>,faces];
+ coefficient[record_,k_]:=Lookup[record["Coefficients"],k,0];
+ finite[record_,high_,label_]:=Module[{lo,known,exact},
+  {lo,known,exact}=Lookup[record,{"LaurentLowerBound","KnownThroughOrder","ExactInEpsilon"},False];
+  If[!IntegerQ[lo]||!IntegerQ[known]||!AssociationQ[record["Coefficients"]]||
+   Sort[Keys[record["Coefficients"]]]=!=Range[lo,known]||
+   !FreeQ[Values[record["Coefficients"]],e|_Missing|_Failure|_Integrate|_Inactive|_SeriesData|_Series|_SeriesCoefficient]||
+   Cases[Values[record["Coefficients"]],_Derivative,{0,Infinity},Heads->True]=!={},
+   projectedEndpointFail["ContiguousExplicitEndpointCoefficientSeriesRequired",<|"Face"->label|>]];
+  If[!TrueQ[exact]&&known<high,projectedEndpointFail["InsufficientProjectedEndpointOrders",
+    <|"Face"->label,"RequiredThroughOrder"->high,"KnownThroughOrder"->known|>]];
+  record];
+ Do[
+  source=finite[records[s],q+Length[s],s];
+  If[!FreeQ[Values[source["Coefficients"]],Alternatives@@xs[[s]]]&&s=!={},
+   projectedEndpointFail["FaceCoefficientMustBeIndependentOfItsNormalVariables",<|"Face"->s|>]];
+  If[s==={},AssociateTo[kernels,s-><|"LaurentLowerBound"->0,"Coefficients"-><|0->1|>,"Expression"->1|>];Continue[]];
+  kernel=FeynFacet`ExtractEndpointDistributions[
+    <|"EndpointGeometry"->"NormalCrossings","DimensionalRegulator"->e,"NormalVariables"->xs[[s]],
+     "Intervals"->intervals[[s]],"Assumptions"->Lookup[data,"Assumptions",True],
+     "EndpointConditions"-><|"JointlySmoothFactors"->True,"UniformEpsilonExpansion"->True,
+       "NoOtherSingularities"->True|>,
+     "Terms"->{<|"Powers"->powers[[s]],"SmoothFactor"->1|>}|>,
+    <|"ThroughOrder"->Max[0,q-Min[Lookup[Values[records],"LaurentLowerBound"]]]|>];
+  If[FailureQ[kernel],projectedEndpointFail["EndpointMonomialExpansionFailed",<|"Cause"->kernel|>]];
+  AssociateTo[kernels,s->kernel];
+  If[!TrueQ[Lookup[source,"ExactInEpsilon",False]],
+   epsilonAuditMultiplier[kernel["Expression"],e,source["LaurentLowerBound"],source["KnownThroughOrder"],q,
+    "ProjectedEndpointFaceMoments",s]],
+ {s,subsets}];
+ ordinary[s_,degree_Integer]:=If[s==={},If[degree===0,1,0],
+   (Times@@(1/xs[[s]])) (Total[slopes[[s]]Log[xs[[s]]]])^degree/Factorial[degree]];
+ (* H_S = Sum_{T contains S} (-1)^|T-S| P_(T-S) A_T,
+    with A_empty equal to the complete ordinary density. *)
+ Do[
+  required=Select[subsets,ContainsAll[#,s]&];
+  lower=Min[records[#]["LaurentLowerBound"]&/@required];upper=q+Length[s];
+  cs=Association@Table[k->Total[Table[
+   source=records[t];
+   (-1)^Length[Complement[t,s]] Sum[
+    coefficient[source,j]ordinary[Complement[t,s],k-j],
+    {j,source["LaurentLowerBound"],k}],
+   {t,required}]],{k,lower,upper}];
+  kernel=kernels[s];
+  product=Association@Table[k->Total[KeyValueMap[
+   #2 Lookup[kernel["Coefficients"],k-#1,0]&,cs]],{k,lower+kernel["LaurentLowerBound"],q}];
+  AppendTo[strata,<|"NormalIndices"->s,"OrdinaryVariables"->xs[[Complement[Range[n],s]]],
+    "SubtractedProfileCoefficients"->cs,"Coefficients"->product|>],
+ {s,subsets}],
+ {group,groups}];
+ If[Length[groups]>1,
+  batches=GatherBy[strata,#["NormalIndices"]&];
+  strata=Map[Function[batch,Join[
+    KeyTake[First[batch],{"NormalIndices","OrdinaryVariables"}],
+    <|"Coefficients"->Merge[Lookup[batch,"Coefficients"],Total],"ProfileGroupTerms"->batch|>,
+    If[First[batch]["NormalIndices"]==={},
+     <|"SubtractedProfileCoefficients"->Merge[Lookup[batch,"SubtractedProfileCoefficients"],Total]|>,<||>]
+   ]],batches]];
+ allLow=Min[Flatten[Keys/@Lookup[strata,"Coefficients"]]];
+ total=Association@Table[k->Total[Lookup[#["Coefficients"],k,0]&/@strata],{k,allLow,q}];
+ <|"DataType"->"FiniteEndpointDistributions","EndpointGeometry"->"NormalCrossings",
+  "Status"->"ExplicitFiniteCoefficients","DimensionalRegulator"->e,"NormalVariables"->xs,
+  "Intervals"->intervals,"LaurentLowerBound"->allLow,"ThroughOrder"->q,
+  "OmittedEpsilonOrderLowerBound"->q+1,"Coefficients"->total,"Strata"->strata,
+  "ProjectionConditions"->conditions,"TestFunctionSupport"->Lookup[data,"TestFunctionSupport",<||>],
+  "OrderRequirements"->Association@Table[s->q+Length[s],{s,subsets}],
+  "PhysicalNNLOCoverageInferred"->False|>
+],"ProjectedEndpoint"];
+
+CreatePartonicResultFromProfileCoefficients[bulk_Association,profiles_Association,metadata_Association,
+ conditions_Association]:=Catch[Module[
+ {e,xs,groups,labels,n,q,range,finite,expanded,one,results={},row,g,faces,coefs,meta,zero},
+ e=profiles["DimensionalRegulator"];xs=profiles["NormalVariables"];groups=profiles["ProfileGroups"];
+ labels=profiles["CoefficientRowLabels"];n=Length[labels];range=Lookup[metadata,"EpsilonRange",{-4,0}];q=Last[range];
+ If[bulk["DimensionalRegulator"]=!=e||bulk["Dimension"]=!=n||!MatchQ[range,{_Integer,_Integer}],
+  projectedEndpointFail["AlignedBulkAndFaceCoefficientVectorsRequired"]];
+ finite[vector_,i_,high_]:=Module[{lo,known,stored,lower},
+  stored=vector["StoredOrderRanges"][[i]];known=vector["KnownThroughOrders"][[i]];
+  lower=vector["LaurentLowerBounds"][[i]];
+  lo=If[lower===Infinity,Min[0,known],Max[First[stored],lower]];
+  If[!IntegerQ[known]||known<high||!IntegerQ[lo],
+   projectedEndpointFail["SufficientFiniteProfileVectorOrdersRequired"]];
+  <|"LaurentLowerBound"->lo,"KnownThroughOrder"->known,
+   "Coefficients"->Association@Table[k->Lookup[vector["Coefficients"],Key[{i,k}],0],{k,lo,known}],
+   "ExactInEpsilon"->vector["ExactTails"][[i]]|>
+ ];
+ Do[
+  row=Table[faces=Association@Table[face->finite[g["FaceSeries"][face],i,q+Length[face]],
+    {face,Keys[g["FaceSeries"]]}];<|"Powers"->g["Powers"],"FaceSeries"->faces|>,{g,groups}];
+  expanded=FeynFacet`AssembleProjectedEndpointDistributions[
+   <|"DimensionalRegulator"->e,"NormalVariables"->xs,"Intervals"->Lookup[metadata["DistributionBasis"]["Axes"],"Interval"],
+    "Assumptions"->Lookup[metadata,"Assumptions",True],"BulkSeries"->finite[bulk,i,q],
+    "ProfileGroups"->row,"ProjectionConditions"->conditions,
+    "TestFunctionSupport"->Lookup[metadata,"TestFunctionSupport",<||>]|>,<|"ThroughOrder"->q|>];
+  If[FailureQ[expanded],Throw[expanded,"ProjectedEndpoint"]];
+  one=FeynFacet`CreatePartonicResultFromEndpointExpansion[expanded,metadata];
+  If[FailureQ[one],Throw[one,"ProjectedEndpoint"]];AppendTo[results,one],
+ {i,n}];
+ coefs=partonicDistributionVector[Lookup[results,"Coefficients"]];
+ zero=partonicDistributionZero[Length[xs]];
+ coefs=Association@Table[k->Lookup[coefs,k,zero],{k,Min[First[range],Min[Keys[coefs]]],q}];
+ meta=Join[KeyDrop[metadata,{"EpsilonRange","Coefficients"}],
+  <|"DistributionBasis"->First[results]["DistributionBasis"],"StructureFunctions"->labels,
+   "EndpointProjectionConditions"->conditions|>];
+ FeynFacet`CreatePartonicResult[coefs,meta]
+],"ProjectedEndpoint"];
+
+End[];EndPackage[];

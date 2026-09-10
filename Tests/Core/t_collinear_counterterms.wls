@@ -1,5 +1,5 @@
 root=DirectoryName[ExpandFileName[$InputFileName],3];$HistoryLength=0;$MaxExtraPrecision=50;
-Get[root<>"/Tests/TestKit.wl"];Get[root<>"/FeynFacet/Physics/Counterterms.wl"];
+Get[root<>"/Tests/TestKit.wl"];Get[root<>"/FeynFacet/Coefficients/PartonicResults.wl"];Get[root<>"/FeynFacet/Physics/Counterterms.wl"];
 colors=<|"CA"->ca,"CF"->cf,"TR"->tr,"FlavorCount"->nf|>;
 qq=FeynFacet`LeadingSplittingKernel[{"q",1},{"q",1},"U",xi,colors];
 gq=FeynFacet`LeadingSplittingKernel["g",{"q",1},"U",xi,colors];
@@ -15,7 +15,8 @@ FTTest`FTAssert["different quark flavors do not mix at LO",FeynFacet`LeadingSpli
 restoration=FeynFacet`FactorizationSchemeKernel["HelicityMSbar",{"q",1},{"q",1},"L",xi,colors];
 FTTest`FTAssert["BMHV finite redefinition has explicit convention",restoration["RegularCoefficient"]===-4cf(1-xi)];
 FTTest`FTAssert["unpolarized FF gets no helicity restoration",FeynFacet`FactorizationSchemeKernel["HelicityMSbar",{"q",1},{"q",1},"U",xi,colors]["RegularCoefficient"]===0];
-born=<|"Coefficient"->1,"MandelstamVariables"->{sb,tb,ub},"DimensionalRegulator"->ep|>;
+born=FeynFacet`CreatePartonicResult[<|0-><|"DeltaCoefficient"->1/(sb vb),"PlusCoefficients"-><||>,"RegularCoefficient"->0|>|>,
+ <|"Order"->"LO","Contribution"->"Born","Scale"->sb,"Variables"->{vb,wb},"MandelstamVariables"->{sb,tb,ub},"DimensionalRegulator"->ep|>];
 unit=<|"Variable"->xi,"DeltaCoefficient"->0,"PlusCoefficients"-><|0->1|>,"RegularCoefficient"->0|>;
 requests=Association@Table[leg-><|"Leg"->leg,"Scale"->scale,"Variables"->{v,w}|>,{leg,{"IncomingA","IncomingB","Observed"}}];
 outputs=FeynFacet`ConvolveBornCollinearKernel[born,unit,#]& /@ requests;

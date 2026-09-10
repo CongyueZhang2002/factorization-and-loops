@@ -8,16 +8,46 @@ epsOrderNormalize[z_,e_Symbol] := z /. s_Symbol /;
   MemberQ[DeleteDuplicates[{SymbolName[e],"eps","ep","Epsilon"}],SymbolName[s]] :> e;
 epsOrderZero[z_] := TrueQ[z===0] || TrueQ[Cancel[Together[z]]===0];
 
-epsOrderValuation[z_,e_] := Module[{r,arg,a,v,parts},
- If[!FreeQ[z,_Real|Indeterminate|DirectedInfinity[_]],epsOrderFail["ExactMeromorphicExpressionRequired"]];
+epsOrderValuation[z_,e_] := Module[{r,arg,a,v,parts,bound,coefficients,first,found},
+ If[!FreeQ[z,_Real|Indeterminate|_DirectedInfinity|_Missing|_Failure|$Failed|$Aborted],epsOrderFail["ExactMeromorphicExpressionRequired"]];
  If[epsOrderZero[z],Return[Infinity]];
  If[FreeQ[z,e],Return[0]];
  r=Together[z];
  If[PolynomialQ[Numerator[r],e] && PolynomialQ[Denominator[r],e],
   Return[Exponent[Numerator[r],e,Min]-Exponent[Denominator[r],e,Min]]];
  Which[
+ Head[z]===Plus,
+  (* A reciprocal requires the exact order of a sum. First prove a
+     meromorphic lower bound, then inspect actual Laurent coefficients.
+     Never negate the minimum of the summand orders when they may cancel. *)
+  bound=epsOrderMeromorphicBound[z,e];
+  If[!IntegerQ[bound],epsOrderFail["LaurentValuationNotEstablished",<|"Expression"->z|>]];
+  first=bound;found=Missing[];
+  Do[
+   coefficients=regulatorSeriesCoefficients[z,e,{first,bound+depth}];
+   If[FailureQ[coefficients]||!AssociationQ[coefficients],
+    epsOrderFail["LaurentValuationNotEstablished",<|"Expression"->z|>]];
+   found=SelectFirst[Keys[coefficients],!epsOrderZero[coefficients[#]]&,Missing[]];
+   If[!MissingQ[found],Break[]];
+   first=bound+depth+1,
+  {depth,{0,1,2,4,8,16,32}}];
+  If[MissingQ[found],epsOrderFail["LaurentValuationNotEstablished",
+   <|"Expression"->z,"ZeroCoefficientsCheckedThrough"->bound+32|>]];found,
  Head[z]===Times,Total[epsOrderValuation[#,e]& /@ List@@z],
  Head[z]===Power && IntegerQ[z[[2]]],z[[2]] epsOrderValuation[z[[1]],e],
+ MemberQ[{Tan,Cot,Sec,Csc},Head[z]],
+  Switch[Head[z],
+   Tan,epsOrderValuation[Sin[z[[1]]],e]-epsOrderValuation[Cos[z[[1]]],e],
+   Cot,epsOrderValuation[Cos[z[[1]]],e]-epsOrderValuation[Sin[z[[1]]],e],
+   Sec,-epsOrderValuation[Cos[z[[1]]],e],
+   Csc,-epsOrderValuation[Sin[z[[1]]],e]],
+ MemberQ[{Sin,Cos},Head[z]],
+  arg=z[[1]];a=Quiet[Limit[arg,e->0]];
+  If[!FreeQ[a,Indeterminate|_DirectedInfinity]||!NumericQ[a],
+   epsOrderFail["TrigonometricArgumentLimitNotEstablished"]];
+  v=Head[z][a];
+  If[epsOrderZero[v],epsOrderValuation[arg-a,e],
+   If[TrueQ[FullSimplify[v!=0]],0,epsOrderFail["TrigonometricLeadingValueNotEstablished"]]],
  Head[z]===Gamma,
   arg=z[[1]];a=Quiet[Limit[arg,e->0]];
   If[!NumericQ[a] || !FreeQ[a,Indeterminate|DirectedInfinity[_]],
@@ -45,7 +75,7 @@ epsOrderMeromorphicBound[x_,e_] := Module[{v,base,exponent},
  If[Head[x]===Power && !FreeQ[x[[2]],e],
   exponent=Expand[x[[2]]];
   If[exponent=!=x[[2]],Return[epsOrderMeromorphicBound[x[[1]]^exponent,e]]]];
- If[!FreeQ[x,_Real|Indeterminate|_DirectedInfinity|_Missing|_Failure|$Failed],
+ If[!FreeQ[x,_Real|Indeterminate|_DirectedInfinity|_Missing|_Failure|$Failed|$Aborted],
   epsOrderFail["ExactMeromorphicExpressionRequired"]];
  If[x===0,Return[Infinity]];
  If[FreeQ[x,e],Return[0]];

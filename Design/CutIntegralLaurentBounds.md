@@ -1,6 +1,12 @@
 # Laurent bounds for compact cut integrals
 
-The general order code now has two ways to bound pure phase-space masters.
+Convergence certification is shared with ordinary-prescription removal in
+`Integrals/Convergence.wl`. Unit and repeated cuts use one nonnegative
+cut-mass-deformation criterion and one certificate record. The pole-bound and
+dimensional-recurrence algorithms below consume it; they are different
+calculations of Laurent bounds, not different convergence certifications.
+
+The general order code has two ways to bound pure phase-space masters.
 Neither evaluates a master integral or assumes a universal NNLO pole order.
 The input fixes the momentum-space integral, its cut powers, kinematics and
 any explicit scalar master prefactor. The AMFlow measure is preserved.
@@ -181,10 +187,85 @@ The prepared evolution must reach epsilon^4. The general planner derives the
 entrywise orders and their basis-conversion contributions. It does not set
 every boundary component to the same order.
 
-The [saved records](../ppHX_NNLO_DoubleReal/Results/EpsilonOrderDetermination/CF269/README.md)
+The [saved records](../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/EpsilonOrderDetermination/CF269/README.md)
 contain the actual matrices, bounds, proof inputs and order tables.
 These are sufficient orders for declared master targets. A final NNLO demand
 still needs the full observable, endpoint integration, renormalization and
 mass-factorization operations. Mixed real/virtual integral conversion remains
 outside this implementation; an unestablished convergence hypothesis returns
 a failure. No all-family production campaign is claimed.
+
+## Independent affine measurement cuts (2026-09-09)
+
+The same compact-cut proof now accepts a partition into particle cuts and
+measurement cuts. The latter have no energy theta and never contribute to
+the particle count. Their exact inverse polynomials, including normalization
+and derivative order, enter the independent cut-coordinate matrix.
+
+Let L be the loop count, E the actual external rank and c the total number
+of independent cut constraints. The residual Baikov dimension is
+n = L(L+1)/2 + LE - c. Particle and measurement dots change finite normal
+derivatives, not n. A measurement direction is active and must remain in
+the external span when unused external directions are integrated out.
+
+The existing causal or real-algebraic witnesses establish zero containment
+on the compact union of forward domains with independently increased
+nonnegative particle masses, before measurement restriction. On this closed
+semialgebraic domain, the Lojasiewicz inequality supplies uniform finite
+exponents kappa_j with |Q_j|^-1 <= C_j P^-kappa_j. This follows from
+the same witnesses, not another prescription-removal criterion.
+For mathematical background see
+[Solerno, Effective Lojasiewicz inequalities in semialgebraic geometry](https://mate.dm.uba.ar/~psolerno/Solerno%2C%20Effective%20Lojasiewicz%20Inequalities%20in%20semialgebraic.pdf).
+
+For a required normal derivative order m, budget through q=m+1. Polynomial
+derivatives are bounded on one compact box; a conservative Gram-power loss
+is q + Sum_j kappa_j (nu_j+q). Sufficiently large real dimension therefore
+makes the required jets vanish on the Gram boundary and forward energy tips.
+Differentiating the zero extension includes the moving physical domain and
+then gives the interior normal derivatives. It does not discard derivatives
+of theta functions at the target dimension. Particle derivatives retain
+the original nonnegative-mass meromorphic tip convention.
+
+After differentiation and slice restriction, each term is a compact
+n-dimensional polynomial-power integral. Normal-crossing resolution and
+Taylor subtraction permit at most one simple regulator pole per remaining
+coordinate when the Gram exponent has nonzero linear regulator slope.
+Explicit Gamma, Jacobian and normal-derivative coefficients are counted
+separately. Sector resolution supplies the mathematical argument; production
+does not perform it just to use this conservative bound.
+See [Binoth and Heinrich, phase-space sector decomposition](https://arxiv.org/abs/hep-ph/0402265).
+
+The implementation checks a nonzero restricted Gram polynomial and an exact
+strict-interior witness. That verifies the fiber dimension, not regular
+dependence on all measured parameters after continuation. It records the
+fixed-fiber meromorphic definition, finite derivative orders, parent
+domination witnesses and enlarged derivative budget. It does not claim a
+regular parameter chamber, external endpoint uniformity, or pointwise
+convergence of finite-eta regulators.
+
+A fixed-fiber bound does not cover extra poles from endpoint distribution
+extension or contributions supported entirely at exceptional measured values.
+The bound applies before Laurent expansion: pre-expanded logarithms and
+regulator-dependent spatial divisors do not satisfy these hypotheses.
+
+### Keeping the physical scale
+
+A remaining positive overall scale is removed only after exact dimensional
+analysis proves that every external Gram entry and inverse polynomial
+scales with squared momentum. The explicit measure and master prefactors
+must satisfy their Euler homogeneity identity. For their combined degree d,
+the integral scales as S^(L D/2 - Sum nu + d). This factor has zero Laurent
+valuation for positive S and a regular exponent. The bound record retains
+this exact factor and the original definition; it is not an unchecked
+evaluation at S=1.
+
+### Regression coverage
+
+Tests/Integrals/t_measured_cut_laurent_bounds.wls covers one and two independent
+measurements, particle and measurement dots, unchanged particle measure,
+exact Gamma valuations, empty slices, moving-boundary derivatives with a
+vanishing coefficient times a pole, and symbolic scale restoration.
+The existing unmeasured CF269 tests still check all 23 masters.
+
+[Verified GPT-6 Pro review](../External/ChatGPT/Records/2026-09-09/17_measured_cut_laurent_bound.md)
+records the normal-jet qualifications and counterexamples motivating the checks.

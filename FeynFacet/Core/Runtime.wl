@@ -62,7 +62,10 @@ facetKernelCount[requested_: Automatic, workload_: Infinity] := Module[
       ToExpression[environment],
     True, $facetKernelCeiling
   ];
-  ceiling = Min[$facetKernelCeiling, Max[1, $ProcessorCount], ceiling];
+  (* OMP_NUM_THREADS=1 can make $ProcessorCount equal 1 even when the
+     process affinity includes many CPUs. It limits in-kernel threading,
+     not the number of independently requested Wolfram subkernels. *)
+  ceiling = Min[$facetKernelCeiling, facetProcessorCount[], ceiling];
   count = If[IntegerQ[requested] && requested > 0,
     Min[requested, ceiling], ceiling];
   If[IntegerQ[workload] && workload > 0, Min[count, workload], count]

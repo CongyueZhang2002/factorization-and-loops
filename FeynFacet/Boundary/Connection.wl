@@ -54,8 +54,8 @@ boundaryRationalTaylorRemainders[mat_,coeffs_,depth_,z_] := Catch@Module[
     Throw[Failure["RationalNormalizedConnectionRequired",<||>]]];
    remainders=Table[
     polynomial=Expand[num-den Sum[z^j Extract[coeffs[[j+1]],pos],{j,0,p-1}]];
-    remainder=PolynomialRemainder[polynomial,z^p,z];
-    If[remainder=!=0,Throw[Failure["LocalConnectionTaylorCoefficientsInconsistent",<|"Position"->pos,"Power"->p|>]]];
+    remainder=Cancel[Together[PolynomialRemainder[polynomial,z^p,z]]];
+    If[remainder=!=0,Throw[Failure["LocalConnectionTaylorCoefficientsInconsistent",<|"Position"->pos,"Power"->p,"Residual"->remainder|>]]];
     PolynomialQuotient[polynomial,z^p,z]/den,{p,1,depth+1}];
    AssociateTo[cache,value->remainders];known=remainders];
   Do[If[known[[p]]=!=0,AppendTo[result[[p]],pos->known[[p]]]],{p,1,depth+1}],

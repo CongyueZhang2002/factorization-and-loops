@@ -101,7 +101,7 @@ FTAssert["negative epsilon connection paths lower symbolic-v coefficient bounds"
  tepZero[tepExpand[tepNegativeSolution["EndpointTerms"][[1,"Coefficients",Key[0]]],tepNegativeSolution]-
   {(tepV-1/4)FeynFacetSolution`C[2,0],0}]];
 
-tepSource=Get[FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","UU_08_10_canonical",
+tepSource=Get[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal","UU_08_10_canonical",
  "Stage1And2_2026-09-06","CF198","FamilyDifferentialSystem.wl"}]];
 {tepSourceV,tepSourceW}=tepSource["KinematicVariables"];
 tepSourceE=tepSource["DimensionalRegulator"];
@@ -115,7 +115,7 @@ FTAssert["current-process phase-space block has exponent 1-2 epsilon and constan
  AssociationQ[tepProcess] && tepZero[tepProcess["NormalGaugeMatrix"]-{{tepZ}}] &&
  tepZero[tepProcess["TangentialConnectionMatrix"]] &&
  tepProcess["PrimarySectors"][[1,"Exponent"]]===-2 tepE];
-tepOut=FileNameJoin[{root,"ppHX_NNLO_DoubleReal","Results","Assembly","TangentialEndpoint_2026-09-07"}];
+tepOut=FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","Assembly","TangentialEndpoint_2026-09-07"}];
 If[!DirectoryQ[tepOut],CreateDirectory[tepOut,CreateIntermediateDirectories->True]];
 Put[<|"ScalarSystem"->tepScalar,"MovingJordanSystem"->tepResonant,
  "PhysicalBoundaryMatching"->tepMatch,"FinitePhysicalSolution"->tepSolution,

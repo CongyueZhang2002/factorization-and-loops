@@ -45,11 +45,6 @@ offDiagonalBlockIrreducibleFactors[expressions_, variables_List, epsilon_Symbol]
     ! FreeQ[#, Alternatives @@ variables] && FreeQ[#, epsilon] &];
   DeleteDuplicates[factors, PossibleZeroQ[#1 - #2] || PossibleZeroQ[#1 + #2] &]
 ];
-offDiagonalBlockRationalZeroCoefficients[expression_, variables_List] :=
-  Module[{numerator = Numerator[Together[expression]]},
-    If[TrueQ[numerator === 0], {},
-      Values[CoefficientRules[Expand[numerator], variables]]]];
-
 offDiagonalBlockAlphabet[{e_, c_, inhomogeneity_}, variables_List, epsilon_Symbol] :=
   Union[variables,
     offDiagonalBlockIrreducibleFactors[{e, c, inhomogeneity}, variables, epsilon]];

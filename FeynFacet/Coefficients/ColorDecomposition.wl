@@ -51,7 +51,7 @@ colorIndependentCoefficients[definitions_,targets_,workers_] := Module[{indices,
  If[indices==={},Return[<||>]];
  If[Kernels[]=!={},colorCoefficientFail["IndependentColorWorkerPoolRequired"]];
  Internal`WithLocalSettings[Null,
-  kernels=LaunchKernels[Min[workers,Length[indices]]];
+  kernels=facetLaunchKernels[Min[workers,Length[indices]]];
   If[Length[kernels]=!=Min[workers,Length[indices]],colorCoefficientFail["ColorWorkersUnavailable"]];
   With[{file=$colorCoefficientSourceFile},ParallelEvaluate[
    $HistoryLength=0;$MaxExtraPrecision=50;

@@ -1,0 +1,53 @@
+(* Sum massless quark flavors by equality classes, retaining correlations
+   between two or more summed indices. A fresh flavor contributes N-used;
+   reusing that same flavor contributes one, not another factor N. *)
+BeginPackage["FeynFacet`"];
+QuarkFlavorSumTerms::usage="QuarkFlavorSumTerms[externalSpecies,summedPositions,classes] enumerates exact representative terms for sums over quarks, antiquarks and the gluon. classes maps class names to Members and Multiplicity (and optionally Charge). Distinct newly chosen flavors receive falling-factorial multiplicities; repeated indices are correlated. Each term supplies Species, Multiplicity and FlavorClasses, with dummy flavor labels used only as indices.";
+Begin["`Private`"];
+QuarkFlavorSumTerms[external_List,positions_List,classes_Association]:=Catch[Module[
+ {names=Keys[classes],members,counts,fixed,classOf=<||>,fixedCounts,labels,usedNames,
+  states,following,known,newSpecies,available,newState,flavor,index,baseLabel,nextIndex},
+ If[external==={}||!AllTrue[external,collinearKernelSpeciesQ]||
+  !VectorQ[positions,IntegerQ[#]&&1<=#<=Length[external]&]||!DuplicateFreeQ[positions]||
+  classes===<||>||!AllTrue[Values[classes],AssociationQ[#]&&ContainsAll[Keys[#],{"Members","Multiplicity"}]&],
+  collinearKernelFail["ExplicitFlavorClassesAndSummedPositionsRequired"]];
+ members=Lookup[Values[classes],"Members"];counts=Lookup[Values[classes],"Multiplicity"];
+ If[!AllTrue[members,ListQ]||!DuplicateFreeQ[Flatten[members]]||
+  !AllTrue[Flatten[members],MatchQ[#,_String|_Integer]&],
+  collinearKernelFail["DistinctDeclaredFlavorClassMembersRequired"]];
+ Do[Scan[AssociateTo[classOf,#->names[[c]]]&,members[[c]]],{c,Length[names]}];
+ fixed=DeleteDuplicates[Last/@Select[external,#=!="g"&]];
+ If[!ContainsAll[Keys[classOf],fixed],collinearKernelFail["ExternalFlavorClassAssignmentRequired"]];
+ fixedCounts=Table[Count[Lookup[classOf,fixed],name],{name,names}];
+ If[AnyTrue[counts-fixedCounts,NumericQ[#]&&#<0&],collinearKernelFail["ActiveExternalFlavorsRequired"]];
+ usedNames=Flatten[members];labels=Association@Table[
+  name->Table[
+   baseLabel="f"<>ToString[First@FirstPosition[names,name]]<>"_"<>ToString[k];
+   While[MemberQ[usedNames,baseLabel],baseLabel="_"<>baseLabel];
+   AppendTo[usedNames,baseLabel];AssociateTo[classOf,baseLabel->name];baseLabel,
+  {k,Length[positions]}],{name,names}];
+ states={<|"Species"->external,"Multiplicity"->1,
+  "NewFlavors"->AssociationThread[names,ConstantArray[{},Length[names]]]|>};
+ Do[
+  following=Reap[Do[
+   known=Join[fixed,Flatten[Values[state["NewFlavors"]]]];
+   Do[Sow[Join[state,<|"Species"->ReplacePart[state["Species"],position->species]|>]],
+    {species,Join[{"g"},Flatten[Table[{{"q",f},{"qbar",f}},{f,known}],1]]}];
+   Do[
+    index=First@FirstPosition[names,name];
+    nextIndex=Length[state["NewFlavors"][name]]+1;
+    available=counts[[index]]-fixedCounts[[index]]-(nextIndex-1);
+    If[TrueQ[available===0],Continue[]];
+    flavor=labels[name][[nextIndex]];
+    newSpecies=Join[state["NewFlavors"],<|name->Append[state["NewFlavors"][name],flavor]|>];
+    Do[Sow[<|"Species"->ReplacePart[state["Species"],position->{kind,flavor}],
+      "Multiplicity"->state["Multiplicity"]available,"NewFlavors"->newSpecies|>],
+      {kind,{"q","qbar"}}],
+   {name,names}],
+  {state,states}]][[2]];
+  states=If[following==={},{},First[following]],
+ {position,positions}];
+ Map[Join[KeyDrop[#,"NewFlavors"],<|
+  "FlavorClasses"->KeyTake[classOf,DeleteDuplicates[Last/@Select[#["Species"],#=!="g"&]]]|>]&,states]
+],"CollinearCounterterms"];
+End[];EndPackage[];

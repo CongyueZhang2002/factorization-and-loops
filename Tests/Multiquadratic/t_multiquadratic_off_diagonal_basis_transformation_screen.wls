@@ -319,8 +319,7 @@ If[longTestsQ,
 (* G11-G13: the screen and the discovery on the real block CF300 (12,9) *)
 (* ------------------------------------------------------------------ *)
 
-FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
-   "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`FamilyRootData["CF300"];
 (* FROZEN INPUTS (2026-08-25).  These three files used to be read from
    the LIVE campaign directory triple_root_2026-08-24_fable/CF300/,
@@ -331,7 +330,7 @@ chart = FeynFacet`FamilyRootData["CF300"];
    provenance in that directory's README.  The sector state is frozen as
    its OffDiagonalBlockSolutions PROJECTION -- the only field this suite uses -- which
    also removes a 33 MB read from every run. *)
-base = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+base = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
    "UU_08_10_canonical", "FamilyEpsFormsSolving",
    "FrozenTestFixtures_2026-08-25"}];
 stripFile = FileNameJoin[{base, "cf300_frozen_strip_12_9_input.wl"}];

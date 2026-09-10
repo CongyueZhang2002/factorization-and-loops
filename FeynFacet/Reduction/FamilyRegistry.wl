@@ -865,7 +865,7 @@ canonicalPutArtifact[result_Association, file_String] := Module[
   temporary = file <> ".tmp-" <> StringReplace[CreateUUID[], "-" -> ""];
   If[
     Quiet @ Check[
-      Put[result, temporary];
+      FeynFacet`FamilyArtifactWrite[result, temporary,"Compression"->Automatic];
       FileExistsQ[temporary] && FileByteCount[temporary] > 0,
       False
     ] =!= True,

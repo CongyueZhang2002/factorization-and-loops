@@ -25,6 +25,14 @@ For physical coefficient contraction, sufficient endpoint orders, and
 delta/plus/regular output with color decomposition, see the
 [coefficient assembly drivers](../Scripts/Coefficients/README.md).
 
+For independent diagram interferences and the explicitly scoped ordinary-i0
+certificate, see [the implementation notes](../Design/HermitianInterferencesAndPrescriptions.md).
+The production pair queue uses Hermitian reduction automatically when eligible.
+`Integrals/Convergence.wl` owns one compact-cut convergence certificate, shared
+by ordinary-prescription removal, Laurent bounds and dimensional recurrences.
+It handles unit and repeated positive-energy cuts by the same independent
+nonnegative cut-mass deformation. Scope remains explicit for endpoint work.
+
 ## Ownership
 
 | Directory | Responsibility |
@@ -34,7 +42,8 @@ delta/plus/regular output with color decomposition, see the
 | `Algebra` | Exact/modular arithmetic, coefficient-field presentations, radicals and multiquadratic arithmetic |
 | `Geometry` | Rational coordinate maps, mathematical catalog data and supplied family root data |
 | `Integrals` | Integral/topology definitions, linear combinations, parameter representations, dimensional shifts and integral pole bounds |
-| `Physics` | Process cards, kinematics, collinear distributions and factorization |
+| `Physics` | Kinematics, collinear distributions and factorization |
+| `Projects` | Root/contribution cards, physical-leg polarization, explicit lower-order dependencies and calculation orchestration |
 | `Reduction` | IBP reduction, streamed reduction records and canonical family registry |
 | `Coefficients` | Physical coefficient normalization, finite-field reconstruction, hard-function assembly and endpoint demands |
 | `DifferentialEquations` | System assembly, coordinate/basis transformations, local analysis and optional epsilon form |
@@ -149,6 +158,9 @@ Gamma/Beta integration to SubTropica when needed.
 
 ## Analytic NLO hard functions and subtraction schemes
 
+`Physics/Distributions.wl` owns quark and gluon PDF/FF correlator definitions;
+`Physics/CollinearFactorization.wl` applies them to diagram interferences.
+
 `Physics/Born.wl` generates complete Born diagram selections, physical invariant
 densities and the Born channels required by collinear factorization.
 `Physics/Counterterms.wl` owns leading splitting kernels, finite factorization
@@ -166,10 +178,45 @@ interior and endpoint orders. `NLO.wl` combines real, virtual, UV and collinear
 contributions, requires exact pole cancellation and writes explicit finite
 Mathematica expressions. The card-driven runner is
 `Scripts/run_nlo_hard_function.wls`; a worked process and independent external
-checks live in `ppHX_NLO_qqprime`.
+checks use `ppHX_UU_NNLO`, `ppHX_LL_NLO` and `ppHX_TT_NLO`.
+See [the common card/result contract](../Design/ProjectCardsAndResults.md).
 
 `Coefficients/DistributionStorage.wl` stores final color-resolved distributions
 without redundant uncolored views. The common `Solutions/SharedDefinitions.wl`
 compactor compares full definitions within their semantic source scopes, then
 removes unused entries. The optional independent verification compares every
 retained source definition and full output without evaluating any integral.
+
+
+Current code cleanup removes the duplicate Born-card generator and the retired
+version-8 coefficient reader. `Physics/Born.wl` owns Born construction;
+`Physics/Counterterms.wl` owns the physical convolutions; the generic common
+result schema is in `Coefficients/PartonicResults.wl`, and finite endpoint
+finalization is in `Coefficients/DistributionStorage.wl`.
+Zero pruning during dimensional shifts conservatively retains undecided terms
+and defers rational cancellation until master aggregation.
+
+
+Current insertions use Physics/CurrentTensors.wl and the shared amplitude
+converter in Physics/CollinearFactorization.wl. The external electromagnetic
+wavefunction is amputated before contraction; its current indices stay in D.
+Normalized PDF/FF spin insertions remain in Physics/Distributions.wl, while
+Physics/Measurements.wl owns linear measurement constraints and their exact
+delta-function Jacobians. Integrated tagged momenta retain their evanescent
+components. These are general building blocks; complete SIDIS NLO/NNLO
+assembly is still in progress.
+
+All active process cards and physical output belong under Projects/.
+
+## Current contributions
+
+Coefficients/CurrentContributions.wl connects generated current amplitudes,
+the measured two-particle evaluator, and the common tensor-product result.
+The virtual contribution reuses the Born support Jacobian and analytic
+one-loop scalar provider. Physics/Counterterms.wl owns the corresponding
+Born Mellin convolution and PDF/FF subtraction.
+
+Scalar loop functions use the normalization documented in the
+[FeynCalc FAQ](https://feyncalc.github.io/FeynCalcBookDev/Extra/FrequentlyAskedQuestions.html):
+FeynCalc B0/C0 have 1/(i pi^2), so their conversion to the package's
+1/(i pi^(D/2)) Gamma formulas carries pi^(-epsilon).

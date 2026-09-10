@@ -1,0 +1,132 @@
+(* Reuse exact closed IBP rules only after matching the full ordered
+   denominator definitions, external frame, cuts, measures and prescriptions. *)
+BeginPackage["FeynFacet`"];
+ReuseIntegralReduction::usage="ReuseIntegralReduction[families,targets,reduction] reuses closed IBP rules for exactly identical integral-family definitions, allowing family-name changes. It verifies source target coverage and never interprets an unresolved target as a master.";
+ApplyIntegralReduction::usage="ApplyIntegralReduction[coefficientRows,reduction] substitutes a closed exact integral reduction into sparse external-coefficient rows and cancels the resulting master coefficients with exact rational arithmetic. It retains the row labels and never evaluates or expands the master integrals.";
+TransformIntegralReductionEquations::usage="TransformIntegralReductionEquations[families,reduction] rewrites retained exact reduction identities in new complete inverse-propagator coordinates. Uncovered new targets remain to be solved; the transformed identities can be supplied as ExtraEquations to the common IBP solver.";
+Begin["`Private`"];
+ReuseIntegralReduction[families:{__Association},targets_List,reduction_Association]:=Catch[Module[
+ {old=Lookup[reduction,"Families",{}],signature,positions,newToOld,oldToNew,mapped,known,rules,
+  masters,images,missing,selected},
+ If[!ListQ[old]||!ListQ[Lookup[reduction,"Rules",None]]||!ListQ[Lookup[reduction,"Masters",None]],
+  cutFamilyFail["ClosedIntegralReductionRequired"]];
+ signature[family_]:={Rest[List@@family["Topology"]],family["MeasurePrefactor"],
+  Lookup[family,"Cuts",{}],Lookup[family,"TimeDirection",None],family["Definition"],
+  Lookup[family,"OrdinaryPropagatorPrescriptions",None]};
+ positions=Table[FirstPosition[signature/@old,signature[family],Missing[],{1},Heads->False],
+  {family,families}];
+ If[AnyTrue[positions,MissingQ],Return[reuseIntegralReductionCoordinates[families,targets,reduction]]];
+ selected=old[[Flatten[positions]]];
+ newToOld=MapThread[#1["Topology"][[1]]->#2["Topology"][[1]]&,{families,selected}];
+ oldToNew=Reverse/@newToOld;
+ If[!DuplicateFreeQ[First/@oldToNew],cutFamilyFail["DistinctReusedFamilyNamesRequired"]];
+ mapped=targets/.newToOld;rules=reduction["Rules"];masters=reduction["Masters"];
+ known=Union[First/@rules,masters];missing=Complement[mapped,known];
+ If[missing=!={},cutFamilyFail["ReusedReductionTargetCoverageIncomplete",<|"MissingTargets"->missing|>]];
+ images=mapped/.Dispatch[rules];
+ If[Complement[DeleteDuplicates[Cases[images,_FeynCalc`GLI,{0,Infinity}]],masters]=!={},
+  cutFamilyFail["ReusedReductionNotClosed"]];
+ If[Complement[DeleteDuplicates[First/@Cases[images,_FeynCalc`GLI,{0,Infinity}]],
+   First/@oldToNew]=!={},cutFamilyFail["AdditionalReusedMasterFamiliesRequired"]];
+ Join[KeyDrop[reduction,{"Families","Rules","Masters","Targets"}],<|
+  "Families"->families,"Targets"->targets,
+  "Rules"->Thread[targets->(images/.oldToNew)],
+  "Masters"->DeleteDuplicates[Cases[images/.oldToNew,_FeynCalc`GLI,{0,Infinity}]],
+  "ReductionReuse"-><|"FamilyRules"->newToOld,"ExactDefinitionsVerified"->True,
+   "AllTargetsCovered"->True,"ClosedOnDeclaredMasters"->True|>|>]
+],"CutFamily"];
+ApplyIntegralReduction[rows_Association,reduction_Association]:=Catch[Module[
+ {rules,masters,images=<||>,local,objects,coefficients,output,terms,result,final},
+ rules=Lookup[reduction,"Rules",None];masters=Lookup[reduction,"Masters",None];
+ If[!MatchQ[rules,{(_Rule)...}]||!ListQ[masters]||!AllTrue[Values[rows],AssociationQ],
+  cutFamilyFail["ClosedReductionAndSparseCoefficientRowsRequired"]];
+ Do[
+  objects=DeleteDuplicates[Cases[Last[rule],_FeynCalc`GLI,{0,Infinity}]];
+  If[!ContainsAll[masters,objects],cutFamilyFail["IntegralReductionNotClosed"]];
+  coefficients=Coefficient[Last[rule],#]&/@objects;
+  If[!FreeQ[coefficients,_FeynCalc`GLI]||
+    Expand[Last[rule]-coefficients.objects]=!=0,
+   cutFamilyFail["LinearIntegralReductionRulesRequired"]];
+  AssociateTo[images,First[rule]->AssociationThread[objects,coefficients]],
+ {rule,rules}];
+ Do[If[!KeyExistsQ[images,master],AssociateTo[images,master-><|master->1|>]],{master,masters}];
+ output=Association@KeyValueMap[Function[{name,row},
+  If[!AllTrue[Keys[row],KeyExistsQ[images,#]&],cutFamilyFail["IntegralCoefficientTargetNotReduced",<|"Row"->name|>]];
+  terms=Flatten[KeyValueMap[Function[{integral,coefficient},
+    KeyValueMap[#1->coefficient #2&,images[integral]]],row],1];
+  result=If[terms==={},<||>,Merge[terms,Total]];
+  coefficients=FeynFacet`CancelRationalCoefficients[Values[result]];
+  If[!ListQ[coefficients],cutFamilyFail["ReducedCoefficientCancellationFailed",<|"Cause"->coefficients|>]];
+  name->Select[AssociationThread[Keys[result],coefficients],#=!=0&]],rows];
+ final=Lookup[reduction,"FinalBasisReduction",None];
+ If[final=!=None,
+  If[!AssociationQ[final]||KeyExistsQ[final,"FinalBasisReduction"],
+   cutFamilyFail["OneExplicitFinalMasterBasisReductionRequired"]];
+  output=FeynFacet`ApplyIntegralReduction[output,final]];
+ output
+],"CutFamily"];
+reuseIntegralReductionCoordinates[families_,targets_,reduction_]:=Catch[Module[
+ {old=reduction["Families"],oldRules=Dispatch[reduction["Rules"]],known,maps=<||>,reverse=<||>,
+  selected=<||>,local,candidate,choice,images,needed,oldMasters,back,backRules,output,newMasters,byOld,reduceImage},
+ known=AssociationThread[Union[First/@reduction["Rules"],reduction["Masters"]],ConstantArray[True,Length[Union[First/@reduction["Rules"],reduction["Masters"]]]]];
+ byOld=Association[(#["Topology"][[1]]->#)&/@old];
+ Do[
+  local=Select[targets,#[[1]]===family["Topology"][[1]]&];If[local==={},Continue[]];
+  choice=None;
+  Do[
+   candidate=FeynFacet`MapIntegralFamilyCoordinates[local,family,donor];
+   If[!AssociationQ[candidate],Continue[]];
+   needed=Union[Flatten[Keys/@Values[candidate["IntegralImages"]]]];
+   If[AllTrue[needed,KeyExistsQ[known,#]&],choice=candidate;Break[]],
+  {donor,old}];
+  If[choice===None,cutFamilyFail["NoCoveredIntegralCoordinateMap",<|"Family"->family["Topology"][[1]]|>]];
+  maps=Join[maps,choice["IntegralImages"]];
+  AssociateTo[selected,choice["RepresentativeDefinition"]["Topology"][[1]]->family],
+ {family,families}];
+ reduceImage[image_]:=Total[KeyValueMap[#2(#1/.oldRules)&,image]];
+ images=reduceImage/@maps;
+ oldMasters=Union[Flatten[Cases[Values[images],_FeynCalc`GLI,{0,Infinity}]]];
+ If[!ContainsAll[reduction["Masters"],oldMasters],cutFamilyFail["CoordinateReusedReductionNotClosed"]];
+ Do[
+  local=Select[oldMasters,#[[1]]===name&];
+  If[!KeyExistsQ[selected,name],cutFamilyFail["AdditionalCoordinateMasterFamilyRequired"]];
+  back=FeynFacet`MapIntegralFamilyCoordinates[local,byOld[name],selected[name]];
+  If[!AssociationQ[back],cutFamilyFail["ReverseMasterCoordinateMapRequired",<|"Cause"->back|>]];
+  reverse=Join[reverse,back["IntegralImages"]],
+ {name,Union[First/@oldMasters]}];
+ backRules=Dispatch[Normal[Map[Total[KeyValueMap[Times,#]]&,reverse]]];
+ output=Thread[targets->(Lookup[images,targets]/.backRules)];
+ newMasters=Union[Cases[Last/@output,_FeynCalc`GLI,{0,Infinity}]];
+ Join[KeyDrop[reduction,{"Families","Rules","Masters","Targets"}],<|
+  "Families"->families,"Targets"->targets,"Rules"->output,"Masters"->newMasters,
+  "ReductionReuse"-><|"ExactCoordinateChangesVerified"->True,"AllTargetsCovered"->True,
+    "ClosedOnDeclaredMasters"->True,"ForwardIntegralImages"->maps,"ReverseMasterImages"->reverse|>|>]
+],"CutFamily"];
+TransformIntegralReductionEquations[families_List,reduction_Association]:=Catch[Module[
+ {columns,old,images=<||>,proofs={},local,choice,candidate,rows,terms,coefficients,toTerms},
+ If[!ListQ[Lookup[reduction,"Rules",None]]||!ListQ[Lookup[reduction,"Families",None]],
+  cutFamilyFail["ExactRetainedReductionIdentitiesRequired"]];
+ old=reduction["Families"];
+ columns=Union[Cases[reduction["Rules"],_FeynCalc`GLI,{0,Infinity}]];
+ Do[
+  local=Select[columns,#[[1]]===donor["Topology"][[1]]&];If[local==={},Continue[]];
+  choice=None;
+  Do[
+   candidate=FeynFacet`MapIntegralFamilyCoordinates[local,donor,family];
+   If[AssociationQ[candidate],choice=candidate;Break[]],
+  {family,SortBy[families,If[#["Topology"][[1]]===donor["Topology"][[1]],0,1]&]}];
+  If[choice===None,cutFamilyFail["RetainedReductionCoordinateMapRequired",<|"Family"->donor["Topology"][[1]]|>]];
+  images=Join[images,choice["IntegralImages"]];AppendTo[proofs,KeyDrop[choice,"IntegralImages"]],
+ {donor,old}];
+ toTerms[expression_]:=Flatten[Map[Function[integral,
+   KeyValueMap[#1->Coefficient[expression,integral]#2&,images[integral]]],
+  DeleteDuplicates[Cases[expression,_FeynCalc`GLI,{0,Infinity}]]],1];
+ rows=Map[Function[rule,
+  terms=Join[Normal[images[First[rule]]],(First[#]->-Last[#]&/@toTerms[Last[rule]])];
+  coefficients=Map[Cancel[Together[#]]&,Merge[terms,Total]];
+  Select[coefficients,#=!=0&]],reduction["Rules"]];
+ <|"Format"->"FeynFacet-TransformedIntegralReductionEquations","Rows"->DeleteDuplicates[DeleteCases[rows,<||>]],
+   "CoordinateMaps"->proofs,"SourceReductionWorkspace"->Lookup[reduction,"Workspace",None],
+   "ExactIdentityScope"->"The retained identities in explicitly verified inverse-propagator coordinates. New target coverage is not asserted."|>
+],"CutFamily"];
+End[];EndPackage[];

@@ -4,7 +4,7 @@ Get[root<>"/Tests/TestKit.wl"];
 Get[root<>"/Scripts/Coefficients/ScalarEndpointDriver.wl"];
 Get[root<>"/Scripts/Coefficients/ScalarEndpointCampaign.wl"];
 mockFile=root<>"/Tests/Coefficients/Support/ScalarEndpointDriverMocks.wl";Get[mockFile];
-testOutput=root<>"/ppHX_NNLO_DoubleReal/Results/Assembly/TangentialEndpoint_2026-09-07/ScalarDriverTests/"<>
+testOutput=root<>"/Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/Assembly/TangentialEndpoint_2026-09-07/ScalarDriverTests/"<>
  StringReplace[CreateUUID[],"-"->""];
 endpointDirectory=testOutput<>"/Endpoint";
 put[value_,name_]:=ScalarEndpointDriver`WriteScalarEndpointArtifact[value,endpointDirectory<>"/"<>name<>".wxf"];

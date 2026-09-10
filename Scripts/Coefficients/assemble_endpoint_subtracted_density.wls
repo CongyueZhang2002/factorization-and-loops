@@ -36,13 +36,16 @@ If[KeyExistsQ[subtractionResult,"ColorComponents"]&&TrueQ[Lookup[subtractionInpu
  subtractionCompactionSeconds=First[AbsoluteTiming[
   subtractionResult=FeynFacet`CompactFiniteDistributionResult[subtractionResult]]];
  If[FailureQ[subtractionResult],Print[subtractionResult];Exit[1]]];
+If[!AssociationQ[Lookup[subtractionInput,"ResultMetadata",None]],Print["ResultMetadataRequired"];Exit[2]];
+subtractionResult=FeynFacet`PartonicResultFromEndpointDensity[subtractionResult,subtractionInput["ResultMetadata"]];
+If[FailureQ[subtractionResult],Print[subtractionResult];Exit[1]];
 subtractionFile=ExpandFileName[Last[subtractionArgs]];
 If[!DirectoryQ[DirectoryName[subtractionFile]],CreateDirectory[DirectoryName[subtractionFile],CreateIntermediateDirectories->True]];
 subtractionTemporary=subtractionFile<>".partial";
 If[Export[subtractionTemporary,subtractionResult,"WXF",PerformanceGoal->"Size"]===$Failed,Print["EndpointDensityWriteFailed"];Exit[1]];
 If[Import[subtractionTemporary,"WXF"]=!=subtractionResult,Print["EndpointDensityReadBackMismatch"];Exit[1]];
 RenameFile[subtractionTemporary,subtractionFile,OverwriteTarget->True];
-subtractionSummary=Join[KeyTake[subtractionResult,{"DataType","Status","EpsilonOrderRange","MasterCount","UnknownInitialConstantCount"}],
+subtractionSummary=Join[KeyTake[subtractionResult,{"Format","Status","EpsilonRange","MasterCount","UnknownInitialConstantCount"}],
  <|"AssemblySeconds"->subtractionSeconds,"ColorCollectionSeconds"->subtractionColorSeconds,"CompactionAndVerificationSeconds"->subtractionCompactionSeconds,
  "ComputationTimings"->Lookup[subtractionResult,"ComputationTimings",<||>],
  "EpsilonRemainderAudit"->If[AssociationQ[subtractionAudit],KeyTake[subtractionAudit,

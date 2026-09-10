@@ -1,0 +1,85 @@
+(* Laurent products retain the common distribution tree and exact coverage.
+   Missing coefficients above a truncation are errors, even if a neighboring
+   contribution might later cancel the requested pole. *)
+BeginPackage["FeynFacet`"];
+MultiplyPartonicLaurentFactor::usage="MultiplyPartonicLaurentFactor[result,factor,range] multiplies a common result by a meromorphic epsilon factor independent of its distribution variables. It determines sufficient source orders and rejects unavailable coefficients.";
+ApplyPartonicCollinearKernel::usage="ApplyPartonicCollinearKernel[result,kernel,axis,range] applies an explicit meromorphic collinear kernel to a common PartonicResult, retaining the epsilon orders needed for every convolution. The kernel may contain poles and exact factorization-scale exponentials.";
+Begin["`Private`"];
+partonicLaurentProductMetadata[source_]:=KeyDrop[source,{"Coefficients","EpsilonRange","Coverage","LaurentLowerBound"}];
+partonicLaurentScalarCoefficients[expr_,e_,low_,high_]:=Module[{series},
+ If[expr===0,Return[Association@Table[k->0,{k,low,high}]]];
+ series=FeynFacet`Private`regulatorSeriesCoefficients[expr,e,{low,high}];
+ If[!AssociationQ[series],collinearKernelFail["ExplicitPartonicLaurentFactorRequired",<|"Cause"->series|>]];
+ series
+];
+MultiplyPartonicLaurentFactor[source_Association,factor_,range:{_Integer,_Integer}]:=Catch[Module[
+ {e,axes,lower,sourceLower,needed,coefficients,rows,depth,terms,check},
+ e=Lookup[source,"DimensionalRegulator",None];
+ axes=Lookup[Lookup[source["DistributionBasis"],"Axes",{}],"Variable",{}];
+ If[!MatchQ[e,_Symbol]||!FreeQ[factor,Alternatives@@axes]||First[range]>Last[range],
+  collinearKernelFail["ExternalPartonicLaurentFactorRequired"]];
+ check=RequirePartonicEpsilonRange[source,source["EpsilonRange"]];
+ If[FailureQ[check],collinearKernelFail["CompletePartonicSourceRequired"]];
+ depth=partonicDistributionDepth[source["DistributionBasis"]];
+ If[factor===0,Return[CreatePartonicResult[
+  Association@Table[k->partonicDistributionZero[depth],{k,First[range],Last[range]}],
+  partonicLaurentProductMetadata[source]]]];
+ lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[factor,e];
+ If[!IntegerQ[lower],collinearKernelFail["PartonicFactorLaurentLowerBoundRequired"]];
+ sourceLower=source["LaurentLowerBound"];needed=Last[range]-lower;
+ If[needed>=sourceLower&&FailureQ[RequirePartonicEpsilonRange[source,{sourceLower,needed}]],
+  collinearKernelFail["PartonicProductEpsilonOrdersInsufficient",<|"RequiredSourceRange"->{sourceLower,needed},"Available"->source["EpsilonRange"]|>]];
+ epsilonAuditProduct[{
+  <|"Source"->"PartonicCoefficients","LowerBound"->sourceLower,"ThroughOrder"->needed|>,
+  <|"Source"->"ExternalLaurentFactor","LowerBound"->lower,"Exact"->True|>},
+  Last[range],"PartonicLaurentMultiplication"];
+ coefficients=partonicLaurentScalarCoefficients[factor,e,lower,Last[range]-sourceLower];
+ rows=Association@Table[n->partonicDistributionSum[
+  Table[If[coefficients[j]===0||n-j<sourceLower,Nothing,
+   partonicMap[Function[value,coefficients[j]value],source["Coefficients"][n-j]]],
+   {j,lower,n-sourceLower}],depth],{n,First[range],Last[range]}];
+ CreatePartonicResult[rows,partonicLaurentProductMetadata[source]]
+],"CollinearCounterterms"];
+ApplyPartonicCollinearKernel[source_Association,kernel_Association,axis_Symbol,
+ range:{_Integer,_Integer}]:=Catch[Module[
+ {e,plusKeys,values,lowers,lower,sourceLower,needed,upper,series,rows=<||>,depth,
+  component,sourceRange,convolved,n,terms=<||>,check},
+ e=Lookup[source,"DimensionalRegulator",None];
+ If[!MatchQ[e,_Symbol]||Lookup[kernel,"Variable",None]=!=axis||First[range]>Last[range],
+  collinearKernelFail["PartonicCollinearLaurentRequestRequired"]];
+ collinearKernelValidate[kernel];
+ check=RequirePartonicEpsilonRange[source,source["EpsilonRange"]];
+ If[FailureQ[check],collinearKernelFail["CompletePartonicSourceRequired"]];
+ plusKeys=Keys[kernel["PlusCoefficients"]];
+ values=Join[{kernel["DeltaCoefficient"],kernel["RegularCoefficient"]},Values[kernel["PlusCoefficients"]]];
+ depth=partonicDistributionDepth[source["DistributionBasis"]];
+ lowers=FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&/@values;
+ If[!AllTrue[lowers,IntegerQ[#]||#===Infinity&],collinearKernelFail["CollinearKernelLaurentBoundsRequired"]];
+ lower=Min[lowers];sourceLower=source["LaurentLowerBound"];
+ If[lower===Infinity,Return[MultiplyPartonicLaurentFactor[source,0,range]]];
+ needed=Last[range]-lower;
+ If[needed>=sourceLower&&FailureQ[RequirePartonicEpsilonRange[source,{sourceLower,needed}]],
+  collinearKernelFail["CollinearConvolutionEpsilonOrdersInsufficient",<|"RequiredSourceRange"->{sourceLower,needed},"Available"->source["EpsilonRange"]|>]];
+ upper=Last[range]-sourceLower;
+ epsilonAuditProduct[{
+  <|"Source"->"PartonicCoefficients","LowerBound"->sourceLower,"ThroughOrder"->needed|>,
+  <|"Source"->"CollinearKernel","LowerBound"->lower,"ThroughOrder"->upper|>},
+  Last[range],"PartonicCollinearConvolution"];
+ series=partonicLaurentScalarCoefficients[#,e,lower,upper]&/@values;
+ Do[
+  component=Join[partonicDistribution[series[[1]][j],
+   AssociationThread[plusKeys,#[j]&/@Drop[series,2]],series[[2]][j]],<|"Variable"->axis|>];
+  If[partonicZeroTreeQ[KeyDrop[component,"Variable"]],Continue[]];
+  sourceRange={Max[sourceLower,First[range]-j],Last[range]-j};
+  If[First[sourceRange]>Last[sourceRange],Continue[]];
+  convolved=FeynFacet`ConvolvePartonicMellinKernel[source,component,axis,sourceRange];
+  If[!AssociationQ[convolved],collinearKernelFail["LaurentCollinearConvolutionFailed",<|"Cause"->convolved,"KernelPower"->j|>]];
+  Do[n=i+j;
+   AssociateTo[terms,n->Append[Lookup[terms,n,{}],convolved["Coefficients"][i]]],
+   {i,First[sourceRange],Last[sourceRange]}],
+ {j,lower,upper}];
+ rows=Association@Table[n->partonicDistributionSum[Lookup[terms,n,{}],depth],
+  {n,First[range],Last[range]}];
+ CreatePartonicResult[rows,partonicLaurentProductMetadata[source]]
+],"CollinearCounterterms"];
+End[];EndPackage[];

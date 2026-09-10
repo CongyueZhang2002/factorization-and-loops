@@ -94,6 +94,28 @@ epsilonAuditProduct[factorSpecifications_,targetOrder_,stageName_,location_:None
   epsilonAuditRecord[stage,If[leaks==={},None,<|"Location"->location,"RequestedThroughOrder"->target,
     "ContaminatingRemainders"->leaks|>]]]];
 
+(* For a product, direct numerator/denominator exponents and explicit
+   SeriesData of its nonrational factors can prove the marked tail is above
+   the requested range. This independent check never calls an order planner,
+   never assigns values to kinematics, and never expands a large rational
+   numerator into derivatives of an arbitrary remainder function. *)
+epsilonRemainderMultiplierAboveRange[m_,ep_,tail_,target_]:=TimeConstrained[
+ Module[{factors=If[Head[m]===Times,List@@m,{m}],onset=tail,num,den,s,lo},
+  Do[
+   If[FreeQ[factor,ep],Continue[]];
+   num=Numerator[factor];den=Denominator[factor];
+   If[PolynomialQ[num,ep]&&PolynomialQ[den,ep],
+    If[num===0,Return[True,Module]];
+    lo=Exponent[num,ep,Min]-Exponent[den,ep,Min],
+    s=Quiet[Series[factor,{ep,0,0}]];
+    If[Head[s]===SeriesData&&s[[1]]===ep&&s[[2]]===0,
+     lo=s[[4]]/s[[6]],
+     If[FreeQ[s,ep|_SeriesData|_Series|_SeriesCoefficient]&&
+       FreeQ[s,Indeterminate|_DirectedInfinity|_Failure],lo=0,Return[False,Module]]]];
+   If[!IntegerQ[lo],Return[False,Module]];onset+=lo,
+  {factor,factors}];TrueQ[onset>target]
+ ],Min[2,$epsilonRemainderTimeLimit],False];
+
 (* This check does not ask the planner for the multiplier's pole order. *)
 SetAttributes[epsilonAuditMultiplier,HoldAll];
 epsilonAuditMultiplier[multiplier_,e_,lower_,upper_,target_,stage_,source_]:=
@@ -105,9 +127,11 @@ epsilonAuditMultiplier[multiplier_,e_,lower_,upper_,target_,stage_,source_]:=
   key={m,ep,tail,k};
   If[TrueQ[Lookup[$epsilonMultiplierChecks,Key[key],False]],
    $epsilonMultiplierCacheHits++;epsilonAuditRecord[stage];Return[Null]];
-  check=CheckEpsilonTruncation[Function[values,m values["omitted"]],
+  check=If[TrueQ[epsilonRemainderMultiplierAboveRange[m,ep,tail,k]],
+   <|"Status"->"Passed","Method"->"Direct factor series and exact rational exponents place every arbitrary analytic tail above the requested order."|>,
+   CheckEpsilonTruncation[Function[values,m values["omitted"]],
    <|"omitted"-><|"Expression"->0,"KnownThroughOrder"->tail-1|>|>,ep,{k,k},
-   "TimeLimit"->$epsilonRemainderTimeLimit];
+   "TimeLimit"->$epsilonRemainderTimeLimit]];
   If[AssociationQ[check]&&check["Status"]==="Passed",AssociateTo[$epsilonMultiplierChecks,key->True]];
   epsilonAuditRecord[stage,If[AssociationQ[check]&&check["Status"]==="Passed",None,
     <|"Location"->source,"KnownThroughOrder"->hi,"FirstOmittedOrder"->tail,

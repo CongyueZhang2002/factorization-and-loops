@@ -1,7 +1,7 @@
 (* One mathematical representation for retained coefficient results.
    Analytic prefactors remain outside finite Laurent coefficient records. *)
 FeynFacet`ReadMasterIntegralCoefficients::usage =
- "ReadMasterIntegralCoefficients[fileOrRecord] reads the final coefficient format or imports a retained version-8 result into that format, preserving explicit Laurent truncations and exact zero entries.";
+ "ReadMasterIntegralCoefficients[fileOrRecord] reads the current final coefficient format, preserving explicit Laurent truncations and exact zero entries.";
 FeynFacet`ExpandMasterIntegralCoefficient::usage =
  "ExpandMasterIntegralCoefficient[entry,epsilon,{low,high}] returns every requested coefficient of the sum of entry Terms, or fails if a stored Laurent truncation is insufficient. The table's global PreFactor remains separate.";
 FeynFacet`MasterIntegralMeasureConversion::usage =
@@ -79,6 +79,20 @@ coefficientMeasures[setup_] := Catch[Module[{process,phase,loops,external,
    "PhaseSpace"->phase["Measure"] external/(I Pi^(D/2))^Length[remainingPhaseSpaceMomenta[process]]|>
  ],$collinearFailure];
 
+(* The reconstruction algorithms return columns and metadata in memory.
+   This is the sole constructor of their persisted coefficient table. *)
+coefficientResultFromReconstruction[raw_Association]:=Module[{e=$feynFacetEpsilon,defs,terms,record},
+ defs=KeyTake[raw,{"CardName","Setup","Pairs","AnalyticContext","Topologies",
+  "TopologyEquivalence","ReverseRules","MassDimensions","DimensionRule"}];
+ terms[x_]:={Join[KeyTake[x,{"PreFactor","Coefficient"}],<|
+  "Representation"->If[AssociationQ[x["Coefficient"]],"LaurentSeries","Exact"]|>]};
+ record=Join[KeyDrop[raw,Join[Keys[defs],{"Expression","Remainder","Masters","Format","FormatVersion"}]],
+  <|"Format"->"FeynFacet-MasterIntegralCoefficients","FormatVersion"->1,
+   "DimensionalRegulator"->e,"Definitions"->defs,"CompleteTargetSet"->True,
+   "Masters"->(Join[KeyDrop[#,{"PreFactor","Coefficient"}],<|"Terms"->terms[#]|>]& /@ raw["Masters"]),
+   "RemainderTerms"->terms[<|"PreFactor"->1,"Coefficient"->raw["Remainder"]|>]|>];
+ FeynFacet`ReadMasterIntegralCoefficients[coefficientRegulatorNormalize[record,e,Lookup[raw,"SeriesVariable",None]],"DimensionalRegulator"->e]
+];
 Options[FeynFacet`ReadMasterIntegralCoefficients]={"DimensionalRegulator"->Automatic};
 FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Module[
  {data=input,e=OptionValue["DimensionalRegulator"],defs,entries,terms,remainder,
@@ -89,7 +103,7 @@ FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Modul
   data=If[ToLowerCase[FileExtension[source]]==="wxf",Import[source,"WXF"],Get[source]]];
  If[!AssociationQ[data],coefficientAssemblyFail["CoefficientResultRequired"]];
  format={Lookup[data,"Format",None],Lookup[data,"FormatVersion",None]};
- If[!MemberQ[{{"FeynFacet-MasterIntegralCoefficients",1},{"FeynFacet-IBP",8}},format],
+ If[format=!={"FeynFacet-MasterIntegralCoefficients",1},
   coefficientAssemblyFail["CoefficientFormatUnsupported",<|"Format"->format|>]];
  If[e===Automatic,e=$feynFacetEpsilon];
  If[!MatchQ[e,_Symbol],coefficientAssemblyFail["DimensionalRegulatorRequired"]];
@@ -101,10 +115,7 @@ FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Modul
    If[Length[regulators]===1&&TrueQ[Coefficient[Last[dimensionRule],First[regulators]]===-2]&&
      IntegerQ[Expand[Last[dimensionRule]+2First[regulators]]],declared=First[regulators]]]];
  data=coefficientRegulatorNormalize[data,e,declared];
- defs=If[First[format]==="FeynFacet-IBP",
-  KeyTake[data,{"CardName","Setup","Pairs","AnalyticContext","Topologies",
-    "TopologyEquivalence","ReverseRules","MassDimensions","DimensionRule"}],
-  Lookup[data,"Definitions",<||>]];
+ defs=Lookup[data,"Definitions",<||>];
  If[!AssociationQ[defs]||!AssociationQ[Lookup[defs,"Setup",None]],
   coefficientAssemblyFail["CoefficientProcessDefinitionsRequired"]];
  entries=Lookup[data,"Masters",None];
@@ -114,9 +125,7 @@ FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Modul
  Do[
   m=Lookup[entry,"Master",Missing[]];coefficientMasterID[m];
   m=coefficientCanonicalMasterExpression[m];
-  terms=If[First[format]==="FeynFacet-IBP",
-    {coefficientTermRead[KeyTake[entry,{"PreFactor","Coefficient"}],e,truncation]},
-    coefficientTermRead[#,e,truncation]&/@Lookup[entry,"Terms",{}]];
+  terms=coefficientTermRead[#,e,truncation]&/@Lookup[entry,"Terms",{}];
   If[terms==={},coefficientAssemblyFail["EmptyCoefficientTerms",<|"Master"->m|>]];
   terms=Select[terms,!coefficientExactZeroTermQ[#]&];
   If[terms==={},AppendTo[zeros,m],
@@ -124,9 +133,7 @@ FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Modul
  {entry,entries}];
  If[!DuplicateFreeQ[coefficientMasterID/@Lookup[entries,"Master"]],
   coefficientAssemblyFail["DuplicateCoefficientMasterEntries"]];
- remainder=If[First[format]==="FeynFacet-IBP",
-   {coefficientTermRead[<|"PreFactor"->1,"Coefficient"->Lookup[data,"Remainder",0]|>,e,truncation]},
-   coefficientTermRead[#,e,truncation]&/@Lookup[data,"RemainderTerms",{}]];
+ remainder=coefficientTermRead[#,e,truncation]&/@Lookup[data,"RemainderTerms",{}];
  remainder=Select[remainder,!coefficientExactZeroTermQ[#]&];
  storedMeasures=KeyTake[data,{"FractionMeasure","PhaseSpace"}];
  measures=If[Length[storedMeasures]===2,storedMeasures,coefficientMeasures[defs["Setup"]]];
@@ -134,7 +141,7 @@ FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Modul
   coefficientAssemblyFail["CoefficientMeasureCouldNotBeDerived"]];
  If[Lookup[data,"CompleteTargetSet",True]===False,
   coefficientAssemblyFail["IncompleteCoefficientTargetSet"]];
- Join[If[First[format]==="FeynFacet-MasterIntegralCoefficients",data,<||>],
+ Join[data,
   <|"Format"->"FeynFacet-MasterIntegralCoefficients","FormatVersion"->1,
    "PreFactor"->Lookup[data,"PreFactor",1],"DimensionalRegulator"->e,
    "Variables"->Lookup[data,"Variables",{}],"Masters"->masters,

@@ -3,7 +3,7 @@
 
    Usage:
      wolframscript -file Scripts/canonicalize_and_stream.wls \
-       <processDirectory> <sourceResultName> <canonicalResultName> [solve]
+       <processDirectory> <sourceResultName> <canonicalResultName> [solve] [kiraThreads]
 
    With the literal fourth argument "solve", KiraSolve and
    KiraStreamImport run on the canonical set after canonicalization;
@@ -16,13 +16,16 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 arguments = Rest[$ScriptCommandLine];
 If[Length[arguments] < 3,
-  Print["Usage: canonicalize_and_stream.wls <processDirectory> <sourceResultName> <canonicalResultName> [solve]"];
+  Print["Usage: canonicalize_and_stream.wls <processDirectory> <sourceResultName> <canonicalResultName> [solve] [kiraThreads]"];
   Exit[1]
 ];
 processDirectory = FileNameJoin[{root, arguments[[1]]}];
 sourceName = arguments[[2]];
 canonicalName = arguments[[3]];
 runSolve = Length[arguments] >= 4 && arguments[[4]] === "solve";
+kiraThreads = If[Length[arguments] >= 5,
+  If[StringMatchQ[arguments[[5]], DigitCharacter ..] && FromDigits[arguments[[5]]] > 0,
+    FromDigits[arguments[[5]]], Print["Expected a positive Kira thread count."]; Exit[1]], Automatic];
 
 sourceDirectory = FileNameJoin[{processDirectory, "Results", sourceName}];
 canonicalDirectory = FileNameJoin[{
@@ -55,7 +58,7 @@ canonicalPairs = Sort[FileNames[
 ]];
 Print["SOLVING: ", Length[canonicalPairs], " canonical pair artifacts"];
 {solveSeconds, solveData} = AbsoluteTiming[
-  FeynFacet`Private`KiraSolve[canonicalPairs, canonicalDirectory]
+  FeynFacet`Private`KiraSolve[canonicalPairs, canonicalDirectory, "Threads" -> kiraThreads]
 ];
 If[! AssociationQ[solveData],
   Print["KIRASOLVE: FAILED"];

@@ -3,6 +3,7 @@
 BeginPackage["FeynFacet`"];
 CompactFiniteDistributionResult::usage="CompactFiniteDistributionResult[source] retains explicit color-resolved delta/plus/regular coefficients and their closed shared definitions, with exact index-correspondence checks. CompactFiniteDistributionResult[source,prepared] accepts a prepared CompactFiniteSolutionDefinitions result but independently verifies it. Source domains, branch data, normalization and order declarations are preserved.";
 VerifyFiniteDistributionCompaction::usage="VerifyFiniteDistributionCompaction[source,compact] checks a saved compact distribution against its source, including every retained definition, full output, semantic contexts and retained metadata. Use in a fresh kernel to check serialization without reevaluating integrals.";
+PartonicResultFromEndpointDensity::usage="PartonicResultFromEndpointDensity[density,metadata] writes the assembled endpoint density in the common result format, retaining its finite shared definitions and explicit distribution coordinate and interval.";
 Begin["`Private`"];
 distributionCompactFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"DistributionCompaction"];
 distributionCompactMetadata[source_]:=KeyDrop[source,{
@@ -60,4 +61,36 @@ VerifyFiniteDistributionCompaction[source_Association,compact_Association]:=Catc
  If[FailureQ[result],distributionCompactFail["SavedDistributionCompactionNotVerified",<|"Cause"->result|>]];
  Join[KeyDrop[result,"OriginalToRetainedIndices"],<|"RetainedMetadata"->"Exact source equality"|>]
  ],"DistributionCompaction"];
+PartonicResultFromEndpointDensity[source_Association,metadata_Association]:=Catch[Module[
+ {components,range,z,interval,alpha,cs,plusOrders,componentRow,weight,rows,definitions,meta},
+ If[!ContainsAll[Keys[source],{"EpsilonOrderRange","NormalVariable","Interval","DimensionalRegulator"}]||
+   !ContainsAll[Keys[metadata],{"Order","Contribution","Scale","Variables","DensityConvention"}],
+  partonicResultFail["EndpointResultMetadataRequired"]];
+ range=source["EpsilonOrderRange"];z=source["NormalVariable"];interval=source["Interval"];
+ If[First[interval]=!=0||Last[metadata["Variables"]]=!=z,partonicResultFail["EndpointResultCoordinatesMismatch"]];
+ components=Lookup[source,"ColorComponents",{Join[source,<|"ColorFactor"->1,"CouplingPower"->0,"ExternalFactor"->1|>]}];
+ alpha=Lookup[metadata,"Coupling",1];
+ If[!AllTrue[components,ContainsAll[Keys[#],{"DeltaTerms","PlusTerms","RegularRemainderCoefficients"}]&]||
+  !AllTrue[Flatten[Lookup[components,"DeltaTerms"],1],#["DerivativeOrder"]===0&]||
+  !AllTrue[Flatten[Lookup[components,"PlusTerms"],1],#["Power"]===-1&&#["SubtractionOrder"]===1&],
+  partonicResultFail["StandardDeltaAndLogarithmicPlusBasisRequired"]];
+ plusOrders=Union[Lookup[Flatten[Lookup[components,"PlusTerms"],1],"LogPower",{}]];
+ componentRow[c_,j_]:=Module[{delta,plus,regular,factor},
+  factor=c["ColorFactor"] alpha^c["CouplingPower"] c["ExternalFactor"];
+  delta=Total[Lookup[#["Coefficients"],j,0]& /@ c["DeltaTerms"]];
+  plus=Association@Table[k->Total[Lookup[#["Coefficients"],j,0]& /@
+    Select[c["PlusTerms"],#["LogPower"]===k&]],{k,plusOrders}];
+  regular=Lookup[c["RegularRemainderCoefficients"],j,0];
+  partonicMap[factor #&,partonicDistribution[delta,plus,regular]]];
+ cs=Association@Table[j->Module[{rr=componentRow[#,j]& /@ components},
+  partonicDistribution[Total[Lookup[rr,"DeltaCoefficient"]],
+   Association@Table[k->Total[Lookup[#["PlusCoefficients"],k,0]& /@ rr],{k,plusOrders}],Total[Lookup[rr,"RegularCoefficient"]]]],
+  {j,First[range],Last[range]}];
+ definitions=KeyTake[source,{"AlgebraicDefinitions","IntegralDefinitions","KernelDefinitions","DefinitionSemanticContexts"}];
+ meta=Join[KeyDrop[source,{"Format","Coefficients","Expression","DeltaTerms","PlusTerms","RegularRemainderCoefficients",
+  "ColorComponents","InteriorCoefficients","SingularModelCoefficients","DistributionBasis","EpsilonRange","PlusConvention"}],
+  metadata,definitions,<|"DimensionalRegulator"->source["DimensionalRegulator"],
+  "DistributionBasis"-><|"Variable"->z,"Endpoint"->0,"Interval"->interval,"Distance"->z|>|>];
+ CreatePartonicResult[cs,meta]],"PartonicResults"];
+
 End[];EndPackage[];

@@ -9,7 +9,8 @@ $coefficientStoreVersion = 2;
 $coefficientLateSetupKeys = {
   "HadronicVariables",
   "CoefficientKinematics",
-  "KinematicMassDimensions"
+  "KinematicMassDimensions",
+  "ColorRules"
 };
 
 coefficientAnalyticContextQ[context_] := Module[{required},
@@ -79,7 +80,7 @@ coefficientSafeWorkPathQ[path_String] := Module[{parts,base},
   base=coefficientWorkspaceRoot[];
   If[!coefficientSafeWorkPathQ[path,base],Return[False]];
   parts=Drop[DeleteCases[FileNameSplit[ExpandFileName[path]],""],Length[DeleteCases[FileNameSplit[ExpandFileName[base]],""]]];
-  Length[parts]>=4 && Take[parts,{2,3}]==={"Results","CoefficientSimplification"}
+  Length[parts]>=4 && AnyTrue[Range[2,Length[parts]-2],Take[parts,{#,#+1}]==={"Results","CoefficientSimplification"}&]
 ];
 
 coefficientSafeWorkPathQ[path_String, workspaceRoot_String] :=
@@ -118,28 +119,18 @@ coefficientResetDirectory[path_String] := Module[{},
   path
 ];
 
-(* The name of the results folder in the <process>/<results>/<run>
-   layout this front end uses.  It only NAMES the scratch workspace: a
-   tree that does not follow the convention falls back to "Reduction"
-   and keeps working, so this is a label, never a gate. *)
+(* Follow the Results ancestor, retaining nested run names. Validation and
+   production subdirectories must not create an unrelated root-level process. *)
 $coefficientResultsFolderName = "Results";
-
-coefficientProcessName[kiraFile_String] := Module[
-  {resultDirectory, resultsDirectory, processDirectory},
-  resultDirectory = DirectoryName[ExpandFileName[kiraFile]];
-  resultsDirectory = DirectoryName[resultDirectory];
-  processDirectory = DirectoryName[resultsDirectory];
-  If[FileNameTake[resultsDirectory] =!= $coefficientResultsFolderName,
-    Return["Reduction"]];
-  FileNameTake[processDirectory]
+coefficientResultLocation[kiraFile_String] := Module[{location},
+ location=projectResultLocation[DirectoryName[ExpandFileName[kiraFile]],coefficientWorkspaceRoot[]];
+ If[FailureQ[location],Return[<|"Process"->"Reduction","Run"->{FileBaseName[kiraFile]}|>]];
+ <|"Process"->FileNameJoin[location["OwnerParts"]],"Run"->location["RunParts"]|>
 ];
-
-coefficientWorkDirectory[kiraFile_String] := FileNameJoin[{
-  coefficientWorkspaceRoot[],
-  coefficientProcessName[kiraFile],
-  "Results", "CoefficientSimplification",
-  FileNameTake[DirectoryName[ExpandFileName[kiraFile]]]
-}];
+coefficientWorkDirectory[kiraFile_String] := With[{location = coefficientResultLocation[kiraFile]},
+  FileNameJoin[Join[{coefficientWorkspaceRoot[], location["Process"],
+    "Results", "CoefficientSimplification"}, location["Run"]]]
+];
 
 coefficientFileHash[file_String] :=
   FileHash[file, "SHA256", "HexString"];
@@ -625,12 +616,7 @@ coefficientRunProject[
   },
   coefficientProgressStart["Locating coefficient inputs", 1];
   project = ExpandFileName[projectDirectory];
-  cardFile = FileNameJoin[{project, "Cards", cardName <> ".wl"}];
-  card = If[
-    FileExistsQ[cardFile],
-    Quiet @ Check[Get[cardFile], $Failed],
-    $Failed
-  ];
+  card = ReadProcessCard[project,cardName];
   resultDirectory = coefficientResolveResultDirectory[
     project,
     cardName,

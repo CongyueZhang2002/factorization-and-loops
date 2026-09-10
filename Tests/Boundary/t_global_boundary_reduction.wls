@@ -42,10 +42,14 @@ gs=ConstructGlobalMasterDifferentialSystem[
  toyMaps,"PreferredMasterIntegrals"->{gA,vB}];
 FTAssert["overlapping DEs produce a kinematics-dependent exact integral identity",
  AssociationQ[gs]&&gs["IndependentRelationCount"]===1&&gs["GlobalSpanningMasterCount"]===2];
-FTAssert["a missing differentiated identity is reported",
- MatchQ[ConstructGlobalMasterDifferentialSystem[
- {sys["A",{gA,u},{{0,1},{0,0}}],sys["B",{gB,vB},{{0,x},{0,0}}]},toyMaps],
- Failure["DifferentiatedIntegralRelationsRequired",_]]];
+closedRelations=ConstructGlobalMasterDifferentialSystem[
+ {sys["A",{gA,u},{{0,1},{0,0}}],sys["B",{gB,vB},{{0,x},{0,0}}]},toyMaps];
+FTAssert["differentiated identities are closed automatically",
+ AssociationQ[closedRelations]&&closedRelations["IndependentRelationCount"]===2&&
+ closedRelations["GlobalSpanningMasterCount"]===1&&
+ Normal[First[closedRelations["ConnectionMatrices"]]]==={{0}}];
+FTAssert["closure retains the forced zero integrals in the original substitutions",
+ And@@(Normal[#["IntegralEmbedding"]][[2]]==={0}&/@closedRelations["FamilyMaps"])];
 
 aSys=sys["A",{gA},{{ep}}];bSys=sys["B",{gB,vB},{{ep,0},{1,0}}];
 same=<|"DataType"->"CutIntegralEquivalences","Mappings"->{
@@ -113,5 +117,12 @@ FTAssert["one eikonal inverse moment agrees with direct D=6 beta integrals",
  Simplify[ps1["Terms"][[1]]["Prefactor"]/ps0["Terms"][[1]]["Prefactor"]]===-5];
 FTAssert["one doubled cut has the mass-derivative sign and D=6 coefficient",
  Simplify[ps2["Terms"][[1]]["Prefactor"]/ps0["Terms"][[1]]["Prefactor"]]===-15];
+
+(* Both proposed sample points annihilate this exact relation coefficient.
+   Symbolic row-space verification must recover the missing rank. *)
+lostSample=FeynFacet`Private`globalDECloseRelations[
+ {{(x-1/2)(x-1/3),0}},{{{0,0},{0,0}}},{x},{{x->1/2},{x->1/3}},3];
+FTAssert["sample rank loss cannot discard an exact integral relation",
+ AssociationQ[lostSample]&&lostSample["Rows"]==={{1,0}}];
 
 FTReport[];

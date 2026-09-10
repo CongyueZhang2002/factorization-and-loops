@@ -1,0 +1,115 @@
+(* Seed selection is a heuristic search envelope. It never deletes
+   terms from exact IBP equations or certifies master minimality. *)
+BeginPackage["FeynFacet`"];
+PlanCutIBPSeeds::usage="PlanCutIBPSeeds[family,targets,request] chooses sector-local IBP seeds from the union of actual numerator/dot downsets. Untouched subsectors start with unit cuts and a reduced inherited numerator rank. All requested targets remain seeds. These bounds select equations, not integral columns, and are not a sufficiency theorem.";
+FindCutIBPPredecessorSeeds::usage="FindCutIBPPredecessorSeeds[family,frontier,existingSeeds,request] finds unseeded admissible predecessors whose exact momentum-IBP equations contain a frontier integral with nonzero coefficient. FrontierNeighborDepth optionally adds up to three shells of harder dot/numerator intermediates before the incidence search. It uses the actual IBP shifts and does not promote new positive denominator slots unless explicitly allowed.";
+Begin["`Private`"];
+cutIBPPositiveSector[powers_,cuts_]:=Complement[Flatten[Position[powers,_Integer?Positive,{1}]],cuts];
+cutIBPNumeratorDegree[powers_]:=-Total[Select[powers,Negative]];
+cutIBPProfile[family_,powers_]:=Module[{particle,measurement,ordinary},
+ particle=Lookup[Select[family["Cuts"],#["Type"]==="Particle"&],"Index",{}];
+ measurement=Complement[family["CutIndices"],particle];
+ ordinary=Complement[Range[Length[powers]],family["CutIndices"]];
+ {Total[(powers[[particle]]-1)],Total[(powers[[measurement]]-1)],
+  Total[Max[0,#-1]&/@powers[[ordinary]]],cutIBPNumeratorDegree[powers]}
+];
+PlanCutIBPSeeds[family_Association,targets:{__FeynCalc`GLI},request_Association:<||>]:=Catch[Module[
+ {name,count,cuts,direct,sectors,include,groups,seedRows,indices,choices,rank,parents,
+  absent,base,rows,seedTag=Unique["sectorSeed"],reports={},limit,generated},
+ If[!MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-LoopIntegralFamily"},Lookup[family,"Format",None]],
+  cutFamilyFail["TypedIBPSeedFamilyRequired"]];
+ name=family["Topology"][[1]];count=Length[family["Topology"][[2]]];cuts=family["CutIndices"];
+ If[!AllTrue[targets,#[[1]]===name&&Length[#[[2]]]===count&&VectorQ[#[[2]],IntegerQ]&&
+    AllTrue[#[[2,cuts]],#>0&]&],cutFamilyFail["AdmissibleTargetSeedIntegralsRequired"]];
+ include=Lookup[request,"IncludeSubsectors",True];limit=Lookup[request,"MaximumSeeds",1000000];
+ If[!MemberQ[{True,False},include]||!IntegerQ[limit]||limit<Length[targets],
+  cutFamilyFail["IBPSeedSelectionBoundsRequired"]];
+ groups=GroupBy[targets,cutIBPPositiveSector[#[[2]],cuts]&];
+ direct=Keys[groups];
+ sectors=If[include,Union[Flatten[Subsets/@direct,1]],direct];
+ generated=0;
+ seedRows=Reap[Do[
+  If[KeyExistsQ[groups,sector],
+   rows=DeleteDuplicates[Flatten[Table[
+    choices=Map[If[#>0,Range[1,#],Range[#,0]]&,master[[2]]];
+    Tuples[choices],{master,groups[[Key[sector]]]}],1]];
+   rank=Max[cutIBPNumeratorDegree[#[[2]]]&/@groups[[Key[sector]]]],
+   parents=Select[targets,ContainsAll[cutIBPPositiveSector[#[[2]],cuts],sector]&];
+   rank=Max[1,Max[Map[cutIBPNumeratorDegree[#[[2]]]-
+     (Length[cutIBPPositiveSector[#[[2]],cuts]]-Length[sector])&,parents]]];
+   absent=Complement[Range[count],Join[cuts,sector]];
+   base=ReplacePart[ConstantArray[0,count],Thread[Join[cuts,sector]->1]];
+   rows=Map[ReplacePart[base,Thread[absent->(-#)]]&,cutSeedCompositionsUpTo[rank,Length[absent]]]
+  ];
+  generated+=Length[rows];
+  If[generated>limit,cutFamilyFail["IBPSeedSelectionSizeLimit",<|"MaximumSeeds"->limit|>]];
+  AppendTo[reports,<|"OrdinarySector"->sector,"DirectTargetSector"->KeyExistsQ[groups,sector],
+    "NumeratorDegreeLimit"->rank,"SeedCount"->Length[rows]|>];
+  Scan[Sow[FeynCalc`GLI[name,#],seedTag]&,rows],
+ {sector,sectors}],seedTag][[2]];
+ seedRows=If[seedRows==={},{},DeleteDuplicates[First[seedRows]]];
+ If[!ContainsAll[seedRows,targets],cutFamilyFail["TargetSeedCoverageFailed"]];
+ <|"Format"->"FeynFacet-IBPSeedPlan","FormatVersion"->1,"Family"->name,
+  "Seeds"->seedRows,"TargetCount"->Length[targets],"SeedCount"->Length[seedRows],
+  "Sectors"->reports,"Method"->"UnionOfTargetDownsetsWithSectorLocalDotBounds",
+  "Scope"->"An initial equation-selection heuristic. Exact equation columns are unrestricted, and sufficiency requires target reduction into the chosen span."|>
+],"CutFamily"];
+
+FindCutIBPPredecessorSeeds[family_Association,frontier:{__FeynCalc`GLI},existing_List,
+ request_Association:<||>]:=Catch[Module[
+ {count,name,cuts,operators,indices,zero,raw,shiftRows,shifts,allowed,known,candidates,
+  nu,coefficients,limit,searchFrontier,depth,neighbors,positive,negative,tag=Unique["ibpPredecessor"]},
+ count=Length[family["Topology"][[2]]];name=family["Topology"][[1]];cuts=family["CutIndices"];
+ If[!AllTrue[Join[frontier,existing],MatchQ[#,_FeynCalc`GLI]&&#[[1]]===name&&
+   Length[#[[2]]]===count&&VectorQ[#[[2]],IntegerQ]&&AllTrue[#[[2,cuts]],#>0&]&],
+  cutFamilyFail["SameFamilyIBPFrontierAndSeedsRequired"]];
+ allowed=Lookup[request,"AllowedPositiveIndices",Union[Flatten[
+   Flatten[Position[#[[2]],_Integer?Positive,{1}]]&/@Join[frontier,existing]]]];
+ limit=Lookup[request,"MaximumCandidates",100000];
+ If[!VectorQ[allowed,IntegerQ[#]&&1<=#<=count&]||!ContainsAll[allowed,cuts]||
+  !IntegerQ[limit]||limit<1,cutFamilyFail["IBPPredecessorBoundsRequired"]];
+ depth=Lookup[request,"FrontierNeighborDepth",0];
+ If[!IntegerQ[depth]||!Between[depth,{0,3}],
+  cutFamilyFail["IBPFrontierNeighborDepthRequired"]];
+ searchFrontier=frontier;
+ Do[
+  neighbors=Flatten[Map[Function[master,
+    positive=Intersection[allowed,Flatten[Position[master[[2]],_Integer?Positive,{1}]]];
+    negative=Complement[Range[count],positive];
+    Join[(FeynCalc`GLI[name,master[[2]]+UnitVector[count,#]]&/@positive),
+      (FeynCalc`GLI[name,master[[2]]-UnitVector[count,#]]&/@negative)]
+  ],searchFrontier],1];
+  searchFrontier=Union[searchFrontier,neighbors],
+ {depth}];
+ operators=cutIBPOperators[family];indices=Table[Unique["integralPower"],{count}];
+ zero=ConstantArray[0,count];
+ shiftRows=Table[
+  raw={zero->operator["Divergence"]};
+  Do[
+   If[operator["DenominatorDerivatives"][[i,1]]=!=0,
+    AppendTo[raw,UnitVector[count,i]->(-indices[[i]]operator["DenominatorDerivatives"][[i,1]])]];
+   Do[If[operator["DenominatorDerivatives"][[i,j+1]]=!=0,
+    AppendTo[raw,(UnitVector[count,i]-UnitVector[count,j])->
+      (-indices[[i]]operator["DenominatorDerivatives"][[i,j+1]])]],{j,count}],
+  {i,count}];
+  Normal[Select[Cancel[Together[#]]&/@Merge[raw,Total],#=!=0&]],
+ {operator,operators}];
+ shifts=GroupBy[Flatten[shiftRows,1],First->Last];
+ known=AssociationThread[existing,ConstantArray[True,Length[existing]]];
+ candidates=Reap[Do[
+  KeyValueMap[Function[{shift,expressions},
+   nu=master[[2]]-shift;
+   If[AllTrue[nu[[cuts]],#>0&]&&ContainsAll[allowed,Flatten[Position[nu,_Integer?Positive,{1}]]]&&
+     !KeyExistsQ[known,FeynCalc`GLI[name,nu]],
+    coefficients=expressions/.Thread[indices->nu];
+    If[AnyTrue[coefficients,Cancel[Together[#]]=!=0&],
+     Sow[FeynCalc`GLI[name,nu],tag]]]],shifts],
+ {master,searchFrontier}],tag][[2]];
+ candidates=If[candidates==={},{},DeleteDuplicates[First[candidates]]];
+ If[Length[candidates]>limit,cutFamilyFail["IBPPredecessorCountLimit",<|"Count"->Length[candidates]|>]];
+ <|"Format"->"FeynFacet-IBPPredecessorSeeds","Seeds"->candidates,
+  "SeedCount"->Length[candidates],"Profiles"->(cutIBPProfile[family,#[[2]]]&/@candidates),
+  "AllowedPositiveIndices"->allowed,"SearchFrontier"->searchFrontier,"FrontierNeighborDepth"->depth,
+  "Scope"->"Admissible unseeded inverse-incidence candidates. Choosing a sufficient subset remains an adaptive reduction problem."|>
+],"CutFamily"];
+End[];EndPackage[];

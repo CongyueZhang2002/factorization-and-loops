@@ -147,7 +147,7 @@ ibpDedupedRecords[records_List] := KeyValueMap[
 ];
 
 ibpInputData[items_List, includeTargets_: False] := Module[
-  {summaries, unique, pairs, data, fingerprints, canonicalized},
+  {summaries, unique, pairs, data, fingerprints, canonicalized, result},
   If[items === {} || ! (AllTrue[items, AssociationQ] || AllTrue[items, StringQ]),
     ibpFail["input validation", "expected nonempty Associations or saved result files"]
   ];
@@ -178,7 +178,7 @@ ibpInputData[items_List, includeTargets_: False] := Module[
   fingerprints = Lookup[summaries, "CanonicalRegistryFingerprint"];
   canonicalized = AllTrue[fingerprints, StringQ] &&
     Length[DeleteDuplicates[fingerprints]] === 1;
-  Join[data, <|
+  result = Join[data, <|
     "Pairs" -> pairs,
     "Records" -> ibpDedupedRecords[
       Flatten[Lookup[summaries, "Records"], 1]
@@ -191,7 +191,11 @@ ibpInputData[items_List, includeTargets_: False] := Module[
       First[fingerprints],
       Missing["NotCanonicalized"]
     ]
-  |>]
+  |>];
+  If[TrueQ[includeTargets] && checkCompletedPropagators[result["Setup"],
+      result["Records"], result["RawTargets"]] =!= True,
+    ibpFail["input validation", "an active phase-space denominator is outside the admitted sign criterion"]];
+  result
 ];
 
 (* Canonicalized inputs already carry the partition: every record is its own
@@ -351,7 +355,11 @@ ibpCompleteKinematics[records_List, dimensionMap_Association] := Module[
     Union -> True
   ];
   invariants = DeleteCases[Flatten[{invariants}], 0 | 1];
-  invariants = DeleteDuplicates[invariants];
+  (* The fast FeynCalc invariant scan misses a dimensionless parameter
+     occurring only in a shifted linear denominator. Keep every explicitly
+     dimensioned parameter actually present in the topology as well. *)
+  invariants = DeleteDuplicates[Join[invariants,
+    Select[Keys[dimensionMap],!FreeQ[augmentedTopologies,#]&]]];
   generatedInvariants = First /@ reverseRules;
   missingDimensions = Select[
     Complement[invariants, generatedInvariants],
@@ -409,7 +417,7 @@ ibpInsertCuts[path_String, cutIndices_List] := Module[
 
 (* Runtime identity and cache state. *)
 packageVersion[name_String] := If[
-  Names[name] === {},
+  System`Names[name] === {},
   Missing["NotAvailable"],
   Quiet @ Check[Symbol[name], Missing["NotAvailable"]]
 ];
@@ -505,36 +513,13 @@ ibpNormalizedPath[path_String] :=
 ibpProjectLocation[resultDirectory_String] :=
   ibpProjectLocation[resultDirectory, $feynFacetWorkspaceRoot];
 
-ibpProjectLocation[resultDirectory_String, workspaceRoot_String] := Module[
-  {rootParts, resultParts, contained, relativeParts, process, run,
-    projectRoot},
-  rootParts = DeleteCases[FileNameSplit[ExpandFileName[workspaceRoot]],""];
-  resultParts = DeleteCases[FileNameSplit[ExpandFileName[resultDirectory]],""];
-  contained = Length[resultParts] > Length[rootParts] &&
-    Take[resultParts, Length[rootParts]] === rootParts;
-  relativeParts = If[contained,
-    Drop[resultParts, Length[rootParts]],
-    (* <process>/<results>/<run> is the layout this front end writes; the
-       last three components carry the same information for a tree that
-       lives outside the workspace root *)
-    Take[resultParts, -Min[Length[resultParts], 3]]
-  ];
-  If[relativeParts === {},
-    ibpFail["project setup", "the result directory has no name"]
-  ];
-  process = First[relativeParts];
-  run = Last[relativeParts];
-  projectRoot = FileNameJoin[{
-    workspaceRoot, process, "Kira"
-  }];
-  If[! DirectoryQ[projectRoot],
-    CreateDirectory[projectRoot, CreateIntermediateDirectories -> True]
-  ];
-  <|
-    "WorkspaceRoot" -> ExpandFileName[workspaceRoot],
-    "Root" -> projectRoot,
-    "Directory" -> FileNameJoin[{projectRoot, run}]
-  |>
+ibpProjectLocation[resultDirectory_String, workspaceRoot_String] := Module[{location,projectRoot},
+ location=projectResultLocation[resultDirectory,workspaceRoot];
+ If[FailureQ[location]||location["RunParts"]==={},ibpFail["project setup","an order/channel Results directory is required"]];
+ projectRoot=FileNameJoin[Join[{workspaceRoot},location["OwnerParts"],{"Kira"}]];
+ If[!DirectoryQ[projectRoot],CreateDirectory[projectRoot,CreateIntermediateDirectories->True]];
+ <|"WorkspaceRoot"->ExpandFileName[workspaceRoot],"Root"->projectRoot,
+   "Directory"->FileNameJoin[Join[{projectRoot},location["RunParts"]]]|>
 ];
 
 ibpResetProject[
@@ -696,6 +681,15 @@ ibpOpenSolvedProject[
   |>
 ];
 
+(* A maximal support is a set of positive propagator positions. Multiple
+   incomparable supports must remain separate; their union creates a new sector. *)
+ibpMaximalSectorMasks[targets_List] := Module[{supports},
+  If[! AllTrue[targets, MatchQ[#, FeynCalc`GLI[_, {_Integer ...}]] &], Return[$Failed]];
+  supports = DeleteDuplicates[(Boole[# > 0] & /@ #[[2]]) & /@ targets];
+  Select[supports, Function[support,
+    ! AnyTrue[supports, # =!= support && And @@ Thread[support <= #] &]]]
+];
+
 (* Kira project generation and execution. *)
 ibpPrepareKiraProject[
     records_List,
@@ -739,9 +733,9 @@ ibpPrepareKiraProject[
     If[
       CheckAbort[
         Quiet[
-          FeynCalc`KiraCreateConfigFiles[
+          kiraCreateConfigFiles[
             topology,
-            familyTargets,
+            ibpMaximalSectorMasks[familyTargets],
             familyRoot,
             FeynCalc`KiraMassDimensions -> massDimensions,
             OverwriteTarget -> True,
@@ -910,7 +904,17 @@ ibpPrepareKiraProject[
   ]
 ];
 
-ibpRunKira[project_Association] := Module[
+ibpKiraThreadCount[requested_: Automatic] := Module[{limit},
+  limit = Min[Max[1, $ProcessorCount],
+    If[ValueQ[Global`$FACETKernelLimit] && IntegerQ[Global`$FACETKernelLimit] &&
+      Global`$FACETKernelLimit > 0, Global`$FACETKernelLimit, 8]];
+  If[requested === Automatic, Return[limit]];
+  If[! IntegerQ[requested] || requested < 1,
+    ibpFail["Kira threads", "expected Automatic or a positive integer"]];
+  Min[requested, limit]
+];
+
+ibpRunKira[project_Association, requestedThreads_: Automatic] := Module[
   {
     directory, manifest, runtime, kira, fermat, parallel,
     process, log, logPath, unreduced
@@ -921,16 +925,7 @@ ibpRunKira[project_Association] := Module[
   runtime = project["Runtime"];
   kira = runtime["KiraExecutable"];
   fermat = runtime["FermatExecutable"];
-  parallel = Min[
-    Max[1, $ProcessorCount],
-    If[
-      ValueQ[Global`$FACETKernelLimit] &&
-        IntegerQ[Global`$FACETKernelLimit] &&
-        Global`$FACETKernelLimit > 0,
-      Global`$FACETKernelLimit,
-      8
-    ]
-  ];
+  parallel = ibpKiraThreadCount[requestedThreads];
   logPath = FileNameJoin[{directory, "kira.log"}];
   process = RunProcess[
     {kira, "--parallel=" <> ToString[parallel], "jobs.yaml"},
@@ -1059,7 +1054,7 @@ ibpImportRules[project_Association, records_List] := Module[
   workerCount = ibpImportKernelLimit[familyCount];
   existingKernels = Kernels[];
   If[workerCount > 1 && Length[existingKernels] < workerCount,
-    launchedKernels = LaunchKernels[workerCount - Length[existingKernels]]
+    launchedKernels = facetLaunchKernels[workerCount - Length[existingKernels]]
   ];
   If[workerCount > 1,
     loadFile = $feynFacetLoader;
@@ -1302,6 +1297,24 @@ ibpKiraIntegralText[integral_FeynCalc`GLI] :=
     StringRiffle[ToString[#, InputForm] & /@ integral[[2]], ", "] <>
     "]";
 
+(* User-defined Kira systems use opaque integer identifiers. The physical
+   cut checks remain on the decoded GLIs, including export-only dependencies. *)
+ibpEncodeProjectIntegrals[project_Association,expression_]:=Module[{index,head},
+ If[!KeyExistsQ[project,"IntegralIndex"],Return[expression]];
+ index=project["IntegralIndex"];head=project["IdentifierHead"];
+ expression/.integral_FeynCalc`GLI:>If[KeyExistsQ[index,integral],
+  FeynCalc`GLI[head,{index[integral]}],
+  ibpFail["Kira identifiers","an integral is absent from the input equation system"]]
+];
+ibpDecodeProjectIntegrals[project_Association,expression_]:=Module[{integrals,head,result},
+ If[!KeyExistsQ[project,"IndexedIntegrals"],Return[expression]];
+ integrals=project["IndexedIntegrals"];head=project["IdentifierHead"];
+ result=expression/.With[{identifierHead=head},
+  HoldPattern[FeynCalc`GLI[identifierHead,{i_Integer}]]:>
+   If[1<=i<=Length[integrals],integrals[[i]],
+    ibpFail["Kira identifiers","an exported integer identifier is out of range"]]];
+ result/.Lookup[project,"CoefficientDecodeRules",{}]
+];
 ibpSolvedProjectFingerprint[project_Association] := Module[
   {directory, manifest, files},
   directory = project["Directory"];
@@ -1310,8 +1323,10 @@ ibpSolvedProjectFingerprint[project_Association] := Module[
     {
       FileNameJoin[{directory, "results", "kira.db"}],
       FileNameJoin[{directory, "jobs.yaml"}],
-      FileNameJoin[{directory, "config", "kinematics.yaml"}],
-      FileNameJoin[{directory, "config", "integralfamilies.yaml"}]
+      Sequence@@If[Lookup[project,"EquationSource",None]==="TypedIBP",
+       {FileNameJoin[{directory,"InputDefinition.wl"}],FileNameJoin[{directory,"equations.kira"}]},
+       {FileNameJoin[{directory,"config","kinematics.yaml"}],
+        FileNameJoin[{directory,"config","integralfamilies.yaml"}]}]
     },
     FileNameJoin[{
         directory,
@@ -1372,6 +1387,7 @@ ibpExportClosureFrontier[
       "the unresolved frontier contains an unknown family or invalid cut"
     ]
   ];
+  ordered = ibpEncodeProjectIntegrals[project,ordered];
   groups = GatherBy[ordered, First];
   knownNames = Lookup[project["Manifest"], "Name"];
   unknownNames = Complement[
@@ -1481,6 +1497,7 @@ ibpExportClosureFrontier[
       "kira2math did not return exactly one reduction row for every requested frontier integral"
     ]
   ];
+  rules = ibpDecodeProjectIntegrals[project,rules];
   cutCheck = validateCutGLIs[rules, records];
   If[cutCheck =!= True,
     ibpFail[
@@ -1630,7 +1647,7 @@ parallelNormalizeCoefficients[
   existingKernels = Kernels[];
   launchedKernels = If[
     Length[existingKernels] < limit,
-    LaunchKernels[limit - Length[existingKernels]],
+    facetLaunchKernels[limit - Length[existingKernels]],
     {}
   ];
   activeKernels = Min[count, limit, Length[Kernels[]]];
@@ -1698,7 +1715,7 @@ parallelNormalizeCoefficients[
     CloseKernels[{kernel}];
     launchedKernels = DeleteCases[launchedKernels, kernel];
     KeyDropFrom[kernelByID, kernelID];
-    newKernels = LaunchKernels[1];
+    newKernels = facetLaunchKernels[1];
     If[Length[newKernels] =!= 1, Return[False]];
     newKernelIDs = ParallelEvaluate[$KernelID, newKernels];
     If[Length[newKernelIDs] =!= 1,
@@ -1941,6 +1958,9 @@ ibpKiraReductionCore[
     declaredMasters,
     completed["PhysicalRecords"]
   ];
+  If[checkCompletedPropagators[data["Setup"], completed["PhysicalRecords"],
+      closure["Masters"]] =!= True,
+    ibpFail["master validation", "an active master denominator is outside the admitted phase-space sign criterion"]];
   persistentManifest = Map[
     Function[item,
       <|
@@ -2160,6 +2180,45 @@ KiraImportReduction[
     inputs : ({__String} | {__Association}),
     output_String
   ] := ibpRunReduction[inputs, output, True];
+
+(* Direct integral-family entry: the same Kira exporter, execution, import and
+   closure checks used by generated amplitude reductions. This entry does not
+   infer particle-cut geometry or erase any ordinary causal prescription. *)
+kiraNativeCutFamilyReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Association]:=Catch[
+ Catch[Module[{records,directory,project,kinematics,rules,closed,declared,seconds,definition,definitionFile,savedDefinition},
+  records=CreateCutIntegralFamily/@families;
+  If[!AllTrue[records,AssociationQ],cutFamilyFail["ValidatedCutIntegralFamiliesRequired",<|"Causes"->records|>]];
+  If[!ContainsAll[Keys[request],{"WorkingDirectory","MassDimensions"}]||
+    !StringQ[request["WorkingDirectory"]]||!MatchQ[request["MassDimensions"],{(_Rule)...}],
+   cutFamilyFail["KiraDirectoryAndMassDimensionsRequired"]];
+  If[!DuplicateFreeQ[First[#["Topology"]]&/@records]||
+    !AllTrue[targets,VectorQ[#[[2]],IntegerQ]&]||validateCutGLIs[targets,records]=!=True,
+   cutFamilyFail["DistinctFamiliesAndUnpinchedTargetsRequired"]];
+  directory=ExpandFileName[request["WorkingDirectory"]];
+  definition=<|"Format"->"FeynFacet-KiraCutFamilyInput","Families"->(
+    KeyTake[#,{"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"}]&/@records),
+    "Targets"->Sort[DeleteDuplicates[targets]],"MassDimensions"->Sort[request["MassDimensions"]]|>;
+  definitionFile=FileNameJoin[{directory,"InputDefinition.wl"}];
+  If[DirectoryQ[directory]&&FileNames[All,directory]=!={},
+   savedDefinition=If[FileExistsQ[definitionFile],FamilyArtifactRead[definitionFile],Missing["UnverifiedWorkspace"]];
+   If[savedDefinition=!=definition,cutFamilyFail["KiraWorkspaceDefinitionMismatch",<|"Directory"->directory|>]]];
+  If[!DirectoryQ[directory],CreateDirectory[directory,CreateIntermediateDirectories->True]];
+  If[FamilyArtifactWrite[definition,definitionFile]===$Failed,cutFamilyFail["KiraInputDefinitionWriteFailed"]];
+  kinematics=ibpCompleteKinematics[records,Association[request["MassDimensions"]]];
+  {seconds,project}=AbsoluteTiming[
+   project=ibpPrepareKiraProject[kinematics["KiraFamilies"],targets,
+    <|"Directory"->directory,"Runtime"->ibpRuntime[]|>,kinematics["MassDimensions"]];
+   ibpRunKira[project,Lookup[request,"Threads",1]];
+   project];
+  rules=Block[{Global`$FACETKiraImportKernelLimit=1},ibpImportRules[project,records]];
+  rules=rules/.kinematics["ReverseRules"];
+  closed=ibpCloseReductionRules[rules,targets];declared=ibpDeclaredMasters[project];
+  ibpValidateMasters[closed["Masters"],declared,records];
+  <|"Format"->"FeynFacet-CutFamilyReduction","FormatVersion"->1,
+   "Families"->records,"Targets"->targets,"Rules"->closed["Rules"],"Masters"->closed["Masters"],
+   "Workspace"->directory,"Seconds"->seconds,"EquationSource"->"NativeDiagnostic",
+   "PhysicalSymmetryValidation"->False,"OrdinaryPrescriptionLimitEstablished"->False|>
+ ],"CutFamily"],$ibpFailure];
 
 KiraReduction[___] := (
   Message[KiraReduction::input];

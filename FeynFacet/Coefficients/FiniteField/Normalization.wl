@@ -1,3 +1,75 @@
+(* A region equality alone never authorizes restriction of a distribution.
+   The production caller supplies the actual external phase-space factor.
+   This value-only implementation accepts a single unit delta; differentiated
+   cuts need normal Taylor data and are deliberately left unsupported. *)
+finiteFieldCoordinateSupportQ[context_Association]:=Module[
+ {equalities=Lookup[context,"CoordinateEqualities",{}],distribution,argument,polynomial,ratio,variables},
+ If[equalities==={},Return[True]];
+ distribution=Lookup[context,"ExternalDistribution",None];
+ If[Length[equalities]=!=1||!MatchQ[distribution,Cut[_,1]|Cut[_]],Return[False]];
+ argument=First[distribution];
+ If[KeyExistsQ[context,"HadronicVariables"],argument=applyHadronicVariables[argument,context["HadronicVariables"]]];
+ (* Remove support equalities while simplifying the defining function:
+    using them here would replace the very constraint being checked by zero. *)
+ argument=FullSimplify[argument/.Lookup[context,"DimensionlessRules",{}],
+  Assumptions->(Lookup[context,"DimensionlessAssumptions",True]/._Equal->True)];
+ polynomial=Subtract@@(List@@First[equalities]);
+ ratio=Cancel[argument/polynomial];variables=Lookup[context,"DimensionlessVariables",{}];
+ FreeQ[ratio,Alternatives@@variables]&&TrueQ[FullSimplify[ratio!=0,
+  Assumptions->Lookup[context,"DimensionlessAssumptions",True]]]
+];
+finiteFieldReduceCoordinateEqualities[expression_,context_Association]:=Module[
+ {equalities=Lookup[context,"CoordinateEqualities",{}],variables,polynomials,basis,rational,numerator,denominator},
+ If[equalities==={},Return[expression]];
+ If[!finiteFieldCoordinateSupportQ[context],Return[$Failed]];
+ variables=Reverse[Lookup[context,"DimensionlessVariables",{}]];
+ polynomials=Subtract@@(List@@#)&/@equalities;
+ If[variables==={}||!AllTrue[polynomials,PolynomialQ[#,variables]&],Return[$Failed]];
+ basis=GroebnerBasis[polynomials,variables,MonomialOrder->Lexicographic];
+ rational=Together[expression];
+ numerator=Last[PolynomialReduce[Numerator[rational],basis,variables,MonomialOrder->Lexicographic]];
+ denominator=Last[PolynomialReduce[Denominator[rational],basis,variables,MonomialOrder->Lexicographic]];
+ If[denominator===0,Return[$Failed]];
+ Factor[numerator/denominator]
+];
+(* Exact algebra for regulator-dependent powers of positive constants.
+   Lift prime^epsilon and Pi^epsilon to formal Laurent variables, simplify
+   rationally, then restore the same positive real branches. This exposes
+   cancellations hidden by equivalent (2 Pi)^epsilon normalizations. *)
+finiteFieldConstantPrimePowers[base_]:=Module[{factors,entries=<||>,add,valid=True},
+ add[key_,power_]:=AssociateTo[entries,key->(Lookup[entries,key,0]+power)];
+ factors=If[Head[base]===Times,List@@base,{base}];
+ Do[Which[
+  MatchQ[factor,_Integer|_Rational]&&factor>0,Scan[add[#[[1]],#[[2]]]&,FactorInteger[factor]],
+  factor===Pi,add[Pi,1],
+  MatchQ[factor,Power[Pi,_Integer]],add[Pi,Last[factor]],
+  True,valid=False],{factor,factors}];
+ If[valid,entries,$Failed]
+];
+finiteFieldNormalizeRegulatorConstants[expression_,e_Symbol]:=Module[
+ {powers,records,base,exponent,constant,slope,factors,denominator,bases,generators,rules,lifted,restored},
+ powers=DeleteDuplicates[Cases[expression,power:Power[_,exponent_]/;
+  !FreeQ[exponent,e]&&PolynomialQ[exponent,e]&&Exponent[exponent,e]<=1:>power,{0,Infinity}]];
+ records=DeleteCases[Map[Function[power,
+  base=power[[1]];exponent=power[[2]];constant=exponent/.e->0;slope=Coefficient[exponent,e];
+  factors=finiteFieldConstantPrimePowers[base];
+  If[factors===$Failed||!MatchQ[{constant,slope},{_Integer|_Rational,_Integer|_Rational}],Nothing,
+   <|"Power"->power,"Base"->base,"Constant"->constant,"Slope"->slope,"PrimePowers"->factors|>]],powers],Nothing];
+ If[records==={},Return[expression]];
+ denominator=LCM@@Denominator[Lookup[records,"Slope"]];
+ bases=Union@@(Keys/@Lookup[records,"PrimePowers"]);
+ generators=AssociationThread[bases,Unique["regulatorConstant$"]&/@bases];
+ rules=Map[Function[record,record["Power"]->(record["Base"]^record["Constant"] Times@@KeyValueMap[
+  Function[{prime,power},generators[prime]^(power denominator record["Slope"])],record["PrimePowers"]])],records];
+ lifted=expression/.rules;
+ restored=Factor[lifted]/.KeyValueMap[#2->#1^(e/denominator)&,generators];
+ restored
+];
+finiteFieldNormalizeRegulatorConstants[expression_]:=Module[{regulators},
+ regulators=DeleteDuplicates[Cases[expression,symbol_Symbol/;MemberQ[{"Epsilon","eps","ep"},SymbolName[symbol]]:>symbol,{0,Infinity}]];
+ If[Length[regulators]===1,finiteFieldNormalizeRegulatorConstants[expression,First[regulators]],expression]
+];
+
 (* Shared finite-field reconstruction of exact master coefficients. *)
 
 $finiteFieldReconstructionFormat =
@@ -591,8 +663,7 @@ finiteFieldEntryModule[
 ];
 
 CoefficientSimplification::tracegrammar =
-  "A normalized `1` is not rational in the physical trace variables: \
-`2` survives the entrywise root descend.";
+  "The `1` retains `2`, outside the variables allowed at this stage.";
 
 (* The offending object itself, so a normalization failure names its
    cause instead of only its target. *)
@@ -692,7 +763,7 @@ finiteFieldCanonicalizeSignature[
   ] := Module[
   {signature, factors, fold = 1, keep = {}, primes = <||>, bases = <||>,
    resolve},
-  signature = ReleaseHold[held];
+  signature = finiteFieldNormalizeRegulatorConstants[ReleaseHold[held]];
   If[finiteFieldFoldableFactorQ[signature, excluded],
     Return[{HoldComplete[1], signature}]
   ];
@@ -702,6 +773,9 @@ finiteFieldCanonicalizeSignature[
       Which[
         finiteFieldFoldableFactorQ[factor, excluded],
           fold *= factor,
+        Head[factor]===Complex && Re[factor]===0 &&
+            MatchQ[Im[factor],_Integer|_Rational],
+          fold *= Im[factor]; AppendTo[keep,I],
         (* A rational-number base decomposes over its primes: b^e with
            b = sign * Times[p^a] is exactly Times[p^(a e)] (positive
            base, principal branch), so 4^Epsilon and 2^(2 Epsilon) land
@@ -749,6 +823,26 @@ finiteFieldCanonicalizeSignature[
   ]
 ];
 
+(* Individual unreduced targets need not have fraction-independent
+   coefficients. Keep declared rational fraction variables in the trace;
+   require their absence only in the assembled common master coefficients. *)
+finiteFieldTargetContext[context_Association]:=Join[context,<|
+ "ForbiddenVariables"->Complement[Lookup[context,"ForbiddenVariables",{}],
+  Lookup[context,"FractionVariables",{}]]|>];
+finiteFieldCertifyPhysicalVariables[expression_,context_Association]:=Module[{value,remaining},
+ (* Identities between color invariants and cancellation between analytic
+    prefactors must be applied before testing the physical variable set. *)
+ value=Factor[finiteFieldNormalizeRegulatorConstants[expression/.Lookup[context,"ColorRules",{}]]];
+ If[!FreeQ[value,_DirectedInfinity|Indeterminate|$Failed|$Aborted],Return[$Failed]];
+ value=finiteFieldReduceCoordinateEqualities[value,context];
+ If[value===$Failed||!exactDataQ[value]||!FreeQ[value,_DirectedInfinity|Indeterminate|$Aborted],Return[$Failed]];
+ value=finiteFieldCertifyRootFree[value,context];If[value===$Failed,Return[$Failed]];
+ remaining=Select[Union[Lookup[context,"FractionVariables",{}],Lookup[context,"FractionRootVariables",{}]],
+  !FreeQ[value,#]&];
+ If[remaining=!={},Message[CoefficientSimplification::tracegrammar,"assembled master coefficient",First[remaining]];Return[$Failed]];
+ value
+];
+
 finiteFieldNormalizeTarget[
     expression_,
     distributionFactor_,
@@ -758,8 +852,9 @@ finiteFieldNormalizeTarget[
   ] := Module[
   {
     physical, distributionFreeTerms, distributionFree,
-    dimensionless, rationalized, terms, descended, violation, module
+    dimensionless, rationalized, terms, descended, violation, module, admissibility
   },
+  admissibility=finiteFieldTargetContext[context];
   physical = applyHadronicVariables[
     expression,
     context["HadronicVariables"]
@@ -793,7 +888,7 @@ finiteFieldNormalizeTarget[
     timeLimit
   ];
   If[descended === $Failed, Return[$Failed]];
-  violation = finiteFieldTraceGrammarViolation[descended, context];
+  violation = finiteFieldTraceGrammarViolation[descended, admissibility];
   If[! exactDataQ[descended] || violation =!= None,
     Message[
       CoefficientSimplification::tracegrammar,
@@ -811,7 +906,7 @@ finiteFieldNormalizeTarget[
       ! AllTrue[Values[module], finiteFieldRationalQ] ||
       AnyTrue[
         Keys[module],
-        finiteFieldForbiddenQ[ReleaseHold[#], context] &
+        finiteFieldForbiddenQ[ReleaseHold[#], admissibility] &
       ],
     Return[$Failed]
   ];

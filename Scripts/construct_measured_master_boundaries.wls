@@ -1,0 +1,14 @@
+$HistoryLength=0;$MaxExtraPrecision=50;
+root=DirectoryName[ExpandFileName[$InputFileName],2];
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+arguments=Rest[$ScriptCommandLine];
+If[Length[arguments]=!=3,Print["Usage: construct_measured_master_boundaries.wls SYSTEM REQUEST OUTPUT"];Exit[2]];
+system=FeynFacet`FamilyArtifactRead[ExpandFileName[arguments[[1]]]];
+request=FeynFacet`FamilyArtifactRead[ExpandFileName[arguments[[2]]]];
+If[!AssociationQ[system]||!AssociationQ[request],Print["A differential system and WL request are required"];Exit[1]];
+{seconds,result}=AbsoluteTiming[FeynFacet`ConstructMeasuredMasterBoundaryValues[system,request]];
+out=ExpandFileName[arguments[[3]]];
+If[!DirectoryQ[DirectoryName[out]],CreateDirectory[DirectoryName[out],CreateIntermediateDirectories->True]];
+FeynFacet`FamilyArtifactWrite[result,out,Compression->Automatic];
+If[FailureQ[result],Print[result];Exit[1]];
+Print["COMPLETED ",out," SECONDS ",seconds," PHYSICAL CONSTANTS ",result["BoundaryConstantCount"]];

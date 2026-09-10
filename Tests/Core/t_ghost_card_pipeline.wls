@@ -12,7 +12,7 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 card = Get[FileNameJoin[{
-  root, "ppHX_NNLO_DoubleReal", "Cards", "UU_Ghost.wl"
+  root, "Archive","ProjectLayouts","2026-09-08","ppHX_NNLO_DoubleReal", "Cards", "UU_Ghost.wl"
 }]];
 
 probeCard = card;

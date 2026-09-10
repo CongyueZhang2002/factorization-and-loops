@@ -1,0 +1,133 @@
+(* Match virtual master definitions to a scalar library by exact momentum
+   changes. Pak grouping is only a search aid: every adopted map is checked
+   against the full inverse propagators, powers, prescriptions and Jacobian. *)
+BeginPackage["FeynFacet`"];
+MatchVirtualMastersToLibrary::usage="MatchVirtualMastersToLibrary[masters,families,library] identifies powered virtual masters with scalar library entries using exact loop momentum maps. It verifies each propagator permutation and the unit absolute Jacobian, and returns unmatched integrals explicitly. The scalar values must have matching normalizations.";
+ReduceToVirtualMasterLibrary::usage="ReduceToVirtualMasterLibrary[families,targets,library,request] adaptively enlarges targeted exact IBP seeds until every resulting master has a verified scalar-library definition. Unmatched integrals guide a bounded search and are never asserted irreducible. The process and universal scalar library are explicit inputs.";
+Begin["`Private`"];
+
+MatchVirtualMastersToLibrary[masters:{__FeynCalc`GLI},families:{__Association},library:{__Association}]:=
+ Catch[Module[
+ {topologies,compacts,sourcePositions,byName,master,top,slots,preferred,mappings,entries,mapRules,
+  names,images,adopted={},unmatched={},mapping,sourceTop,targetTop,shifts,rule,
+  loops,jacobian,sourceDescriptors,targetDescriptors,image,j,targetSlot,sourceCore,targetCore,
+  targetEntry,verified,originalIndex,proofs={},values=<||>,searchTopology,
+  mixed,selectedLibrary,targetCandidates,initialTarget,numeratorMasters,ordinaryMasters,partial},
+ numeratorMasters=Select[masters,AnyTrue[#[[2]],#<0&]&];
+ If[numeratorMasters=!={},
+  ordinaryMasters=Complement[masters,numeratorMasters];
+  partial=If[ordinaryMasters==={},<|"Format"->"FeynFacet-VirtualMasterLibraryMatching",
+   "MasterLabels"->{},"ExactValues"-><||>,"Mappings"->{},"UnmatchedMasters"->{},"Library"->library|>,
+   MatchVirtualMastersToLibrary[ordinaryMasters,families,library]];
+  If[!AssociationQ[partial],Return[partial]];
+  Return[Join[partial,<|"Status"->"UnmatchedMastersRemain",
+   "UnmatchedMasters"->Union[partial["UnmatchedMasters"],numeratorMasters],
+   "NumeratorMastersRequiringReduction"->numeratorMasters|>]]];
+ byName=Association[(#["Topology"][[1]]->#)&/@families];
+ If[!AllTrue[library,ContainsAll[Keys[#],{"Topology","ExactValue","Powers","MeasurePrefactor"}]&],
+  cutFamilyFail["ExplicitScalarMasterLibraryRequired"]];
+ topologies=Table[
+  master=masters[[i]];top=byName[master[[1]]]["Topology"];
+  If[AnyTrue[master[[2]],#<0&],cutFamilyFail["ReduceIrreducibleNumeratorsBeforeLibraryMatching"]];
+  slots=Flatten[Position[master[[2]],_?Positive]];
+  FeynCalc`FCTopology["VirtualMaster"<>ToString[i],top[[2,slots]],top[[3]],top[[4]],top[[5]],{}],
+ {i,Length[masters]}];
+ compacts=MapThread[FeynCalc`GLI[#1[[1]],Select[#2[[2]],Positive]]&,{topologies,masters}];
+ (* Prescription-free copies are used only as graph-search keys. No
+    scalar value or integral equality is adopted until original signs pass
+    the explicit propagator-map verification below. *)
+ searchTopology[topology_]:=topology/.FeynCalc`StandardPropagatorDenominator[m_,sp_,ms_,{pw_,_}]:>
+   FeynCalc`StandardPropagatorDenominator[m,sp,ms,{pw,1}];
+ mixed=AnyTrue[topologies,Length[FeynCalc`FCLoopGetEtaSigns[#]]>1&];
+ selectedLibrary=Select[library,(Length[FeynCalc`FCLoopGetEtaSigns[#["Topology"]]]>1)===mixed&];
+ preferred=Lookup[selectedLibrary,"Topology"];names=First/@preferred;
+ mappings=FeynCalc`FCLoopFindTopologyMappings[searchTopology/@topologies,
+  FeynCalc`PreferredTopologies->(searchTopology/@preferred)];
+ If[!MatchQ[mappings,{_List,_List}],cutFamilyFail["VirtualMasterTopologyMappingFailed"]];
+ entries=First[mappings];mapRules=Last/@entries;
+ Do[
+  image=compacts[[i]]/.mapRules;
+  If[!MatchQ[image,_FeynCalc`GLI]||!MemberQ[names,image[[1]]],AppendTo[unmatched,masters[[i]]];Continue[]];
+  targetEntry=selectedLibrary[[First@FirstPosition[names,image[[1]]]]];
+  If[image[[2]]=!=targetEntry["Powers"],AppendTo[unmatched,masters[[i]]];Continue[]];
+  mapping=SelectFirst[entries,First[First[#]]===compacts[[i,1]]&,Missing[]];
+  If[MissingQ[mapping],AppendTo[unmatched,masters[[i]]];Continue[]];
+  {sourceTop,shifts,rule}=mapping;
+  sourceTop=SelectFirst[topologies,#[[1]]===sourceTop[[1]]&];
+  initialTarget=targetEntry;
+  targetCandidates=Prepend[Select[DeleteCases[selectedLibrary,targetEntry],
+    Rest[List@@searchTopology[#["Topology"]]]===Rest[List@@searchTopology[targetEntry["Topology"]]]&&
+    #["Powers"]===targetEntry["Powers"]&],targetEntry];
+  loops=sourceTop[[3]];
+  jacobian=Factor[Det[Table[Coefficient[ell/.shifts,ll],{ell,loops},{ll,loops}]]];
+  If[!MemberQ[{1,-1},jacobian],cutFamilyFail["UnitLoopJacobianRequired",<|"Master"->masters[[i]]|>]];
+  sourceDescriptors=propagatorDescriptor/@sourceTop[[2]];
+  verified=False;
+  Do[
+  targetTop=candidate["Topology"];
+  targetDescriptors=propagatorDescriptor/@targetTop[[2]];
+  verified=And@@Table[
+   image=FeynCalc`GLI[compacts[[i,1]],UnitVector[Length[sourceTop[[2]]],j]]/.rule;
+   targetSlot=Flatten[Position[image[[2]],1]];
+   If[Length[targetSlot]=!=1,False,
+    sourceCore=FeynCalc`ExpandScalarProduct[sourceDescriptors[[j,"UnitCore"]]/.shifts]/.sourceTop[[5]];
+    targetCore=FeynCalc`ExpandScalarProduct[targetDescriptors[[First[targetSlot],"UnitCore"]]]/.targetTop[[5]];
+    Factor[sourceCore-targetCore]===0&&
+     FeynCalc`FCLoopGetEtaSigns[sourceTop[[2,j]]]===FeynCalc`FCLoopGetEtaSigns[targetTop[[2,First[targetSlot]]]]],
+   {j,Length[sourceTop[[2]]]}];
+  If[TrueQ[verified],targetEntry=candidate;Break[]],
+  {candidate,targetCandidates}];
+  If[!TrueQ[verified]||byName[masters[[i,1]]]["MeasurePrefactor"]=!=targetEntry["MeasurePrefactor"],
+   cutFamilyFail["ExactVirtualMasterMapVerificationFailed",<|"Master"->masters[[i]],"Target"->targetEntry["Name"]|>]];
+  AssociateTo[values,masters[[i]]->targetEntry["ExactValue"]];
+  AppendTo[adopted,masters[[i]]->Lookup[targetEntry,"ScalarMasterName",targetEntry["Name"]]];
+  AppendTo[proofs,<|"Master"->masters[[i]],"LibraryEntry"->targetEntry["Name"],
+   "LoopMomentumRules"->shifts,"Jacobian"->jacobian,"PropagatorsAndPrescriptionsVerified"->True|>],
+ {i,Length[masters]}];
+ <|"Format"->"FeynFacet-VirtualMasterLibraryMatching","Status"->If[unmatched==={},"AllMastersMatched","UnmatchedMastersRemain"],
+  "MasterLabels"->adopted,"ExactValues"->values,"UnmatchedMasters"->unmatched,
+  "Mappings"->proofs,"Library"->library,"OrdinaryPrescriptionLimitEstablished"->False|>
+],"CutFamily"];
+ReduceToVirtualMasterLibrary[families_List,targets_List,library_List,request_Association]:=Catch[Module[
+ {plans,seeds,preferred={},history={},iteration,limit,work,reduction,matching,frontier,selected,
+  added,local,depth,counts,newSeeds,allSeeds,exactRequest,expected},
+ work=Lookup[request,"WorkingDirectory",None];limit=Lookup[request,"MaximumSeedIterations",6];
+ If[!StringQ[work]||!IntegerQ[limit]||limit<1||families==={}||targets==={},
+  cutFamilyFail["VirtualLibraryReductionRequestRequired"]];
+ plans=Association@Table[family["Topology"][[1]]->
+  FeynFacet`PlanCutIBPSeeds[family,Select[targets,#[[1]]===family["Topology"][[1]]&]],
+ {family,families}];
+ If[!AllTrue[Values[plans],AssociationQ],cutFamilyFail["VirtualTargetSeedPlansRequired"]];
+ seeds=Lookup[#,"Seeds"]&/@plans;
+ Do[
+  allSeeds=Flatten[Values[seeds],1];
+  exactRequest=Join[KeyDrop[request,{"WorkingDirectory","MaximumSeedIterations"}],<|
+    "WorkingDirectory"->work<>"/SeedSearch"<>IntegerString[iteration,10,3],
+    "SeedIntegrals"->allSeeds,"PreferredMasterIntegrals"->preferred|>];
+  Print["VIRTUAL SEED SEARCH ",iteration," SEEDS ",Length[allSeeds]];
+  reduction=FeynFacet`KiraReduction[families,targets,exactRequest];
+  If[!AssociationQ[reduction],cutFamilyFail["VirtualTargetReductionFailed",<|"Cause"->reduction|>]];
+  matching=MatchVirtualMastersToLibrary[reduction["Masters"],families,library];
+  If[!AssociationQ[matching],cutFamilyFail["VirtualScalarLibraryMatchingFailed",<|"Cause"->matching|>]];
+  frontier=matching["UnmatchedMasters"];
+  AppendTo[history,<|"Iteration"->iteration,"SeedCount"->Length[allSeeds],
+    "MasterCount"->Length[reduction["Masters"]],"UnmatchedMasters"->frontier|>];
+  Print["VIRTUAL UNMATCHED MASTERS ",Length[frontier]];
+  If[frontier==={},Return[Join[reduction,<|"ScalarMasterLibraryMatching"->matching,
+    "SeedSearchHistory"->history|>],Module]];
+  preferred=First/@matching["MasterLabels"];added=0;
+  depth=Min[2,1+Quotient[iteration-1,2]];
+  Do[
+   local=Select[frontier,#[[1]]===family["Topology"][[1]]&];
+   If[local==={},Continue[]];
+   selected=FeynFacet`FindCutIBPPredecessorSeeds[family,local,seeds[family["Topology"][[1]]],
+     <|"FrontierNeighborDepth"->depth|>];
+   If[!AssociationQ[selected],cutFamilyFail["VirtualPredecessorSeedSelectionFailed",<|"Cause"->selected|>]];
+   newSeeds=selected["Seeds"];added+=Length[newSeeds];
+   AssociateTo[seeds,family["Topology"][[1]]->Union[seeds[family["Topology"][[1]]],newSeeds]],
+  {family,families}];
+  If[added===0,cutFamilyFail["VirtualSeedSearchNeedsBroaderRegion",<|"History"->history|>]],
+ {iteration,limit}];
+ cutFamilyFail["VirtualLibraryReductionIncomplete",<|"History"->history|>]
+],"CutFamily"];
+End[];EndPackage[];

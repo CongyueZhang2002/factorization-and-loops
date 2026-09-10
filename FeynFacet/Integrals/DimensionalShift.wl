@@ -1,4 +1,7 @@
-(* Topology-dependent BMHV and Tarasov dimensional shifts. *)
+(* Topology-dependent BMHV and Tarasov dimensional shifts.
+   Intermediate zero pruning is structural. Retaining unsimplified zeros
+   preserves the exact integral sum. Full rational cancellation belongs
+   after master aggregation, rather than in each tensor/shift monomial. *)
 
 DimensionalShift::loops =
   "Loop momenta must be a nonempty list identical to the topology loop-momentum ordering. Received `1`; topology uses `2`.";
@@ -385,7 +388,7 @@ dimensionalShiftReduceNumerator[
       ! AllTrue[contributions, linearIntegralSumQ],
     Return[$Failed]
   ];
-  sparse = linearDropZeros @ linearAdd[contributions];
+  sparse = linearDropZeros[linearAdd[contributions],(#===0&)];
   If[FailureQ[sparse], $Failed, linearToExpression[sparse]]
 ];
 
@@ -739,7 +742,7 @@ DimensionalShift[
       ];
       Throw[$Failed, $dimensionalShiftFailure]
     ];
-    parts = linearDropZeros[parts];
+    parts = linearDropZeros[parts,(#===0&)];
     If[parts["Terms"] === <||>, 0, linearToExpression[parts]]
   ],
   $dimensionalShiftFailure
@@ -780,7 +783,7 @@ DimensionalShift[
     Message[DimensionalShift::families];
     Return[$Failed]
   ];
-  sparse = linearDropZeros[sparse];
+  sparse = linearDropZeros[sparse,(#===0&)];
   result = linearToExpression[sparse];
   masters = Keys[sparse["Terms"]];
   size = Round[ByteCount[result]/1024., 0.01];

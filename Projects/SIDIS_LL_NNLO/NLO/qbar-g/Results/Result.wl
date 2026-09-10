@@ -1,0 +1,81 @@
+<|"Channel" -> "qbar-g", "Coupling" -> FeynFacet`\[Alpha]s, 
+ "CouplingPower" -> 1, "CurrentNormalization" -> 1/(4*System`Pi), 
+ "DensityConvention" -> 
+  "Dimensionless electromagnetic SIDIS coefficient, flavor charge included", 
+ "DimensionalPrefactor" -> 1, "DimensionalRegulator" -> Global`Epsilon, 
+ "DistributionBasis" -> 
+  <|"Axes" -> {<|"Variable" -> Global`x, "Endpoint" -> 1, 
+      "Interval" -> {0, 1}, "Distance" -> 1 - Global`x, 
+      "NormalVariable" -> Global`endpointX|>, <|"Variable" -> Global`z, 
+      "Endpoint" -> 1, "Interval" -> {0, 1}, "Distance" -> 1 - Global`z, 
+      "NormalVariable" -> Global`endpointZ|>}|>, "Order" -> "NLO", 
+ "PhysicalChannel" -> <|"Incoming" -> {{"qbar", "u"}}, "Observed" -> "g"|>, 
+ "Polarization" -> <|"Incoming" -> {"L"}, "Observed" -> "U"|>, 
+ "Project" -> "SIDIS_LL_NNLO", "Scale" -> Global`Q2, 
+ "StructureFunctions" -> {"2g1"}, "Variables" -> {Global`x, Global`z}, 
+ "Contribution" -> "Total", "IncludedContributions" -> 
+  {"Real", "Counterterm"}, "PlusConvention" -> "At each axis, \
+PlusCoefficients[k] multiplies [Log[Distance]^k/Distance]_+ on Interval, with \
+subtraction at Endpoint. For DistributionBasis[Axes], delta/plus/regular \
+values repeat recursively in the listed axis order.", 
+ "RequiredContributions" -> {"Real", "Counterterm"}, 
+ "Assumptions" -> Global`Q2 > 0 && Global`muR2 > 0 && Global`muF2 > 0 && 
+   Global`muD2 > 0, "Schemes" -> <|"Incoming" -> "HelicityMSbar", 
+   "Observed" -> "MSbar"|>, "LowerOrderResults" -> 
+  <|"q-q" -> <|"File" -> "../../../LO/q-q/Results/Result.wl", 
+     "EpsilonRange" -> {0, 2}|>, "qbar-qbar" -> 
+    <|"File" -> "../../../LO/qbar-qbar/Results/Result.wl", 
+     "EpsilonRange" -> {0, 2}|>|>, "Format" -> "FeynFacet-PartonicResult", 
+ "FormatVersion" -> 1, "EpsilonRange" -> {0, 1}, "LaurentLowerBound" -> 0, 
+ "Coefficients" -> 
+  <|0 -> <|"DeltaCoefficient" -> <|"DeltaCoefficient" -> {0}, 
+       "PlusCoefficients" -> <||>, "RegularCoefficient" -> 
+        {((-1 + FeynCalc`CA^2)*FeynFacet`\[Alpha]s*(Global`z^2 - 
+            (2 + (-2 + Global`z)*Global`z)*System`Log[Global`muR2/(Global`Q2*
+                Global`z)] + (2 + (-2 + Global`z)*Global`z)*
+             System`Log[(Global`muR2 - Global`muR2*Global`z)/Global`muD2]))/
+          (9*FeynCalc`CA*System`Pi*Global`z)}|>, "PlusCoefficients" -> 
+      <|0 -> <|"DeltaCoefficient" -> {0}, "PlusCoefficients" -> <||>, 
+         "RegularCoefficient" -> {((-1 + FeynCalc`CA^2)*
+             (2 + (-2 + Global`z)*Global`z)*FeynFacet`\[Alpha]s)/
+            (9*FeynCalc`CA*System`Pi*Global`z)}|>|>, 
+     "RegularCoefficient" -> <|"DeltaCoefficient" -> {0}, 
+       "PlusCoefficients" -> <||>, "RegularCoefficient" -> 
+        {-1/9*((-1 + FeynCalc`CA^2)*(1 + Global`x - 2*Global`x*Global`z + 
+             2*(-1 + Global`z)*Global`z)*FeynFacet`\[Alpha]s)/
+           (FeynCalc`CA*System`Pi*Global`z)}|>|>, 
+   1 -> <|"DeltaCoefficient" -> <|"DeltaCoefficient" -> {0}, 
+       "PlusCoefficients" -> <||>, "RegularCoefficient" -> 
+        {((-1 + FeynCalc`CA^2)*FeynFacet`\[Alpha]s*
+           (System`Pi^2*(2 + (-2 + Global`z)*Global`z) + 
+            6*(2 + (-2 + Global`z)*Global`z)*System`Log[Global`muR2/
+                Global`muD2]^2 + 6*(2*Global`z^2 + (2 + (-2 + Global`z)*
+                 Global`z)*System`Log[1 - Global`z] - (2 + (-2 + Global`z)*
+                 Global`z)*System`Log[Global`muR2/(Global`Q2*Global`z)])*
+             (System`Log[Global`muR2] + System`Log[Global`z^(-1)] - 
+              System`Log[Global`Q2 - Global`Q2*Global`z])))/
+          (108*FeynCalc`CA*System`Pi*Global`z)}|>, "PlusCoefficients" -> 
+      <|0 -> <|"DeltaCoefficient" -> {0}, "PlusCoefficients" -> <||>, 
+         "RegularCoefficient" -> {-1/9*((-1 + FeynCalc`CA^2)*
+              FeynFacet`\[Alpha]s*(Global`z^2 + (2 + (-2 + Global`z)*
+                  Global`z)*System`Log[1 - Global`z] - (2 + (-2 + Global`z)*
+                  Global`z)*System`Log[Global`muR2/(Global`Q2*Global`z)]))/
+             (FeynCalc`CA*System`Pi*Global`z)}|>, 
+       1 -> <|"DeltaCoefficient" -> {0}, "PlusCoefficients" -> <||>, 
+         "RegularCoefficient" -> {-1/9*((-1 + FeynCalc`CA^2)*
+              (2 + (-2 + Global`z)*Global`z)*FeynFacet`\[Alpha]s)/
+             (FeynCalc`CA*System`Pi*Global`z)}|>|>, 
+     "RegularCoefficient" -> <|"DeltaCoefficient" -> {0}, 
+       "PlusCoefficients" -> <||>, "RegularCoefficient" -> 
+        {-1/9*((-1 + FeynCalc`CA^2)*FeynFacet`\[Alpha]s*
+            (-((-1 + Global`x)*(3 - 3*Global`x - 2*Global`z + 4*Global`x*
+                 Global`z)) + (-1 + Global`x)*(-1 - 2*(-1 + Global`z)*
+                Global`z + Global`x*(-1 + 2*Global`z))*System`Log[1 - 
+                Global`x] + (-1 + Global`x)*(-1 - Global`x + 2*(1 + Global`x)*
+                Global`z - 2*Global`z^2)*System`Log[1 - Global`z] - 
+             (2 + (-2 + Global`z)*Global`z)*System`Log[Global`muR2/
+                (Global`Q2*Global`z)] + (1 + Global`x^2)*System`Log[
+               (Global`muR2*Global`x)/(Global`Q2*Global`z)] + 
+             Global`z*(-Global`z + 2*Global`x*(-Global`x + Global`z))*
+              System`Log[(Global`muR2*Global`x)/(Global`Q2*Global`z)]))/
+           (FeynCalc`CA*System`Pi*(-1 + Global`x)*Global`z)}|>|>|>|>

@@ -256,10 +256,10 @@ finiteFieldCoefficientSimplificationCore[
         {"Targets", traceData["ProcessedTargetCount"]},
         {"Normalization kernels", traceData["NormalizationKernels"]},
         {"Masters", Length[result["Masters"]]},
-        {"Analytic signatures", Length[traceData["Signatures"]]},
-        {"Shared outputs", Length[traceData["OutputOrder"]]},
+        {"Analytic prefactors", Length[traceData["Signatures"]]},
+        {"Reconstruction outputs", Length[traceData["OutputOrder"]]},
         {
-          "Trace variables",
+          "Reconstruction variables",
           ToString[traceData["Variables"], InputForm]
         },
         {
@@ -270,13 +270,13 @@ finiteFieldCoefficientSimplificationCore[
           ]
         },
         {
-          "Root descend",
+          "Algebraic normalization",
           ToString[
             Normal @ Lookup[traceData, "DescendStatistics", <||>],
             InputForm
           ]
         },
-        {"Trace size (MB)", Round[trace["TraceBytes"]/2.^20, 0.01]},
+        {"Reconstruction input (MB)", Round[trace["TraceBytes"]/2.^20, 0.01]},
         {
           "FireFly time (s)",
           Round[reconstruction["ReconstructionSeconds"], 0.01]
@@ -285,7 +285,7 @@ finiteFieldCoefficientSimplificationCore[
       Frame -> All
     ];
     coefficientProgressFinish[];
-    result
+    coefficientResultFromReconstruction[result]
   ],
   $finiteFieldFailure
 ];

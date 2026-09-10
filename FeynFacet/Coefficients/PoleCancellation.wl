@@ -4,28 +4,9 @@ SeparateMasterCoefficientPoles::usage =
  "SeparateMasterCoefficientPoles[entry,poles,request] subtracts explicitly certified simple pole parts from a finite master coefficient and returns its finite remainder together with exact pole entries. It preserves unknown Laurent tails and records the pieces which must be reunited in the final density.";
 SimplifyMasterCoefficientEntries::usage =
  "SimplifyMasterCoefficientEntries[entries] cancels exact rational coefficients with FLINT, preserving analytic prefactors, master identities and unknown finite Laurent tails.";
+VerifyMasterCoefficientDivisorCancellation::usage="VerifyMasterCoefficientDivisorCancellation[rows,system,divisorReduction,request] proves removable coefficient poles on Variable=DivisorLocation by exact Laurent principal parts, finite Taylor matrices from a regular closed DE, and independently supplied specialized integral identities. It uses no epsilon truncation and does not by itself certify joint endpoint extension.";
+ConstructMasterCoefficientDivisorDerivatives::usage="ConstructMasterCoefficientDivisorDerivatives[rows,system,divisorReduction,request] verifies exact apparent-pole cancellation and constructs the finite DE derivative rows of the regularized numerator through the quotient order. The final derivative gives the exact diagonal limit and the Taylor-remainder bound when its physical integral representations are uniformly bounded.";
 Begin["`Private`"];
-Clear[coefficientRationalFieldReduce];
-coefficientRationalFieldReduce[expression_]:=Module[
- {atoms,constants=<||>,restore={},constant,power,termPower,rules},
- constant[x_]:=Module[{s=Lookup[constants,Key[x],None]},
-   If[s===None,s=Unique["coefficientField"];AssociateTo[constants,x->s];AppendTo[restore,s->x]];s];
- termPower[b_,t_]:=Module[{n=1,rest=t,parts},
-   If[MatchQ[t,_Integer|_Rational],n=t;rest=1,
-    If[Head[t]===Times&&MatchQ[First[t],_Integer|_Rational],n=First[t];rest=Times@@Rest[t]]];
-   If[rest===1&&IntegerQ[n],b^n,
-    constant[b^(rest/Denominator[n])]^Numerator[n]]];
- (* Preserve additive exponent identities before introducing independent
-    field symbols. For example 2^(3-4 epsilon)=8 (2^epsilon)^(-4).
-    Only integer outer powers are used; no PowerExpand is involved. *)
- power[b_,p_]:=With[{expanded=Expand[p]},Times@@
-   (termPower[b,#]&/@If[Head[expanded]===Plus,List@@expanded,{expanded}])];
- atoms=DeleteDuplicates@Join[
-   Cases[expression,Power[_,p_]/;!IntegerQ[p],{0,Infinity}],
-   Cases[expression,a:h_[___]/;!MemberQ[{Plus,Times,Power,Rational},h]:>a,{0,Infinity}]];
- rules=Map[Function[x,x->If[Head[x]===Power,power[x[[1]],x[[2]]],constant[x]]],atoms];
- {expression/.rules,restore}
-];
 Options[SimplifyMasterCoefficientEntries]={"Verbose"->False};
 SimplifyMasterCoefficientEntries[entries_List,OptionsPattern[]]:=Catch[Module[
  {result=entries,reports={},terms,term,vars,value,seconds,before,reduced,restore},
@@ -125,5 +106,112 @@ SeparateMasterCoefficientPoles[entry_Association,poles_List,request_Association]
    "Convention"->"Original coefficient = finite remainder with its declared unknown tail + all listed exact pole parts."|>
 ],"CoefficientPoles"];
 SeparateMasterCoefficientPoles[___]:=Failure["FiniteCoefficientAndExplicitPoleDataRequired",<||>];
+
+VerifyMasterCoefficientDivisorCancellation[rows_Association,input_Association,
+ diagonalReduction_Association,request_Association]:=Catch[Module[
+ {system,basis,parameters,e,variable,location,distance,axis,n,coefficientRows,field,restore,
+  variables,shifted,poleOrders,maximum,series,a,jets,diagonalJets,diagBasis,diagRules,
+  diagImages,embedding,principal,residuals={},labels={},i,k,j,orders,values,cancel,dimRule},
+ system=solutionNormalizeDifferentialSystem[input];
+ If[!AssociationQ[system],coefficientPoleFail["NormalizedClosedDifferentialSystemRequired"]];
+ {basis,parameters,e}=Lookup[system,{"MasterIntegralBasis","KinematicVariables","DimensionalRegulator"}];
+ {variable,location}=Lookup[request,{"Variable","DivisorLocation"},None];
+ n=Length[basis];
+ If[!MemberQ[parameters,variable]||location===None||!FreeQ[location,variable]||
+   !AllTrue[Values[rows],AssociationQ[#]&&ContainsAll[basis,Keys[#]]&]||
+   !ContainsAll[diagonalReduction["Targets"],basis],
+  coefficientPoleFail["MatchingCoefficientRowsAndSpecializedIntegralIdentitiesRequired"]];
+ coefficientRows=Table[Lookup[rows[name],Key[master],0],{name,Keys[rows]},{master,basis}];
+ {field,restore}=coefficientRationalFieldReduce[coefficientRows];
+ If[!FreeQ[Last/@restore,variable],
+  coefficientPoleFail["CoordinateDependentAnalyticCoefficientFactorRequiresTaylorExpansion"]];
+ distance=Unique["divisorDistance"];shifted=field/.variable->location+distance;
+ variables=DeleteDuplicates[Cases[shifted,_Symbol,{0,Infinity}]];
+ If[!MemberQ[variables,distance],Return[<|"Status"->"NoDivisorPoles","MaximumPoleOrder"->0|>,Module]];
+ values=FeynFacet`CancelRationalExpressions[Flatten[shifted],variables];
+ If[!ListQ[values],coefficientPoleFail["RationalDivisorExpansionFailed",<|"Cause"->values|>]];
+ shifted=Partition[values,n];
+ poleOrders=Map[If[#===0,0,Max[0,Exponent[Denominator[#],distance,Min]-
+   Exponent[Numerator[#],distance,Min]]]&,shifted,{2}];
+ maximum=Max[Flatten[poleOrders]];
+ If[maximum===0,Return[<|"Status"->"NoDivisorPoles","MaximumPoleOrder"->0|>,Module]];
+ series=FeynFacet`RationalLaurentCoefficients[Flatten[shifted],variables,distance,{-maximum,-1}];
+ If[!ListQ[series],coefficientPoleFail["ExactDivisorPrincipalPartsRequired",<|"Cause"->series|>]];
+ series=Partition[series,n];axis=First@FirstPosition[parameters,variable];
+ a=Normal[system["ConnectionMatrices"][[axis]]];
+ If[Dimensions[a]=!={n,n}||!FreeQ[Quiet[a/.variable->location],Indeterminate|_DirectedInfinity],
+  coefficientPoleFail["ClosedDifferentialConnectionRegularOnDivisorRequired"]];
+ cancel[m_]:=Module[{v=FeynFacet`CancelRationalCoefficients[Flatten[Normal[m]]]},
+   If[!ListQ[v],coefficientPoleFail["ExactDivisorMatrixCancellationFailed"]];
+   Partition[v,Last[Dimensions[m]]]];
+ jets={IdentityMatrix[n]};
+ Do[AppendTo[jets,cancel[(D[Last[jets],variable]+Last[jets].a)/j]],{j,1,maximum-1}];
+ diagonalJets=jets/.variable->location;
+ diagBasis=diagonalReduction["Masters"];diagRules=diagonalReduction["Rules"];
+ dimRule=Lookup[system,"DimensionRule",None];If[dimRule=!=None,diagRules=diagRules/.dimRule];
+ diagImages=basis/.Dispatch[diagRules];
+ If[!ContainsAll[diagBasis,Union[Cases[diagImages,_FeynCalc`GLI,{0,Infinity}]]],
+  coefficientPoleFail["SpecializedIntegralReductionMustBeClosed"]];
+ embedding=Table[Coefficient[im,m],{im,diagImages},{m,diagBasis}];
+ If[!AllTrue[Expand[diagImages-embedding.diagBasis],#===0&]||!FreeQ[embedding,variable],
+  coefficientPoleFail["LinearSpecializedIntegralImagesRequired"]];
+ Do[
+  Do[
+   principal=Total[Table[
+     (Lookup[series[[i]],power-j,0]).diagonalJets[[j+1]],{j,0,maximum+power}]];
+   AppendTo[residuals,principal.embedding];AppendTo[labels,{Keys[rows][[i]],power}],
+  {power,-maximum,-1}],
+ {i,Length[rows]}];
+ residuals=cancel[residuals];
+ If[!AllTrue[Flatten[residuals],#===0&],
+  coefficientPoleFail["MasterCoefficientDivisorPrincipalPartNonzero",<|
+   "ResidualLabels"->labels,"Residuals"->(residuals/.restore),"DivisorMasterBasis"->diagBasis|>]];
+ <|"Status"->"ExactDivisorPoleCancellationVerified","Variable"->variable,
+  "DivisorLocation"->location,"MaximumPoleOrder"->maximum,
+  "CoefficientPoleOrders"->AssociationThread[Keys[rows],poleOrders],
+  "MasterIntegralBasis"->basis,"DivisorMasterBasis"->diagBasis,
+  "DivisorIntegralEmbedding"->embedding,"NormalTaylorMatrices"->diagonalJets,
+  "PrincipalPartsChecked"->labels,"EpsilonExpansionUsed"->False,
+  "ConnectionRegularOnDivisor"->True,"ExternalEndpointUniformityEstablished"->False,
+  "Scope"->"The supplied closed subsystem and specialized physical integral identities. Joint high-dimension derivative bounds remain separate."|>
+],"CoefficientPoles"];
+
+ConstructMasterCoefficientDivisorDerivatives[rows_Association,input_Association,
+ diagonalReduction_Association,request_Association]:=Catch[Module[
+ {verified,system,basis,variable,location,e,axis,a,distance,n,c,regular,jets,derivatives,
+  labels,orders,k,values,limits,cancel},
+ verified=FeynFacet`VerifyMasterCoefficientDivisorCancellation[rows,input,diagonalReduction,request];
+ If[FailureQ[verified],Throw[verified,"CoefficientPoles"]];
+ system=solutionNormalizeDifferentialSystem[input];basis=system["MasterIntegralBasis"];
+ {variable,location}=Lookup[request,{"Variable","DivisorLocation"}];e=system["DimensionalRegulator"];
+ n=Length[basis];axis=First@FirstPosition[system["KinematicVariables"],variable];
+ a=Normal[system["ConnectionMatrices"][[axis]]];distance=variable-location;labels=Keys[rows];
+ cancel[m_]:=Module[{v=FeynFacet`CancelRationalCoefficients[Flatten[m]]},
+  If[!ListQ[v],coefficientPoleFail["ExactDivisorDerivativeCancellationFailed"]];
+  Partition[v,n]];
+ c=Table[Lookup[rows[label],Key[master],0],{label,labels},{master,basis}];
+ orders=If[verified["Status"]==="NoDivisorPoles",ConstantArray[0,Length[rows]],
+   Max/@Values[verified["CoefficientPoleOrders"]]];
+ regular=cancel[MapThread[#1^#2 #3&,{ConstantArray[distance,Length[rows]],orders,c}]];
+ jets={regular};
+ Do[AppendTo[jets,cancel[D[Last[jets],variable]+Last[jets].a]],{j,Max[orders]}];
+ derivatives=Association@Table[labels[[i]]->Take[jets[[All,i]],orders[[i]]+1],{i,Length[labels]}];
+ (* Each row already contains its common analytic normalization; the exact
+    cancellation check refuses omitted coordinate-dependent analytic factors. *)
+ limits=Association@Table[labels[[i]]->
+   (Last[derivatives[labels[[i]]]]/.variable->location)/Factorial[orders[[i]]],
+   {i,Length[labels]}];
+ If[!FreeQ[{derivatives,limits},Indeterminate|_DirectedInfinity],
+  coefficientPoleFail["RegularDivisorDerivativeRowsRequired"]];
+ <|"DataType"->"MasterCoefficientDivisorDerivatives",
+  "Status"->"ExactDivisorDerivativeRowsConstructed","Variable"->variable,
+  "DivisorLocation"->location,"MasterIntegralBasis"->basis,
+  "DivisorCancellation"->verified,"QuotientOrders"->AssociationThread[labels,orders],
+  "RegularNumeratorDerivativeRows"->derivatives,"DiagonalValueRows"->limits,
+  "UniformBoundEstablished"->False,
+  "TaylorRemainderConvention"->"For k>0 the quotient is 1/(k-1)! times the integral from 0 to 1 of (1-t)^(k-1) times the kth derivative along x'=location+t(x-location). A uniform derivative bound B gives B/k!.",
+  "Scope"->"Exact finite derivatives on the ordinary physical interior. Uniform physical-integral bounds and valid specialization of the supplied identities are separate."|>
+],"CoefficientPoles"];
+
 End[];
 EndPackage[];

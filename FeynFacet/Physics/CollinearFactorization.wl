@@ -1,13 +1,138 @@
-(* Collinear projectors and the factorized pre-IBP pipeline. *)
+(* Apply collinear correlators and construct the factorized pre-IBP pipeline. *)
 
-lightQuarkMassRules = {
-  FeynCalc`SMP["m_u"] -> 0,
-  FeynCalc`SMP["m_d"] -> 0,
-  FeynCalc`SMP["m_s"] -> 0
-};
+
+FeynFacet`ContractPartonicSpinDensities::usage="ContractPartonicSpinDensities[interference,legs,request] closes generated spin chains with the normalized PDF/FF insertions defined in Distributions.wl, includes incoming color averages, and contracts tensor algebra. Request declares additional PhysicalMomenta, MasslessMomenta, UnobservedGluonStates (or a single SummedGluons entry) and Assumptions. It does not supply phase space or flux.";
+FeynFacet`ContractPartonicSpinDensities[interference_,legs_List,request_Association]:=
+ contractPreparedPartonicSpinDensities[interference,legs,PartonicSpinDensity/@legs,request];
+
+(* Only internal, mathematically established joint current-density insertions
+   bypass the standalone density constructor. All spin/color normalization
+   records and the contraction algorithm remain shared. *)
+contractPreparedPartonicSpinDensities[interference_,legs_List,densities_List,request_Association]:=Catch[Module[
+ {quarks,tags,result,missing,remaining,rules,physical,massless,
+  momentum,mu,nu,plus,minus,indices,spin,color,assumptions,states,summed,
+  started=AbsoluteTime[],printTimings=Lookup[request,"PrintTimings",False],backend,formResult,allMomenta,formScheme},
+ If[!AllTrue[legs,AssociationQ]||!DuplicateFreeQ[Lookup[legs,"Momentum"]],
+  fail["PartonicLegs",legs,"Each density leg needs a distinct momentum."]];
+ If[!AllTrue[densities,AssociationQ],fail["PartonicSpinDensities",densities,"A declared spin density is unsupported."]];
+ quarks=Select[densities,#["Species"]=!="g"&];
+ tags=If[quarks==={},<||>,AssociationThread[Lookup[quarks,"Momentum"],Unique["partonicSpin$"]&/@quarks]];
+ result=tagExternalSpinors[FeynCalc`FCI[interference],tags];
+ missing=If[result===0,{},Select[Values[tags],FreeQ[result,#]&]];
+ result=FeynCalc`FermionSpinSum[result];
+ partonicContractionProgress[printTimings,"Fermion spin sums",started,result];
+ result=contractColorFactors[result];
+ partonicContractionProgress[printTimings,"Color contraction",started,result];
+ rules=Flatten[Table[Thread[FeynCalc`FCI[{FeynCalc`GS[tags[density["Momentum"]]],
+  FeynCalc`GSD[tags[density["Momentum"]]]}]->FeynCalc`FCI[density["SpinDensity"]]],{density,quarks}]];
+ result=result/.rules;
+ remaining=Select[Values[tags],!FreeQ[result,#]&];
+ If[missing=!={}||remaining=!={},fail["PartonicSpinDensities",{missing,remaining},"Every declared quark density must replace its spin sum."]];
+ Do[
+  If[leg["Species"]=!="g"||result===0,Continue[]];
+  momentum=leg["Momentum"];{mu,nu}=leg["Indices"];
+  plus=FeynCalc`Momentum[FeynCalc`Polarization[momentum,I],D];
+  minus=FeynCalc`Momentum[FeynCalc`Polarization[momentum,-I],D];
+  If[polarizationDegree[result,plus]=!=1||polarizationDegree[result,minus]=!=1,
+   fail["PartonicGluonDensity",momentum,"Expected one polarization on each amplitude side."]];
+  spin=First[Select[densities,#["Momentum"]===momentum&]]["SpinDensity"];
+  result=(result/.{plus->FeynCalc`LorentzIndex[mu,D],minus->FeynCalc`LorentzIndex[nu,D]}) FeynCalc`FCI[spin],
+ {leg,legs}];
+ massless=Lookup[request,"MasslessMomenta",{}];
+ summed=Lookup[request,"SummedGluons",{}];
+ states=Lookup[request,"UnobservedGluonStates",
+   (<|"Momentum"->#,"Sum"->"Covariant"|>&/@summed)];
+ If[!ListQ[states]||!AllTrue[states,AssociationQ]||
+   (KeyExistsQ[request,"UnobservedGluonStates"]&&summed=!={}),
+  fail["UnobservedGluonStates",request,"Declare each unobserved gluon state once."]];
+ summed=If[states==={},{},Lookup[states,"Momentum",None]];
+ If[!ContainsAll[massless,summed]||Intersection[summed,Lookup[legs,"Momentum",{}]]=!={},
+  fail["MasslessSummedGluons",request,"Unobserved gluons must be massless and distinct from PDF/FF legs."]];
+ result=SumUnobservedGluonPolarizations[result,states];
+ If[FailureQ[result],fail["UnobservedGluonStates",result,"Use physical projectors, with at most one covariant sum unless ghost states are included."]];
+ If[!FreeQ[result,_FeynCalc`Polarization],fail["UncontractedPolarizations",result,"All external gluon states must be declared."]];
+ physical=DeleteDuplicates[Join[Lookup[Select[legs,#["MomentumSpace"]==="Physical4"&],"Momentum",{}],
+  Lookup[request,"PhysicalMomenta",{}]]];
+ massless=Lookup[request,"MasslessMomenta",{}];assumptions=Lookup[request,"Assumptions",True];
+ If[!MatchQ[physical,{_Symbol...}]||!MatchQ[massless,{_Symbol...}],
+  fail["PartonicKinematics",request,"Physical and massless momenta must be explicit symbol lists."]];
+ result=result/.Thread[(FeynCalc`Momentum[#,D]&/@physical)->(FeynCalc`Momentum/@physical)];
+ result=setMassZero[result,massless];
+ color=Times@@Lookup[densities,"ColorAverage"];
+ partonicContractionProgress[printTimings,"Spin-density insertions",started,result];
+ backend=Lookup[request,"DiracAlgebraBackend","Automatic"];
+ If[!MemberQ[{"Automatic","FORM","FeynCalc"},backend],fail["DiracAlgebraBackend",backend,"Select Automatic, FORM or FeynCalc."]];
+ allMomenta=Lookup[request,"Momenta",DeleteDuplicates[Join[massless,physical]]];
+ formScheme=If[!FreeQ[result,FeynCalc`DiracGamma[5|6|7]|_FeynCalc`Eps]&&
+  FeynCalc`FCGetDiracGammaScheme[]==="BMHV","BMHV","Nonchiral"];
+ If[backend==="FORM"||(backend==="Automatic"&&
+   (FreeQ[result,FeynCalc`DiracGamma[5|6|7]|_FeynCalc`Eps]||formScheme==="BMHV")&&
+   FileExistsQ[FileNameJoin[{$feynFacetAddonRoot,"Addon","Other_Addon","FORM","bin","form"}]]),
+  formResult=FeynFacet`EvaluateFORMDiracExpression[result,Join[
+   Lookup[request,"FORMOptions",<||>],<|"Momenta"->allMomenta,"PhysicalMomenta"->physical,"MasslessMomenta"->massless,"Gamma5Scheme"->formScheme|>,
+   KeyTake[request,{"KinematicRules"}]]];
+  If[AssociationQ[formResult],
+   partonicContractionProgress[printTimings,"FORM Dirac and Lorentz algebra",started,formResult["Value"]];
+   Return[color formResult["Value"]]];
+  If[!FailureQ[formResult],fail["FORMDiracAlgebra",Head[formResult],"Expected a completed FORM result or an explicit failure."]];
+  If[backend==="FORM"||!MemberQ[{"FORMMomentumOutsideDeclaredSpan","FORMGammaArgumentUnsupported",
+    "FORMIndexDimensionUnsupported","UnrestrictedPhysicalProjectorRequiresBMHVBackend"},First[formResult]],
+   fail["FORMDiracAlgebra",formResult,"The declared FORM contraction did not complete."]]];
+ color setMassZero[partonicContractAmplitude[result,printTimings,Lookup[request,"KernelCount",1]],massless]
+],$collinearFailure];
+
+
+(* Normalized partonic insertions have no fraction square roots to simplify.
+   Close tensor/Dirac algebra once; avoid Calc's five repeated power/color
+   simplification passes over an already scalar rational expression. *)
+partonicContractionProgress[enabled_,stage_,started_,expression_]:=If[TrueQ[enabled],
+ Print[stage,": ",Round[AbsoluteTime[]-started,0.01]," s; ",Round[ByteCount[expression]/1024.^2,0.01]," MB"]];
+partonicEvaluateTrace[trace_]:=If[FreeQ[trace,FeynCalc`DiracGamma[5|6|7]],
+ FeynCalc`DiracSimplify[trace,FeynCalc`FCDiracIsolate->False,FeynCalc`Expanding->False,FeynCalc`ExpandScalarProduct->False],
+ (* West's chiral recursion requires fully expanded noncommutative products.
+    Inhibiting that preparatory expansion can leave nested DOTs after BMHV splitting. *)
+ FeynCalc`DiracSimplify[trace,FeynCalc`ExpandScalarProduct->False]];
+partonicTraceValues[traces_List,requested_]:=Module[{count,opened={},result,load,scheme},
+ count=If[Length[traces]>=24,facetKernelCount[requested,Length[traces]],1];
+ If[count===1,Return[partonicEvaluateTrace/@traces]];
+ If[Kernels[]==={},opened=facetLaunchKernels[count]];
+ If[Kernels[]==={},Return[$Failed]];
+ load=$feynFacetLoader;scheme=FeynCalc`FCGetDiracGammaScheme[];
+ Internal`WithLocalSettings[
+  With[{file=load,gammaScheme=scheme},ParallelEvaluate[
+   If[!ValueQ[FeynCalc`$FeynCalcDirectory],Block[{$Output={}},Get[file]]];
+   FeynCalc`FCSetDiracGammaScheme[gammaScheme];
+   $HistoryLength=0;$MaxExtraPrecision=50;
+   SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}]]],
+  result=ParallelMap[partonicEvaluateTrace,traces,
+   Method->"FinestGrained",DistributedContexts->None],
+  If[opened=!={},CloseKernels[opened]]];
+ result
+];
+partonicContractAmplitude[expression_,printTimings_:False,requestedKernels_:1]:=Module[
+ {result,traces,values,started=AbsoluteTime[]},
+ (* Contracting linear momenta into an open trace first expanded 64 NNLO
+    traces into 1936. Evaluate each original trace once, keeping momentum
+    sums factored; contract the resulting tensors afterward. *)
+ traces=DeleteDuplicates[Cases[expression,_FeynCalc`DiracTrace,{0,Infinity}]];
+ If[Length[traces]<24,
+  result=FeynCalc`Contract[expression];result=FeynCalc`DiracSimplify[result];
+  Return[FeynCalc`ExpandScalarProduct[FeynCalc`EpsEvaluate[FeynCalc`Contract[result]]]]];
+ If[traces==={},result=expression,
+  values=partonicTraceValues[traces,requestedKernels];
+  If[!ListQ[values]||Length[values]=!=Length[traces]||
+   !FreeQ[values,$Failed|$Aborted|_Failure|_FeynCalc`DiracTrace],
+   fail["PartonicDiracTraces",values,"Every closed spin trace must be evaluated."]];
+  result=expression/.Dispatch[Thread[traces->values]]];
+ partonicContractionProgress[printTimings,"Distinct Dirac traces",started,result];
+ result=FeynCalc`Contract[result,FeynCalc`ExpandScalarProduct->False];
+ result=FeynCalc`EpsEvaluate[result];
+ partonicContractionProgress[printTimings,"Lorentz contraction after traces",started,result];
+ result
+];
 
 convertAmplitudeSide[process_Association, name_String] := Module[
-  {side, amplitudeFA, converted, momenta, selectedDiagram},
+  {side, amplitudeFA, converted, momenta, selectedDiagram, currents},
 
   side = process["Sides"][name];
   momenta = {
@@ -27,6 +152,7 @@ convertAmplitudeSide[process_Association, name_String] := Module[
     FeynArts`PreFactor -> (2 Pi)^(-D FeynArts`LoopNumber)
   ];
   amplitudeFA = modelResolveFlavorSums[amplitudeFA,process];
+  currents = Lookup[process, "Currents", {}];
   converted = FeynCalc`FCFAConvert[
     amplitudeFA,
     FeynCalc`IncomingMomenta -> momenta[[1]],
@@ -36,9 +162,10 @@ convertAmplitudeSide[process_Association, name_String] := Module[
     FeynCalc`DropSumOver -> True,
     FeynCalc`UndoChiralSplittings -> True,
     FeynCalc`SMP -> True,
-    FeynCalc`Contract -> True,
+    FeynCalc`Contract -> (currents === {}),
+    FeynCalc`TransversePolarizationVectors -> {},
     List -> True
-  ] /. lightQuarkMassRules;
+  ] /. modelMasslessQuarkMassRules[process];
 
   If[! ListQ[converted] || Length[converted] =!= 1,
     fail[
@@ -48,7 +175,8 @@ convertAmplitudeSide[process_Association, name_String] := Module[
     ]
   ];
 
-  First[converted]
+  If[currents === {},First[converted],
+    Fold[amputateCurrentPolarization[#1,#2,name]&,First[converted],currents]]
 ];
 
 convertAmplitudePair[process_Association] := AssociationMap[
@@ -65,10 +193,10 @@ splitAmplitude[expr_, side_] := Module[
 
   external = ToFeynFacetForm[expr];
   If[external === $Failed, Return[$Failed]];
-  external = Expand[external, _FeynCalc`FAD];
+  external = Expand[external, _FeynCalc`FAD|_FeynCalc`SFAD];
   terms = If[Head[external] === Plus, List @@ external, {external}];
   factorLists = topLevelFactors /@ terms;
-  propagatorLists = Cases[#, HoldPattern[FeynCalc`FAD[___]]] & /@
+  propagatorLists = Cases[#, HoldPattern[(FeynCalc`FAD|FeynCalc`SFAD)[___]]] & /@
     factorLists;
   commonPropagators = commonFactorMultiset[propagatorLists];
   numeratorLists = Fold[removeFactorOnce[#1, #2] &, #,
@@ -77,7 +205,7 @@ splitAmplitude[expr_, side_] := Module[
   numerator = Total[Times @@@ numeratorLists];
   remaining = DeleteDuplicates @ Cases[
     numerator,
-    HoldPattern[FeynCalc`FAD[___]],
+    HoldPattern[(FeynCalc`FAD|FeynCalc`SFAD)[___]],
     Infinity
   ];
   If[remaining =!= {},
@@ -120,13 +248,7 @@ splitPropagatorsByMomentum[expr_, momenta_List] := Module[
 ];
 
 
-(* The incoming gluon density is the physical transverse polarization
-   projector times f_g/x, averaged over D-2 states. Helicity uses the
-   four-dimensional antisymmetric tensor in the BMHV prescription. The
-   two tensor indices follow epsilon(+I) epsilon(-I), as in FCFAConvert.
-   With epsilon_+=(0,-1,-I,0)/Sqrt[2] along +z, the helicity
-   density has xy component -I/2, fixing the antisymmetric sign.
-   This operates on complete diagram interferences, before tensor algebra. *)
+(* Apply the declared gluon correlator to each external polarization pair. *)
 polarizationDegree[expr_, vector_] := Module[{degrees},
  If[expr===vector,Return[1]];
  If[FreeQ[expr,vector],Return[0]];
@@ -140,13 +262,13 @@ polarizationDegree[expr_, vector_] := Module[{degrees},
 ];
 
 gluonDensityProject[expr_, process_Association] := Module[
- {result=expr, legs, side, k, reference, mu, nu, plus, minus, norm,
-  unpolarized, helicity, tensor},
+ {result=expr, legs, side, k, reference, mu, nu, plus, minus, tensor},
  legs=Join[({#, "Incoming"}& /@ process["Incoming"]),
    ({#, "Outgoing"}& /@ process["Outgoing"])];
  Do[
   If[MissingQ[leg["HadronMomentum"]] || !MatchQ[leg["Parton"],FeynArts`V[5]],Continue[]];
-  side=entry[[2]];k=leg["Momentum"];reference=leg["DualDirection"];
+  side=entry[[2]];k=leg["Momentum"];
+  reference=Lookup[Lookup[process,"GluonPolarizationReferences",<||>],k,leg["DualDirection"]];
   If[leg["TransSpin"]=!=0,
    fail["HadronTransSpin",leg["TransSpin"],"A spin-one-half hadron has no collinear gluon transversity projector."]];
   mu=Unique["gluonMu$"];nu=Unique["gluonNu$"];
@@ -155,15 +277,7 @@ gluonDensityProject[expr_, process_Association] := Module[
   If[result===0,Continue[]];
   If[polarizationDegree[result,plus]=!=1 || polarizationDegree[result,minus]=!=1,
    fail["GluonPolarizations",k,"Each interference must be linear in each external polarization vector."]];
-  {unpolarized,helicity,norm}=If[side==="Incoming",
-   {f1g[leg["Fraction"]],leg["LongSpin"]g1g[leg["Fraction"]],1/leg["Fraction"]},
-   {D1g[leg["Fraction"]],leg["LongSpin"]G1g[leg["Fraction"]],1/leg["Fraction"]^2}];
-  tensor=norm (unpolarized If[side==="Incoming",1/(D-2),1] (
-    -FeynCalc`MTD[mu,nu]+(FeynCalc`FVD[k,mu]FeynCalc`FVD[reference,nu]+
-      FeynCalc`FVD[reference,mu]FeynCalc`FVD[k,nu])/FeynCalc`SPD[k,reference]
-      -FeynCalc`SPD[reference]FeynCalc`FVD[k,mu]FeynCalc`FVD[k,nu]/FeynCalc`SPD[k,reference]^2)
-    -I helicity If[side==="Incoming",1/2,-1]
-      FeynCalc`LC[mu,nu][k,reference]/FeynCalc`SP[k,reference]);
+  tensor=twist2GluonCorrelator[leg["Fraction"],k,leg["LongSpin"],reference,mu,nu,side];
   result=(result /. {plus->FeynCalc`LorentzIndex[mu,D],minus->FeynCalc`LorentzIndex[nu,D]}) FeynCalc`FCI[tensor],
   {entry,legs},{leg,{entry[[1]]}}];
  result
@@ -240,9 +354,10 @@ densityLegs[process_Association] := Select[
   ! MissingQ[#["HadronMomentum"]] &
 ];
 
-externalSpinTags[process_Association] := AssociationThread[
-  Lookup[Select[densityLegs[process], ! MatchQ[#["Parton"], FeynArts`V[__]] &], "Momentum"],
-  Unique["externalSpin$"] & /@ Select[densityLegs[process], ! MatchQ[#["Parton"], FeynArts`V[__]] &]
+externalSpinTags[process_Association] := Module[{legs},
+ legs=Select[densityLegs[process],!MatchQ[#["Parton"],FeynArts`V[__]]&];
+ If[legs==={},Return[<||>]];
+ AssociationThread[Lookup[legs,"Momentum"],Unique["externalSpin$"]&/@legs]
 ];
 
 tagExternalSpinors[expr_, tags_Association] := expr /.
@@ -341,7 +456,7 @@ fractionMeasure[process_Association] := Module[{fractions},
 ];
 
 
-factorizePair[config_Association] := Catch[
+factorizePair[config_Association, conjugateSeed_:Automatic] := Catch[
   Module[
     {
       process, eliminationRule, phase, amplitudes, completePair, splitPair,
@@ -352,7 +467,7 @@ factorizePair[config_Association] := Catch[
       externalCuts, loopCuts, externalPropagators,
       ordinaryPropagators, propagators,
       remainingPropagators,
-      remainingAlgebra
+      remainingAlgebra, contraction
     },
 
     If[! MatchQ[globalBasis, {_, _, _, _}],
@@ -376,12 +491,12 @@ factorizePair[config_Association] := Catch[
       (I Pi^(D/2))^Length[allLoopMomenta];
     cutNormalizationFactor =
       (I Pi^(D/2))^Length[cutLoopMomenta];
+    {externalCuts, loopCuts} = splitFactorsByMomentum[phase["Cuts"], allLoopMomenta];
+    If[conjugateSeed === Automatic,
     amplitudes = convertAmplitudePair[process];
     completePair = <|
       "Amplitude" -> amplitudes["Amplitude"],
-      "Conjugate" -> FeynCalc`ComplexConjugate[
-        amplitudes["Conjugate"]
-      ]
+      "Conjugate" -> conjugatePhysicalAmplitude[amplitudes["Conjugate"],config]
     |>;
     splitPair = AssociationMap[
       splitAmplitude[completePair[#], ToLowerCase[#]] &,
@@ -399,10 +514,6 @@ factorizePair[config_Association] := Catch[
         Times @@ (Last /@ Values[splitPair]) /. eliminationRule,
         allLoopMomenta
       ];
-    {externalCuts, loopCuts} = splitFactorsByMomentum[
-      phase["Cuts"],
-      allLoopMomenta
-    ];
 
     spinTags = externalSpinTags[process];
     taggedNumerator = tagExternalSpinors[
@@ -411,6 +522,10 @@ factorizePair[config_Association] := Catch[
     ];
     missingSpinTags = If[taggedNumerator===0,{},Select[Values[spinTags], FreeQ[taggedNumerator, #] &]];
     result = FeynCalc`FermionSpinSum[taggedNumerator];
+    (* Close color contractions before polarization sums expand the Lorentz
+       tensor. Repeating the same color algebra in every expanded scalar term
+       causes a large avoidable expression growth in gluon interferences. *)
+    result = contractColorFactors[result];
     result = gluonDensityProject[result, process];
     result = sumUnobservedPolarizations[result, process];
 
@@ -429,10 +544,14 @@ factorizePair[config_Association] := Catch[
       process["SetDistributionZero"]
     ];
     result = applyKinematicZeros[result, process];
-    result = FeynCalc`Calc[
-      result,
-      Assumptions -> process["Assumptions"]
+    result = collinearContractAmplitude[result, process["Assumptions"]],
+    {result,externalPropagators,ordinaryPropagators} =
+      Lookup[conjugateSeed,{"Numerator","ExternalPropagators","OrdinaryPropagators"}]
     ];
+    (* Save the physical contraction before routing reduction or i*pi^(D/2)
+       normalization. Its Hermitian partner never conjugates an abstract GLI. *)
+    contraction=<|"Numerator"->result,"ExternalPropagators"->externalPropagators,
+      "OrdinaryPropagators"->ordinaryPropagators|>;
     result = applyKinematicZeros[result, process];
     result = applyKinematicZeros[result /. eliminationRule, process];
     result = reduceCollinearLoopProducts[
@@ -488,6 +607,7 @@ factorizePair[config_Association] := Catch[
     propagators = loopCuts ordinaryPropagators;
     result = <|
       "Process" -> process,
+      "Contraction" -> contraction,
       "FractionMeasure" -> fractionMeasure[process],
       "PreFactor" -> preFactor,
       "PhaseSpace" -> phase["Measure"] externalCuts/cutNormalizationFactor,
@@ -540,6 +660,35 @@ factorizePair[config_Association] := Catch[
     result
   ],
   $collinearFailure
+];
+
+(* Evaluate each distinct closed trace before expanding products of traces.
+   FermionSpinSum has already closed the external spin chains. Keeping Calc
+   afterwards also handles open chains and the remaining color/Lorentz algebra. *)
+(* Isolate color products so SUNSimplify never expands their Lorentz
+   coefficients. Equivalent color products are evaluated only once. *)
+contractColorFactors[expression_]:=Module[{head,isolated,objects},
+ isolated=FeynCalc`FCColorIsolate[expression,Head->head,
+  FeynCalc`Collecting->False,FeynCalc`Factoring->False,FeynCalc`FCI->True];
+ objects=DeleteDuplicates[Cases[isolated,object_head:>object,{0,Infinity}]];
+ isolated/.((#->FeynCalc`SUNSimplify[First[#],Explicit->False])&/@objects)
+];
+collinearContractAmplitude[expression_, assumptions_] := Module[{prepared, traces},
+  (* Early chiral traces create large Levi-Civita products in BMHV.
+     Contract these chains in Calc's original order before expanding traces. *)
+  If[! FreeQ[expression, HoldPattern[FeynCalc`DiracGamma[5 | 6 | 7]]],
+    Return[FeynCalc`Calc[expression, Assumptions -> assumptions]]];
+  prepared = contractColorFactors[expression];
+  (* Pure Lorentz/color tensors need one complete contraction. The legacy
+     Calc fixed point repeats scalar power simplification up to five times,
+     even though no Dirac algebra is present. Keep the exact scalar expression
+     for later kinematic substitution and for the sum of interferences. *)
+  If[FreeQ[prepared,_FeynCalc`DiracGamma|_FeynCalc`DiracTrace|_FeynCalc`DOT|_Dot],
+    Return[FeynCalc`ExpandScalarProduct[FeynCalc`Contract[prepared]]]];
+
+  traces = DeleteDuplicates[Cases[prepared, _FeynCalc`DiracTrace, {0, Infinity}]];
+  prepared = prepared /. Normal[AssociationMap[FeynCalc`DiracSimplify, traces]];
+  FeynCalc`Calc[prepared, Assumptions -> assumptions]
 ];
 
 CollinearFactorize[config_Association] := Module[{result = factorizePair[config]},
@@ -613,7 +762,7 @@ completeTopologyRecord[
   record
 ];
 
-Options[CollinearFactorizePreIBP]={"PrintDiagrams"->False};
+Options[CollinearFactorizePreIBP]={"PrintDiagrams"->False,"PreparedDiagrams"->Automatic};
 CollinearFactorizePreIBP[config_Association,OptionsPattern[]] := Catch[
   Module[
     {
@@ -639,7 +788,7 @@ CollinearFactorizePreIBP[config_Association,OptionsPattern[]] := Catch[
       ],
       preIBPFail["diagram selection"]
     ];
-    diagrams = GenerateDiagram[config];
+    diagrams = GenerateDiagram[config, "PreparedDiagrams" -> OptionValue["PreparedDiagrams"]];
     If[diagrams === $Failed, preIBPFail["GenerateDiagram"]];
     If[TrueQ[OptionValue["PrintDiagrams"]],printSelectedDiagrams[diagrams, config]];
 
@@ -653,23 +802,32 @@ CollinearFactorizePreIBP[config_Association,OptionsPattern[]] := Catch[
     If[! AssociationQ[factorized],
       preIBPFail["CollinearFactorize"]
     ];
-    fractions = PartialFraction[
-      factorized["Propagators"],
-      factorized["LoopMomenta"]
-    ];
+    factorizedToPreIBP[config, factorized]
+  ], $preIBPFailure
+];
+
+factorizedToPreIBP[config_Association,factorized_Association] := Catch[Module[
+  {fractions,families,context,pair,topologies,shiftedIntegrand,forbiddenMomenta,remainingMomenta,prescribed},
+    If[factorized["Integrand"]===0,Return[Join[
+      Lookup[factorized,{"FractionMeasure","PreFactor","PhaseSpace"}],{0,{}}]]];
+    prescribed=preIBPOrdinaryPrescription[config,factorized];
+    fractions = Block[{$ordinaryPrescriptionLimitEstablished=
+      TrueQ[Lookup[Lookup[prescribed,"Certificate",<||>],"OrdinaryPrescriptionRemoved",False]]},
+      PartialFraction[prescribed["Propagators"],factorized["LoopMomenta"],
+        FeynCalc`FDS->False,FeynCalc`DropScaleless->False]];
     If[fractions === $Failed, preIBPFail["PartialFraction"]];
     families = BuildTopologies[
       fractions,
       factorized["LoopMomenta"],
-      pipelineConfig
+      config
     ];
     If[families === $Failed, preIBPFail["BuildTopologies"]];
 
     context = analyticContext[factorized["Process"]];
     If[context === $Failed, preIBPFail["BMHV analytic context"]];
     pair = <|
-      "Forward" -> forwardAmplitudes["SelectedIndex"],
-      "Conjugate" -> conjugateAmplitudes["SelectedIndex"]
+      "Forward" -> config["ForwardAmplitudes"]["SelectedIndex"],
+      "Conjugate" -> config["ConjugateAmplitudes"]["SelectedIndex"]
     |>;
     topologies = completeTopologyRecord[
         #,
@@ -677,6 +835,9 @@ CollinearFactorizePreIBP[config_Association,OptionsPattern[]] := Catch[
         context
       ] & /@ families;
     If[MemberQ[topologies, $Failed], preIBPFail["topology metadata"]];
+    If[KeyExistsQ[prescribed,"Certificate"],topologies=Join[#,<|
+      "SourceOrdinaryPrescriptionCertificate"->prescribed["Certificate"],
+      "OriginalPrescribedPropagators"->factorized["Propagators"]|>]& /@ topologies];
 
     shiftedIntegrand = DimensionalShift[
       factorized["Integrand"],
@@ -691,6 +852,9 @@ CollinearFactorizePreIBP[config_Association,OptionsPattern[]] := Catch[
     topologies = Select[topologies,Function[record,
       With[{name=record["Topology"][[1]]},
         !FreeQ[shiftedIntegrand,HoldPattern[FeynCalc`GLI[name,_List]]]]]];
+    If[checkCompletedPropagators[config, topologies,
+        DeleteDuplicates[Cases[shiftedIntegrand, _FeynCalc`GLI, {0, Infinity}]]] =!= True,
+      preIBPFail["active phase-space denominators"]];
     forbiddenMomenta = DeleteDuplicates @ Join[
       Lookup[config, "PhaseSpaceMomentum", {}],
       factorized["LoopMomenta"]

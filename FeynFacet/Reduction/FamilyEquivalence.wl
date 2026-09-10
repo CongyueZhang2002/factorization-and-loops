@@ -1,0 +1,159 @@
+(* Exact family changes before Laporta reduction. The full affine map is
+   established off shell. Only subsequent numerator multiplication uses the
+   algebraic reverse-unitarity identity for pinched mandatory cuts. *)
+BeginPackage["FeynFacet`"];
+MergeEquivalentCutIntegralFamilies::usage="MergeEquivalentCutIntegralFamilies[combined,request] shares typed cut families under exact unit-Jacobian affine loop changes, rewriting numerator powers in the representative inverse-propagator basis. All directed cuts, ordinary prescriptions, normalization and dotted-cut terms are preserved. request may specify PreferredFamilies. This is not an IBP reduction.";
+MapIntegralFamilyCoordinates::usage="MapIntegralFamilyCoordinates[integrals,source,representative] rewrites exact numerator powers between complete inverse-propagator bases in the same loop/external frame. Every positive propagator and its prescription must map literally, and directed cuts and measures are retained. The result is an algebraic identity, not an IBP relation.";
+Begin["`Private`"];
+cutFamilyEquivalenceFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"CutFamilyEquivalence"];
+MergeEquivalentCutIntegralFamilies[input_Association,request_Association:<||>]:=Catch[Module[
+ {families,targets,byName,prototypes,preferred,equivalences,mappings,tops,frames,
+  frameFor,transforms=<||>,polynomials,sourceFamily,repFamily,sourceName,repName,
+  sourceFrame,repFrame,l,n,products,variables,matrix,constant,inverseRules,images,
+  positiveMap,sourceIndices,representativeIndex,sourceCut,representativeCut,matched,
+  integralImage,allImages,outputCoefficients,rows,values,resultTargets,retained,sourceRules,
+  records={},started=AbsoluteTime[],sameFamily,unitCuts,base,numerator,monomials,recordsByFamily},
+ If[Lookup[input,"Format",None]=!="FeynFacet-CombinedCutIntegralDecompositions"||
+  !MatchQ[Lookup[input,"Families",None],{_Association..}],
+  cutFamilyEquivalenceFail["CombinedTypedCutDecompositionsRequired"]];
+ families=input["Families"];targets=input["Targets"];
+ byName=Association[(#["Topology"][[1]]->#)&/@families];
+ If[!DuplicateFreeQ[Keys[byName]],cutFamilyEquivalenceFail["DistinctFamilyNamesRequired"]];
+ prototypes=Table[
+  sourceIndices=Union[family["CutIndices"],Flatten[
+    Flatten[Position[#[[2]],_Integer?Positive,{1}]]&/@Select[targets,#[[1]]===family["Topology"][[1]]&]]];
+  FeynCalc`GLI[family["Topology"][[1]],Table[Boole[MemberQ[sourceIndices,j]],
+    {j,Length[family["Topology"][[2]]]}]],
+ {family,families}];
+ preferred=Lookup[request,"PreferredFamilies",{}];
+ If[!ListQ[preferred]||!ContainsAll[Keys[byName],preferred],
+  cutFamilyEquivalenceFail["DeclaredPreferredCutFamiliesRequired"]];
+ equivalences=FeynFacet`FindCutIntegralEquivalences[prototypes,families,
+  "Normalization"->"FullTypedIntegralDefinitions",
+  "PreferredMasterIntegrals"->Select[prototypes,MemberQ[preferred,First[#]]&]];
+ If[!AssociationQ[equivalences],cutFamilyEquivalenceFail["ExactAffineFamilyEquivalencesRequired",<|"Cause"->equivalences|>]];
+ mappings=equivalences["Mappings"];
+ tops=Association[(#["Topology"][[1]]->cutEquivalenceTopology[#,"FullTypedIntegralDefinitions"])&/@families];
+ frames=cutEquivalenceFrames/@tops;
+ frameFor[name_,proof_]:=SelectFirst[frames[name],
+  #["LoopTransformation"]===proof["LoopTransformation"]&,Missing["UnmatchedFrame"]];
+ Do[
+  sourceName=mapping["Source"][[1]];repName=mapping["Representative"][[1]];
+  If[sourceName===repName,
+   AssociateTo[transforms,sourceName-><|"Representative"->repName,"Identity"->True|>];Continue[]];
+  sourceFamily=byName[sourceName];repFamily=byName[repName];
+  sourceFrame=frameFor[sourceName,mapping["SourceFrame"]];
+  repFrame=frameFor[repName,mapping["RepresentativeFrame"]];
+  If[!AssociationQ[sourceFrame]||!AssociationQ[repFrame],
+   cutFamilyEquivalenceFail["VerifiedAffineFrameRequired"]];
+  l=Length[tops[repName]["Loops"]];n=Length[tops[repName]["GramMatrix"]];
+  products=Flatten[Table[cutScalarProduct[i,j],{i,l},{j,i,n}]];
+  variables=Table[Unique["familyScalarProduct"],{Length[products]}];
+  polynomials=repFrame["Polynomials"]/.Thread[products->variables];
+  matrix=Table[Coefficient[poly,x],{poly,polynomials},{x,variables}];
+  constant=polynomials/.Thread[variables->0];
+  If[Dimensions[matrix]=!={Length[variables],Length[variables]}||
+    !AllTrue[polynomials,PolynomialQ[#,variables]&]||Det[matrix]===0,
+   cutFamilyEquivalenceFail["CompleteRepresentativeAffineBasisRequired"]];
+  inverseRules=Thread[variables->LinearSolve[matrix,repFamily["DenominatorVariables"]-constant]];
+  images=Cancel[Together[#]]&/@(sourceFrame["Polynomials"]/.Thread[products->variables]/.inverseRules);
+  positiveMap=<||>;
+  sourceIndices=Flatten[Position[mapping["Source"][[2]],1,{1}]];
+  Do[
+   representativeIndex=FirstPosition[repFamily["DenominatorVariables"],images[[index]],None,{1},Heads->False];
+   If[representativeIndex===None,cutFamilyEquivalenceFail["ExactPositiveDenominatorImageRequired"]];
+   representativeIndex=First[representativeIndex];
+   sourceCut=SelectFirst[sourceFamily["Cuts"],#["Index"]===index&,None];
+   representativeCut=SelectFirst[repFamily["Cuts"],#["Index"]===representativeIndex&,None];
+   If[(sourceCut===None)=!=(representativeCut===None)||
+      (sourceCut=!=None&&sourceCut["Type"]=!=representativeCut["Type"]),
+    cutFamilyEquivalenceFail["TypedCutMappingRequired"]];
+   If[sourceCut===None&&tops[sourceName]["Prescriptions"][[index]]=!=
+      tops[repName]["Prescriptions"][[representativeIndex]],
+    cutFamilyEquivalenceFail["UnchangedOrdinaryPrescriptionRequired"]];
+   AssociateTo[positiveMap,index->representativeIndex],
+  {index,sourceIndices}];
+  AssociateTo[transforms,sourceName-><|"Representative"->repName,"Identity"->False,
+    "InversePropagatorImages"->images,"PositiveIndexMap"->positiveMap|>];
+  AppendTo[records,<|"SourceFamily"->sourceName,"RepresentativeFamily"->repName,
+    "SourceFrame"->mapping["SourceFrame"],"RepresentativeFrame"->mapping["RepresentativeFrame"],
+    "InversePropagatorImages"->images,"PositiveIndexMap"->positiveMap,
+    "MapScope"->"Unrestricted propagators before numerator multiplication; unit absolute loop Jacobian."|>],
+ {mapping,mappings}];
+ integralImage[master_FeynCalc`GLI]:=integralImage[master]=With[{map=transforms[master[[1]]]},
+  integralCoordinateImage[master,map,byName[map["Representative"]]]];
+ allImages=Association[(#->integralImage[#])&/@targets];
+ outputCoefficients=Map[Function[coefficientRow,
+  rows=Flatten[KeyValueMap[Function[{master,coefficient},
+    KeyValueMap[#1->coefficient #2&,allImages[master]]],coefficientRow],1];
+  values=If[rows==={},<||>,Merge[rows,Total]];
+  values=AssociationThread[Keys[values],cancelCoefficientRow[Values[values]]];
+  Select[values,#=!=0&]],input["Coefficients"]];
+ resultTargets=Sort[DeleteDuplicates[Flatten[Keys/@Values[outputCoefficients],1]]];
+ retained=Select[families,MemberQ[First/@resultTargets,#["Topology"][[1]]]&];
+ Join[KeyDrop[input,"FamilyRenamingRules"],<|
+  "SourceFamilyRenamingRules"->Lookup[input,"FamilyRenamingRules",Lookup[input,"SourceFamilyRenamingRules",<||>]],
+  "Families"->retained,"Coefficients"->outputCoefficients,"Targets"->resultTargets,
+  "AffineFamilyEquivalences"-><|"InputFamilyCount"->Length[families],
+   "OutputFamilyCount"->Length[retained],"InputTargetCount"->Length[targets],
+   "OutputTargetCount"->Length[resultTargets],"Maps"->records,"IntegralImages"->allImages,
+   "Seconds"->AbsoluteTime[]-started,"IBPRelationsUsed"->False,
+   "Scope"->"Exact affine loop changes and polynomial numerator conversion with the original directed cuts and ordinary prescriptions."|>|>]
+],"CutFamilyEquivalence"];
+integralCoordinateImage[master_FeynCalc`GLI,map_Association,family_Association]:=Module[
+  {powers=master[[2]],rep,nu,poly,coefficients,cutRules,result},
+  If[map["Identity"],Return[<|master->1|>]];
+  rep=map["Representative"];
+  nu=ConstantArray[0,Length[family["Topology"][[2]]]];
+  Do[If[powers[[j]]>0,
+   If[!KeyExistsQ[map["PositiveIndexMap"],j],cutFamilyEquivalenceFail["PositivePowerOutsideMappedFamilySupport"]];
+   nu[[map["PositiveIndexMap"][j]]]+=powers[[j]]],{j,Length[powers]}];
+  (* With a unit cut, a factor of its inverse propagator pinches that cut
+     and is exactly zero. Dotted cuts are deliberately kept in the polynomial. *)
+  cutRules=Thread[family["DenominatorVariables"][[Select[family["CutIndices"],nu[[#]]===1&]]]->0];
+  poly=Times@@Table[If[powers[[j]]<0,
+    (map["InversePropagatorImages"][[j]]/.cutRules)^(-powers[[j]]),1],{j,Length[powers]}];
+  coefficients=FeynFacet`PolynomialCoefficientRules[poly,family["DenominatorVariables"]];
+  If[FailureQ[coefficients],cutFamilyEquivalenceFail["PolynomialAffineNumeratorImageRequired"]];
+  result=Map[Function[term,With[{indices=nu-First[term]},
+    If[AllTrue[indices[[family["CutIndices"]]],#>0&],FeynCalc`GLI[rep,indices]->Last[term],Nothing]]],coefficients];
+  Association[result]
+ ];
+
+MapIntegralFamilyCoordinates[integrals_List,source_Association,representative_Association]:=Catch[Module[
+ {a=source["Topology"],b=representative["Topology"],images,positive,map=<||>,index,oldCut,newCut,record},
+ If[!AllTrue[integrals,MatchQ[#,_FeynCalc`GLI]&&#[[1]]===a[[1]]&&Length[#[[2]]]===Length[a[[2]]]&]||
+  !ContainsAll[Keys[source],{"InversePropagators","CutIndices","OrdinaryPropagatorPrescriptions","Definition"}]||
+  !ContainsAll[Keys[representative],{"ScalarProductRules","DenominatorVariables","CutIndices","OrdinaryPropagatorPrescriptions","Definition"}],
+  cutFamilyEquivalenceFail["CompleteIntegralCoordinateDefinitionsRequired"]];
+ If[Map[Identity,a[[3;;5]],{0,Infinity}]=!=Map[Identity,b[[3;;5]],{0,Infinity}]||
+  KeyTake[source,{"MeasurePrefactor","TimeDirection","Assumptions","Definition","AdditionalAcceptanceBoundaries"}]=!=
+   KeyTake[representative,{"MeasurePrefactor","TimeDirection","Assumptions","Definition","AdditionalAcceptanceBoundaries"}],
+  cutFamilyEquivalenceFail["SameIntegralFrameAndMeasureRequired"]];
+ images=Cancel[Together[#]]&/@(source["InversePropagators"]/.representative["ScalarProductRules"]);
+ If[!FreeQ[images,_FeynCalc`Pair|_FeynCalc`Momentum]||
+   !AllTrue[images,PolynomialQ[#,representative["DenominatorVariables"]]&],
+  cutFamilyEquivalenceFail["AffineIntegralCoordinateImagesRequired"]];
+ positive=Union[source["CutIndices"],Flatten[Flatten[Position[#[[2]],_Integer?Positive,{1}]]&/@integrals]];
+ Do[
+  index=FirstPosition[representative["DenominatorVariables"],images[[j]],None,{1},Heads->False];
+  If[index===None,cutFamilyEquivalenceFail["LiteralPositivePropagatorCoordinateImageRequired"]];
+  index=First[index];
+  oldCut=SelectFirst[source["Cuts"],#["Index"]===j&,None];
+  newCut=SelectFirst[representative["Cuts"],#["Index"]===index&,None];
+  If[(oldCut===None)=!=(newCut===None)||
+    (oldCut=!=None&&KeyDrop[oldCut,"Index"]=!=KeyDrop[newCut,"Index"]),
+   cutFamilyEquivalenceFail["DirectedCutCoordinateImageMismatch"]];
+  If[oldCut===None&&source["OrdinaryPropagatorPrescriptions"][[j]]=!=representative["OrdinaryPropagatorPrescriptions"][[index]],
+   cutFamilyEquivalenceFail["OrdinaryPrescriptionCoordinateImageMismatch"]];
+  AssociateTo[map,j->index],
+ {j,positive}];
+ If[Sort[Lookup[map,source["CutIndices"]]]=!=Sort[representative["CutIndices"]],
+  cutFamilyEquivalenceFail["EveryMandatoryCutMustBeMapped"]];
+ record=<|"Representative"->b[[1]],"Identity"->False,"InversePropagatorImages"->images,"PositiveIndexMap"->map|>;
+ <|"Format"->"FeynFacet-IntegralCoordinateMap",
+  "IntegralImages"->Association[(#->integralCoordinateImage[#,record,representative])&/@integrals],
+  "SourceDefinition"->source,"RepresentativeDefinition"->representative,
+  "CoordinateMap"->record,"UnitLoopJacobian"->True,"PrescriptionsPreserved"->True|>
+],"CutFamilyEquivalence"];
+End[];EndPackage[];

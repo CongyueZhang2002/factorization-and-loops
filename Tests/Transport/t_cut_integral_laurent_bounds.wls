@@ -10,6 +10,9 @@ input=<|"Topology"->threeTop,"Master"->{FeynCalc`GLI[cutTestFamily,{1,1,2}],
  FeynCalc`GLI[cutTestFamily,{1,1,3}]},"CutIndices"->{1,2,3},
  "CutMomenta"->{kl,ll,pp-kl-ll},"Prescription"->{0,0},"DimensionalRegulator"->ee|>;
 reps=ConstructMasterIntegralRepresentations[input]["MasterIntegralRepresentations"];
+(* Exercise the general Baikov bound explicitly; the constructor may evaluate
+   this special inclusive volume in Gamma functions before order determination. *)
+reps[1]=Join[reps[1],FeynFacet`Private`miRepBaikov[reps[1]]];
 bound=DetermineIntegralLaurentBound[reps[1]];
 FTAssert["unresolved three-body dots now have an automatic conservative bound",
  AssociationQ[bound] && IntegerQ[bound["LowerBound"]]];
