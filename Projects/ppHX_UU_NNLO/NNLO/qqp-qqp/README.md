@@ -7,7 +7,9 @@ history. Commands below run from the repository root in WSL.
 ## Accepted result and precise scope
 
 The accepted [Mathematica result](Results/DoubleReal/Assembly/Regeneration_2026-09-10/BareDoubleRealDistributions.wxf)
-is **76,125,796 bytes**. It is the bare two-real-gluon contribution with ghost
+is **76,125,796 bytes** and is versioned in Git with this project. The intermediate
+reduction, DE and assembly inputs listed below remain local. It is the bare
+two-real-gluon contribution with ghost
 subtraction for `u d -> observed u + d g g`. It spans epsilon^-8 through
 epsilon^0 and retains delta derivatives 0-4 and generalized plus powers -5 to -1.
 

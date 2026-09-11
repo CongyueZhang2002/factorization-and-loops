@@ -52,6 +52,10 @@ arbitrary-process NNLO calculation still needs supported integral, DE and
 physical-boundary specifications; do not interpret retained result presence
 as a universal one-card execution guarantee.
 
-All current output stays with the owning project/order/channel. Dated
+All current output stays with the owning project/order/channel. Git includes
+the 86 compact final Result.wl files (5,956,712 bytes in total, each below 1 MB)
+and the explicitly requested 76,125,796-byte ppHX double-real WXF result linked
+above. Intermediate reconstruction, reduction and solution files remain local.
+These sizes describe the accepted files on 2026-09-11. Dated
 dependencies can remain current when explicitly bound by accepted requests.
 Archive/ProjectLayouts and other retired paths are historical.

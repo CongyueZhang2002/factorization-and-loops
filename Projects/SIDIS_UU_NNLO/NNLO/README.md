@@ -99,3 +99,11 @@ The independent check can be repeated with:
 
 The checker uses at most two Wolfram kernels. Final endpoint assembly now
 takes roughly 0.1–1.5 seconds per channel, before file writing.
+
+## Master-integral count
+
+The shared current double-real system has **20 spanning masters**. The earlier
+coefficient-function paper lists 21; a later master-integral study reduces
+20 to 18 using two additional identities. A complete mapping of our basis to
+those published lists is not yet established. See the
+[count comparison and saved-record audit](MasterIntegralComparison.md).

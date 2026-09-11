@@ -233,3 +233,16 @@ links were checked without regenerating physics. See
 Fresh-clone dependencies and the limits of new-process NNLO automation remain
 explicit. The code and documentation are ready for the requested publication
 on codex/scientific-terminology-and-math-fixes.
+
+## Result publication and master-count audit — 2026-09-11
+
+The accepted 76,125,796-byte ppHX double-real WXF is now included in the
+project's versioned deliverables; its intermediate inputs remain local.
+The 86 compact final Result.wl files were already versioned.
+
+A fresh read-back confirms 20 masters in the shared final SIDIS double-real
+DE and physical coefficient vector, after the 22-master exact IBP reduction.
+The [literature comparison](Projects/SIDIS_UU_NNLO/NNLO/MasterIntegralComparison.md)
+distinguishes the published counts of 21, 20 and 18. No full paper-basis
+mapping or proof of minimality has been established. This audit did not
+regenerate or modify physical results.
