@@ -229,4 +229,29 @@ DifferentiateCutIntegral[family_Association,master_FeynCalc`GLI,parameter_Symbol
  {idx,Length[cores]}];
  Expand[result]
 ],"CutFamily"];
+
+(* Shared defining data for conservative identity checks. Provenance and
+   auxiliary inverse-matrix coordinates are not integral definitions. *)
+cutDefinitionConventions[record_Association]:=KeyTake[record,{
+ "Dimension","MeasurePrefactor","MasterIntegralPrefactor","Normalization","MomentumSpaceConvention",
+ "AdditionalAcceptanceBoundaries","Assumptions","KinematicConditions","KinematicRules",
+ "TimeDirection","CutConvention","CutDistributionConvention","Definition","BranchPrescription"}];
+normalizeCutTopologyRecord[record_Association]:=Module[{value=record,top},
+ If[MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[record,"Format",None]],
+  value=FeynFacet`CreateCutIntegralDefinition[record]];
+ If[FailureQ[value],Return[value]];
+ top=Lookup[value,"Topology",None];
+ If[!MatchQ[top,_FeynCalc`FCTopology]||!MatchQ[top[[1]],_String|_Symbol],
+  Return[Failure["CutTopologyDefinitionRequired",<||>]]];
+ value
+];
+normalizeCutTopologyRecord[_]:=Failure["CutTopologyDefinitionRequired",<||>];
+cutTopologyDefinitionMetadata[record_Association]:=Module[{top=record["Topology"],name},
+ name=If[StringQ[top[[1]]],top[[1]],SymbolName[top[[1]]]];
+ Join[cutDefinitionConventions[record],KeyTake[record,{
+   "Format","Cuts","CutMomenta","CutIndices","CutDirections","ParticleCutIndices",
+   "MeasurementCutIndices","OrdinaryPropagatorPrescriptions","PropagatorMassDimensions",
+   "InversePropagators","IntegrationType"}],<|"Topology"->ReplacePart[top,1->name]|>]
+];
+
 End[];EndPackage[];

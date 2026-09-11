@@ -142,7 +142,11 @@ ConstructCurrentRealContribution[density_Association,request_Association]:=Catch
  If[!AllTrue[expansions,AssociationQ],partonicResultFail["CurrentRealEndpointExpansionFailed",<|"Cause"->expansions|>]];
  meta=Join[KeyDrop[density,{"Format","FormatVersion","Values","ExactInEpsilon","Measurement","GenerationSeconds"}],
   <|"TestFunctionSupport"->normalData["TestFunctionSupport"],"DistributionBasis"-><|"Axes"->MapThread[Append[#1,"NormalVariable"->#2]&,{axes,normals}]|>|>];
- rows=Map[CreatePartonicResultFromEndpointExpansion[#,meta]&,expansions];
+ (* Each scalar expansion has one component until the final vector is assembled. *)
+ If[Length[expansions]=!=Length[meta["StructureFunctions"]],
+  partonicResultFail["CurrentStructureFunctionCountMismatch"]];
+ rows=MapThread[CreatePartonicResultFromEndpointExpansion[#1,
+  Join[meta,<|"StructureFunctions"->{#2}|>]]&,{expansions,meta["StructureFunctions"]}];
  If[!AllTrue[rows,AssociationQ],partonicResultFail["CurrentRealDistributionStorageFailed",<|"Cause"->rows|>]];
  rows=partonicDistributionVector[Lookup[rows,"Coefficients"]];
  (* Endpoint extraction determines a sufficient Laurent lower bound.

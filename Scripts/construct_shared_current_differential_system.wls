@@ -18,7 +18,7 @@ Do[
  input=FeynFacet`FamilyArtifactRead[file];
  If[!AssociationQ[input]||Lookup[input,"Format",None]=!="FeynFacet-CurrentIntegralFamilies",
   Print["Missing completed integral families: ",file];Exit[1]];
- If[FeynFacet`RequireMatchingProcessDefinition[input,FeynFacet`ReadProcessCard[directory,contribution]]=!=True,
+ If[FeynFacet`RequireMatchingProcessDefinition[input,FeynFacet`ReadProcessCard[card]]=!=True,
  Print["Generated inputs do not match the current process card; regenerate the contribution"];Exit[1]];
  label=StringRiffle[Append[Lookup[source,{"Project","Order","Channel"}],contribution],"/"];
  KeyValueMap[AssociateTo[decompositions,(label<>"/"<>#1)->#2]&,input["Values"]],

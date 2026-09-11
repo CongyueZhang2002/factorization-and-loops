@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 #!/usr/bin/env wolframscript
 $HistoryLength=0;$MaxExtraPrecision=50;
 SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
@@ -5,10 +6,10 @@ root=DirectoryName[ExpandFileName[$InputFileName],2];args=Rest[$ScriptCommandLin
 If[Length[args]=!=4,Print["Usage: run_current_contribution.wls PROJECT ORDER CHANNEL CONTRIBUTION"];Exit[2]];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 directory=FileNameJoin[{root,"Projects",args[[1]],args[[2]],args[[3]]}];
-card=FeynFacet`ReadContributionCard[directory,args[[4]]];setup=FeynFacet`ReadProcessCard[directory,args[[4]]];
+card=FeynFacet`ReadContributionCard[directory,args[[4]]];setup=FeynFacet`ReadProcessCard[card];
 If[!AssociationQ[card]||!AssociationQ[setup]||!KeyExistsQ[setup,"Currents"],Print["Current contribution card required."];Exit[1]];
-request=Join[FeynFacet`Private`projectAssemblyRequest[card,args[[3]],args[[4]]],
- FeynFacet`Private`projectResultIdentity[card,args[[3]],setup],<|"EpsilonRange"->card["EpsilonRange"]|>];
+request=Join[FeynFacet`ProjectAssemblyRequest[card],
+ FeynFacet`ProjectResultIdentity[card,setup],<|"EpsilonRange"->card["EpsilonRange"]|>];
 {seconds,result}=AbsoluteTiming[Switch[args[[4]],
  "Born",FeynFacet`ConstructBornResult[setup,request],
  "Real",density=FeynFacet`ConstructCurrentRealDensity[setup,request];

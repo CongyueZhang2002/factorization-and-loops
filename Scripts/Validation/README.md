@@ -1,5 +1,7 @@
 # Two independent validation levels
 
+For the full workflow and current process inputs, start with [WORKFLOW.md](../../WORKFLOW.md) and the [ppHX NNLO guide](../../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/README.md).
+
 These drivers accept process data. The package comparison function is
 ``FeynFacetSolution`CompareLaurentCoefficients``; it requires every requested
 order, accounts for numerical uncertainty, and distinguishes failed values

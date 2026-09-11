@@ -6,6 +6,7 @@ RequirePartonicEpsilonRange::usage="RequirePartonicEpsilonRange[result,{low,high
 CombinePartonicResults::usage="CombinePartonicResults[contributions,metadata] adds results in the same convention and records their contribution names.";
 CreatePartonicResultFromEndpointExpansion::usage="CreatePartonicResultFromEndpointExpansion[expansion,metadata] stores explicit normal-crossing endpoint coefficients in the common recursive delta/plus/regular format. DistributionBasis[Axes] declares NormalVariable, Variable, Endpoint, Interval and Distance for each axis, with a unit absolute Jacobian.";
 PartonicResultInteriorCoefficients::usage="PartonicResultInteriorCoefficients[result] restricts the common tensor-product delta/plus/regular Laurent result to the open physical domain: deltas vanish and plus distributions equal their ordinary densities. It retains all recorded epsilon orders and does not define an endpoint continuation.";
+PartonicScalarCoefficientRules::usage="PartonicScalarCoefficientRules[result] flattens each epsilon coefficient into scalar rules indexed by epsilon order, one Delta/Plus/Regular label per axis and the structure-function index.";
 Begin["`Private`"];
 partonicResultFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"PartonicResults"];
 partonicDistribution[delta_,plus_,regular_]:=<|"DeltaCoefficient"->delta,"PlusCoefficients"->plus,"RegularCoefficient"->regular|>;
@@ -41,7 +42,20 @@ partonicDistributionSum[rows_List,n_Integer?Positive]:=Module[{sum,keys,zero},
   Association@Table[k->sum[Lookup[#["PlusCoefficients"],k,zero]&/@rows],{k,keys}],
   sum[Lookup[rows,"RegularCoefficient"]]]
 ];
-partonicResultValidQ[result_]:=Module[{range,e,cs,basis,depth},
+(* Scalar zero represents a zero in every structure function; nonzero
+   vectors must have exactly the declared length, at every endpoint leaf. *)
+partonicDistributionComponentsQ[row_Association,depth_Integer?Positive,n_Integer?Positive]:=
+  AllTrue[Join[{row["DeltaCoefficient"],row["RegularCoefficient"]},Values[row["PlusCoefficients"]]],
+    partonicDistributionComponentsQ[#,depth-1,n]&];
+partonicDistributionComponentsQ[value_,0,n_]:=If[ListQ[value],
+  Length[value]===n&&AllTrue[value,!ListQ[#]&&!AssociationQ[#]&],
+  !AssociationQ[value]&&(n===1||value===0)];
+partonicDistributionComponentsQ[___]:=False;
+partonicZeroTreeQ[value_Association]:=AllTrue[Values[value],partonicZeroTreeQ];
+partonicZeroTreeQ[value_List]:=AllTrue[value,partonicZeroTreeQ];
+partonicZeroTreeQ[value_]:=TrueQ[value===0];
+
+partonicResultValidQ[result_]:=Module[{range,e,cs,basis,depth,components},
  If[!AssociationQ[result]||Lookup[result,"Format",None]=!="FeynFacet-PartonicResult"||
    !ContainsAll[Keys[result],{"EpsilonRange","DimensionalRegulator","Coefficients","Scale","Variables","DensityConvention","DistributionBasis","DimensionalPrefactor","LaurentLowerBound","Order","Contribution"}],Return[False]];
  range=result["EpsilonRange"];e=result["DimensionalRegulator"];cs=result["Coefficients"];
@@ -50,10 +64,14 @@ partonicResultValidQ[result_]:=Module[{range,e,cs,basis,depth},
   !AllTrue[basis["Axes"],ContainsAll[Keys[#],{"Variable","Endpoint","Interval","Distance"}]&]||
   !DuplicateFreeQ[Lookup[basis["Axes"],"Variable"]]),Return[False]];
  depth=partonicDistributionDepth[basis];
+  components=Lookup[result,"StructureFunctions",{"Scalar"}];
+  If[!MatchQ[e,_Symbol]||!MatchQ[components,{__}]||!DuplicateFreeQ[components],Return[False]];
+  If[!AssociationQ[cs]||!AllTrue[Values[cs],partonicDistributionValidQ[#,depth]&]||
+    !AllTrue[Values[cs],partonicDistributionComponentsQ[#,depth,Length[components]]&],Return[False]];
  If[KeyExistsQ[result,"Polarization"]&&!MatchQ[result["Polarization"],_Association],Return[False]];
  TrueQ[MatchQ[range,{_Integer,_Integer}]&&First[range]<=Last[range]&&AssociationQ[cs]&&
   Sort[Keys[cs]]===(Range@@range)&&IntegerQ[result["LaurentLowerBound"]]&&result["LaurentLowerBound"]<=First[range]&&AllTrue[Values[cs],partonicDistributionValidQ[#,depth]&]&&
-  FreeQ[cs,e|_FeynFacet`EndpointDeltaDerivative|_FeynFacet`EndpointPlusDistribution|_Failure|_Missing|_SeriesData|_Series|_SeriesCoefficient|Indeterminate|_DirectedInfinity|$Failed|$Aborted]]
+  FreeQ[cs,(symbol_Symbol/;SymbolName[symbol]===SymbolName[e])|_FeynFacet`EndpointDeltaDerivative|_FeynFacet`EndpointPlusDistribution|_Failure|_Missing|_SeriesData|_Series|_SeriesCoefficient|Indeterminate|_DirectedInfinity|$Failed|$Aborted]]
 ];
 CreatePartonicResult[coefficients_Association,metadata_Association]:=Catch[Module[{record},
  If[Length[coefficients]===0,partonicResultFail["ExplicitEpsilonCoefficientsRequired"]];
@@ -82,7 +100,7 @@ ReadPartonicResult[file_String,requirements_Association:<||>]:=Catch[Module[{res
    partonicResultFail["PartonicResultIdentityMismatch",<|"File"->file,"Field"->key,"Expected"->value,"Actual"->Lookup[result,key,Missing[]]|>]]],requirements];
  If[KeyExistsQ[requirements,"EpsilonRange"],range=RequirePartonicEpsilonRange[result,requirements["EpsilonRange"]];
    If[FailureQ[range],Throw[range,"PartonicResults"]]];result],"PartonicResults"];
-CombinePartonicResults[contributions_Association,metadata_Association]:=Catch[Module[{all,range,cs,rows,plus,identityKeys,depth},
+CombinePartonicResults[contributions_Association,metadata_Association]:=Catch[Module[{all,range,cs,rows,identityKeys,depth},
  all=Values[contributions];If[all==={}||!AllTrue[all,partonicResultValidQ],partonicResultFail["CommonPartonicResultsRequired"]];
  all=Map[Join[#,<|"DistributionBasis"->partonicPhysicalDistributionBasis[#["DistributionBasis"]]|>]&,all];
  identityKeys=Select[{"Order","Project","Channel","PhysicalChannel","Polarization","Coupling","CouplingPower","StructureFunctions"},
@@ -172,5 +190,16 @@ PartonicResultInteriorCoefficients[result_Association]:=Catch[Module[{axes,inter
   "StructureFunctions"->Lookup[result,"StructureFunctions",{}],
   "Scope"->"Restriction to the open physical domain; endpoint-supported terms are absent here."|>
  ],"PartonicResults"];
+
+PartonicScalarCoefficientRules[result_Association]:=Module[{n,walk,depth},
+ If[!partonicResultValidQ[result],Return[Failure["CommonPartonicResultRequired",<||>]]];
+ n=Length[Lookup[result,"StructureFunctions",{"Scalar"}]];depth=partonicDistributionDepth[result["DistributionBasis"]];
+ walk[row_,path_,0]:=Table[Append[path,i]->If[ListQ[row],row[[i]],row],{i,n}];
+ walk[row_,path_,d_Integer?Positive]:=Join[
+  walk[row["DeltaCoefficient"],Append[path,"Delta"],d-1],
+  Flatten[KeyValueMap[walk[#2,Append[path,{"Plus",#1}],d-1]&,row["PlusCoefficients"]],1],
+  walk[row["RegularCoefficient"],Append[path,"Regular"],d-1]];
+ Association@Flatten[KeyValueMap[walk[#2,{#1},depth]&,result["Coefficients"]],1]
+];
 
 End[];EndPackage[];

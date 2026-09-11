@@ -2,7 +2,7 @@
 BeginPackage["FeynFacet`"];
 ReadProjectCard::usage="ReadProjectCard[directory] reads the root card.wl and attaches its actual directory.";
 ReadContributionCard::usage="ReadContributionCard[channelDirectory,name] composes the project settings with one order/channel contribution. A component is selected as DoubleReal.Gluons.";
-ReadProcessCard::usage="ReadProcessCard[channelDirectory,name] builds a complete amplitude setup from the shared project physics and contribution card.";
+ReadProcessCard::usage="ReadProcessCard[compiledCard] or ReadProcessCard[channelDirectory,name] builds a complete amplitude setup from the shared project physics and contribution card.";
 WriteProjectCard::usage="WriteProjectCard[association,file] writes a human-readable Wolfram card; short nested associations remain on one row.";
 ProjectChannelName::usage="ProjectChannelName[project,physicalChannel] returns the explicit catalog name for a physical incoming/observed/recoil channel.";
 RequireMatchingProcessDefinition::usage="RequireMatchingProcessDefinition[artifact,process] requires exact agreement between a stored generated process definition and the current compiled card. Changed charges, spin assignments, momentum or diagram selections require regeneration.";
@@ -77,9 +77,10 @@ projectSpinSetup[setup_Association,project_Association]:=Module[
   "SetDistributionZero"->Flatten[zeros],
   "CoefficientKinematics"->Join[setup["CoefficientKinematics"],<|"DistributionFactor"->Times@@selected|>]|>]
 ];
-ReadProcessCard[directory_String,name_String]:=Catch[Module[
- {card,project,setup,channel,species,radiation,unobserved,final,initial,momenta,loops,orders,selection,source,real,kin},
- card=projectCheck[ReadContributionCard[directory,name],"ContributionCardRequired"];
+ReadProcessCard[directory_String,name_String]:=Module[{card=ReadContributionCard[directory,name]},
+  If[AssociationQ[card],ReadProcessCard[card],card]];
+ReadProcessCard[card_Association]:=Catch[Module[
+ {project,setup,channel,species,radiation,unobserved,final,initial,momenta,loops,orders,selection,source,real,kin},
  If[KeyExistsQ[card,"Components"],projectFail["SelectAnAmplitudeComponent"]];
  If[KeyExistsQ[card,"Current"],Return[projectCurrentProcessCard[card]]];
  project=card;channel=project["Channels"][card["Channel"]];

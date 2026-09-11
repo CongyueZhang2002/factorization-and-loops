@@ -23,7 +23,7 @@ Projects/ppHX_UU_NNLO/
 ```
 
 LL and TT use separate projects; both incoming quarks are polarized, with
-unpolarized fragmentation. The NNLO project currently declares a bare
+unpolarized fragmentation. The ppHX NNLO project currently declares a bare
 double-real contribution. Missing real-virtual, double-virtual and NNLO
 counterterms are not treated as zero.
 
@@ -31,8 +31,13 @@ counterterms are not treated as zero.
 
 `ReadContributionCard[channelDirectory,name]` combines the root and contribution
 associations recursively. Association members merge; lists and scalar values
-replace defaults. `ReadProcessCard` compiles the physical amplitude setup
-and derives the complete diagram selection without modifying input files.
+replace defaults. `ReadProcessCard[card]` compiles the physical amplitude setup
+from that already merged card and derives the complete diagram selection.
+`ProjectAssemblyRequest[card]` and `ProjectResultIdentity[card,setup]` use the
+same card without reading files again. The request's coupling power comes
+from the declared LO/NLO/NNLO order; an unspecified radiative order is refused.
+The directory/name form of `ReadProcessCard` composes the card once and then
+uses this same compiler.
 Select the components of `DoubleReal.wl` as `DoubleReal.Gluons` and
 `DoubleReal.Ghosts`. Their assembly weights are explicit in that one card and checked against the
 particle content. The existing assembly derives and applies each weight once.
@@ -87,10 +92,13 @@ requires Born coefficients through epsilon^(m+1), including D-dimensional
 convolution weights. The planner checks the card's declaration. The producer
 computes the maximum of its Born request and the consumer's declared range;
 the reader rejects insufficient saved coverage. Born cards can request
-higher powers explicitly.
+higher powers explicitly. Current and scattering projects share dependency
+resolution and Born loading: richer compatible results are reusable, while
+`assemble` never regenerates missing, mismatched or insufficient dependencies.
+`resume` may regenerate them and applies the same checks to generated results.
 
 This rule applies to NLO counterterms, not a virtual representation with double
-poles. The NLO real/virtual analytic driver currently supports finite output
+poles. The scattering NLO real/virtual analytic driver currently supports finite output
 through epsilon^0 and rejects deeper requests.
 
 Physical contributions and completed order/channel results all use
@@ -222,3 +230,35 @@ delta/plus coefficients and multiple distributions on one axis are rejected.
 The common reader, epsilon-range requirement, scalar mapping and contribution
 sum apply to either one axis or the recursive tensor product. No change of
 result representation is needed between LO, NLO and NNLO of the same observable.
+
+## Finalization and verification
+
+Coefficients/PartonicResults.wl owns recursive distribution algebra, component
+validation and scalar indexing. A scalar index retains the epsilon power, every
+axis branch and the structure-function component. A zero scalar is the zero
+in every component; a nonzero vector must have exactly the declared length.
+
+Coefficients/PartonicFinalization.wl owns finite extraction and the exact-zero
+overload of VerifyPartonicPoleCancellation. The numerical overload is in
+Numerics/PartonicResults.wl. Both retain the complete keyed pole coefficients
+and their conventions for exact source matching. Numerical checks remain
+numerical evidence; NLO finalization requires RequireAlgebraicIdentityProof.
+
+Finalization checks the complete Laurent interval and the explicit finite
+expressions independently. It does not replace coefficients with a reference
+result. Extracting only a positive epsilon slice preserves the finite Laurent
+lower bound, so omitted lower finite coefficients cannot become implicit zeros.
+The finalization predicate applies to the integral-free scalar representations
+currently supported by the partonic result, not to intermediate master solutions.
+
+
+Coefficient reconstruction can use accepted endpoint data before interpolation.
+A contribution-level CoefficientReconstruction association supplies
+EndpointCatalog and PhysicalNormalization paths (relative to the order/channel
+directory), SourceNormalization, KinematicRules and Assumptions. ThroughOrder
+defaults to the contribution's upper EpsilonRange. These are computational
+dependencies and do not alter the amplitude setup or diagram identity.
+The general planner chooses expensive columns and sufficient expansion orders;
+no master-specific choices belong in the card. The default coefficient input
+path is Results/<contribution>/<component>/Reduction, consistent with the
+manifest-driven upstream stages.

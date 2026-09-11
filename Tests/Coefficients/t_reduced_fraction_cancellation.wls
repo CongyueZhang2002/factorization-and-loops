@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 rfSetup=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/NLO/u-g_g-u","Real.State01"];

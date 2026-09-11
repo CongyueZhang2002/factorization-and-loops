@@ -7,7 +7,20 @@ equations (epsilon form, solution along paths, boundary data) -> endpoint
 expansion -> assembly of the hard function. The process enters only through
 its cards. 
 
-Read `STATUS.md` for current state
+Read [WORKFLOW.md](WORKFLOW.md), then the selected project/channel README,
+then [STATUS.md](STATUS.md). These are the context-free execution directions
+and current state. Dated historical records are not active instructions.
+
+On the current WSL Ubuntu installation, use at most eight aggregate CPU cores
+and at most two main Wolfram kernels. Native thread counts are independent of
+Wolfram kernel licences. Prefer one supervised reconstruction queue with the
+available budget; do not recreate the fixed 7+1 coefficient-job split.
+A new clone may lack ignored results and local vendor symlink targets.
+
+When finishing work, update the relevant workflow/result index as well as the
+run report. Record scope, current input/output paths, actual coverage, timings
+and still-running owned processes; do not leave contradictory “current” notes
+for a future agent.
 
 ## Layout
 

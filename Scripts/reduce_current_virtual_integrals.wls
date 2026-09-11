@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
@@ -9,7 +10,7 @@ path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
 card=FeynFacet`ReadContributionCard[directory,contribution];
 source=FeynFacet`FamilyArtifactRead[path<>"/IntegralFamilies.wl"];
 If[!AssociationQ[source]||source["Format"]=!="FeynFacet-VirtualIntegralFamilies",Print["Virtual integral decomposition required"];Exit[1]];
-If[FeynFacet`RequireMatchingProcessDefinition[source,FeynFacet`ReadProcessCard[directory,contribution]]=!=True,
+If[FeynFacet`RequireMatchingProcessDefinition[source,FeynFacet`ReadProcessCard[card]]=!=True,
  Print["Generated virtual inputs do not match the current card"];Exit[1]];
 definition=Lookup[card["Assembly"],"ScalarIntegralLibrary",None];
 If[!AssociationQ[definition]||definition["Name"]=!="MasslessTwoLoopVertex",Print["Declare a supported scalar integral library"];Exit[1]];

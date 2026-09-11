@@ -1,5 +1,7 @@
+Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Get[root<>"/FeynFacet/Coefficients/ColorDecomposition.wl"];
+Begin["FeynFacet`Private`"];Get[root<>"/FeynFacet/Core/ParallelTasks.wl"];End[];
 Clear[ca,cf,as,v,z];
 d=<|"DataType"->"FiniteEndpointSubtractedDensity","EpsilonOrderRange"->{-1,0},
  "AlgebraicDefinitions"->{},"IntegralDefinitions"->{},"KernelDefinitions"->{},
@@ -59,5 +61,16 @@ FTAssert["factors depending on epsilon cannot label Laurent coefficients",
 FTAssert["a shared definition cannot hide epsilon from color collection",
  MatchQ[CollectDistributionColorFactors[Join[endpointFactorData,<|"AlgebraicDefinitions"->{1+eps}|>],
  <|"ColorVariables"->{ca,cf}|>],Failure["EpsilonIndependentAlgebraicCoefficientsRequired",_]]];
+FTAssert["a wrong color context cannot silently give an uncolored result",
+ MatchQ[CollectDistributionColorFactors[d/.ca->WrongColorContext`ca,
+  <|"ColorVariables"->{ca,cf}|>],Failure["CoefficientFactorContextMismatch",_]]];
+FTAssert["a wrong coupling context is rejected",
+ MatchQ[CollectDistributionColorFactors[d/.as->WrongColorContext`as,
+  <|"ColorVariables"->{ca,cf},"CouplingVariable"->as|>],
+  Failure["CoefficientFactorContextMismatch",_]]];
+FTAssert["an external distribution head in the wrong context is rejected",
+ MatchQ[CollectDistributionColorFactors[d/.pdf->WrongColorContext`pdf,
+  <|"ColorVariables"->{ca,cf},"ExternalFactors"->{pdf[v]}|>],
+  Failure["CoefficientFactorContextMismatch",_]]];
 FTReport[];
 

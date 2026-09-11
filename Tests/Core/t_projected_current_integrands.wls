@@ -10,7 +10,7 @@ Do[
  pciDirectory=root<>"/Projects/"<>pciCase[[1]]<>"/NLO/"<>pciCase[[2]];
  pciCard=FeynFacet`ReadContributionCard[pciDirectory,"Real"];
  pciSetup=FeynFacet`ReadProcessCard[pciDirectory,"Real"];
- pciRequest=FeynFacet`Private`projectAssemblyRequest[pciCard,pciCase[[2]],"Real"];
+ pciRequest=FeynFacet`ProjectAssemblyRequest[pciCard,pciCase[[2]],"Real"];
  pciOld=FeynFacet`ConstructCurrentRealDensity[pciSetup,pciRequest];
 
  pciContractionRequest=If[pciCase[[1]]==="SIDIS_LL_NNLO",

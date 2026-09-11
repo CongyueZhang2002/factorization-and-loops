@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 scalarCampaignRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[scalarCampaignRoot<>"/Scripts/Coefficients/ScalarEndpointDriver.wl"];
@@ -9,9 +10,9 @@ scalarCampaignInput=ScalarEndpointDriver`ReadScalarEndpointInput[First[scalarCam
 If[!AssociationQ[scalarCampaignInput],Print["FAIL campaign input ",scalarCampaignInput];Exit[2]];
 scalarCampaignResult=ScalarEndpointCampaign`RunScalarEndpointCampaign[scalarCampaignInput,Last[scalarCampaignArgs]];
 If[FailureQ[scalarCampaignResult],Print["FAIL ",scalarCampaignResult];Exit[1]];
-Print[scalarCampaignResult["ExplicitFamilyCount"]," explicit / ",scalarCampaignResult["RequestedFamilyCount"],
- "; ",scalarCampaignResult["DeferredFamilyCount"]," deferred; ",scalarCampaignResult["MissingOrdersFamilyCount"],
- " missing orders; ",scalarCampaignResult["UnresolvedCoefficientClassFamilyCount"]," unresolved coefficient classes; ",
- scalarCampaignResult["OtherFailureFamilyCount"]," other failures."];
-If[scalarCampaignResult["ExplicitFamilyCount"]+scalarCampaignResult["DeferredFamilyCount"]<scalarCampaignResult["RequestedFamilyCount"],Exit[1]];
+Print["COMPLETED SCALAR ENDPOINT CAMPAIGN ",scalarCampaignResult["ExplicitContributionCount"]," explicit / ",scalarCampaignResult["RequestedContributionCount"],
+ "; ",scalarCampaignResult["DeferredContributionCount"]," deferred; ",scalarCampaignResult["MissingOrdersContributionCount"],
+ " missing orders; ",scalarCampaignResult["UnresolvedCoefficientClassContributionCount"]," unresolved coefficient classes; ",
+ scalarCampaignResult["OtherFailureContributionCount"]," other failures."];
+If[scalarCampaignResult["ExplicitContributionCount"]+scalarCampaignResult["DeferredContributionCount"]<scalarCampaignResult["RequestedContributionCount"],Exit[1]];
 Exit[0];

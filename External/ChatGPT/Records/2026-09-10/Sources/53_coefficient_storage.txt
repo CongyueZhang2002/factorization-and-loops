@@ -1,0 +1,1184 @@
+FILE FeynFacet/Core/Records.wl
+(* Context-guarded Wolfram records, atomic writes, and length-prefixed
+   binary coefficient records. *)
+
+Begin["FeynFacet`Private`"];
+
+(* public symbols: Clear, not ClearAll (FeynFacet.m defines their usage
+   messages before this file loads) *)
+Clear[FamilyArtifactRead, FamilyArtifactWrite];
+ClearAll[
+  $familyArtifactReadMessages,
+  coefficientAppendRecord,
+  coefficientWriteRecord,
+  coefficientScanRecords,
+  coefficientReadRecord
+];
+
+(* Parse unqualified symbols in the requested context, independent of
+   optional packages on the caller's context path. Qualified names remain unchanged. New records qualify symbols, including shadowable System names, so that both guarded reads and ordinary Get preserve identities.
+   Syntax errors and aborted reads fail; benign evaluation messages are
+   retained separately and do not discard an otherwise valid record. *)
+$familyArtifactReadMessages = {};
+
+FamilyArtifactRead[file_String] := FamilyArtifactRead[file, "Global`"];
+
+FamilyArtifactRead[file_String, context_String] := Module[{value, messages},
+  If[! StringEndsQ[context, "`"], Return[$Failed]];
+  If[! FileExistsQ[file], Return[$Failed]];
+  {value, messages} = Block[
+    {$Context = context, $ContextPath = {"System`", context},
+     $MessageList = {}},
+    Quiet[{
+      CheckAbort[
+        Check[Get[file], $Failed,
+          {Syntax::sntx, Syntax::sntxi, Syntax::sntxb, Syntax::sntxf,
+           Syntax::sntue, Syntax::sntunc, Syntax::com, Syntax::newl,
+           Syntax::bktmcp, Syntax::bktmop, Syntax::bktwrn, Syntax::bktnps,
+           Syntax::tsntxi, Syntax::snthc, Syntax::stresc}],
+        $Aborted],
+      $MessageList}]];
+  $familyArtifactReadMessages = messages;
+  If[value === $Aborted, $Failed, value]];
+
+(* Atomic artifact writer: Put to a temporary name, then RenameFile. *)
+Options[FamilyArtifactWrite]={"Compression"->False};
+FamilyArtifactWrite[value_, file_String,OptionsPattern[]] := Module[{directory, temporary,stream},
+  directory = DirectoryName[ExpandFileName[file]];
+  If[directory =!= "" && ! DirectoryQ[directory],
+    CreateDirectory[directory, CreateIntermediateDirectories -> True]];
+  temporary = file <> ".partial-" <> ToString[$ProcessID];
+  If[TrueQ[OptionValue["Compression"]]||(OptionValue["Compression"]===Automatic&&ByteCount[value]>8*1024^2),
+    stream=OpenWrite[temporary];
+    WriteString[stream,"Uncompress[",ToString[Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Compress[value]],InputForm],"]\n"];Close[stream],
+    (* Both package names and System names shadowed by packages must
+       retain their explicit contexts in small uncompressed records. *)
+    Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Put[value, temporary]]];
+  RenameFile[temporary, file, OverwriteTarget -> True];
+  file
+];
+
+
+coefficientAppendRecord[file_String, expression_] := Module[
+  {stream, bytes, values},
+  bytes = BinarySerialize[expression];
+  values = Normal[bytes];
+  stream = OpenAppend[file, BinaryFormat -> True];
+  If[Head[stream] =!= OutputStream, Return[$Failed]];
+  BinaryWrite[stream, Length[values], "UnsignedInteger64"];
+  BinaryWrite[stream, values, "Byte"];
+  Close[stream];
+  file
+];
+
+coefficientWriteRecord[file_String, expression_] := Module[{},
+  If[FileExistsQ[file], DeleteFile[file]];
+  coefficientAppendRecord[file, expression]
+];
+
+coefficientScanRecords[file_String, function_] := Module[
+  {stream, length, bytes, count = 0, value, result = True},
+  If[! FileExistsQ[file], Return[0]];
+  stream = OpenRead[file, BinaryFormat -> True];
+  If[Head[stream] =!= InputStream, Return[$Failed]];
+  While[True,
+    length = BinaryRead[stream, "UnsignedInteger64"];
+    If[length === EndOfFile, Break[]];
+    If[! IntegerQ[length] || length < 0 || length > FileByteCount[file]-StreamPosition[stream],
+      result = $Failed;
+      Break[]
+    ];
+    bytes = BinaryReadList[stream, "Byte", length];
+    If[Length[bytes] =!= length,
+      result = $Failed;
+      Break[]
+    ];
+    value = Quiet @ Check[BinaryDeserialize[ByteArray[bytes]], $Failed];
+    If[value === $Failed,
+      result = $Failed;
+      Break[]
+    ];
+    If[function[value] === $Failed,
+      result = $Failed;
+      Break[]
+    ];
+    count++
+  ];
+  Close[stream];
+  If[result === $Failed, $Failed, count]
+];
+
+coefficientReadRecord[file_String] := Module[{values = {}, count},
+  count = coefficientScanRecords[file, AppendTo[values, #] &];
+  If[count === $Failed || count =!= 1, $Failed, First[values]]
+];
+
+End[];
+
+
+FILE FeynFacet/Coefficients/Storage.wl
+(* Bounded-memory reconstruction and exact simplification of IBP coefficients. *)
+
+CoefficientSimplification::collect =
+  "Bounded target collection failed at check `1`: `2`.";
+
+$coefficientStoreFormat = "FeynFacet-CoefficientStore";
+$coefficientStoreVersion = 2;
+
+$coefficientLateSetupKeys = {
+  "HadronicVariables",
+  "CoefficientKinematics",
+  "KinematicMassDimensions",
+  "ColorRules"
+};
+
+coefficientAnalyticContextQ[context_] := Module[{required},
+  required = {
+    "Gamma5Scheme", "GlobalBasis", "GlobalBasisGram",
+    "SetEvanescentZero", "SetMassZero", "SetDistributionZero",
+    "CollinearRelations", "Assumptions", "KinematicMassDimensions",
+    "LoopDimension", "DimensionRule", "CutConvention",
+    "DistributionConvention", "FeynFacetSourceHash", "Fingerprint"
+  };
+  AssociationQ[context] &&
+    ContainsAll[Keys[context], required] &&
+    context["Gamma5Scheme"] === "BMHV" &&
+    (* same shape validation as analyticContextQ (Core.wl): the rule must
+       be D -> a - 2 regulator with integer a, not identity with the
+       front end's own $dimensionRule *)
+    analyticDimensionRuleQ[context["DimensionRule"],
+      analyticContextRegulator[context]] &&
+    StringQ[context["FeynFacetSourceHash"]] &&
+    context["Fingerprint"] ===
+      reductionFingerprint[KeyDrop[context, "Fingerprint"]] &&
+    exactDataQ[context]
+];
+
+coefficientKiraReductionQ[kira_] := Block[
+  {analyticContextQ = coefficientAnalyticContextQ},
+  kiraReductionQ[kira]
+];
+
+(* Do a freshly read input set and a stored artifact describe the same
+   diagram set?  This used to be answered by comparing the two stored
+   ABSOLUTE result directories, so moving or renaming a result tree
+   turned every stored artifact into "another diagram set".  The
+   analytic-context fingerprint is the content identity of the inputs
+   (scheme, basis, kinematics, dimension rule, source hash) and is what
+   is compared now; an artifact that carries no fingerprint on either
+   side falls back to the stored paths, exactly as before (generality
+   pass 2026-08-23). *)
+coefficientContextFingerprint[data_] := Lookup[
+  Lookup[data, "AnalyticContext", <||>], "Fingerprint",
+  Missing["NoFingerprint"]
+];
+
+coefficientSameInputsQ[data_, stored_] := Module[{left, right, a, b},
+  left = coefficientContextFingerprint[data];
+  right = coefficientContextFingerprint[stored];
+  If[StringQ[left] && StringQ[right], Return[left === right]];
+  a = Lookup[data, "ResultDirectory", Missing[]];
+  b = Lookup[stored, "ResultDirectory", Missing[]];
+  StringQ[a] && StringQ[b] && ExpandFileName[a] === ExpandFileName[b]
+];
+
+coefficientShardIndex[key_, count_Integer] :=
+  1 + Mod[Hash[HoldComplete[key], "CRC32"], count];
+
+coefficientShardFile[directory_, prefix_, index_Integer] := FileNameJoin[{
+  directory,
+  prefix <> "_" <> IntegerString[index, 10, 4] <> ".bin"
+}];
+
+(* Reconstruction work stays in the process coefficient working directory.
+   The default deletion guard accepts only run directories inside this layout.
+   An explicit-root guard remains available for isolated workspaces. *)
+coefficientWorkspaceRoot[] := $feynFacetWorkspaceRoot;
+
+coefficientSafeWorkPathQ[path_String] := Module[{parts,base},
+  base=coefficientWorkspaceRoot[];
+  If[!coefficientSafeWorkPathQ[path,base],Return[False]];
+  parts=Drop[DeleteCases[FileNameSplit[ExpandFileName[path]],""],Length[DeleteCases[FileNameSplit[ExpandFileName[base]],""]]];
+  Length[parts]>=4 && AnyTrue[Range[2,Length[parts]-2],Take[parts,{#,#+1}]==={"Results","CoefficientSimplification"}&]
+];
+
+coefficientSafeWorkPathQ[path_String, workspaceRoot_String] :=
+  Module[{root, normalized},
+    root = ExpandFileName[workspaceRoot];
+    If[!StringEndsQ[root,$PathnameSeparator],root=root<>$PathnameSeparator];
+    normalized = ExpandFileName[path];
+    If[!StringEndsQ[normalized,$PathnameSeparator],normalized=normalized<>$PathnameSeparator];
+    StringStartsQ[normalized, root] && normalized =!= root
+  ];
+
+coefficientWriteFinalResult[result_Association, file_String] := Module[
+  {temporary = file <> ".tmp-" <> CreateUUID[],readback,differences},
+  (* Neutral-context compressed artifacts preserve held signatures and the
+     complete order-proof records; plain Put can change their held syntax. *)
+  FeynFacet`FamilyArtifactWrite[result,temporary,"Compression"->True];
+  If[!FileExistsQ[temporary],Print["Coefficient final write did not create ",temporary];Return[False]];
+  readback=FeynFacet`FamilyArtifactRead[temporary];
+  If[readback=!=result,
+    differences=If[AssociationQ[readback],Select[Keys[result],result[#]=!=Lookup[readback,#,Missing["Key"]]&],{"UnreadableRecord"}];
+    Export[temporary<>".expected.wxf",result,"WXF"];
+    FeynFacet`FamilyArtifactWrite[<|"Status"->"ReadBackMismatch","DifferingTopLevelKeys"->differences,
+      "ExpectedRecordFile"->temporary<>".expected.wxf","ActualRecordFile"->temporary|>,
+      temporary<>".diagnostic.wl","Compression"->True];
+    Print["Coefficient final read-back differs in ",differences,"; diagnostic ",temporary<>".diagnostic.wl"];
+    Return[False]];
+  TrueQ[Quiet@Check[
+    RenameFile[temporary,file,OverwriteTarget->True];True,False]]
+];
+
+(* A final file must survive independently before its reconstruction
+   workspace may be removed. Explicit files inside that workspace keep it. *)
+coefficientRemoveWorkingFiles[kiraFile_String, resultFile_String] := Module[{work},
+  work = coefficientWorkDirectory[kiraFile];
+  If[! coefficientSafeWorkPathQ[work] || ! FileExistsQ[resultFile] ||
+      coefficientSafeWorkPathQ[resultFile, work], Return[$Failed]];
+  If[DirectoryQ[work], DeleteDirectory[work, DeleteContents -> True]];
+  work
+];
+
+coefficientResetDirectory[path_String] := Module[{},
+  If[! coefficientSafeWorkPathQ[path], Return[$Failed]];
+  If[DirectoryQ[path], DeleteDirectory[path, DeleteContents -> True]];
+  CreateDirectory[path, CreateIntermediateDirectories -> True];
+  path
+];
+
+(* Follow the Results ancestor, retaining nested run names. Validation and
+   production subdirectories must not create an unrelated root-level process. *)
+$coefficientResultsFolderName = "Results";
+coefficientResultLocation[kiraFile_String] := Module[{location},
+ location=projectResultLocation[DirectoryName[ExpandFileName[kiraFile]],coefficientWorkspaceRoot[]];
+ If[FailureQ[location],Return[<|"Process"->"Reduction","Run"->{FileBaseName[kiraFile]}|>]];
+ <|"Process"->FileNameJoin[location["OwnerParts"]],"Run"->location["RunParts"]|>
+];
+coefficientWorkDirectory[kiraFile_String] := With[{location = coefficientResultLocation[kiraFile]},
+  FileNameJoin[Join[{coefficientWorkspaceRoot[], location["Process"],
+    "Results", "CoefficientSimplification"}, location["Run"]]]
+];
+
+(* Hash file bytes in the native implementation when available. Wolfram's
+   FileHash took about six seconds for the 84 MiB native executable; hashing
+   hundreds of coefficient files must not dominate a reconstruction checkpoint. *)
+coefficientFileHashes[files_List] := Module[{blocks, values, run, lines},
+ If[files === {}, Return[{}]];
+ If[!AllTrue[files, StringQ[#] && FileExistsQ[#] &], Return[$Failed]];
+ blocks = Partition[files, UpTo[64]];
+ values = Map[Function[block,
+   run = If[$OperatingSystem === "Unix",
+     Quiet[Check[RunProcess[Join[{"sha256sum", "--"}, block]], $Failed]], $Failed];
+   lines = If[AssociationQ[run] && run["ExitCode"] === 0,
+     StringSplit[StringTrim[run["StandardOutput"]], "\n"], {}];
+   If[Length[lines] === Length[block] && AllTrue[lines,
+       StringLength[#] >= 64 &&
+       StringMatchQ[StringTake[#, 64], RegularExpression["[0-9a-f]{64}"]] &],
+     StringTake[#, 64] & /@ lines,
+     FileHash[#, "SHA256", "HexString"] & /@ block
+   ]], blocks];
+ Flatten[values]
+];
+coefficientFileHash[file_String] := Module[{hashes = coefficientFileHashes[{file}]},
+ If[ListQ[hashes], First[hashes], $Failed]];
+
+coefficientStoreManifestFile[directory_String] :=
+  FileNameJoin[{directory, "Manifest.wl"}];
+
+coefficientStoreMetadataFile[directory_String] :=
+  FileNameJoin[{directory, "Metadata.bin"}];
+
+coefficientStoreValidQ[directory_String, kiraFile_String] := Module[
+  {manifest},
+  If[
+    ! DirectoryQ[directory] ||
+      ! FileExistsQ[coefficientStoreManifestFile[directory]] ||
+      ! FileExistsQ[coefficientStoreMetadataFile[directory]],
+    Return[False]
+  ];
+  manifest = Quiet @ Check[Get[coefficientStoreManifestFile[directory]], $Failed];
+  AssociationQ[manifest] &&
+    manifest["Format"] === $coefficientStoreFormat &&
+    manifest["FormatVersion"] === $coefficientStoreVersion &&
+    manifest["KiraFile"] === ExpandFileName[kiraFile] &&
+    manifest["KiraFileBytes"] === FileByteCount[kiraFile] &&
+    manifest["KiraFileHash"] === coefficientFileHash[kiraFile] &&
+    IntegerQ[manifest["ShardCount"]] &&
+    manifest["ShardCount"] > 0 &&
+    AllTrue[
+      Range[manifest["ShardCount"]],
+      FileExistsQ[coefficientShardFile[directory, "Rules", #]] &
+    ]
+];
+
+coefficientBuildKiraStore[kiraFile_String, directory_String] := Module[
+  {
+    kira, targetCount, shardCount, temporary, rules, ruleCount,
+    chunkSize = 128, starts, chunk, groups, written = 0,
+    metadata, manifest, result
+  },
+  If[! FileExistsQ[kiraFile], Return[$Failed]];
+  Print["Loading the Kira artifact for one-time indexing"];
+  kira = Quiet @ Check[Get[kiraFile], $Failed];
+  If[! coefficientKiraReductionQ[kira], Return[$Failed]];
+  targetCount = Length[kira["Targets"]];
+  shardCount = 2^Ceiling @ Log[
+    2,
+    Max[
+      1,
+      Min[targetCount, coefficientKernelLimit[targetCount]],
+      Ceiling[targetCount/256]
+    ]
+  ];
+  temporary = directory <> ".building-" <> StringTake[CreateUUID[], 8];
+  If[coefficientResetDirectory[temporary] === $Failed, Return[$Failed]];
+  Scan[
+    coefficientWriteRecord[
+      coefficientShardFile[temporary, "Rules", #],
+      <||>
+    ] &,
+    Range[shardCount]
+  ];
+  rules = kira["KiraRules"];
+  ruleCount = Length[rules];
+  starts = Range[1, ruleCount, chunkSize];
+  Scan[
+    Function[start,
+      chunk = Take[rules, {start, Min[ruleCount, start + chunkSize - 1]}];
+      groups = GroupBy[
+        chunk,
+        coefficientShardIndex[First[#], shardCount] &
+      ];
+      KeyValueMap[
+        Function[{shard, shardRules},
+          If[
+            coefficientAppendRecord[
+              coefficientShardFile[temporary, "Rules", shard],
+              Association[shardRules]
+            ] === $Failed,
+            Return[$Failed, Module]
+          ]
+        ],
+        groups
+      ];
+      written += Length[chunk];
+      If[Mod[written, 4096] < chunkSize || written === ruleCount,
+        Print["Indexed ", written, " / ", ruleCount, " Kira rules"]
+      ]
+    ],
+    starts
+  ];
+  metadata = KeyDrop[kira, "KiraRules"];
+  If[
+    coefficientWriteRecord[
+      coefficientStoreMetadataFile[temporary],
+      metadata
+    ] === $Failed,
+    Return[$Failed]
+  ];
+  manifest = <|
+    "Format" -> $coefficientStoreFormat,
+    "FormatVersion" -> $coefficientStoreVersion,
+    "KiraFile" -> ExpandFileName[kiraFile],
+    "KiraFileBytes" -> FileByteCount[kiraFile],
+    "KiraFileHash" -> coefficientFileHash[kiraFile],
+    "ReductionInputFingerprint" -> kira["ReductionInputFingerprint"],
+    "TargetCount" -> targetCount,
+    "RuleCount" -> ruleCount,
+    "MasterCount" -> Length[kira["Masters"]],
+    "ShardCount" -> shardCount
+  |>;
+  Put[manifest, coefficientStoreManifestFile[temporary]];
+  Clear[kira, rules, metadata, chunk, groups];
+  ClearSystemCache[];
+  If[DirectoryQ[directory],
+    If[! coefficientSafeWorkPathQ[directory], Return[$Failed]];
+    DeleteDirectory[directory, DeleteContents -> True]
+  ];
+  RenameDirectory[temporary, directory];
+  result = If[coefficientStoreValidQ[directory, kiraFile], directory, $Failed];
+  result
+];
+
+coefficientEnsureKiraStore[kiraFile_String] := Module[{directory},
+  directory = FileNameJoin[{coefficientWorkDirectory[kiraFile], "KiraStore"}];
+  If[coefficientStoreValidQ[directory, kiraFile],
+    directory,
+    coefficientBuildKiraStore[kiraFile, directory]
+  ]
+];
+
+coefficientInputFileFingerprint[sources_List] := Module[{digests=coefficientFileHashes[sources]},
+ If[!ListQ[digests],Return[$Failed]];
+ reductionFingerprint[{ExpandFileName/@sources,FromDigits[#,16]&/@digests}]
+];
+
+(* Diagram expressions are read once to obtain their shared definitions.
+   A source summary can be reused only for the identical ordered file bytes. *)
+coefficientInputData[items_List,directory_String] := Module[
+ {file=FileNameJoin[{directory,"SourceSummary.wl"}],fingerprint,saved,data},
+ If[!AllTrue[items,StringQ],Return[Block[
+   {analyticContextQ=coefficientAnalyticContextQ},ibpInputData[items,False]]]];
+ fingerprint=coefficientInputFileFingerprint[items];
+ If[fingerprint===$Failed,Return[$Failed]];
+ saved=If[FileExistsQ[file],FeynFacet`FamilyArtifactRead[file],None];
+ If[AssociationQ[saved]&&Lookup[saved,"Format",None]==="FeynFacet-CoefficientSourceSummary"&&
+   Lookup[saved,"Version",None]===1&&Lookup[saved,"InputFileFingerprint",None]===fingerprint&&
+   AssociationQ[Lookup[saved,"Data",None]]&&
+   Lookup[saved["Data"],"Sources",None]===ExpandFileName/@items,
+  Return[saved["Data"]]];
+ data=Block[{analyticContextQ=coefficientAnalyticContextQ},ibpInputData[items,False]];
+ If[AssociationQ[data],
+  FeynFacet`FamilyArtifactWrite[<|"Format"->"FeynFacet-CoefficientSourceSummary",
+    "Version"->1,"InputFileFingerprint"->fingerprint,"Data"->data|>,
+   file,"Compression"->True]];
+ data
+];
+
+coefficientTargetStoreValidQ[
+    data_Association,
+    metadata_Association,
+    directory_String,
+    shardCount_Integer
+  ] := Module[{manifest, sources, inputFingerprint},
+  sources = data["Sources"];
+  If[
+    ! DirectoryQ[directory] || ! AllTrue[sources, StringQ] ||
+      ! FileExistsQ[FileNameJoin[{directory, "Manifest.wl"}]] ||
+      ! FileExistsQ[FileNameJoin[{directory, "Remainder.bin"}]] ||
+      ! AllTrue[
+        Range[shardCount],
+        FileExistsQ[coefficientShardFile[directory, "Targets", #]] &
+      ],
+    Return[False]
+  ];
+  manifest = Quiet @ Check[
+    Get[FileNameJoin[{directory, "Manifest.wl"}]],
+    $Failed
+  ];
+  If[! AssociationQ[manifest], Return[False]];
+  inputFingerprint = coefficientInputFileFingerprint[sources];
+  manifest["SourceInputFingerprint"] === metadata["SourceInputFingerprint"] &&
+    manifest["InputFileFingerprint"] === inputFingerprint &&
+    manifest["PairCount"] === Length[sources] &&
+    manifest["TargetCount"] === Length[metadata["Targets"]] &&
+    manifest["ShardCount"] === shardCount
+];
+
+(* Every fail-closed exit of coefficientCollectTargetRecords names its check:
+   a silent Return[$Failed] here cost a full diagnostic cycle on 2026-08-10. *)
+coefficientCollectFail[check_String, detail_] := (
+  Message[
+    CoefficientSimplification::collect,
+    check,
+    If[StringQ[detail], detail, ToString[detail, InputForm]]
+  ];
+  $Failed
+);
+
+coefficientCollectSourceLabel[source_] := If[
+  StringQ[source],
+  source,
+  "an in-memory pre-IBP result"
+];
+
+coefficientCollectTargetRecords[
+    data_Association,
+    metadata_Association,
+    directory_String,
+    shardCount_Integer
+  ] := Module[
+  {
+    equivalence, batches, rawTargets = {}, rawSeen = <||>,
+    mappedSeen = <||>, batchTerms, batchRemainder, result,
+    rawParts, sourceParts, sourceMomenta, offendingMomenta,
+    groups, sourceFingerprint, targetSet, kiraTargetSet,
+    remainderFile, completed = 0, inputFingerprint, manifest
+  },
+  If[coefficientResetDirectory[directory] === $Failed,
+    Return[
+      coefficientCollectFail[
+        "target directory reset",
+        "could not create the target record directory " <> directory
+      ]
+    ]
+  ];
+  Scan[
+    coefficientWriteRecord[
+      coefficientShardFile[directory, "Targets", #],
+      <||>
+    ] &,
+    Range[shardCount]
+  ];
+  remainderFile = FileNameJoin[{directory, "Remainder.bin"}];
+  coefficientWriteRecord[remainderFile, 0];
+  equivalence = metadata["TopologyEquivalence"];
+  batches = Partition[data["Sources"], UpTo[16]];
+  Scan[
+    Function[batch,
+      batchTerms = <||>;
+      batchRemainder = 0;
+      Scan[
+        Function[source,
+          result = If[StringQ[source], Quiet @ Check[Get[source], $Failed], source];
+          If[! validPreIBPResultQ[result],
+            Return[
+              coefficientCollectFail[
+                "pre-IBP source validation",
+                "could not read a valid pre-IBP result from " <>
+                  coefficientCollectSourceLabel[source]
+              ],
+              Module
+            ]
+          ];
+          rawParts = linearIntegralSum[result["Integrand"]];
+          If[FailureQ[rawParts],
+            Return[
+              coefficientCollectFail[
+                "source integrand linearity",
+                "the integrand of " <> coefficientCollectSourceLabel[source] <>
+                  " is not a linear sum of explicit GLI objects"
+              ],
+              Module
+            ]
+          ];
+          Scan[
+            Function[target,
+              If[! KeyExistsQ[rawSeen, target],
+                AssociateTo[rawSeen, target -> True];
+                AppendTo[rawTargets, target]
+              ]
+            ],
+            Keys[rawParts["Terms"]]
+          ];
+          sourceParts = If[
+            AssociationQ[equivalence] && KeyExistsQ[equivalence, "GLIRules"],
+            linearMapIntegrals[rawParts, equivalence["GLIRules"]],
+            rawParts
+          ];
+          If[FailureQ[sourceParts],
+            Return[
+              coefficientCollectFail[
+                "canonical GLI mapping",
+                "the verified topology rules did not map " <>
+                  coefficientCollectSourceLabel[source] <>
+                  " to a linear GLI sum"
+              ],
+              Module
+            ]
+          ];
+          sourceMomenta = coefficientForbiddenMomenta[result["Setup"]];
+          offendingMomenta = remainingDeclaredMomenta[
+            {Values[sourceParts["Terms"]], sourceParts["Remainder"]},
+            sourceMomenta
+          ];
+          If[offendingMomenta =!= {},
+            Return[
+              coefficientCollectFail[
+                "integrated momenta in a source coefficient",
+                coefficientCollectSourceLabel[source] <> " still contains " <>
+                  ToString[offendingMomenta, InputForm]
+              ],
+              Module
+            ]
+          ];
+          sourceParts = linearScale[sourceParts, result["PreFactor"]];
+          KeyValueMap[
+            Function[{integral, coefficient},
+              AssociateTo[
+                batchTerms,
+                integral -> (Lookup[batchTerms, integral, 0] + coefficient)
+              ];
+              AssociateTo[mappedSeen, integral -> True]
+            ],
+            sourceParts["Terms"]
+          ];
+          batchRemainder += sourceParts["Remainder"]
+        ],
+        batch
+      ];
+      groups = GroupBy[
+        Normal[batchTerms],
+        coefficientShardIndex[First[#], shardCount] &
+      ];
+      KeyValueMap[
+        Function[{shard, rules},
+          If[
+            coefficientAppendRecord[
+              coefficientShardFile[directory, "Targets", shard],
+              Association[rules]
+            ] === $Failed,
+            Return[
+              coefficientCollectFail[
+                "target shard write",
+                "could not append a target record to " <>
+                  coefficientShardFile[directory, "Targets", shard]
+              ],
+              Module
+            ]
+          ]
+        ],
+        groups
+      ];
+      If[! TrueQ[batchRemainder === 0],
+        coefficientAppendRecord[remainderFile, batchRemainder]
+      ];
+      completed += Length[batch];
+      coefficientProgressUpdate[completed, Length[data["Sources"]]];
+      If[$FrontEnd===Null&&(Mod[completed,64]===0||completed===Length[data["Sources"]]),
+        Print["Collected ",completed," / ",Length[data["Sources"]]," coefficient input pairs"]];
+      Clear[batchTerms, batchRemainder, result, rawParts, sourceParts, groups];
+      ClearSystemCache[]
+    ],
+    batches
+  ];
+  sourceFingerprint = reductionFingerprint[
+    sourceInputPayload[
+      data["Records"],
+      rawTargets,
+      data["AnalyticContext"]
+    ]
+  ];
+  If[sourceFingerprint =!= metadata["SourceInputFingerprint"],
+    Return[
+      coefficientCollectFail[
+        "source input fingerprint",
+        "the collected topology records and raw targets do not reproduce the " <>
+          "fingerprint stored by the reduction (collected " <>
+          ToString[sourceFingerprint] <> ", stored " <>
+          ToString[metadata["SourceInputFingerprint"]] <> ")"
+      ]
+    ]
+  ];
+  targetSet = Keys[mappedSeen];
+  kiraTargetSet = metadata["Targets"];
+  If[
+    Length[targetSet] =!= Length[kiraTargetSet] ||
+      ! ContainsAll[targetSet, kiraTargetSet] ||
+      ! ContainsAll[kiraTargetSet, targetSet],
+    Return[
+      coefficientCollectFail[
+        "target set equality",
+        "the collected targets differ from the targets reduced by Kira (" <>
+          ToString[Length[targetSet]] <> " collected, " <>
+          ToString[Length[kiraTargetSet]] <> " reduced, " <>
+          ToString[Length[Complement[targetSet, kiraTargetSet, SameTest -> SameQ]]] <>
+          " collected-only, " <>
+          ToString[Length[Complement[kiraTargetSet, targetSet, SameTest -> SameQ]]] <>
+          " reduced-only)"
+      ]
+    ]
+  ];
+  inputFingerprint = coefficientInputFileFingerprint[data["Sources"]];
+  manifest = <|
+    "SourceInputFingerprint" -> sourceFingerprint,
+    "InputFileFingerprint" -> inputFingerprint,
+    "PairCount" -> Length[data["Sources"]],
+    "TargetCount" -> Length[targetSet],
+    "ShardCount" -> shardCount
+  |>;
+  Put[manifest, FileNameJoin[{directory, "Manifest.wl"}]];
+  manifest
+];
+
+coefficientKernelLimit[count_Integer] := Min[
+  count,
+  If[
+    ValueQ[Global`$FACETKernelLimit] &&
+      IntegerQ[Global`$FACETKernelLimit] && Global`$FACETKernelLimit > 0,
+    Global`$FACETKernelLimit,
+    $ProcessorCount
+  ]
+];
+
+coefficientBalancedRecordTotal[file_String] := Module[
+  {levels = <||>, count, add},
+  add[value_] := Module[{level = 0, current = value},
+    While[KeyExistsQ[levels, level],
+      current = levels[level] + current;
+      KeyDropFrom[levels, level];
+      level++
+    ];
+    AssociateTo[levels, level -> current]
+  ];
+  count = coefficientScanRecords[file, (add[#]; True) &];
+  If[count === $Failed, $Failed, Total[Values[levels]]]
+];
+
+CoefficientSimplification[
+    inputs : ({__Association} | {__String}),
+    kiraFile_String,
+    OptionsPattern[]
+  ] := finiteFieldCoefficientSimplificationCore[
+  inputs,
+  ExpandFileName[kiraFile],
+  <|
+    "RatracerExecutable" -> OptionValue["RatracerExecutable"],
+    "Threads" -> OptionValue["Threads"],
+    "NormalizationKernels" -> OptionValue["NormalizationKernels"],
+    "TargetTimeLimit" -> OptionValue["TargetTimeLimit"],
+    "MaximumTargets" -> OptionValue["MaximumTargets"],
+    "KeepWorkingFiles" -> OptionValue["KeepWorkingFiles"],
+    "FactorScan" -> OptionValue["FactorScan"],
+    "ShiftScan" -> OptionValue["ShiftScan"]
+  |>
+];
+
+coefficientPairFileKey[file_String] := Module[{parts},
+  parts = StringSplit[StringDrop[FileBaseName[file], 1], "_C"];
+  If[
+    Length[parts] === 2 && AllTrue[parts, StringMatchQ[DigitCharacter ..]],
+    ToExpression /@ parts,
+    {Infinity, Infinity}
+  ]
+];
+
+coefficientResolveResultDirectory[
+    projectDirectory_String,
+    cardName_String,
+    resultFolder_
+  ] := Module[{project, results, candidates, candidate},
+  project = ExpandFileName[projectDirectory];
+  results = FileNameJoin[{project, "Results"}];
+  If[! DirectoryQ[results], Return[$Failed]];
+  candidate = Which[
+    resultFolder === Automatic,
+      candidates = Select[
+        FileNames[cardName <> "_*", results],
+        DirectoryQ[#] &&
+          FileExistsQ[FileNameJoin[{#, "KiraResult.wl"}]] &&
+          DirectoryQ[FileNameJoin[{#, "Pairs"}]] &&
+          FileNames["F*_C*.wl", FileNameJoin[{#, "Pairs"}]] =!= {} &
+      ];
+      If[
+        candidates === {},
+        $Failed,
+        Last @ SortBy[
+          candidates,
+          AbsoluteTime @ FileDate[FileNameJoin[{#, "KiraResult.wl"}]] &
+        ]
+      ],
+    StringQ[resultFolder] && DirectoryQ[resultFolder],
+      ExpandFileName[resultFolder],
+    StringQ[resultFolder],
+      ExpandFileName[FileNameJoin[{results, resultFolder}]],
+    True,
+      $Failed
+  ];
+  If[
+    ! StringQ[candidate] || ! DirectoryQ[candidate] ||
+      ! FileExistsQ[FileNameJoin[{candidate, "KiraResult.wl"}]] ||
+      ! DirectoryQ[FileNameJoin[{candidate, "Pairs"}]],
+    $Failed,
+    candidate
+  ]
+];
+
+coefficientRunProject[
+    projectDirectory_String,
+    cardName_String,
+    resultFolder_,
+    options_Association
+  ] := Module[
+  {
+    project, cardFile, card, resultDirectory, pairDirectory,
+    pairFiles, kiraFile, result, resultFile, temporaryFile, saved
+  },
+  coefficientProgressStart["Locating coefficient inputs", 1];
+  project = ExpandFileName[projectDirectory];
+  card = ReadProcessCard[project,cardName];
+  resultDirectory = coefficientResolveResultDirectory[
+    project,
+    cardName,
+    resultFolder
+  ];
+  If[! AssociationQ[card] || resultDirectory === $Failed,
+    coefficientProgressFailure[
+      "input discovery",
+      "the card or result folder is missing"
+    ];
+    Message[
+      CoefficientSimplification::project,
+      projectDirectory,
+      cardName,
+      "the card or result folder is missing"
+    ];
+    Return[$Failed]
+  ];
+  pairDirectory = FileNameJoin[{resultDirectory, "Pairs"}];
+  pairFiles = SortBy[
+    FileNames["F*_C*.wl", pairDirectory],
+    coefficientPairFileKey
+  ];
+  kiraFile = FileNameJoin[{resultDirectory, "KiraResult.wl"}];
+  If[pairFiles === {} || ! FileExistsQ[kiraFile],
+    coefficientProgressFailure[
+      "input discovery",
+      "the pair files or KiraResult.wl are missing"
+    ];
+    Message[
+      CoefficientSimplification::project,
+      projectDirectory,
+      cardName,
+      "the pair files or KiraResult.wl are missing"
+    ];
+    Return[$Failed]
+  ];
+  result = finiteFieldCoefficientSimplificationCore[
+    pairFiles,
+    kiraFile,
+    Join[options, <|"CoefficientSetup" -> card|>]
+  ];
+  If[result === $Failed, Return[$Failed]];
+  coefficientProgressStage["Writing CoefficientResult.wl"];
+  resultFile = FileNameJoin[{resultDirectory, "CoefficientResult.wl"}];
+  temporaryFile = resultFile <> ".tmp-" <>
+    StringReplace[CreateUUID[], "-" -> ""];
+  result = Append[result, "CoefficientResultFile" -> resultFile];
+  saved = Quiet @ Check[
+    Put[result, temporaryFile];
+    FileExistsQ[temporaryFile] && SameQ[Get[temporaryFile], result],
+    False
+  ];
+  If[! TrueQ[saved],
+    If[FileExistsQ[temporaryFile], DeleteFile[temporaryFile]];
+    coefficientProgressFailure[
+      "result writing",
+      resultFile
+    ];
+    Message[
+      CoefficientSimplification::project,
+      projectDirectory,
+      cardName,
+      "CoefficientResult.wl could not be written"
+    ];
+    Return[$Failed]
+  ];
+  If[FileExistsQ[resultFile], DeleteFile[resultFile]];
+  If[
+    Quiet @ Check[RenameFile[temporaryFile, resultFile]; True, False] =!= True,
+    coefficientProgressFailure["result writing", resultFile];
+    Message[
+      CoefficientSimplification::project,
+      projectDirectory,
+      cardName,
+      "the temporary result could not be installed"
+    ];
+    Return[$Failed]
+  ];
+  If[! TrueQ[options["KeepWorkingFiles"]] &&
+      TrueQ[result["FiniteFieldReconstruction"]["CompleteTargetSet"]],
+    coefficientRemoveWorkingFiles[kiraFile, resultFile]];
+  coefficientProgressFinish[];
+  Print @ Grid[
+    {
+      {"Card", cardName},
+      {"Result folder", FileNameTake[resultDirectory]},
+      {"Pair files", Length[pairFiles]},
+      {"Coefficient file", resultFile},
+      {"File size (MB)", Round[FileByteCount[resultFile]/2.^20, 0.01]}
+    },
+    Frame -> All
+  ];
+  result
+];
+
+CoefficientSimplification[
+    projectDirectory_String,
+    cardName_String,
+    OptionsPattern[]
+  ] := coefficientRunProject[
+  projectDirectory,
+  cardName,
+  Automatic,
+  <|
+    "RatracerExecutable" -> OptionValue["RatracerExecutable"],
+    "Threads" -> OptionValue["Threads"],
+    "NormalizationKernels" -> OptionValue["NormalizationKernels"],
+    "TargetTimeLimit" -> OptionValue["TargetTimeLimit"],
+    "MaximumTargets" -> OptionValue["MaximumTargets"],
+    "KeepWorkingFiles" -> OptionValue["KeepWorkingFiles"],
+    "FactorScan" -> OptionValue["FactorScan"],
+    "ShiftScan" -> OptionValue["ShiftScan"]
+  |>
+];
+
+CoefficientSimplification[
+    projectDirectory_String,
+    cardName_String,
+    resultFolder : (Automatic | _String),
+    OptionsPattern[]
+  ] := coefficientRunProject[
+  projectDirectory,
+  cardName,
+  resultFolder,
+  <|
+    "RatracerExecutable" -> OptionValue["RatracerExecutable"],
+    "Threads" -> OptionValue["Threads"],
+    "NormalizationKernels" -> OptionValue["NormalizationKernels"],
+    "TargetTimeLimit" -> OptionValue["TargetTimeLimit"],
+    "MaximumTargets" -> OptionValue["MaximumTargets"],
+    "KeepWorkingFiles" -> OptionValue["KeepWorkingFiles"],
+    "FactorScan" -> OptionValue["FactorScan"],
+    "ShiftScan" -> OptionValue["ShiftScan"]
+  |>
+];
+
+
+FILE FeynFacet/Coefficients/FinalResults.wl
+(* One mathematical representation for retained coefficient results.
+   Analytic prefactors remain outside finite Laurent coefficient records. *)
+FeynFacet`ReadMasterIntegralCoefficients::usage =
+ "ReadMasterIntegralCoefficients[fileOrRecord] reads the current final coefficient format, preserving explicit Laurent truncations and exact zero entries.";
+FeynFacet`ExpandMasterIntegralCoefficient::usage =
+ "ExpandMasterIntegralCoefficient[entry,epsilon,{low,high}] returns every requested coefficient of the sum of entry Terms, or fails if a stored Laurent truncation is insufficient. The table's global PreFactor remains separate.";
+FeynFacet`MasterIntegralMeasureConversion::usage =
+ "MasterIntegralMeasureConversion[definition] returns the factor converting the physical momentum-space master in definition to the normalized GLI measure used by the coefficient tables.";
+
+coefficientAssemblyFail[tag_,data_:<||>] := Throw[Failure[tag,data],"CoefficientAssembly"];
+coefficientExactDataQ[data_]:=exactDataQ[data]&&FreeQ[data,
+ _Failure|_Missing|$Failed|$Aborted|Indeterminate|_DirectedInfinity|_SeriesData|_Series|_SeriesCoefficient];
+coefficientRegulatorNormalize[x_,e_,declared_:None] := With[
+ {names=DeleteDuplicates@Join[{"eps","ep","Epsilon"},
+   If[MatchQ[declared,_Symbol]&&!MemberQ[{None,Automatic},declared],{SymbolName[declared]},{}]]},
+ x/.s_Symbol /; MemberQ[names,SymbolName[s]]:>e];
+coefficientMasterID[m_] := If[MatchQ[m,head_[_,{__Integer}]]&&SymbolName[Head[m]]==="GLI",
+ {If[StringQ[m[[1]]],m[[1]],SymbolName[m[[1]]]],m[[2]]},
+ coefficientAssemblyFail["ScalarMasterIntegralIdentifierRequired",<|"Master"->m|>]];
+coefficientCanonicalMasterExpression[expr_] := expr/.m_/;
+ MatchQ[m,head_[_,{__Integer}]]&&SymbolName[Head[m]]==="GLI":>
+ FeynCalc`GLI[m[[1]],m[[2]]];
+
+coefficientTermRead[term_Association,e_,defaultTruncation_:None] := Module[
+ {p=Lookup[term,"PreFactor",1],c=Lookup[term,"Coefficient",Missing[]],
+  rep=Lookup[term,"Representation",Automatic],orders,known,variable,keys},
+ If[MissingQ[c],coefficientAssemblyFail["CoefficientTermMissing"]];
+ If[rep===Automatic,rep=If[AssociationQ[c],"LaurentSeries","Exact"]];
+ If[!coefficientExactDataQ[{p,c}],
+  coefficientAssemblyFail["ExactCoefficientDataRequired"]];
+ Which[
+  rep==="Exact",
+   If[AssociationQ[c]||!FreeQ[c,_SeriesData|_Series],
+    coefficientAssemblyFail["ExactCoefficientExpressionRequired"]];
+   <|"PreFactor"->p,"Representation"->"Exact","Coefficient"->c|>,
+  rep==="LaurentSeries",
+   If[!AssociationQ[c]||!AssociationQ[Lookup[c,"Orders",None]],
+    coefficientAssemblyFail["FiniteLaurentCoefficientRecordRequired"]];
+   variable=Lookup[c,"SeriesVariable",None];
+   orders=KeySort[c["Orders"]];keys=Keys[orders];
+   known=Lookup[c,"SeriesTruncation",defaultTruncation];
+   If[!MatchQ[variable,_Symbol]||variable=!=e||keys==={}||
+      !VectorQ[keys,IntegerQ]||!IntegerQ[known]||Last[keys]=!=known||
+      keys=!=Range[First[keys],known]||!FreeQ[Values[orders],e],
+    coefficientAssemblyFail["IncompleteLaurentCoefficientRecord",
+      <|"AvailableOrders"->keys,"SeriesTruncation"->known|>]];
+   Join[KeyTake[term,{"LaurentRemainderClass"}],
+    <|"PreFactor"->p,"Representation"->"LaurentSeries",
+     "Coefficient"-><|"SeriesVariable"->e,"Orders"->orders,"SeriesTruncation"->known|>|>],
+  True,coefficientAssemblyFail["CoefficientRepresentationUnsupported",<|"Representation"->rep|>]]
+];
+coefficientTermRead[other_,e_,default_:None] :=
+ coefficientAssemblyFail["CoefficientTermMustBeAnAssociation"];
+coefficientExactZeroTermQ[t_] := t["PreFactor"]===0||
+ (t["Representation"]==="Exact"&&t["Coefficient"]===0);
+
+coefficientMeasures[setup_] := Catch[Module[{process,phase,loops,external,
+   partons,counts,columns,makeLegs,phaseMomenta,integrated},
+ (* A retained sum of diagrams has no SelectedIndex. Its integration measure
+    depends only on external legs and loop momenta, not on a selected diagram. *)
+ partons=Lookup[setup,"Partons",None];
+ If[!MatchQ[partons,_Rule]||!AllTrue[List@@partons,ListQ],
+  coefficientAssemblyFail["CoefficientMeasurePartonsRequired"]];
+ counts=Length/@(List@@partons);
+ columns=AssociationThread[legFields,
+   normalizeSides[#,Lookup[setup,#,None],counts]&/@legInputKeys];
+ makeLegs[side_]:=AssociationThread[legFields,#]&/@
+   Transpose[Lookup[columns,legFields][[All,side]]];
+ phaseMomenta=Lookup[setup,"PhaseSpaceMomentum",None];
+ integrated=Lookup[setup,"PartonIntegrated",None];
+ If[!MatchQ[phaseMomenta,{_Symbol..}]||!MatchQ[integrated,{_Symbol}]||
+   !SubsetQ[columns["Momentum"][[2]],phaseMomenta]||
+   !SubsetQ[phaseMomenta,integrated],
+  coefficientAssemblyFail["CoefficientMeasurePhaseSpaceRequired"]];
+ loops=loopSectorsFromSetup[setup]["LoopMomenta"];
+ process=<|"Incoming"->makeLegs[1],"Outgoing"->makeLegs[2],
+   "PhaseSpaceMomenta"->phaseMomenta,"IntegratedMomentum"->First[integrated]|>;
+ phase=buildPhaseData[process,momentumEliminationRule[process]];
+ external=First[splitFactorsByMomentum[phase["Cuts"],loops]];
+ <|"FractionMeasure"->fractionMeasure[process],
+   "PhaseSpace"->phase["Measure"] external/(I Pi^(D/2))^Length[remainingPhaseSpaceMomenta[process]]|>
+ ],$collinearFailure];
+
+(* The reconstruction algorithms return columns and metadata in memory.
+   This is the sole constructor of their persisted coefficient table. *)
+coefficientResultFromReconstruction[raw_Association]:=Module[{e=$feynFacetEpsilon,defs,terms,record},
+ defs=KeyTake[raw,{"CardName","Setup","Pairs","AnalyticContext","Topologies",
+  "TopologyEquivalence","ReverseRules","MassDimensions","DimensionRule"}];
+ terms[x_]:=If[KeyExistsQ[x,"Terms"],x["Terms"],{Join[KeyTake[x,{"PreFactor","Coefficient"}],<|
+  "Representation"->If[AssociationQ[x["Coefficient"]],"LaurentSeries","Exact"]|>]}];
+ record=Join[KeyDrop[raw,Join[Keys[defs],{"Expression","Remainder","Masters","Format","FormatVersion"}]],
+  <|"Format"->"FeynFacet-MasterIntegralCoefficients","FormatVersion"->1,
+   "DimensionalRegulator"->e,"Definitions"->defs,"CompleteTargetSet"->True,
+   "Masters"->(Join[KeyDrop[#,{"PreFactor","Coefficient"}],<|"Terms"->terms[#]|>]& /@ raw["Masters"]),
+   "RemainderTerms"->If[KeyExistsQ[raw,"RemainderTerms"],raw["RemainderTerms"],terms[<|"PreFactor"->1,"Coefficient"->raw["Remainder"]|>]]|>];
+ FeynFacet`ReadMasterIntegralCoefficients[coefficientRegulatorNormalize[record,e,Lookup[raw,"SeriesVariable",None]],"DimensionalRegulator"->e]
+];
+Options[FeynFacet`ReadMasterIntegralCoefficients]={"DimensionalRegulator"->Automatic};
+FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Module[
+ {data=input,e=OptionValue["DimensionalRegulator"],defs,entries,terms,remainder,
+  format,zeros={},masters={},m,measures,storedMeasures,source=None,truncation,declared,dimensionRule,regulators},
+ If[StringQ[input],
+  source=ExpandFileName[input];
+  If[!FileExistsQ[source],coefficientAssemblyFail["CoefficientFileMissing",<|"File"->source|>]];
+  data=If[ToLowerCase[FileExtension[source]]==="wxf",Import[source,"WXF"],Get[source]]];
+ If[!AssociationQ[data],coefficientAssemblyFail["CoefficientResultRequired"]];
+ format={Lookup[data,"Format",None],Lookup[data,"FormatVersion",None]};
+ If[format=!={"FeynFacet-MasterIntegralCoefficients",1},
+  coefficientAssemblyFail["CoefficientFormatUnsupported",<|"Format"->format|>]];
+ If[e===Automatic,e=$feynFacetEpsilon];
+ If[!MatchQ[e,_Symbol],coefficientAssemblyFail["DimensionalRegulatorRequired"]];
+ declared=Lookup[data,"DimensionalRegulator",Lookup[data,"SeriesVariable",None]];
+ If[declared===None,
+  dimensionRule=Lookup[Lookup[data,"Definitions",<||>],"DimensionRule",Lookup[data,"DimensionRule",None]];
+  If[MatchQ[dimensionRule,_Rule],
+   regulators=DeleteDuplicates@Cases[Last[dimensionRule],s_Symbol/;Context[s]=!="System`",{0,Infinity}];
+   If[Length[regulators]===1&&TrueQ[Coefficient[Last[dimensionRule],First[regulators]]===-2]&&
+     IntegerQ[Expand[Last[dimensionRule]+2First[regulators]]],declared=First[regulators]]]];
+ data=coefficientRegulatorNormalize[data,e,declared];
+ defs=Lookup[data,"Definitions",<||>];
+ If[!AssociationQ[defs]||!AssociationQ[Lookup[defs,"Setup",None]],
+  coefficientAssemblyFail["CoefficientProcessDefinitionsRequired"]];
+ entries=Lookup[data,"Masters",None];
+ If[!ListQ[entries]||!AllTrue[entries,AssociationQ],
+  coefficientAssemblyFail["CoefficientMasterEntriesRequired"]];
+ truncation=Lookup[data,"SeriesTruncation",None];
+ Do[
+  m=Lookup[entry,"Master",Missing[]];coefficientMasterID[m];
+  m=coefficientCanonicalMasterExpression[m];
+  terms=coefficientTermRead[#,e,truncation]&/@Lookup[entry,"Terms",{}];
+  If[terms==={},coefficientAssemblyFail["EmptyCoefficientTerms",<|"Master"->m|>]];
+  terms=Select[terms,!coefficientExactZeroTermQ[#]&];
+  If[terms==={},AppendTo[zeros,m],
+   AppendTo[masters,Join[KeyDrop[entry,{"Coefficient","PreFactor","Terms"}],<|"Master"->m,"Terms"->terms|>]]],
+ {entry,entries}];
+ If[!DuplicateFreeQ[coefficientMasterID/@Lookup[entries,"Master"]],
+  coefficientAssemblyFail["DuplicateCoefficientMasterEntries"]];
+ remainder=coefficientTermRead[#,e,truncation]&/@Lookup[data,"RemainderTerms",{}];
+ remainder=Select[remainder,!coefficientExactZeroTermQ[#]&];
+ storedMeasures=KeyTake[data,{"FractionMeasure","PhaseSpace"}];
+ measures=If[Length[storedMeasures]===2,storedMeasures,coefficientMeasures[defs["Setup"]]];
+ If[!AssociationQ[measures]||Length[KeyTake[measures,{"FractionMeasure","PhaseSpace"}]]=!=2,
+  coefficientAssemblyFail["CoefficientMeasureCouldNotBeDerived"]];
+ If[Lookup[data,"CompleteTargetSet",True]===False,
+  coefficientAssemblyFail["IncompleteCoefficientTargetSet"]];
+ Join[data,
+  <|"Format"->"FeynFacet-MasterIntegralCoefficients","FormatVersion"->1,
+   "PreFactor"->Lookup[data,"PreFactor",1],"DimensionalRegulator"->e,
+   "Variables"->Lookup[data,"Variables",{}],"Masters"->masters,
+   "RemainderTerms"->remainder,"Definitions"->defs,"CompleteTargetSet"->True,
+   "ExactZeroMasterIntegrals"->Join[Lookup[data,"ExactZeroMasterIntegrals",{}],zeros],
+   "Source"->If[source===None,Lookup[data,"Source",None],source],"InputFormat"->format|>,measures]
+ ],"CoefficientAssembly"];
+
+(* Materialize epsilon coefficients without expanding their kinematic
+   rational factors. This is shared by ordinary and endpoint assembly. *)
+coefficientFiniteSeriesCoefficients[x_,e_,lo_,hi_] := Module[
+ {coefs},
+ coefs=regulatorSeriesCoefficients[x,e,{lo,hi}];
+ If[FailureQ[coefs],coefficientAssemblyFail["CoefficientSeriesExpansionFailed",<|"Cause"->coefs,"RequestedRange"->{lo,hi}|>]];
+ If[!AssociationQ[coefs]||Keys[coefs]=!=Range[lo,hi],coefficientAssemblyFail["RegulatorSeriesArithmeticNotLoaded"]];
+ If[!FreeQ[Values[coefs],e|_Series|_SeriesData|_SeriesCoefficient|_Missing|_Failure|Indeterminate|_DirectedInfinity],
+  coefficientAssemblyFail["EpsilonDependentLaurentCoefficient"]];
+ coefs
+];
+
+FeynFacet`ExpandMasterIntegralCoefficient[entry_Association,e_Symbol,
+ range:{lo_Integer,hi_Integer}] := Catch[Module[
+ {result,term,p,c,pv,required,declared,part,pcoeff,cmin},
+ If[lo>hi||!ListQ[Lookup[entry,"Terms",None]],
+  coefficientAssemblyFail["CoefficientExpansionRequestInvalid"]];
+ result=Association@Table[k->0,{k,lo,hi}];
+ Do[
+  declared=If[AssociationQ[Lookup[t,"Coefficient",None]],
+    Lookup[t["Coefficient"],"SeriesVariable",e],Lookup[entry,"DimensionalRegulator",e]];
+  term=coefficientTermRead[coefficientRegulatorNormalize[t,e,declared],e];
+  If[coefficientExactZeroTermQ[term],Continue[]];
+  p=term["PreFactor"];c=term["Coefficient"];
+  pv=FeynFacet`DetermineMeromorphicLaurentLowerBound[p,e];
+  If[pv===Infinity,Continue[]];
+  If[!IntegerQ[pv],coefficientAssemblyFail["AnalyticPrefactorLaurentBoundRequired",<|"Cause"->pv|>]];
+  If[term["Representation"]==="LaurentSeries",
+   epsilonAuditMultiplier[p,e,First[Keys[c["Orders"]]],c["SeriesTruncation"],hi,
+     "Stage4/FiniteCoefficientPrefactor",Lookup[entry,"Master",None]];
+   required=hi-pv;
+   If[required>c["SeriesTruncation"],
+    coefficientAssemblyFail["CoefficientEpsilonOrdersInsufficient",
+     <|"Master"->Lookup[entry,"Master",None],"RequiredCoefficientUpperOrder"->required,
+       "KnownCoefficientUpperOrder"->c["SeriesTruncation"],
+       "PrefactorLaurentLowerBound"->pv|>]];
+   cmin=First[Keys[c["Orders"]]];
+   pcoeff=If[hi-cmin<pv,<||>,coefficientFiniteSeriesCoefficients[p,e,pv,hi-cmin]];
+   epsilonAuditProduct[{epsilonAuditSpec["Prefactor",pv,hi-cmin,
+      PolynomialQ[p,e]&&Exponent[p,e]<=hi-cmin],
+     epsilonAuditSpec["FiniteCoefficient",cmin,c["SeriesTruncation"]]},hi,
+     "Stage4/CoefficientConvolution",Lookup[entry,"Master",None]];
+   part=Association@Table[k->Total[Table[
+      Lookup[pcoeff,j,0] Lookup[c["Orders"],k-j,0],
+      {j,pv,k-cmin}]],{k,lo,hi}],
+   part=coefficientFiniteSeriesCoefficients[p c,e,lo,hi]];
+  result=Association@Table[k->(result[k]+part[k]),{k,lo,hi}],
+ {t,entry["Terms"]}];
+ <|"DimensionalRegulator"->e,"EpsilonOrderRange"->range,"Coefficients"->result,
+   "GlobalPrefactorIncluded"->False|>
+ ],"CoefficientAssembly"];
+
+FeynFacet`MasterIntegralMeasureConversion[definition_Association] := Catch[Module[
+ {dim=Lookup[definition,"Dimension",None],phase=Lookup[definition,"PhaseSpaceLoopCount",None],
+  prescription=Lookup[definition,"Prescription",None],measure=Lookup[definition,"MeasurePrefactor",None],
+  extra=Lookup[definition,"MasterIntegralPrefactor",1],negative},
+ If[!IntegerQ[phase]||phase<0||!ListQ[prescription]||
+   !AllTrue[prescription,MemberQ[{-1,0,1},#]&]||Count[prescription,0]=!=phase||
+   dim===None||measure===None||measure===0||extra===0,
+  coefficientAssemblyFail["MasterMeasureDefinitionIncomplete"]];
+ negative=Count[prescription,-1];
+ <|"Factor"->1/(I Pi^(dim/2))^Length[prescription]/measure/extra,
+   "FromConvention"->"PhysicalMomentumSpaceMaster",
+   "ToConvention"->"NormalizedGLICoefficientIntegral",
+   "PhaseSpaceLoopCount"->phase,"NegativePrescriptionLoopCount"->negative|>
+ ],"CoefficientAssembly"];
+
+
+FILE Scripts/assemble_scheduled_coefficients.wls
+Print["FEYNFACET DRIVER ENTERED"];
+$HistoryLength=0;$MaxExtraPrecision=50;
+root=DirectoryName[ExpandFileName[$InputFileName],2];
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+args=Rest[$ScriptCommandLine];
+If[Length[args]=!=3,Print["Expected TRACE_DIRECTORY PLAN.wl RESULT.wl"];Exit[2]];
+directory=ExpandFileName[args[[1]]];plan=FeynFacet`FamilyArtifactRead[ExpandFileName[args[[2]]]];
+resultFile=ExpandFileName[args[[3]]];started=AbsoluteTime[];
+If[!AssociationQ[plan]||!TrueQ[Lookup[plan,"ResumeOnly",False]],
+ Print["COMPLETED JOB PLAN REQUIRED"];Exit[1]];
+inputs=FeynFacet`Private`reconstructionInputs[directory,<|"CoefficientSetup"->Automatic|>];
+If[!AssociationQ[inputs],Print["SOURCE INPUTS FAILED ",inputs];Exit[1]];
+data=FeynFacet`Private`finiteFieldCompactTrace[inputs["TraceData"],directory,1,10*2^20,30,600];
+If[!AssociationQ[data],Print["COMPACTION CHECKPOINT FAILED"];Exit[1]];
+native=If[KeyExistsQ[data,"Compaction"],data["Compaction"]["Directory"],directory];
+executable=FeynFacet`Private`finiteFieldResolveExecutable[Automatic];
+threads=FeynFacet`Private`finiteFieldThreadCount[Automatic];
+raw=FeynFacet`Private`finiteFieldExecuteCoefficientPlan[inputs,data,native,executable,<|"Threads"->threads|>,plan];
+If[!AssociationQ[raw],Print["SCHEDULED ASSEMBLY FAILED ",raw];Exit[1]];
+result=FeynFacet`Private`coefficientResultFromReconstruction[raw];
+If[!AssociationQ[result],Print["FINAL FORMAT FAILED ",result];Exit[1]];
+result=Append[result,"CoefficientResultFile"->resultFile];
+candidateFile=resultFile<>".assembled.wxf";
+Export[candidateFile,result,"WXF",PerformanceGoal->"Size"];
+Print["ASSEMBLED COEFFICIENT CANDIDATE ",candidateFile];
+If[!FeynFacet`Private`coefficientWriteFinalResult[result,resultFile],Print["FINAL WRITE FAILED"];Exit[1]];
+summary=<|"Status"->"Complete","MasterCount"->Length[result["Masters"]],
+ "ExactTermCount"->Count[Flatten[Lookup[result["Masters"],"Terms"],1],a_Association/;a["Representation"]==="Exact"],
+ "FiniteLaurentTermCount"->Count[Flatten[Lookup[result["Masters"],"Terms"],1],a_Association/;a["Representation"]==="LaurentSeries"],
+ "AssemblySeconds"->N[AbsoluteTime[]-started],"ResultFile"->resultFile,"ResultBytes"->FileByteCount[resultFile]|>;
+Export[resultFile<>".summary.json",summary,"RawJSON"];
+Print["SCHEDULED COEFFICIENT ASSEMBLY COMPLETE ",summary];

@@ -1,0 +1,210 @@
+(* Reuse exact homogeneous relations after matching independent cut catalogs.
+   Affine identities, linear constraints and scale changes retain separate evidence. *)
+FeynFacet`ReduceMatchedIntegralCatalog::usage =
+ "ReduceMatchedIntegralCatalog[match,relations,request] replaces destinations outside TargetIntegrals by exactly verified linear relations and restores their overall scale. relations binds an ordered Basis, ConstraintMatrix and Rules to a Catalog of original integral definitions. The supported automatic scaling is a common loop dimension with homogeneous mass-dimension-two propagators, particle cuts and no extra kinematic integral prefactors.";
+relationIntegralNormalize[x_]:=coefficientCanonicalMasterExpression[x]/.
+ m_FeynCalc`GLI:>cutEquivalenceIntegral[m];
+relationFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"IntegralRelations"];
+relationZeroQ[x_]:=TrueQ[Cancel[Together[x]]===0];
+
+(* All momenta scale by Sqrt[lambda]; parameter dimensions are explicit.
+   This establishes the physical scaling separately from the algebraic
+   NormalizeIntegralEquationScale change of unknowns. *)
+relationScaleWeights[basis_,records_,normalization_,request_]:=Module[
+ {dimensions,scale,assumptions,parameterRules,lambda,byName,tops,loopCounts,tags,cutCounts,top,record,gramRules,scaled,conventions,dimensionDeclarations,measures},
+ {scale,assumptions,dimensions}=Lookup[request,{"Scale","Assumptions","ParameterMassDimensions"},None];
+ If[!MatchQ[scale,_Symbol]||!AssociationQ[dimensions]||
+   !AllTrue[Keys[dimensions],MatchQ[#,_Symbol]&]||
+   !AllTrue[Values[dimensions],IntegerQ]||Lookup[dimensions,scale,None]=!=2||
+   !TrueQ[Quiet[FullSimplify[scale>0,assumptions]]],
+  relationFail["PositiveScaleAndParameterMassDimensionsRequired"]];
+ byName=Association[(cutEquivalenceFamilyName[#["Topology"][[1]]]->#)&/@records];
+ If[!ContainsAll[Keys[byName],First/@basis],relationFail["RelationIntegralDefinitionsMissing"]];
+ tops=Association@Map[Function[name,
+   record=byName[name];top=cutEquivalenceTopology[record,normalization];
+   If[top===$Failed,relationFail["UnsupportedRelationIntegralDefinition",<|"Family"->name|>]];
+   conventions=cutDefinitionConventions[record];
+   If[!AllTrue[top["CutTypes"],#==="Particle"&]||
+     !MemberQ[{None,{},True},Lookup[record,"AdditionalAcceptanceBoundaries",None]]||
+     !FreeQ[Values[KeyTake[conventions,{"MeasurePrefactor","MasterIntegralPrefactor"}]],
+       Alternatives@@Join[Keys[dimensions],top["Loops"],top["External"]]]||
+     !AllTrue[Values[KeyTake[conventions,{"MeasurePrefactor","MasterIntegralPrefactor"}]],#===1&],
+    relationFail["BareHomogeneousParticleCutIntegralsRequired",<|"Family"->name|>]];
+   lambda=Unique["momentumScale$"];
+   parameterRules=KeyValueMap[#1->lambda^(#2/2)#1&,dimensions];
+   gramRules=DeleteDuplicates[Thread[Flatten[top["GramMatrix"]]->lambda Flatten[top["GramMatrix"]]]];
+   scaled=(top["PropagatorPolynomials"]/.gramRules)/.parameterRules;
+   If[!AllTrue[MapThread[#1-lambda #2&,{scaled,top["PropagatorPolynomials"]}],relationZeroQ]||
+      !AllTrue[top["KinematicRules"],relationZeroQ[(Last[#]/.parameterRules)-lambda Last[#]]&],
+    relationFail["IntegralScaleHomogeneityNotEstablished",<|"Family"->name|>]];
+   name->top],DeleteDuplicates[First/@basis]];
+ loopCounts=DeleteDuplicates[Length[#["Loops"]]&/@Values[tops]];
+ tags=DeleteDuplicates[Lookup[Values[tops],"LorentzDimensionAnnotations"]];
+ cutCounts=DeleteDuplicates[Length[#["CutIndices"]]&/@Values[tops]];
+ dimensionDeclarations=DeleteDuplicates[
+  Lookup[byName[#],"Dimension",tops[#]["LorentzDimensionAnnotations"]]&/@Keys[tops]];
+ measures=DeleteDuplicates[Lookup[Values[tops],"Normalization"]];
+ If[Length[loopCounts]=!=1||Length[tags]=!=1||Length[cutCounts]=!=1||Length[dimensionDeclarations]=!=1||Length[measures]=!=1,
+  relationFail["CommonLoopDimensionAndCutMeasureRequired"]];
+ <|"Weights"->Association[(#->-Total[#[[2]]])&/@basis],"LoopCount"->First[loopCounts],
+   "LorentzDimensionAnnotations"->First[tags],"CutCount"->First[cutCounts],
+   "Scale"->scale,"ParameterMassDimensions"->dimensions,"Assumptions"->assumptions,
+   "DefinitionCheck"->"Exact homogeneity under a common positive momentum scaling"|>
+];
+
+relationScaleConvention[relations_,request_]:=Module[
+ {convention,scale,dimensions,coordinates,rules,rhs,parameters,lambda,scaled},
+ convention=Lookup[relations,"ScaleConvention",None];
+ If[!AssociationQ[convention]||
+   !ContainsAll[Keys[convention],{"Scale","ReferenceScale","KinematicVariables","CoordinateRules","ParameterMassDimensions"}],
+  relationFail["BoundUnitScaleConventionRequired"]];
+ {scale,dimensions,coordinates,rules}=Lookup[convention,
+  {"Scale","ParameterMassDimensions","KinematicVariables","CoordinateRules"}];
+ If[convention["ReferenceScale"]=!=1||scale=!=Lookup[request,"Scale",None]||
+   dimensions=!=Lookup[request,"ParameterMassDimensions",None]||
+   coordinates=!=relations["KinematicVariables"],
+  relationFail["SavedIntegralScaleConventionMismatch"]];
+ If[!AssociationQ[dimensions]||!MatchQ[rules,{(_Rule)...}]||
+   !DuplicateFreeQ[First/@rules]||!ContainsAll[coordinates,First/@rules]||
+   !AllTrue[First/@rules,MatchQ[#,_Symbol]&]||!coefficientExactDataQ[rules],
+  relationFail["ScalarCoordinateConventionRequired"]];
+ rhs=Last/@rules;
+ If[!FreeQ[relationIntegralNormalize[rhs],_FeynCalc`GLI|_FeynCalc`FCTopology|_FeynCalc`Momentum|_FeynCalc`Pair]||
+   !FreeQ[rhs,Alternatives@@Prepend[coordinates,relations["DimensionalRegulator"]]],
+  relationFail["ScalarCoordinateConventionRequired"]];
+ If[Lookup[request,"KinematicRules",{}]=!=rules,
+  relationFail["CoordinateRulesDoNotMatchSavedConvention"]];
+ If[MemberQ[Prepend[coordinates,relations["DimensionalRegulator"]],scale]||
+   !AllTrue[Lookup[dimensions,Prepend[coordinates,relations["DimensionalRegulator"]],0],#===0&],
+  relationFail["DimensionlessRelationParametersMustRemainFixed"]];
+ parameters=Select[Keys[dimensions],dimensions[#]=!=0&];
+ If[!ContainsAll[Union[{scale},Cases[rhs,_Symbol,Infinity]],parameters],
+  relationFail["EveryDimensionfulParameterNeedsNormalizedCoordinates"]];
+ lambda=Unique["coordinateScale$"];
+ scaled=rhs/.KeyValueMap[#1->lambda^(#2/2)#1&,dimensions];
+ If[!AllTrue[scaled-rhs,relationZeroQ],
+  relationFail["DimensionlessCoordinateRatiosRequired"]];
+ If[!FreeQ[{relations["ConstraintMatrix"],Last/@relations["Rules"]},Alternatives@@parameters],
+  relationFail["UnitScaleRelationsContainDimensionfulParameters"]];
+ convention
+];
+relationCoordinateChange[expression_,rules_]:=Module[{parts},
+ parts=linearIntegralSum[expression];
+ If[FailureQ[parts]||!relationZeroQ[parts["Remainder"]],
+  relationFail["HomogeneousLinearIntegralImageRequired"]];
+ Total[KeyValueMap[#1 (#2/.rules)&,parts["Terms"]]]
+];
+
+FeynFacet`ReduceMatchedIntegralCatalog[match_Association,relations_Association,request_Association]:=
+ Catch[Module[{target,desired,initial,images,needed,relationCatalog,basis,constraints,proposed,
+   secondary,selected,representatives,rows,nonzero,rref,columns,inverse,row,parts,witness,
+   witnesses={},proof,weights,lifted,normalization,restored,rhsMasters,rhsMatch,finalMap,
+   converted,rules,scale,kinematicRules,records,relationVariables,e,scaleConvention,available},
+ If[Lookup[match,"DataType",None]=!="CutIntegralCatalogMatch"||
+   Lookup[match,"Status",None]=!="Complete"||!AssociationQ[Lookup[match,"TargetCatalog",None]],
+  relationFail["CompleteBoundCatalogMatchRequired"]];
+ If[KeyExistsQ[match,"IntegralRelationReduction"],
+  relationFail["IntegralRelationReductionAlreadyApplied"]];
+ If[Lookup[match,"Method",None]=!="ExactAffineLoopMomentumChanges",
+  relationFail["AffineCatalogMatchRequired"]];
+ target=match["TargetCatalog"];
+ If[Lookup[match,"Normalization",None]=!=Lookup[target,"Normalization",None],
+  relationFail["MatchedCatalogNormalizationMismatch"]];
+ initial=relationIntegralNormalize[match["Rules"]];
+ desired=relationIntegralNormalize[Lookup[request,"TargetIntegrals",{}]];
+ If[desired==={}||!DuplicateFreeQ[desired]||
+   !ContainsAll[relationIntegralNormalize[target["Integrals"]],desired],
+  relationFail["ExplicitSolutionTargetIntegralsRequired"]];
+ available=DeleteDuplicates@relationIntegralNormalize[Lookup[request,"AvailableSolutionIntegrals",desired]];
+ If[!ContainsAll[available,desired]||!ContainsAll[relationIntegralNormalize[target["Integrals"]],available],
+  relationFail["AvailableSolutionsOutsideMatchedCatalog"]];
+ images=DeleteDuplicates[Cases[Last/@initial,_FeynCalc`GLI,Infinity]];
+ needed=Complement[images,desired];
+ If[needed==={},Return[Join[match,<|"IntegralRelationReduction"-><|
+   "Status"->"DirectMatchesSuffice","TargetIntegrals"->desired|>|>]]];
+ If[!ContainsAll[Keys[relations],{"Catalog","Basis","ConstraintMatrix","Rules","DimensionalRegulator","KinematicVariables"}],
+  relationFail["BoundIntegralRelationsRequired"]];
+ relationCatalog=relations["Catalog"];
+ basis=relationIntegralNormalize[relations["Basis"]];
+ If[!AssociationQ[relationCatalog]||basis=!=relationIntegralNormalize[Lookup[relationCatalog,"Integrals",{}]]||
+   !DuplicateFreeQ[basis]||Lookup[relationCatalog,"Normalization",None]=!=target["Normalization"],
+  relationFail["OrderedRelationBasisAndDefinitionsMismatch"]];
+ constraints=Normal[relations["ConstraintMatrix"]];proposed=relationIntegralNormalize[relations["Rules"]];
+ e=relations["DimensionalRegulator"];relationVariables=relations["KinematicVariables"];
+ If[!MatrixQ[constraints]||Length[constraints]===0||Last[Dimensions[constraints]]=!=Length[basis]||
+   !coefficientExactDataQ[{constraints,proposed}]||!MatchQ[proposed,{(_Rule)...}]||
+   !DuplicateFreeQ[First/@proposed]||!ContainsAll[basis,First/@proposed]||
+   !MatchQ[e,_Symbol]||!MatchQ[relationVariables,{__Symbol}],
+  relationFail["ExactOrderedLinearRelationSystemRequired"]];
+ If[Lookup[request,"DimensionalRegulator",None]=!=e||
+   Lookup[request,"KinematicVariables",None]=!=relationVariables,
+  relationFail["RelationRegulatorOrCoordinatesMismatch"]];
+ scaleConvention=relationScaleConvention[relations,request];
+ records=Catch[coefficientTopologyRecords[relationCatalog["Families"],True],"CoefficientAssembly"];
+ If[FailureQ[records],relationFail["InvalidRelationIntegralDefinitions",<|"Cause"->records|>]];
+ secondary=FeynFacet`MatchCutIntegralCatalogs[
+  <|"Integrals"->needed,"Families"->target["Families"],"Normalization"->target["Normalization"]|>,
+  relationCatalog];
+ If[FailureQ[secondary]||secondary["Status"]=!="Complete",
+  relationFail["RelationBasisAffineMatchIncomplete",<|"Cause"->secondary|>]];
+ representatives=DeleteDuplicates[Last/@relationIntegralNormalize[secondary["Rules"]]];
+ selected=Map[Function[master,
+  With[{rule=SelectFirst[proposed,First[#]===master&,None]},
+   If[rule===None,relationFail["ProposedIntegralImageMissing",<|"Master"->master|>]];rule]],representatives];
+ rref=Select[RowReduce[constraints],!AllTrue[#,relationZeroQ]&];
+ If[Length[rref]=!=Length[constraints],relationFail["IndependentConstraintRowsRequired"]];
+ columns=Function[r,SelectFirst[Range[Length[r]],!relationZeroQ[r[[#]]]&]]/@rref;
+ inverse=Map[Cancel,Inverse[constraints[[All,columns]]],{2}];
+ Do[
+  parts=linearIntegralSum[First[rule]-Last[rule]];
+  If[FailureQ[parts]||!relationZeroQ[parts["Remainder"]]||!ContainsAll[basis,Keys[parts["Terms"]]],
+   relationFail["HomogeneousRelationInDeclaredBasisRequired",<|"Rule"->rule|>]];
+  row=Lookup[parts["Terms"],basis,0];
+  witness=Cancel/@(row[[columns]].inverse);
+  If[!AllTrue[witness.constraints-row,relationZeroQ],
+   relationFail["ExactIntegralRelationWitnessFailed",<|"Rule"->rule|>]];
+  AppendTo[witnesses,<|"Rule"->rule,"ConstraintRowCombination"->witness|>],
+ {rule,selected}];
+ proof=relationScaleWeights[basis,records,relationCatalog["Normalization"],request];
+ weights=proof["Weights"];scale=proof["Scale"];
+ rows=AssociationThread[basis,#]&/@constraints;
+ rows=Select[#,#=!=0&]&/@rows;
+ lifted=Map[Association@KeyValueMap[#1->#2 scale^(-weights[#1])&,#]&,rows];
+ normalization=FeynFacet`NormalizeIntegralEquationScale[lifted,weights,scale];
+ If[FailureQ[normalization]||!And@@MapThread[AllTrue[Lookup[#1,basis,0]-Lookup[#2,basis,0],relationZeroQ]&,
+   {normalization["Rows"],rows}],
+  relationFail["ExactRelationScaleNormalizationFailed",<|"Cause"->normalization|>]];
+ restored=FeynFacet`RestoreIntegralEquationScale[selected,normalization];
+ If[FailureQ[restored],Throw[restored,"IntegralRelations"]];
+ rhsMasters=DeleteDuplicates[Cases[Last/@restored,_FeynCalc`GLI,Infinity]];
+ rhsMatch=FeynFacet`MatchCutIntegralCatalogs[
+  <|"Integrals"->rhsMasters,"Families"->records,"Normalization"->target["Normalization"]|>,
+  Join[target,<|"Integrals"->available,"PreferredIntegrals"->desired|>]];
+ If[FailureQ[rhsMatch]||rhsMatch["Status"]=!="Complete",
+  relationFail["RelationImagesNeedAdditionalSolutions",<|"Cause"->rhsMatch|>]];
+ converted=(First[#]->(Last[#]/.Dispatch[relationIntegralNormalize[rhsMatch["Rules"]]]))&/@restored;
+ finalMap=(First[#]->(Last[#]/.Dispatch[converted]))&/@relationIntegralNormalize[secondary["Rules"]];
+ kinematicRules=Lookup[request,"KinematicRules",{}];
+ If[!MatchQ[kinematicRules,{(_Rule)...}]||!coefficientExactDataQ[kinematicRules],
+  relationFail["ExactRelationKinematicRulesRequired"]];
+ finalMap=(First[#]->relationCoordinateChange[Last[#],kinematicRules])&/@finalMap;
+ rules=MapThread[First[#1]->(Last[#2]/.Dispatch[finalMap])&,{match["Rules"],initial}];
+ If[!ContainsAll[available,DeleteDuplicates[Cases[Last/@rules,_FeynCalc`GLI,Infinity]]],
+  relationFail["ComposedIntegralRulesNotClosed"]];
+ Join[KeyDrop[match,"Mappings"],<|"Rules"->rules,"Method"->"ExactAffineMatchesAndVerifiedLinearRelations",
+  "AffineMappings"->match["Mappings"],
+  "AffineRules"->match["Rules"],"IntegralRelationReduction"-><|
+   "Status"->"ExactRelationsComposed","TargetIntegrals"->DeleteDuplicates[Cases[Last/@rules,_FeynCalc`GLI,Infinity]],
+   "PreferredTargetIntegrals"->desired,"AvailableSolutionIntegrals"->available,
+   "RelationCatalog"->relationCatalog,"ConstraintBasis"->basis,"ConstraintMatrix"->constraints,
+   "DimensionalRegulator"->e,"KinematicVariables"->relationVariables,
+   "Witnesses"->witnesses,"RelationBasisMatches"->secondary,"SolutionTargetMatches"->rhsMatch,
+   "PhysicalScaleHomogeneity"->proof,"ScaleConvention"->scaleConvention,"ScaleNormalization"->normalization,
+   "RelationProvenance"->Lookup[relations,"Provenance",None],
+   "RestoredRules"->restored,"ComposedTargetRules"->finalMap,
+   "KinematicRules"->kinematicRules,"EpsilonOrderCoverageClaimed"->False,
+   "EndpointDistributionScopeExtended"->False|>|>]
+ ],"IntegralRelations"];
+
+FeynFacet`ReduceMatchedIntegralCatalog[___]:=
+ Failure["CatalogMatchRelationsAndRequestAssociationsRequired",<||>];

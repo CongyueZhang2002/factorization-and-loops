@@ -3,7 +3,7 @@ Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 cgBase=root<>"/Projects/SIDIS_UU_NNLO";
 cgReal[project_,channel_]:=Module[{directory,card,setup,request},
  directory=root<>"/Projects/"<>project<>"/NLO/"<>channel;card=FeynFacet`ReadContributionCard[directory,"Real"];
- setup=FeynFacet`ReadProcessCard[directory,"Real"];request=FeynFacet`Private`projectAssemblyRequest[card,channel,"Real"];
+ setup=FeynFacet`ReadProcessCard[directory,"Real"];request=FeynFacet`ProjectAssemblyRequest[card,channel,"Real"];
  FeynFacet`ConstructCurrentRealDensity[setup,request]];
 cgU=cgReal["SIDIS_UU_NNLO","q-q"];cgG=cgReal["SIDIS_UU_NNLO","q-g"];
 FTTest`FTAssert["tagging either final parton gives the same exact unpolarized current density",
@@ -18,7 +18,7 @@ FTTest`FTAssert["charge conjugation preserves the generated quark and antiquark 
 cgVirtual[project_]:=Module[{directory,card,setup,request},
  directory=root<>"/Projects/"<>project<>"/NLO/q-q";card=FeynFacet`ReadContributionCard[directory,"Virtual"];
  setup=FeynFacet`ReadProcessCard[directory,"Virtual"];
- request=Join[FeynFacet`Private`projectAssemblyRequest[card,"q-q","Virtual"],<|"EpsilonRange"->{-2,1}|>];
+ request=Join[FeynFacet`ProjectAssemblyRequest[card,"q-q","Virtual"],<|"EpsilonRange"->{-2,1}|>];
  FeynFacet`ConstructCurrentVirtualContribution[setup,request]];
 cgVU=cgVirtual["SIDIS_UU_NNLO"];cgVL=cgVirtual["SIDIS_LL_NNLO"];
 FTTest`FTAssert["generated vector virtual correction agrees for UU and helicity through epsilon one",

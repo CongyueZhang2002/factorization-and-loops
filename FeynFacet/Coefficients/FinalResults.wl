@@ -8,10 +8,21 @@ FeynFacet`MasterIntegralMeasureConversion::usage =
  "MasterIntegralMeasureConversion[definition] returns the factor converting the physical momentum-space master in definition to the normalized GLI measure used by the coefficient tables.";
 
 coefficientAssemblyFail[tag_,data_:<||>] := Throw[Failure[tag,data],"CoefficientAssembly"];
+coefficientExactDataQ[data_]:=exactDataQ[data]&&FreeQ[data,
+ _Failure|_Missing|$Failed|$Aborted|Indeterminate|_DirectedInfinity|_SeriesData|_Series|_SeriesCoefficient];
+(* Replacements can leave Association values in a noncanonical evaluated
+   state: equal extracted rules then fail SameQ after serialization. Rebuild
+   immediate data containers; held expressions and delayed rules stay held. *)
+coefficientCanonicalContainers[data_Association] := Association@Map[
+ Function[entry,If[Head[entry]===Rule,
+   With[{key=First[entry],value=coefficientCanonicalContainers[Last[entry]]},Rule[key,value]],
+   entry]],Normal[data]];
+coefficientCanonicalContainers[data_List] := coefficientCanonicalContainers/@data;
+coefficientCanonicalContainers[data_] := data;
 coefficientRegulatorNormalize[x_,e_,declared_:None] := With[
  {names=DeleteDuplicates@Join[{"eps","ep","Epsilon"},
    If[MatchQ[declared,_Symbol]&&!MemberQ[{None,Automatic},declared],{SymbolName[declared]},{}]]},
- x/.s_Symbol /; MemberQ[names,SymbolName[s]]:>e];
+ coefficientCanonicalContainers[x/.s_Symbol /; MemberQ[names,SymbolName[s]]:>e]];
 coefficientMasterID[m_] := If[MatchQ[m,head_[_,{__Integer}]]&&SymbolName[Head[m]]==="GLI",
  {If[StringQ[m[[1]]],m[[1]],SymbolName[m[[1]]]],m[[2]]},
  coefficientAssemblyFail["ScalarMasterIntegralIdentifierRequired",<|"Master"->m|>]];
@@ -24,7 +35,7 @@ coefficientTermRead[term_Association,e_,defaultTruncation_:None] := Module[
   rep=Lookup[term,"Representation",Automatic],orders,known,variable,keys},
  If[MissingQ[c],coefficientAssemblyFail["CoefficientTermMissing"]];
  If[rep===Automatic,rep=If[AssociationQ[c],"LaurentSeries","Exact"]];
- If[!FreeQ[{p,c},_Real|Indeterminate|_DirectedInfinity|_Missing|_Failure|$Failed],
+ If[!coefficientExactDataQ[{p,c}],
   coefficientAssemblyFail["ExactCoefficientDataRequired"]];
  Which[
   rep==="Exact",
@@ -84,13 +95,13 @@ coefficientMeasures[setup_] := Catch[Module[{process,phase,loops,external,
 coefficientResultFromReconstruction[raw_Association]:=Module[{e=$feynFacetEpsilon,defs,terms,record},
  defs=KeyTake[raw,{"CardName","Setup","Pairs","AnalyticContext","Topologies",
   "TopologyEquivalence","ReverseRules","MassDimensions","DimensionRule"}];
- terms[x_]:={Join[KeyTake[x,{"PreFactor","Coefficient"}],<|
-  "Representation"->If[AssociationQ[x["Coefficient"]],"LaurentSeries","Exact"]|>]};
+ terms[x_]:=If[KeyExistsQ[x,"Terms"],x["Terms"],{Join[KeyTake[x,{"PreFactor","Coefficient"}],<|
+  "Representation"->If[AssociationQ[x["Coefficient"]],"LaurentSeries","Exact"]|>]}];
  record=Join[KeyDrop[raw,Join[Keys[defs],{"Expression","Remainder","Masters","Format","FormatVersion"}]],
   <|"Format"->"FeynFacet-MasterIntegralCoefficients","FormatVersion"->1,
    "DimensionalRegulator"->e,"Definitions"->defs,"CompleteTargetSet"->True,
    "Masters"->(Join[KeyDrop[#,{"PreFactor","Coefficient"}],<|"Terms"->terms[#]|>]& /@ raw["Masters"]),
-   "RemainderTerms"->terms[<|"PreFactor"->1,"Coefficient"->raw["Remainder"]|>]|>];
+   "RemainderTerms"->If[KeyExistsQ[raw,"RemainderTerms"],raw["RemainderTerms"],terms[<|"PreFactor"->1,"Coefficient"->raw["Remainder"]|>]]|>];
  FeynFacet`ReadMasterIntegralCoefficients[coefficientRegulatorNormalize[record,e,Lookup[raw,"SeriesVariable",None]],"DimensionalRegulator"->e]
 ];
 Options[FeynFacet`ReadMasterIntegralCoefficients]={"DimensionalRegulator"->Automatic};
@@ -141,7 +152,7 @@ FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Modul
   coefficientAssemblyFail["CoefficientMeasureCouldNotBeDerived"]];
  If[Lookup[data,"CompleteTargetSet",True]===False,
   coefficientAssemblyFail["IncompleteCoefficientTargetSet"]];
- Join[data,
+ coefficientCanonicalContainers@Join[data,
   <|"Format"->"FeynFacet-MasterIntegralCoefficients","FormatVersion"->1,
    "PreFactor"->Lookup[data,"PreFactor",1],"DimensionalRegulator"->e,
    "Variables"->Lookup[data,"Variables",{}],"Masters"->masters,

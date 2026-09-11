@@ -1,102 +1,123 @@
-# Design: first-class finite-field reconstruction in FeynFacet
+# Rational coefficient reconstruction
 
-Goal: replace the ad-hoc reconstruction scripts (launch.sh / finish.sh /
-series_production.sh, hand-rolled monitors, scratch parsers) with a
-package-level reconstruction stage as generic as the dimensionless-
-kinematics construction: everything channel-specific comes from the
-card/context; the module knows nothing about UU vs TT vs ghost.
+The production path is `Reconstruct.wl` -> `FiniteField/Execution.wl` ->
+`ResultAssembly.wl`. It uses scheduled native jobs, then writes the common
+master-coefficient format. `Scripts/assemble_scheduled_coefficients.wls`
+assembles an explicitly completed plan without launching missing jobs. For a
+finite plan, its fourth argument supplies the current order-input request;
+stored order proofs alone cannot establish that the current demand is unchanged.
 
-All numeric facts referenced here are measured (WORKLOG 2026-08-12/13):
-the hybrid schedule (bundle homogeneous columns, isolate outliers),
-eps-truncated series reconstruction (13x probe reduction on the fat
-column, verified exact to truncation), the parser defects on partial
-result sets, and the progress-monitoring requirement.
+Columns below the configurable size threshold share a rational trace; larger
+columns run separately. Each completed job binds its input expressions,
+master definitions, analytic signatures, aliases, series mode, executable and
+result. A completion marker alone does not authorize reuse.
 
-## Public API
+Native reconstruction threads are resolved from the operating-system CPU
+allocation (affinity and FACET_CPU_COUNT), independently of the Wolfram kernel
+licence limit and its OpenMP setting. Explicit requests are capped by that
+allocation. A single reconstruction queue runs one native job at a time and
+passes its full requested CPU budget to each pending job. Ordinary and finite
+jobs should use this queue instead of separate fixed 7+1 allocations.
 
-    ReconstructCoefficients[traceDirectory, options]
+## Exact and finite coefficients
 
-returns/writes the standard coefficient artifact. Options:
+Full rational reconstruction is the default. There is no default epsilon
+truncation. An explicitly requested finite reconstruction stores its integer
+Laurent orders and truncation; the analytic signature multiplies `PreFactor`.
+Gamma functions are not placed inside finite rational `Orders`.
 
-- "SeriesVariable" -> Automatic | None | symbol.
-  Automatic = the context regulator (Epsilon), None = full rational
-  reconstruction. Series mode uses ratracer `to-series` (Laurent-pole
-  aware; verified).
-- "SeriesOrder" -> 5 is the historical default. Production callers should
-  supply the order derived from the sufficient-epsilon-order calculation.
-- "Threads" -> Automatic (respects the core-cap convention:
-  Global`$FACETKernelLimit; current runs use at most eight cores).
-- "Schedule" -> Automatic: bundle all columns with expression files
-  below "BundleBelowBytes" (default 16 MB) into one shared trace;
-  isolate larger columns as sequential solo jobs, ascending by size
-  (early completions validate the run). Rationale: shared traces pay
-  max-probe-count times total-eval-cost; only homogeneous columns
-  bundle well (measured 18h-vs-8h case).
-- "Resume" -> True: a completed rec file with a DONE marker is never
-  redone; interrupted jobs restart cleanly (FireFly cannot checkpoint).
-- Progress: every job appends (epoch, probes) once a minute to
-  <dir>/progress/<job>.progress; public ReconstructionStatus[dir]
-  prints per-job phase (scan / prime n), probe count, measured rate,
-  and ETA once an expected total is known (after the first completed
-  prime of a comparable column, or the recorded count on resume).
+For expensive columns, `PrepareCoefficientReconstructionPlan` derives the
+plan before interpolation. A contribution card's `CoefficientReconstruction`
+association declares `EndpointCatalog`, `SourceNormalization`,
+`PhysicalNormalization`, `KinematicRules` and `Assumptions`; the upper order
+defaults to the card's `EpsilonRange`. Dependency paths are relative to the
+order/channel directory. These computational inputs do not change amplitude
+or diagram identities. `CoefficientSimplification` calls the planner
+automatically when these inputs are present; without them coefficients remain
+fully rational.
 
-## Parser and assembly (replace the defective path)
+The planner chooses candidate columns by `FiniteAboveBytes` (16 MiB by default).
+It matches actual powered-integral definitions to the accepted cut catalog and
+derives the complete analytic/physical multiplier through the same normalization
+routines used by final assembly, using unit coefficients solely to extract that
+multiplier. It does not read previous reconstructed coefficients.
 
-Adopt the reviewed Scripts/assemble_reconstruction.wls internals into
-the package, replacing direct use of finiteFieldParseReconstruction
-(defects filed in TODO 2026-08-13: subset-unsafe block extraction,
-absolute-vs-relative marker mismatch, per-output full-text scans,
-undiagnosed $Failed):
+`DetermineCoefficientReconstructionOrders` and the planner share one denominator
+classifier. It requires fixed normal divisors and proved joint analytic units on
+the stated tangential domain. Its bound includes the endpoint distribution pole,
+logarithmic sectors and physical normalization. The planner composes source
+alias decoding, color rules, dimensionless coordinates, physical normalization
+and endpoint substitutions in their production order. The supported effective
+map is affine in the endpoint coordinates and independent of epsilon; rational
+parameter coefficients require proved nonzero denominators. This includes
+symbols that occur only in numerators. General nonlinear maps remain exact until
+their omitted-tail analysis is implemented.
 
-- streaming one-pass block parser; marker resolution accepts both
-  relative and absolute paths; explicit diagnostics per failure cause;
-  asserts marker positions are strictly increasing.
-- signature-weighted per-master assembly as in the reviewed script.
-- Full production CoefficientResult output (not the intermediate
-  artifact): including remainder, physical factor, measures — reuse
-  the existing finiteFieldAssembleResult tail where possible.
+The source integral is explicitly tied to the physical endpoint row: the
+AMFlow master convention, unit source/representative/frame factors, reference
+scale and physical coordinate identity must agree. A different normalization or
+unsupported identity retains that column exactly.
 
-## Series-form storage convention
+For prefactor lower bound p, uniform physical sector bounds b_s, nilpotency
+indices nu_s and target order T, the finite upper order is
+N = T - p - min_s(b_s - nu_s). The omitted term then begins above T after
+endpoint integration. Moving divisors are excluded before applying this bound.
 
-When "SeriesVariable" -> var, a coefficient is stored as
+A coefficient with an unproved divisor is partitioned into literal regular and
+exceptional summands. Both parts together must equal the original ordered
+summands exactly. The exceptional part remains rational in epsilon. Only the
+regular part receives a finite expansion, with source content, definitions,
+normalization, accepted frame and endpoint inputs bound to its order plan.
+A source with no regular terms or unsupported physical endpoint order bound
+remains fully rational, with the reason retained in the discovery report.
+Missing, inconsistent or stale declared dependencies fail before native
+reconstruction. Unsupported analysis is handled per master, so it does not
+prevent independent supported columns from using finite reconstruction.
 
-    <|"SeriesVariable" -> var, "Orders" -> <|n -> rational, ...|>|>
+A saved finite plan is checked against the current request, resolved physical
+normalization, accepted endpoint catalog and source differential systems.
+Changing the target, normalization, coordinates, bounds or domain requires
+preparation again. Even a plan with no finite candidates replaces Plan.wl, so
+a previous partition plan cannot survive as the current output. Preparation
+refreshes mathematical demands; it need not repeat an accepted reconstruction
+whose source expressions and sufficient order coverage remain unchanged.
 
-with integer n from the column's true Laurent start (negative allowed).
-Downstream consumers (assembly weights, golden tests) must accept both
-this and the plain rational form. The artifact records
-"SeriesTruncation" -> maxorder so no consumer can silently assume
-completeness beyond it.
+`FiniteField/Partitions.wl` and `Execution.wl` enforce complete original output
+coverage before publication. Preparation alone is available through
+`Scripts/prepare_coefficient_reconstruction.wls TRACE_DIRECTORY CHANNEL_DIRECTORY CONTRIBUTION OUTPUT.wl`;
+the lower-level form accepts `TRACE_DIRECTORY REQUEST.wl OUTPUT.wl`.
+The generated plan contains no preset family names or source-column numbers.
 
-## Verification hooks (optional boundary checks, package idiom)
+The mixed term format preserves every finite unknown tail, including a zero
+known prefix. Arithmetic validation inspects prefactors and coefficient
+values; source topology and proof metadata are retained separately.
 
-- "VerifySlices" -> n: per column, n exact univariate-slice
-  comparisons against the original expression file (adopt
-  Scripts/verify_reconstruction_slice.wls: textual substitution,
-  degenerate-point redraw, signature division).
-- "VerifySeriesOrders" -> k: for isolated (solo) columns in series
-  mode, an independent reconstruction at maxorder k < production depth
-  must agree order-by-order exactly (two independent FireFly runs).
-- Composition check (Codex protocol #1) stays a separate script for
-  now; hook name reserved: "VerifyComposition".
+## Endpoint assembly
 
-## Tests (land with the module, same commit)
+`BuildEndpointCoefficientCatalog` indexes actual integral definitions in
+accepted closed DE systems. `ConstructEndpointCoefficientGroups` constructs
+fresh complete coefficient rows in suitable common frames and verifies exact
+cancellation of moving poles before expansion. It preserves finite regular
+prefixes and divides only exact exceptional terms when a source contributes
+to several groups. See [coefficient pole cancellation](CoefficientPoleCancellation.md).
 
-- t_reconstruction_nlo.wls: NLO golden through the new API in BOTH
-  modes: full-rational equals the stored golden exactly; series mode
-  equals the eps-series of the golden exactly to depth. Timing
-  recorded.
-- t_reconstruction_ghost.wls: ghost grid in series mode vs stored
-  exact coefficients (series-expanded); timings are reported without a
-  hardware-dependent pass/fail threshold.
-- t_reconstruction_parser.wls: synthetic rec files exercising subset,
-  permuted, and relative-marker cases (regression for the filed
-  defects); a wrong-order file must fail loudly, not silently.
+The generated contribution set, rather than the number of saved alternative
+frames, defines the endpoint campaign. Final assembly requires complete
+whole-master and exact-piece ownership. Accepted endpoint, physical bounds,
+matching and coordinate data are bound to each input.
 
-## Final results and working files
+## Validation
 
-Completed coefficient intermediates and ad-hoc production launch scripts were
-removed on 2026-09-06 after all final coefficient values were consolidated.
-The parser and reconstruction CLI remain general tools for new runs.
-[Final coefficient storage and retention](FinalCoefficientResults.md) defines
-the mixed exact/Laurent result, the exporter and automatic cleanup.
+`Scripts/Validation/check_reconstructed_trace.py` checks every reconstructed
+rational or Laurent output against its source trace. The manifest explicitly
+assigns named variables at finite-field points. It uses the common strict
+parser and comparison in `check_rational_trace.py`.
+
+The pinned native evaluator requires the checked 63-bit prime range; small
+moduli gave inconsistent evaluations in an earlier diagnostic. This is a
+native-backend restriction. The production check uses two distinct primes
+and three points each. It is probabilistic identity validation, not a global
+symbolic proof.
+
+Working expressions and traces remain under the owning project Results
+directory until a complete validated replacement is available.

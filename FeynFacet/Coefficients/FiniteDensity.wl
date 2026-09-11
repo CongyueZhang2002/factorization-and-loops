@@ -27,6 +27,15 @@ finiteDensityLoadSolution[input_,label_] := Module[{data=input,directory=None,fi
  If[directory===None,directory=Lookup[data,"SourceDirectory",None]];
  <|"Data"->data,"Directory"->directory,"File"->file,"Label"->label|>
 ];
+(* A stored range can include identically zero orders introduced before
+   physical boundary substitution. Advancing across these explicit zeros is
+   exact; an absent coefficient or the first unknown order is never zero. *)
+finiteDensityKnownLeadingZeroOrders[source_Association,row_Integer,{low_Integer,high_Integer}] :=
+ Module[{order=low,table=source["CoefficientTable"],zeros={}},
+  While[order<=high&&KeyExistsQ[table,order]&&KeyExistsQ[table[order],row]&&
+    SameQ[table[order][row],0],AppendTo[zeros,order];order++];
+  zeros
+ ];
 finiteDensityTermBound[t_,e_] := Module[{pv,cv},
  If[coefficientExactZeroTermQ[t],Return[Infinity]];
  If[t["Representation"]==="Exact",
@@ -234,8 +243,11 @@ finiteDensityAssemble[input_,sources_,request_,verbose_,coefficientDirectory_,wo
   bound=finiteDensityEntryBound[weighted,e];
   If[!KeyExistsQ[locations,identity],AppendTo[missingMasters,<|"Master"->identity,"Reason"->"MasterNotStored"|>];Continue[]];
   metadata=locations[identity];{lo,hi}=metadata["KnownOrderRange"];
-  required=If[bound===Infinity,lo-1,target-bound];
   row=metadata["Row"];source=loaded[metadata["Solution"]];
+  metadata=Join[metadata,<|"StoredMasterLaurentLowerBound"->lo,
+    "ExactZeroMasterCoefficientOrders"->finiteDensityKnownLeadingZeroOrders[source,row,{lo,hi}]|>];
+  lo+=Length[metadata["ExactZeroMasterCoefficientOrders"]];
+  required=If[bound===Infinity,lo-1,target-bound];
   expected=Range[lo,required];
   missingMasters=Join[missingMasters,Table[
     If[q>hi||!KeyExistsQ[source["CoefficientTable"],q]||!KeyExistsQ[source["CoefficientTable"][q],row],

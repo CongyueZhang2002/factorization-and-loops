@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
 root=DirectoryName[ExpandFileName[$InputFileName],3];
@@ -39,4 +40,4 @@ If[Sort[used]=!=Sort[Keys[entries]],
  output<>"/coverage_failure.wxf"];Print["CoefficientFamilyCoverageMismatch"];Exit[1]];
 Export[output<>"/summary.json",<|"Status"->"CoefficientInputsPrepared",
  "FamilyCount"->Length[report],"MasterCount"->Length[used],"Families"->report|>,"RawJSON"];
-Print["PASS ",Length[report]," families; ",Length[used]," masters."];Exit[0];
+Print["COMPLETED ENDPOINT INPUTS ",Length[report]," families; ",Length[used]," masters."];Exit[0];

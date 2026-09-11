@@ -1,121 +1,69 @@
-finiteFieldAssembleResult[
-    data_Association,
-    metadata_Association,
-    kiraFile_String,
-    context_Association,
-    traceData_Association,
-    trace_Association,
-    reconstruction_Association,
-    executable_String,
-    threads_Integer
-  ] := Module[
-  {
-    outputs, grouped, directRules, coefficients, remainder,
-    recordsByName, equivalence, classByName, masterData,
-    reconstructed, forbiddenMomenta, remainingMomenta,
-    remainingFractionObjects, cutCheck,
-    reconstructionData, certifiedColumn, rootSubstitutions, supportContext
-  },
-  supportContext=Join[context,<|"ExternalDistribution"->data["PhaseSpace"]|>];
-  outputs = MapThread[
-    Join[#1, <|"RationalExpression" -> #2|>] &,
-    {
-      traceData["OutputMetadata"],
-      reconstruction["Expressions"]
-    }
-  ];
-  grouped = GroupBy[outputs, #1["MasterIndex"] &];
-  directRules = Normal[context["DimensionlessCoordinates"]];
-  (* The trace is emitted in physical variables, so a reconstructed
-     coefficient carrying a root variable is a regression of the
-     descend, not a parity accident.  The check stays where it is
-     cheap: on the small reconstructed output, never on trace inputs. *)
-  certifiedColumn[entries_List] := finiteFieldCertifyPhysicalVariables[
-    Total[
-      Function[entry,
-        ReleaseHold[
-          traceData["Signatures"][entry["SignatureIndex"]]
-        ] entry["RationalExpression"]
-      ] /@ entries
-    ],
-    supportContext
-  ];
-  coefficients = AssociationMap[
-    Function[index, certifiedColumn[Lookup[grouped, index, {}]]],
-    Range[Length[traceData["Masters"]]]
-  ];
-  remainder = certifiedColumn[Lookup[grouped, 0, {}]];
-  If[MemberQ[Values[coefficients], $Failed] || remainder === $Failed,
-    Return[$Failed]
-  ];
-  coefficients = (# /. directRules) & /@ coefficients;
-  remainder = remainder /. directRules;
-  recordsByName = Association[
-    #1["Topology"][[1]] -> #1 & /@ metadata["Topologies"]
-  ];
-  equivalence = metadata["TopologyEquivalence"];
-  classByName = If[
-    AssociationQ[equivalence] && KeyExistsQ[equivalence, "Classes"],
-    Association[#1["Representative"] -> #1 & /@ equivalence["Classes"]],
-    <||>
-  ];
-  masterData = DeleteCases[
-    MapIndexed[
-      Function[{master, position},
-        Module[{coefficient, record},
-          coefficient = coefficients[First[position]];
-          record = recordsByName[master[[1]]];
-          <|
-            "Master" -> master,
-            "PreFactor" -> 1,
-            "Coefficient" -> coefficient,
-            "TopologyName" -> master[[1]],
-            "CutMomenta" -> record["CutMomenta"],
-            "CutIndices" -> record["CutIndices"],
-            "CutDirections" -> record["CutDirections"],
-            "TopologyClass" -> Lookup[
-              classByName,
-              master[[1]],
-              Missing["NotFound"]
-            ]
-          |>
-        ]
-      ],
-      traceData["Masters"]
-    ],
-    Nothing
-  ];
-  reconstructed = traceData["PhysicalFactor"] (
-    Total[#1["Coefficient"] #1["Master"] & /@ masterData] + remainder
-  );
-  forbiddenMomenta = coefficientForbiddenMomenta[data["Setup"]];
-  remainingMomenta = remainingDeclaredMomenta[
-    {Lookup[masterData, "Coefficient"], remainder},
-    forbiddenMomenta
-  ];
-  rootSubstitutions = Lookup[context, "RootSubstitutions", <||>];
-  remainingFractionObjects = Select[
-    Join[
-      context["FractionVariables"],
-      context["FractionRootVariables"],
-      If[
-        AssociationQ[rootSubstitutions],
-        #["Root"] & /@ Values[rootSubstitutions],
-        {}
-      ]
-    ],
-    ! FreeQ[{Lookup[masterData, "Coefficient"], remainder}, #] &
-  ];
-  If[
-    remainingMomenta =!= {} || remainingFractionObjects =!= {} ||
-      ! FreeQ[reconstructed, System`D],
-    Return[$Failed]
-  ];
-  cutCheck = validateCutGLIs[
-    Lookup[masterData, "Master"],
-    metadata["Topologies"]
-  ];
-  If[cutCheck =!= True, Return[$Failed]];
+(* One assembly path for exact and finite Laurent coefficient terms.
+   Analytic signatures remain outside each rational coefficient. *)
+finiteFieldAssembleResult[data_Association,metadata_Association,kiraFile_String,
+ context_Association,traceData_Association,trace_Association,
+ reconstruction_Association,executable_String,threads_Integer] := Catch[Module[
+ {e=$feynFacetEpsilon,supportContext,directRules,columnTerms,outputs,grouped,
+  terms,certifyTerm,signatureValue,recordsByName,equivalence,classByName,
+  masterData,remainder,forbiddenMomenta,remainingMomenta,rootSubstitutions,
+  remainingFractionObjects,cutCheck,reconstructionData,arithmetic},
+ If[!TrueQ[traceData["CompleteTargetSet"]],Throw[$Failed,"CoefficientAssembly"]];
+ supportContext=Join[context,<|"ExternalDistribution"->data["PhaseSpace"]|>];
+ directRules=Normal[context["DimensionlessCoordinates"]];
+ columnTerms=Lookup[reconstruction,"ColumnTerms",None];
+ If[columnTerms===None,
+  columnTerms=({<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->#|>}&/@reconstruction["Expressions"])];
+ If[!ListQ[columnTerms]||Length[columnTerms]=!=Length[traceData["OutputMetadata"]]||
+   !AllTrue[columnTerms,MatchQ[#,{__Association}]&],Throw[$Failed,"CoefficientAssembly"]];
+ If[!AllTrue[traceData["OutputMetadata"],IntegerQ[#["MasterIndex"]]&&
+    0<=#["MasterIndex"]<=Length[traceData["Masters"]]&&
+    IntegerQ[#["SignatureIndex"]]&&1<=#["SignatureIndex"]<=Length[traceData["Signatures"]]&],
+  Throw[$Failed,"CoefficientAssembly"]];
+ signatureValue[index_]:=signatureValue[index]=finiteFieldCertifyPhysicalVariables[
+  coefficientRegulatorNormalize[ReleaseHold[traceData["Signatures"][index]],e],supportContext];
+ certifyTerm[t_,signature_] := Module[{term,p,c,declared},
+  declared=If[AssociationQ[Lookup[t,"Coefficient",None]],Lookup[t["Coefficient"],"SeriesVariable",None],None];
+  term=coefficientTermRead[coefficientRegulatorNormalize[t,e,declared],e];
+  p=finiteFieldCertifyPhysicalVariables[signature term["PreFactor"],supportContext];
+  c=term["Coefficient"];
+  c=If[term["Representation"]==="Exact",
+    finiteFieldCertifyPhysicalVariables[c,supportContext],
+    Append[c,"Orders"->(finiteFieldCertifyPhysicalVariables[#,supportContext]&/@c["Orders"])]];
+  If[!FreeQ[{p,c},$Failed],Throw[$Failed,"CoefficientAssembly"]];
+  Join[term,<|"PreFactor"->(p/.directRules),"Coefficient"->(c/.directRules)|>]
+ ];
+ outputs=MapThread[Function[{entry,values},
+  <|"MasterIndex"->entry["MasterIndex"],
+    "Terms"->(certifyTerm[#,signatureValue[entry["SignatureIndex"]]]&/@values)|>],
+  {traceData["OutputMetadata"],columnTerms}];
+ grouped=GroupBy[outputs,#["MasterIndex"]&];
+ terms[index_]:=Flatten[Lookup[Lookup[grouped,index,{}],"Terms",{}],1];
+ recordsByName=Association[#["Topology"][[1]]->#&/@metadata["Topologies"]];
+ equivalence=metadata["TopologyEquivalence"];
+ classByName=If[AssociationQ[equivalence]&&KeyExistsQ[equivalence,"Classes"],
+  Association[#["Representative"]->#&/@equivalence["Classes"]],<||>];
+ masterData=MapIndexed[Function[{master,position},Module[{record=recordsByName[master[[1]]],value},
+  value=terms[First[position]];
+  If[value==={},value={<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->0|>}];
+  <|"Master"->master,"Terms"->value,"TopologyName"->master[[1]],
+    "CutMomenta"->record["CutMomenta"],"CutIndices"->record["CutIndices"],
+    "CutDirections"->record["CutDirections"],
+    "TopologyClass"->Lookup[classByName,master[[1]],Missing["NotFound"]]|>]],
+  traceData["Masters"]];
+ remainder=terms[0];
+ forbiddenMomenta=coefficientForbiddenMomenta[data["Setup"]];
+ arithmetic=Map[{#["PreFactor"],If[#["Representation"]==="Exact",
+   #["Coefficient"],Values[#["Coefficient"]["Orders"]]]}&,
+   Join[Flatten[Lookup[masterData,"Terms"],1],remainder]];
+ remainingMomenta=remainingDeclaredMomenta[arithmetic,forbiddenMomenta];
+ rootSubstitutions=Lookup[context,"RootSubstitutions",<||>];
+ remainingFractionObjects=Select[Join[context["FractionVariables"],context["FractionRootVariables"],
+   If[AssociationQ[rootSubstitutions],#["Root"]&/@Values[rootSubstitutions],{}]],
+  !FreeQ[arithmetic,#]&];
+ If[remainingMomenta=!={}||remainingFractionObjects=!={}||
+   !FreeQ[{arithmetic,traceData["PhysicalFactor"]},System`D],Throw[$Failed,"CoefficientAssembly"]];
+ cutCheck=validateCutGLIs[Lookup[masterData,"Master"],metadata["Topologies"]];
+ If[cutCheck=!=True,Throw[$Failed,"CoefficientAssembly"]];
   reconstructionData = <|
     "Format" -> $finiteFieldReconstructionFormat,
     "FormatVersion" -> $finiteFieldReconstructionVersion,
@@ -132,23 +80,11 @@ finiteFieldAssembleResult[
     "ReconstructionSeconds" -> reconstruction["ReconstructionSeconds"],
     "Threads" -> threads,
     "RatracerExecutable" -> executable,
-    "RatracerExecutableHash" -> FileHash[
-      executable,
-      "SHA256",
-      "HexString"
-    ],
+    "RatracerExecutableHash" -> coefficientFileHash[executable],
     "TraceFile" -> trace["TraceFile"],
-    "TraceFileHash" -> FileHash[
-      trace["TraceFile"],
-      "SHA256",
-      "HexString"
-    ],
+    "TraceFileHash" -> coefficientFileHash[trace["TraceFile"]],
     "ResultFile" -> reconstruction["ResultFile"],
-    "ResultFileHash" -> FileHash[
-      reconstruction["ResultFile"],
-      "SHA256",
-      "HexString"
-    ]
+    "ResultFileHash" -> coefficientFileHash[reconstruction["ResultFile"]]
   |>;
   Join[
     <||>,
@@ -157,8 +93,7 @@ finiteFieldAssembleResult[
       "FractionMeasure" -> data["FractionMeasure"],
       "PhaseSpace" -> data["PhaseSpace"],
       "PreFactor" -> traceData["PhysicalFactor"],
-      "Remainder" -> remainder,
-      "Expression" -> reconstructed,
+      "RemainderTerms" -> remainder,
       "Masters" -> masterData,
       "HadronicNormalization" -> <|
         "PreFactor" -> traceData["PhysicalFactor"],
@@ -204,5 +139,4 @@ finiteFieldAssembleResult[
       "SourceInputFingerprint" -> metadata["SourceInputFingerprint"]
     |>
   ]
-];
-
+], "CoefficientAssembly"];

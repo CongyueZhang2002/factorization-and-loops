@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 #!/usr/bin/env wolframscript
 (* FamilyArtifactRead: the mandatory context-guarded artifact reader
    (FeynFacet/DifferentialEquations/EpsilonForm/Assembly/EpsilonForm.wl), rebased 2026-08-23 on the

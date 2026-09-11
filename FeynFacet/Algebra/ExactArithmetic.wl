@@ -11,9 +11,13 @@ exactRationalQ[value_] := MatchQ[value, _Integer | _Rational];
 
 inexactNumberQ[value_] := NumberQ[value] && Precision[value] =!= Infinity;
 
+(* Inexact numbers are Real atoms or Complex atoms with inexact components.
+   Restrict the predicate to those heads instead of evaluating NumberQ at
+   every node of a large rational reduction. *)
 exactDataQ[expression_] := FreeQ[
   HoldComplete[expression],
-  value_ /; inexactNumberQ[value]
+  _Real | _Complex?inexactNumberQ |
+    _SparseArray?(Not[exactDataQ[{#["ExplicitValues"],#["ImplicitValue"]}]]&)
 ];
 
 

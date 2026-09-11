@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 (* REQUEST.wl declares PhysicalCoefficientTable, FiniteSolutions and Request.
    The output is a complete finite interior expression or an explicit order failure. *)
 $HistoryLength=0;$MaxExtraPrecision=50;

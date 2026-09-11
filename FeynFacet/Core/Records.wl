@@ -42,19 +42,30 @@ FamilyArtifactRead[file_String, context_String] := Module[{value, messages},
 
 (* Atomic artifact writer: Put to a temporary name, then RenameFile. *)
 Options[FamilyArtifactWrite]={"Compression"->False};
-FamilyArtifactWrite[value_, file_String,OptionsPattern[]] := Module[{directory, temporary,stream},
-  directory = DirectoryName[ExpandFileName[file]];
-  If[directory =!= "" && ! DirectoryQ[directory],
-    CreateDirectory[directory, CreateIntermediateDirectories -> True]];
-  temporary = file <> ".partial-" <> ToString[$ProcessID];
-  If[TrueQ[OptionValue["Compression"]]||(OptionValue["Compression"]===Automatic&&ByteCount[value]>8*1024^2),
-    stream=OpenWrite[temporary];
-    WriteString[stream,"Uncompress[",ToString[Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Compress[value]],InputForm],"]\n"];Close[stream],
-    (* Both package names and System names shadowed by packages must
-       retain their explicit contexts in small uncompressed records. *)
-    Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Put[value, temporary]]];
-  RenameFile[temporary, file, OverwriteTarget -> True];
-  file
+FamilyArtifactWrite[value_, file_String,OptionsPattern[]] := Module[
+ {directory,temporary,stream=None,written,closed,renamed,result},
+ directory=DirectoryName[ExpandFileName[file]];
+ temporary=file<>".partial-"<>ToString[$ProcessID];
+ result=CheckAbort[Quiet@Check[
+  If[directory=!=""&&!DirectoryQ[directory],
+   CreateDirectory[directory,CreateIntermediateDirectories->True]];
+  If[TrueQ[OptionValue["Compression"]]||
+    (OptionValue["Compression"]===Automatic&&ByteCount[value]>8*1024^2),
+   stream=OpenWrite[temporary];
+   If[Head[stream]=!=OutputStream,Return[$Failed]];
+   written=Quiet@Check[WriteString[stream,"Uncompress[",
+     ToString[Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Compress[value]],InputForm],"]\n"],$Failed];
+   closed=Close[stream];stream=None;
+   If[written===$Failed||!StringQ[closed],Return[$Failed]],
+   written=Quiet@Check[Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Put[value,temporary]],$Failed];
+   If[written===$Failed,Return[$Failed]]];
+  If[!FileExistsQ[temporary],Return[$Failed]];
+  renamed=RenameFile[temporary,file,OverwriteTarget->True];
+  If[StringQ[renamed]&&FileExistsQ[file],file,$Failed],
+ $Failed],
+ If[Head[stream]===OutputStream,Quiet[Close[stream]]];Abort[]];
+ If[Head[stream]===OutputStream,Quiet[Close[stream]]];
+ result
 ];
 
 

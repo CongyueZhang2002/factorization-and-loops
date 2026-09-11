@@ -1,6 +1,7 @@
 # Active tests
 
-The production path is documented in [Scripts/Transport/README.md](../Scripts/Transport/README.md).
+The full production workflow is documented in [WORKFLOW.md](../WORKFLOW.md).
+The DE portion has its own [Transport guide](../Scripts/Transport/README.md).
 The 2026-09-06 cleanup preserves tests of the finite solver, order planner,
 numerical backends, optional canonicalization and local boundary mathematics.
 Tests exclusive to the retired lazy transport formats moved with their code to
@@ -143,7 +144,7 @@ residual.
 
 Reproducible initial-assembly comparisons and the controlled three-root
 benchmark are in
-[the 2026-09-06 evidence](../Archive/ProjectLayouts/2026-09-08/ppHX_NNLO_DoubleReal/Results/Validation/Stage1CostsAndEpsilonFormCriteria_2026-09-06).
+[the 2026-09-06 evidence](../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/Validation/Stage1CostsAndEpsilonFormCriteria_2026-09-06).
 
 The standalone numerical evaluator is covered by
 `Transport/t_numerical_finite_integrals.wls`: convergence, panel propagation,
@@ -260,3 +261,62 @@ sums of analytic prefactors and rejection of an insufficient master tail.
 of a caller's existing worker pool. `Core/t_compressed_records.wls` checks
 plain/compressed exact recovery, including package symbols, the regulator,
 and System symbols shadowed by packages.
+
+## Shared cards, finalization and driver execution
+
+- Core/t_compiled_card_dependencies.wls checks compiled-card reuse, actual
+  perturbative orders, richer Born reuse and the prohibition on regeneration
+  in assemble mode.
+- Algebra/t_final_partonic_results.wls checks separate components and endpoint
+  axes, missing Laurent orders, source/assumption matching, exact-versus-numerical
+  evidence, unresolved finite integrals and positive epsilon slices.
+- Run `python3 Tests/Infrastructure/test_wolfram_runner.py` for CPU allocations,
+  current-attempt completion, startup-only retries and cleanup of a worker
+  whose launcher has already exited. These checks do not start Wolfram.
+
+The cut-catalog and coefficient assembly regressions cover independent family
+names, typed cuts and measures, restricted integration domains, Lorentz-dimension
+annotations, bound source/target catalogs, polarization conventions and finite
+Laurent coverage. `Coefficients/t_cut_assembly_files.wls` exercises the actual
+catalog producer and assembly CLI with WXF round-trips and failed-output cases;
+it requires two available Wolfram main-kernel licenses and should run outside
+an active Wolfram production job.
+
+
+`Reduction/t_supplemental_ibp_reduction.wls` checks missing-export accounting,
+exact cut-preserving supplementary rules, rejection of circular/unresolved
+targets, local seed padding, and isolation of Kira's `d` from caller values.
+
+`Algebra/t_exact_data.wls` checks exact/inexact real and complex numbers, held expressions, and both stored entries and implicit values of sparse arrays without dense expansion.
+
+`Coefficients/t_coefficient_record_merging.wls` distinguishes additive amplitude
+records from reduction rules: identical repeated rules are allowed, conflicting
+rules and malformed or truncated records are rejected.
+
+`Coefficients/t_reconstruction_aliases.wls` covers bare-variable coefficients,
+context-preserving alias decoding and rejection of unregistered or surviving
+aliases. The emitter must register a scalar variable even at expression level zero.
+
+- `Coefficients/t_rational_compaction.wls`: 21 checks of exact rational summand compaction, source preservation, native trace reuse bindings and byte-hash equivalence.
+- `Infrastructure/test_rational_summands.py`: six checks of streamed term splitting across chunk boundaries and atomic file replacement.
+
+- `Infrastructure/test_rational_trace.py`: four checks of native modulus restrictions and complete evaluation-output parsing.
+
+- `Coefficients/t_automatic_reconstruction_plan.wls` checks automatic source
+  selection, literal moving-divisor separation, physical-prefactor order loss,
+  exact fallback, dependency validation and card/default-path integration.
+- `Coefficients/t_reconstruction_orders.wls` also rejects coordinate maps whose
+  numerator substitutions would introduce untracked poles or nonpolynomial
+  functions.
+
+- `Coefficients/t_reconstruction_planning_inputs.wls` checks source-to-endpoint
+  physical normalization, reference scale, representative factors, effective
+  coordinate composition and nonzero parameter denominators.
+- The automatic-plan test also covers changed current inputs, a stale divisor
+  inventory, independent unsupported masters, regulator rewrites and replacement
+  of a previous finite plan by an all-rational plan.
+
+- `Core/t_native_thread_allocation.wls` checks both Kira and reconstruction
+  allocation independently of Wolfram kernel limits.
+- `Coefficients/t_reconstruction_cpu_schedule.wls` checks that later jobs
+  receive the available CPU budget and preserve their individual epsilon modes.

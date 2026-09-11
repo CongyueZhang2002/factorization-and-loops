@@ -4,21 +4,32 @@ Before expanding in the normal coordinate and epsilon, form the scalar
 coefficient row in a common DE basis. A pole at z=z_c(epsilon), with z_c(0)=0,
 cannot be removed by taking a fixed-z Laurent series first.
 
-For a simple pole, retained source reduction identities determine a residue
-row r. An exact relation r T(z_c)=0 proves cancellation in the normalized
-scalar row c^T T. The physical input may contain finite coefficient jets:
-subtract their reconstructed exact pole parts, retain their declared unknown
-tail, and supply these pole parts in the common exact row. Keep the other
-exact coefficients together when possible; splitting all of them separately
-can introduce unnecessarily deep epsilon poles.
+The general production constructor is `ConstructEndpointCoefficientGroups`.
+It finds the exact pole support, chooses a covering accepted closed system and
+cancels the full coefficient row times its gauge. Candidate coverage comes from
+actual powered-integral definitions, not matching family names. The bound
+endpoint, Laurent bounds, physical matching and coordinate records travel with
+each contribution and are checked by the scalar driver.
 
-SeparateMasterCoefficientPoles is process independent. Its input consists of
-a canonical coefficient entry, identified exact residues, and a source
-certificate which covers every coalescing divisor. It returns the finite
-remainder and exact pole entries. The order planner propagates the removed
-and restored pieces through scalar projection and explicit physical solution.
-The final merger rejects missing, duplicated, or changed pieces, in addition
-to requiring complete master coverage.
+A source belonging to only one moving-divisor group moves as a whole when all
+its terms are exact. A shared source contributes exact principal parts and keeps
+its regular remainder. If a fresh coefficient was reconstructed as an exact
+exceptional part plus a finite regular part, principal parts are subtracted
+**only from the exact exceptional part**. The finite regular prefix and unknown
+tail are unchanged. Subtracting them again from that already regular prefix is
+incorrect.
+
+The lower-level `SeparateMasterCoefficientPoles` accepts supplied exact pole
+data for a whole coefficient; its finite input includes those poles. It is not
+the adapter for an independently reconstructed regular prefix. The automatic
+production constructor determines its fresh pieces itself and checks their
+recombination and the ownership of the actual emitted inputs.
+
+Every original coefficient has one whole owner. Exact partial pieces are
+recorded once as removed and once as added. Contribution labels are independent
+of mathematical family names, so several contributions can use the same saved
+DE without sharing an output directory. The final merger checks this ownership
+again.
 
 A residual divisor certificate includes its tangential domain. Removing a
 moving divisor does not prove that every remaining tangential divisor is

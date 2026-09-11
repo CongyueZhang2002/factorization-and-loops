@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
@@ -7,8 +8,8 @@ If[Length[arguments]=!=4,Print["Usage: evaluate_current_virtual_integrals.wls PR
 {projectName,orderName,channelName,contribution}=arguments;
 directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
 path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
-card=FeynFacet`ReadContributionCard[directory,contribution];setup=FeynFacet`ReadProcessCard[directory,contribution];
-request=FeynFacet`Private`projectAssemblyRequest[card,channelName,First[StringSplit[contribution,"."]]];
+card=FeynFacet`ReadContributionCard[directory,contribution];setup=FeynFacet`ReadProcessCard[card];
+request=FeynFacet`ProjectAssemblyRequest[card];
 source=FeynFacet`FamilyArtifactRead[path<>"/IntegralFamilies.wl"];
 reduction=FeynFacet`FamilyArtifactRead[path<>"/Reduction.wl"];
 If[!AllTrue[{card,setup,request,source,reduction},AssociationQ],Print["Completed virtual inputs required"];Exit[1]];
@@ -49,7 +50,7 @@ rows=Association@Table[n->FeynFacet`Private`partonicCornerDistribution[
  Length[support["Axes"]]],{n,First[range],Last[range]}];
 meta=Join[KeyDrop[request,{"CurrentProjectors","KinematicRules","BornSupportKinematicRules",
  "BornMomentumRules","BornConstraints","TwoParticleMeasurement","BareCouplingRules"}],
- FeynFacet`Private`projectResultIdentity[FeynFacet`ReadProjectCard[directory],channelName,setup],
+ FeynFacet`ProjectResultIdentity[card,setup],
  <|"Order"->orderName,"Contribution"->contribution,"CouplingPower"->2,
  "StructureFunctions"->scalar["StructureFunctions"],"ConjugateInterferenceAdded"->addConjugate,
  "BornSupportJacobian"->support["JacobianDeterminant"],"ScalarMasterUpperOrders"->scalar["ScalarMasterUpperOrders"],

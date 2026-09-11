@@ -4,7 +4,7 @@ FeynFacet`ConstructPhysicalMasterCoefficientDensity::usage =
  "ConstructPhysicalMasterCoefficientDensity[table,definitions,request] converts normalized-GLI coefficients to coefficients of physical masters at ReferenceScale. Definitions is keyed by GLI or {family,powers}. Request supplies Scale, ReferenceScale, positive-scale Assumptions and KinematicRules; FluxFactor, ObservedVariableJacobian and named AdditionalFactors are applied only when explicitly supplied.";
 
 physicalDensityID[key_] := If[MatchQ[key,{_String,{__Integer}}],key,coefficientMasterID[key]];
-physicalDensityExactQ[x_] := FreeQ[x,_Real|_Missing|_Failure|$Failed|Indeterminate|_DirectedInfinity|_SeriesData];
+physicalDensityExactQ[x_] := coefficientExactDataQ[x];
 physicalDensityFactorRecord[request_,key_] := If[KeyExistsQ[request,key],
  If[!physicalDensityExactQ[request[key]]||MemberQ[{None,Automatic},request[key]],coefficientAssemblyFail["ExactDensityFactorRequired",<|"FactorName"->key|>]];
  <|"Status"->"Supplied","Factor"->request[key]|>,<|"Status"->"NotSupplied"|>];
@@ -111,7 +111,7 @@ FeynFacet`ConstructPhysicalMasterCoefficientDensity[input_,definitions_Associati
     "CompleteDifferentialCrossSectionClaimed"->False|>|>];
  transformed=FeynFacet`ReadMasterIntegralCoefficients[record,"DimensionalRegulator"->e];
  If[FailureQ[transformed],coefficientAssemblyFail["ConvertedDensityCoefficientDataInvalid",<|"Cause"->transformed|>]];
- record
+ transformed
  ],"CoefficientAssembly"];
 FeynFacet`ConstructPhysicalMasterCoefficientDensity[___] :=
  Failure["CoefficientTablePhysicalDefinitionsAndRequestRequired",<||>];

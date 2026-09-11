@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Regenerate pre-IBP pair artifacts for any process card on the full
    independent Hermitian diagram pairs (full rectangles when ineligible), in parallel over subkernels.
 

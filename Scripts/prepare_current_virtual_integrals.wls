@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
@@ -6,7 +7,7 @@ arguments=Rest[$ScriptCommandLine];
 If[Length[arguments]=!=4,Print["Usage: prepare_current_virtual_integrals.wls PROJECT ORDER CHANNEL CONTRIBUTION"];Exit[2]];
 {projectName,orderName,channelName,contribution}=arguments;
 directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
-card=FeynFacet`ReadContributionCard[directory,contribution];setup=FeynFacet`ReadProcessCard[directory,contribution];
+card=FeynFacet`ReadContributionCard[directory,contribution];setup=FeynFacet`ReadProcessCard[card];
 If[!AssociationQ[card]||!AssociationQ[setup],Print[{card,setup}];Exit[1]];
 path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
 source=FeynFacet`FamilyArtifactRead[path<>"/Integrands.wl"];

@@ -66,7 +66,7 @@ layoutFile=CreateTemporary[];Put[layoutBorn,layoutFile];
 FTTest`FTAssert["common file reader checks identity",AssociationQ[FeynFacet`ReadPartonicResult[layoutFile,<|"Order"->"LO","EpsilonRange"->{0,1}|>]]&&
  FailureQ[FeynFacet`ReadPartonicResult[layoutFile,<|"Order"->"NLO"|>]]];DeleteFile[layoutFile];
 layoutHigher=FeynFacet`ConstructBornResult[FeynFacet`ReadProcessCard[projectTestRoot<>"/Projects/ppHX_UU_NNLO/LO/qqp-qqp","Born"],
- Join[FeynFacet`Private`projectAssemblyRequest[FeynFacet`ReadProjectCard[projectTestRoot<>"/Projects/ppHX_UU_NNLO"],"qqp-qqp","Born"],<|"EpsilonRange"->{0,2},"BornCouplingPower"->2|>]];
+ Join[FeynFacet`ProjectAssemblyRequest[FeynFacet`ReadProjectCard[projectTestRoot<>"/Projects/ppHX_UU_NNLO"],"qqp-qqp","Born"],<|"EpsilonRange"->{0,2},"BornCouplingPower"->2|>]];
 FTTest`FTAssert["Born producer computes requested epsilon two explicitly",
  AssociationQ[layoutHigher]&&layoutHigher["EpsilonRange"]==={0,2}&&FreeQ[layoutHigher["Coefficients"],_SeriesData|_SeriesCoefficient]];
 FTTest`FTAssert["physical Born coupling power is homogeneous",layoutHigher["CouplingPower"]===2];

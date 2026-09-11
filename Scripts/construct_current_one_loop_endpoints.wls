@@ -6,9 +6,9 @@ If[Length[args]=!=4,Print["Usage: construct_current_one_loop_endpoints.wls PROJE
 {projectName,orderName,channel,contribution}=args;
 directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channel;
 path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
-card=FeynFacet`ReadContributionCard[directory,contribution];setup=FeynFacet`ReadProcessCard[directory,contribution];
+card=FeynFacet`ReadContributionCard[directory,contribution];setup=FeynFacet`ReadProcessCard[card];
 project=FeynFacet`ReadProjectCard[directory];
-request=FeynFacet`Private`projectAssemblyRequest[card,channel,First[StringSplit[contribution,"."]]];
+request=FeynFacet`ProjectAssemblyRequest[card];
 source=FeynFacet`FamilyArtifactRead[path<>"/TensorReducedIntegrands.wl"];
 bulk=FeynFacet`FamilyArtifactRead[path<>"/InteriorLaurentCoefficients.wl"];
 save[a_,name_]:=FeynFacet`FamilyArtifactWrite[a,path<>"/"<>name<>".wl",Compression->Automatic];
@@ -74,7 +74,7 @@ save[bulk,"HermitianInteriorCoefficients"];
 bulk["Coefficients"]=bulk["Coefficients"]/.normalRules;
 meta=Join[KeyDrop[request,{"CurrentProjectors","KinematicRules","BornSupportKinematicRules","BornMomentumRules",
  "BornConstraints","TwoParticleMeasurement","BareCouplingRules"}],
- FeynFacet`Private`projectResultIdentity[project,channel,setup],
+ FeynFacet`ProjectResultIdentity[card,setup],
  <|"Order"->orderName,"Contribution"->contribution,
  "CouplingPower"->project["BornCouplingPower"]+Switch[orderName,"LO",0,"NLO",1,"NNLO",2],
  "EpsilonRange"->range,"ConjugateInterferenceAdded"->True,

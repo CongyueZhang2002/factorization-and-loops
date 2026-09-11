@@ -32,17 +32,23 @@ cutEquivalenceScalarProducts[expr_, momenta_List, gram_] :=
 
 cutEquivalenceTopology[record_Association, normalization_] := Module[
   {top, momenta, loops, external, n, gram, descriptors, polynomials,
-   kinematics, cutVectors, indices, directions, typed, validated, particles, cutTypes, particleIndices},
+   kinematics, cutVectors, indices, directions, typed, validated, particles, cutTypes, particleIndices, dimensionTags, definitionData},
   typed=MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[record,"Format",None]];
   validated=If[typed,FeynFacet`CreateCutIntegralDefinition[record],record];
   If[!AssociationQ[validated],Return[$Failed]];
   top = Lookup[validated, "Topology", None];
   If[! MatchQ[top, _FeynCalc`FCTopology], Return[$Failed]];
+  dimensionTags=DeleteDuplicates[Cases[{top[[2]],top[[5]]},
+    FeynCalc`Momentum[_,tags___]:>{tags},Infinity]];
+  (* Mixed projected and full-dimensional scalar products require an explicit
+     projector algebra; a single Gram matrix cannot represent both. *)
+  If[Length[dimensionTags]=!=1,Return[$Failed]];
+  definitionData=cutDefinitionConventions[validated];
   loops = top[[3]]; external = top[[4]];
   momenta = Join[loops, external]; n = Length[momenta];
   gram = Table[cutScalarProduct[Min[i, j], Max[i, j]], {i, n}, {j, n}];
   descriptors = propagatorDescriptor[#, {}] & /@ top[[2]];
-  If[MemberQ[descriptors, $Failed] ||
+  If[MemberQ[descriptors, $Failed] || !AllTrue[descriptors,Lookup[#,"Power",None]===1&] ||
       Length[Cases[top[[2]], _FeynCalc`StandardPropagatorDenominator, Infinity]] =!= Length[top[[2]]], Return[$Failed]];
   polynomials = cutEquivalenceScalarProducts[#, momenta, gram] & /@
     Lookup[descriptors, "UnitCore"];
@@ -70,10 +76,11 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
       Cases[top[[2]], _FeynCalc`StandardPropagatorDenominator, Infinity]),
     "CutIndices" -> indices, "ParticleCutIndices"->particleIndices, "CutTypes"->cutTypes,
     "OrientedCutMomenta" -> MapThread[Times, {directions, cutVectors}],
+    "DefinitionData" -> definitionData,"LorentzDimensionAnnotations"->First[dimensionTags],
     "LoopFrameChangesPermitted" -> (
       MemberQ[{None,{},True},Lookup[validated,"AdditionalAcceptanceBoundaries",None]]&&
-      FreeQ[If[typed,{validated["MeasurePrefactor"],Lookup[validated,"Assumptions",True],
-        Lookup[validated,"TimeDirection",None]},Lookup[record,"Normalization",normalization]],
+      FreeQ[{definitionData,
+        If[typed,validated["MeasurePrefactor"],Lookup[record,"Normalization",normalization]]},
        Alternatives@@loops]),
     "Normalization" -> If[typed,
      {validated["MeasurePrefactor"],Lookup[validated,"Dimension",D],
@@ -87,7 +94,8 @@ cutEquivalenceFrames[top_Association] := Module[
   l = Length[top["Loops"]]; n = Length[top["GramMatrix"]];
   cuts = top["OrientedCutMomenta"];
   (* A loop-dependent measure or acceptance condition must itself be mapped.
-     Until such a domain map is supplied, only the identity frame is valid. *)
+     Without that map, require an identity frame in the same ordered loop
+     coordinates. Index-space identity alone could relabel a restricted loop. *)
   If[!TrueQ[Lookup[top,"LoopFrameChangesPermitted",False]],
    Return[{<|"ChosenCutMomenta"->{},
      "LoopTransformation"->IdentityMatrix[n][[1;;l]],
@@ -124,7 +132,8 @@ cutEquivalenceSignature[integral_, top_, frames_] := Module[
   ordinary = Complement[Range[Length[powers]], cuts];
   candidates = Table[
     key = {top["External"], Sort[top["KinematicRules"]],
-      top["Normalization"],
+      top["Normalization"],Lookup[top,"DefinitionData",<||>],Lookup[top,"LorentzDimensionAnnotations",None],
+      If[TrueQ[Lookup[top,"LoopFrameChangesPermitted",False]],None,top["Loops"]],
       Sort[MapIndexed[Function[{index,position},
         particleIndex=FirstPosition[top["ParticleCutIndices"],index,None,{1},Heads->False];
         {top["CutTypes"][[First[position]]],powers[[index]],frame["Polynomials"][[index]],
@@ -237,4 +246,68 @@ cutCertifiedPrescriptionEquivalences[integrals_List,records_List,geometry_,
   "OrdinaryPrescriptionEqualityScope"->"GenericKinematics",
   "ExternalEndpointUniformityEstablished"->False,
   "Scope"->"Equality of the stated powered integrals at generic external kinematics. Measurement-distribution scope is recorded by each certificate. No joint external-endpoint distribution identity is asserted."|>]
+]];
+
+
+(* Family names belong to a catalog, not to the integral definition. Give
+   independently generated catalogs disjoint internal names before matching. *)
+MatchCutIntegralCatalogs[source_Association, target_Association] := Catch[Module[
+ {catalogs={source,target},renamed,restore=<||>,all,preferred,equivalences,
+  mappings={},unmatched={},rules={},normalization,prepare,sourceIDs,targetIDs,
+  destinations,destination,src,dst},
+ If[!AllTrue[catalogs,ContainsAll[Keys[#],{"Integrals","Families","Normalization"}]&&
+     ListQ[#["Integrals"]]&&ListQ[#["Families"]]&],
+  Throw[Failure["CutIntegralCatalogRequired",<||>]]];
+ normalization=source["Normalization"];
+ If[MemberQ[{Automatic,None},normalization]||MissingQ[normalization]||normalization=!=target["Normalization"],
+  Throw[Failure["CutIntegralCatalogNormalizationMismatch",<||>]]];
+ prepare[catalog_,prefix_] := Module[{families,names,ids,integrals,records,selected},
+  families=catalog["Families"];
+  If[!AllTrue[families,AssociationQ[#]&&MatchQ[Lookup[#,"Topology",None],_FeynCalc`FCTopology]&],
+   Throw[Failure["CutIntegralCatalogFamiliesRequired",<||>]]];
+  names=cutEquivalenceFamilyName[#["Topology"][[1]]]&/@families;
+  If[!DuplicateFreeQ[names],Throw[Failure["DistinctCutEquivalenceFamilyNamesRequired",<||>]]];
+  ids=AssociationThread[names,Table[prefix<>ToString[j],{j,Length[names]}]];
+  integrals=cutEquivalenceIntegral/@catalog["Integrals"];
+  If[!AllTrue[integrals,MatchQ[#,FeynCalc`GLI[_String,{_Integer..}]]&]||
+     !DuplicateFreeQ[integrals]||!ContainsAll[names,First/@integrals],
+   Throw[Failure["InvalidCatalogMasterIntegrals",<||>]]];
+  MapThread[Function[{canonical,original},
+    AssociateTo[restore,FeynCalc`GLI[ids[canonical[[1]]],canonical[[2]]]->original]],
+   {integrals,catalog["Integrals"]}];
+  records=Map[Function[record,With[{id=ids[cutEquivalenceFamilyName[record["Topology"][[1]]]]},
+    Join[record,<|"Name"->id,"Topology"->ReplacePart[record["Topology"],1->id]|>]]],families];
+  selected=cutEquivalenceIntegral/@Lookup[catalog,"PreferredIntegrals",catalog["Integrals"]];
+  If[!ListQ[selected]||!ContainsAll[integrals,selected],
+   Throw[Failure["PreferredCatalogIntegralsMissing",<||>]]];
+  <|"Integrals"->(FeynCalc`GLI[ids[#[[1]]],#[[2]]]&/@integrals),"Families"->records,
+    "PreferredIntegrals"->(FeynCalc`GLI[ids[#[[1]]],#[[2]]]&/@selected)|>
+ ];
+ renamed={prepare[source,"SourceCatalog"],prepare[target,"TargetCatalog"]};
+ sourceIDs=renamed[[1]]["Integrals"];targetIDs=renamed[[2]]["Integrals"];
+ all=Join[sourceIDs,targetIDs];preferred=renamed[[2]]["PreferredIntegrals"];
+ equivalences=FindCutIntegralEquivalences[all,Join@@Lookup[renamed,"Families"],
+   "PreferredMasterIntegrals"->targetIDs,"Normalization"->normalization];
+ If[FailureQ[equivalences],Throw[equivalences]];
+ destinations=Map[First@SortBy[#,If[MemberQ[preferred,#["Source"]],0,1]&]&,
+  GroupBy[Select[equivalences["Mappings"],MemberQ[targetIDs,#["Source"]]&],#["Representative"]&]];
+ Do[
+  src=entry["Source"];dst=entry["Representative"];
+  If[!MemberQ[sourceIDs,src],Continue[]];
+  If[entry["Factor"]===0,
+   AppendTo[rules,restore[src]->0];
+   AppendTo[mappings,Join[entry,<|"Source"->restore[src],"Representative"->None|>]],
+   If[KeyExistsQ[destinations,dst],
+    destination=destinations[dst];dst=destination["Source"];
+    AppendTo[rules,restore[src]->restore[dst]];
+    AppendTo[mappings,Join[entry,<|"Source"->restore[src],"Representative"->restore[dst],
+      "RepresentativeFrame"->destination["SourceFrame"]|>]],
+    AppendTo[unmatched,restore[src]]]],
+ {entry,equivalences["Mappings"]}];
+ <|"DataType"->"CutIntegralCatalogMatch","SchemaVersion"->1,
+   "Status"->If[unmatched==={},"Complete","UnmatchedIntegralsRemain"],
+   "Normalization"->normalization,"Rules"->rules,"Mappings"->mappings,
+   "UnmatchedIntegrals"->unmatched,"SourceCount"->Length[sourceIDs],
+   "TargetCount"->Length[targetIDs],"Method"->equivalences["Method"],
+   "Scope"->"Exact powered-integral definitions under unit-Jacobian loop changes. No prescription removal or endpoint distribution extension is inferred."|>
 ]];

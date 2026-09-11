@@ -330,6 +330,9 @@ MasterIntegralAmFlow::usage =
 RegisterRationalizingParametrizations::usage =
  "RegisterRationalizingParametrizations[entries] adds named rationalizing parametrizations after verifying every map. Invalid entries or conflicting names register nothing. This extends supported rational maps, not the set of implemented geometries.";
 
+MatchCutIntegralCatalogs::usage =
+  "MatchCutIntegralCatalogs[source, target] matches exact powered cut integrals between independently named catalogs. Each catalog supplies Integrals, Families and an explicit common Normalization. Returned rules preserve original names; unmatched definitions remain explicit. No prescription is removed.";
+
 FindCutIntegralEquivalences::usage =
   "FindCutIntegralEquivalences[integrals, topologyRecords, \"Normalization\" -> definition] finds exact equivalences under unit-Jacobian affine changes to independent positive-energy cut momenta. It preserves cut powers and ordinary propagator prescriptions and records both changes of variables. This is a sufficient equivalence test, not an IBP reduction.";
 

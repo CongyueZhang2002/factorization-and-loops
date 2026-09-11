@@ -1,5 +1,8 @@
 # ppHX_LL_NLO
 
+Execution and CPU policy: [WORKFLOW.md](../../WORKFLOW.md).
+Available retained channels: [project index](../README.md).
+
 Shared physics: [card.wl](card.wl). Orders precede channels.
 The NLO channel has [Real](NLO/qqp-qqp/Cards/Real.wl),
 [Virtual](NLO/qqp-qqp/Cards/Virtual.wl), and
@@ -10,4 +13,4 @@ Run from the repository:
 
 Read `NLO/qqp-qqp/Results/Result.wl` with `ReadPartonicResult`.
 LO results use the same format and retain coefficients through epsilon^1.
-See [the card and result contract](../Design/ProjectCardsAndResults.md).
+See [the card and result contract](../../Design/ProjectCardsAndResults.md).

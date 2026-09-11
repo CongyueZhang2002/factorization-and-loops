@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;
 densityCheckRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[densityCheckRoot<>"/FeynFacet/Coefficients/DensityValidation.wl"];
@@ -9,7 +10,9 @@ densityCheckInput=Get[densityCheckRequestPath];
 densityCheckResolve[p_String] := ExpandFileName[If[StringStartsQ[p,"/"],p,FileNameJoin[{DirectoryName[densityCheckRequestPath],p}]]];
 densityCheckLoad[p_String] := If[ToLowerCase[FileExtension[p]]==="wxf",Import[p,"WXF"],Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Get[p]]];
 densityCheckData=densityCheckLoad[densityCheckResolve[densityCheckInput["DensityFile"]]];
-densityCheckOrders=densityCheckInput["Request"]["Orders"];
+densityCheckOrders=Lookup[densityCheckInput["Request"],"Orders",Automatic];
+If[densityCheckOrders===Automatic,densityCheckOrders=Sort[Keys[densityCheckData["Coefficients"]]]];
+densityCheckRequest=Append[densityCheckInput["Request"],"Orders"->densityCheckOrders];
 densityCheckColumns=DeleteDuplicates@Flatten[
  Table[First/@Most[ArrayRules[densityCheckData["CoefficientConvolutionMatrices"][q]]],{q,densityCheckOrders}]];
 densityCheckIndex=Association@Table[r["Column"]->r,{r,densityCheckData["MasterCoefficientIndex"]}];
@@ -28,7 +31,7 @@ Do[
 Print["RETAINED_DENSITY_REFERENCE_CHECK ",<|"Families"->densityCheckFamilies,"Columns"->Length[densityCheckColumns]|>];
 densityCheckSeconds=First@AbsoluteTiming[
  densityCheckResult=FeynFacet`CheckFiniteDensityWithRetainedReferences[
-  densityCheckData,densityCheckBundles,densityCheckInput["Request"]]];
+  densityCheckData,densityCheckBundles,densityCheckRequest]];
 If[!DirectoryQ[DirectoryName[densityCheckOutput]],CreateDirectory[DirectoryName[densityCheckOutput],CreateIntermediateDirectories->True]];
 densityCheckStream=OpenWrite[densityCheckOutput,BinaryFormat->True];
 BinaryWrite[densityCheckStream,Normal[BinarySerialize[densityCheckResult,PerformanceGoal->"Size"]],"Byte"];Close[densityCheckStream];

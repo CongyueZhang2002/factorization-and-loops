@@ -11,7 +11,7 @@ finiteFieldCoefficientSimplificationCore[
       coefficientSetup, resultSetup, processSetup, process,
       currentContext, resultData,
       workDirectory, targetDirectory, context, physicalFactor,
-      traceDirectory, traceData, trace, reconstruction, result,
+      traceDirectory, nativeDirectory, traceData, trace, reconstruction, result,
       manifestFile
     },
     coefficientProgressStart["Preparing coefficient inputs", 1];
@@ -49,10 +49,7 @@ finiteFieldCoefficientSimplificationCore[
         ! coefficientKiraReductionQ[Append[metadata, "KiraRules" -> {}]],
       finiteFieldFail["Kira store", "the indexed metadata is invalid"]
     ];
-    data = Block[
-      {analyticContextQ = coefficientAnalyticContextQ},
-      ibpInputData[inputs, False]
-    ];
+    data = coefficientInputData[inputs, store];
     sortedPairs[list_List] := SortBy[
       list,
       {Lookup[#1, "Forward"], Lookup[#1, "Conjugate"]} &
@@ -192,45 +189,24 @@ finiteFieldCoefficientSimplificationCore[
     If[traceData["OutputFiles"] === {},
       finiteFieldFail["trace emission", "all reconstructed coefficients are zero"]
     ];
-    coefficientProgressStage["Building the shared rational trace"];
-    trace = finiteFieldBuildTrace[traceData, executable, traceDirectory];
-    If[trace === $Failed,
-      finiteFieldFail["shared trace construction", "Ratracer returned an error"]
-    ];
-    coefficientProgressStage["Reconstructing rational coefficients"];
-    reconstruction = finiteFieldReconstructTrace[
-      traceData,
-      trace,
-      executable,
-      traceDirectory,
-      threads,
-      options["FactorScan"],
-      options["ShiftScan"]
-    ];
-    If[reconstruction === $Failed,
-      finiteFieldFail["rational reconstruction", "FireFly returned an error"]
-    ];
-    coefficientProgressStage["Assembling master coefficients"];
-    result = finiteFieldAssembleResult[
-      resultData,
-      metadata,
-      kiraFile,
-      context,
-      traceData,
-      trace,
-      reconstruction,
-      executable,
-      threads
-    ];
-    If[result === $Failed,
-      finiteFieldFail[
-        "result assembly",
-        "the reconstructed coefficients violate the declared kinematics or cut data"
-      ]
-    ];
+    coefficientProgressStage["Compacting rational coefficient summands"];
+    traceData = finiteFieldCompactTrace[traceData, traceDirectory,
+      normalizationKernels, options["CompactAboveBytes"],
+      options["CompactionEntrySeconds"], options["CompactionColumnSeconds"]];
+    If[!AssociationQ[traceData],
+      finiteFieldFail["rational summand compaction", traceData]];
+    nativeDirectory = If[KeyExistsQ[traceData, "Compaction"],
+      traceData["Compaction"]["Directory"], traceDirectory];
+    coefficientProgressStage["Executing the coefficient reconstruction plan"];
+    result = finiteFieldExecuteCoefficientPlan[
+      <|"TraceDirectory"->traceDirectory,"Data"->resultData,"Metadata"->metadata,
+        "KiraFile"->kiraFile,"Context"->context|>,traceData,nativeDirectory,executable,
+      Join[options,<|"Threads"->threads|>],Lookup[options,"ReconstructionPlan",Automatic]];
+    If[!AssociationQ[result],
+      finiteFieldFail["scheduled coefficient reconstruction",result]];
     coefficientProgressStage["Writing reconstruction metadata"];
     manifestFile = FileNameJoin[{traceDirectory, "Manifest.wl"}];
-    Put[
+    FeynFacet`FamilyArtifactWrite[
       <|
         "Format" -> $finiteFieldReconstructionFormat,
         "FormatVersion" -> $finiteFieldReconstructionVersion,
@@ -247,7 +223,7 @@ finiteFieldCoefficientSimplificationCore[
         "SymbolRules" -> traceData["SymbolRules"],
         "Reconstruction" -> result["FiniteFieldReconstruction"]
       |>,
-      manifestFile
+      manifestFile, "Compression"->True
     ];
     (* Cleanup is performed by the project writer only after the final
        result has been saved and read back successfully. *)
@@ -276,10 +252,10 @@ finiteFieldCoefficientSimplificationCore[
             InputForm
           ]
         },
-        {"Reconstruction input (MB)", Round[trace["TraceBytes"]/2.^20, 0.01]},
+        {"Reconstruction input (MB)", Round[result["FiniteFieldReconstruction"]["TraceBytes"]/2.^20, 0.01]},
         {
           "FireFly time (s)",
-          Round[reconstruction["ReconstructionSeconds"], 0.01]
+          Round[result["FiniteFieldReconstruction"]["ReconstructionSeconds"], 0.01]
         }
       },
       Frame -> All

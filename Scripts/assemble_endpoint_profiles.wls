@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
@@ -15,7 +16,7 @@ Do[
  If[!AssociationQ[card]||!AssociationQ[project],Print["Current contribution card required ",directory," ",InputForm[card]," ",InputForm[project]];Exit[1]];
  channel=card["Channel"];order=card["Order"];
  components=Lookup[card,"Components",<||>];
- setups=If[components===<||>,<|contribution->FeynFacet`ReadProcessCard[directory,contribution]|>,
+ setups=If[components===<||>,<|contribution->FeynFacet`ReadProcessCard[card]|>,
  AssociationMap[FeynFacet`ReadProcessCard[directory,contribution<>"."<>#]&,Keys[components]]];
  If[!AllTrue[Values[setups],AssociationQ],Print["Current process definitions required"];Exit[1]];
  sourceDefinitions=Lookup[output,"SourceProcessDefinitions",<||>];
@@ -31,12 +32,12 @@ Do[
   Map[FeynFacet`SelectLaurentCoefficientVector[#,indices]&,group["FaceSeries"]]|>],profiles["ProfileGroups"]];
  oneProfiles=Join[profiles,<|"CoefficientRowLabels"->project["StructureFunctions"],"ProfileGroups"->groups|>];
  If[Length[labels]=!=Length[project["StructureFunctions"]],Print["Structure-function row count mismatch"];Exit[1]];
- request=FeynFacet`Private`projectAssemblyRequest[card,channel,contribution];
+ request=FeynFacet`ProjectAssemblyRequest[card];
  axes=request["DistributionBasis"]["Axes"];
  request["DistributionBasis"]=<|"Axes"->MapThread[Append[#1,"NormalVariable"->#2]&,{axes,profiles["NormalVariables"]}]|>;
  meta=Join[KeyDrop[request,{"CurrentProjectors","KinematicRules","BornSupportKinematicRules","BornMomentumRules",
  "BornConstraints","TwoParticleMeasurement","BareCouplingRules"}],
- FeynFacet`Private`projectResultIdentity[project,channel,setups],
+ FeynFacet`ProjectResultIdentity[card,setups],
  <|"Order"->order,"Contribution"->contribution,"CouplingPower"->project["BornCouplingPower"]+Switch[order,"LO",0,"NLO",1,"NNLO",2],
  "EpsilonRange"->card["EpsilonRange"],"TestFunctionSupport"->request["EndpointExpansion"]["TestFunctionSupport"],
  "AssemblyPlan"->planFile,"SourceRowLabels"->labels|>];

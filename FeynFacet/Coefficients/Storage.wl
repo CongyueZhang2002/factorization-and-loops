@@ -93,13 +93,22 @@ coefficientSafeWorkPathQ[path_String, workspaceRoot_String] :=
   ];
 
 coefficientWriteFinalResult[result_Association, file_String] := Module[
-  {temporary = file <> ".tmp-" <> CreateUUID[], saved},
-  saved = Quiet@Check[
-    Put[result, temporary];
-    FileExistsQ[temporary] && Get[temporary] === result, False];
-  If[! TrueQ[saved], Return[False]];
+  {temporary = file <> ".tmp-" <> CreateUUID[],readback,differences},
+  (* Neutral-context compressed artifacts preserve held signatures and the
+     complete order-proof records; plain Put can change their held syntax. *)
+  FeynFacet`FamilyArtifactWrite[result,temporary,"Compression"->True];
+  If[!FileExistsQ[temporary],Print["Coefficient final write did not create ",temporary];Return[False]];
+  readback=FeynFacet`FamilyArtifactRead[temporary];
+  If[readback=!=result,
+    differences=If[AssociationQ[readback],Select[Keys[result],result[#]=!=Lookup[readback,#,Missing["Key"]]&],{"UnreadableRecord"}];
+    Export[temporary<>".expected.wxf",result,"WXF"];
+    FeynFacet`FamilyArtifactWrite[<|"Status"->"ReadBackMismatch","DifferingTopLevelKeys"->differences,
+      "ExpectedRecordFile"->temporary<>".expected.wxf","ActualRecordFile"->temporary|>,
+      temporary<>".diagnostic.wl","Compression"->True];
+    Print["Coefficient final read-back differs in ",differences,"; diagnostic ",temporary<>".diagnostic.wl"];
+    Return[False]];
   TrueQ[Quiet@Check[
-    RenameFile[temporary, file, OverwriteTarget -> True]; True, False]]
+    RenameFile[temporary,file,OverwriteTarget->True];True,False]]
 ];
 
 (* A final file must survive independently before its reconstruction
@@ -132,8 +141,28 @@ coefficientWorkDirectory[kiraFile_String] := With[{location = coefficientResultL
     "Results", "CoefficientSimplification"}, location["Run"]]]
 ];
 
-coefficientFileHash[file_String] :=
-  FileHash[file, "SHA256", "HexString"];
+(* Hash file bytes in the native implementation when available. Wolfram's
+   FileHash took about six seconds for the 84 MiB native executable; hashing
+   hundreds of coefficient files must not dominate a reconstruction checkpoint. *)
+coefficientFileHashes[files_List] := Module[{blocks, values, run, lines},
+ If[files === {}, Return[{}]];
+ If[!AllTrue[files, StringQ[#] && FileExistsQ[#] &], Return[$Failed]];
+ blocks = Partition[files, UpTo[64]];
+ values = Map[Function[block,
+   run = If[$OperatingSystem === "Unix",
+     Quiet[Check[RunProcess[Join[{"sha256sum", "--"}, block]], $Failed]], $Failed];
+   lines = If[AssociationQ[run] && run["ExitCode"] === 0,
+     StringSplit[StringTrim[run["StandardOutput"]], "\n"], {}];
+   If[Length[lines] === Length[block] && AllTrue[lines,
+       StringLength[#] >= 64 &&
+       StringMatchQ[StringTake[#, 64], RegularExpression["[0-9a-f]{64}"]] &],
+     StringTake[#, 64] & /@ lines,
+     FileHash[#, "SHA256", "HexString"] & /@ block
+   ]], blocks];
+ Flatten[values]
+];
+coefficientFileHash[file_String] := Module[{hashes = coefficientFileHashes[{file}]},
+ If[ListQ[hashes], First[hashes], $Failed]];
 
 coefficientStoreManifestFile[directory_String] :=
   FileNameJoin[{directory, "Manifest.wl"}];
@@ -261,11 +290,32 @@ coefficientEnsureKiraStore[kiraFile_String] := Module[{directory},
   ]
 ];
 
-coefficientInputFileFingerprint[sources_List] :=
-  reductionFingerprint[{
-    ExpandFileName /@ sources,
-    FileHash[#, "SHA256"] & /@ sources
-  }];
+coefficientInputFileFingerprint[sources_List] := Module[{digests=coefficientFileHashes[sources]},
+ If[!ListQ[digests],Return[$Failed]];
+ reductionFingerprint[{ExpandFileName/@sources,FromDigits[#,16]&/@digests}]
+];
+
+(* Diagram expressions are read once to obtain their shared definitions.
+   A source summary can be reused only for the identical ordered file bytes. *)
+coefficientInputData[items_List,directory_String] := Module[
+ {file=FileNameJoin[{directory,"SourceSummary.wl"}],fingerprint,saved,data},
+ If[!AllTrue[items,StringQ],Return[Block[
+   {analyticContextQ=coefficientAnalyticContextQ},ibpInputData[items,False]]]];
+ fingerprint=coefficientInputFileFingerprint[items];
+ If[fingerprint===$Failed,Return[$Failed]];
+ saved=If[FileExistsQ[file],FeynFacet`FamilyArtifactRead[file],None];
+ If[AssociationQ[saved]&&Lookup[saved,"Format",None]==="FeynFacet-CoefficientSourceSummary"&&
+   Lookup[saved,"Version",None]===1&&Lookup[saved,"InputFileFingerprint",None]===fingerprint&&
+   AssociationQ[Lookup[saved,"Data",None]]&&
+   Lookup[saved["Data"],"Sources",None]===ExpandFileName/@items,
+  Return[saved["Data"]]];
+ data=Block[{analyticContextQ=coefficientAnalyticContextQ},ibpInputData[items,False]];
+ If[AssociationQ[data],
+  FeynFacet`FamilyArtifactWrite[<|"Format"->"FeynFacet-CoefficientSourceSummary",
+    "Version"->1,"InputFileFingerprint"->fingerprint,"Data"->data|>,
+   file,"Compression"->True]];
+ data
+];
 
 coefficientTargetStoreValidQ[
     data_Association,
@@ -457,6 +507,8 @@ coefficientCollectTargetRecords[
       ];
       completed += Length[batch];
       coefficientProgressUpdate[completed, Length[data["Sources"]]];
+      If[$FrontEnd===Null&&(Mod[completed,64]===0||completed===Length[data["Sources"]]),
+        Print["Collected ",completed," / ",Length[data["Sources"]]," coefficient input pairs"]];
       Clear[batchTerms, batchRemainder, result, rawParts, sourceParts, groups];
       ClearSystemCache[]
     ],
@@ -535,23 +587,17 @@ coefficientBalancedRecordTotal[file_String] := Module[
   If[count === $Failed, $Failed, Total[Values[levels]]]
 ];
 
+coefficientSimplificationOptions[rules_List] :=
+ Join[Association@Options[CoefficientSimplification],Association@Flatten[rules]];
+
 CoefficientSimplification[
     inputs : ({__Association} | {__String}),
     kiraFile_String,
-    OptionsPattern[]
+    opts:OptionsPattern[]
   ] := finiteFieldCoefficientSimplificationCore[
   inputs,
   ExpandFileName[kiraFile],
-  <|
-    "RatracerExecutable" -> OptionValue["RatracerExecutable"],
-    "Threads" -> OptionValue["Threads"],
-    "NormalizationKernels" -> OptionValue["NormalizationKernels"],
-    "TargetTimeLimit" -> OptionValue["TargetTimeLimit"],
-    "MaximumTargets" -> OptionValue["MaximumTargets"],
-    "KeepWorkingFiles" -> OptionValue["KeepWorkingFiles"],
-    "FactorScan" -> OptionValue["FactorScan"],
-    "ShiftScan" -> OptionValue["ShiftScan"]
-  |>
+  coefficientSimplificationOptions[{opts}]
 ];
 
 coefficientPairFileKey[file_String] := Module[{parts},
@@ -567,27 +613,13 @@ coefficientResolveResultDirectory[
     projectDirectory_String,
     cardName_String,
     resultFolder_
-  ] := Module[{project, results, candidates, candidate},
+  ] := Module[{project, results, candidate},
   project = ExpandFileName[projectDirectory];
   results = FileNameJoin[{project, "Results"}];
   If[! DirectoryQ[results], Return[$Failed]];
   candidate = Which[
     resultFolder === Automatic,
-      candidates = Select[
-        FileNames[cardName <> "_*", results],
-        DirectoryQ[#] &&
-          FileExistsQ[FileNameJoin[{#, "KiraResult.wl"}]] &&
-          DirectoryQ[FileNameJoin[{#, "Pairs"}]] &&
-          FileNames["F*_C*.wl", FileNameJoin[{#, "Pairs"}]] =!= {} &
-      ];
-      If[
-        candidates === {},
-        $Failed,
-        Last @ SortBy[
-          candidates,
-          AbsoluteTime @ FileDate[FileNameJoin[{#, "KiraResult.wl"}]] &
-        ]
-      ],
+      FileNameJoin[Join[{results},StringSplit[cardName,"."],{"Reduction"}]],
     StringQ[resultFolder] && DirectoryQ[resultFolder],
       ExpandFileName[resultFolder],
     StringQ[resultFolder],
@@ -604,6 +636,22 @@ coefficientResolveResultDirectory[
   ]
 ];
 
+(* Computational dependencies belong to the contribution card; they do not
+   alter diagram identities or the physical amplitude setup. *)
+coefficientProjectReconstructionInputs[directory_String,name_String] := Module[{card,request,paths},
+ card=FeynFacet`ReadContributionCard[directory,name];
+ If[!AssociationQ[card],Return[card]];
+ request=Lookup[card,"CoefficientReconstruction",None];
+ If[request===None,Return[None]];
+ If[!AssociationQ[request],Return[Failure["CoefficientReconstructionCardRequired",<||>]]];
+ paths={"EndpointCatalog","PhysicalNormalization","PlanDirectory"};
+ request=Association@KeyValueMap[Function[{key,value},
+   key->If[MemberQ[paths,key]&&StringQ[value],
+     projectAbsolutePath[If[StringStartsQ[value,"/"],value,FileNameJoin[{directory,value}]]],value]],request];
+ If[!KeyExistsQ[request,"ThroughOrder"],request=Append[request,"ThroughOrder"->Last[card["EpsilonRange"]]]];
+ request
+];
+
 coefficientRunProject[
     projectDirectory_String,
     cardName_String,
@@ -612,7 +660,7 @@ coefficientRunProject[
   ] := Module[
   {
     project, cardFile, card, resultDirectory, pairDirectory,
-    pairFiles, kiraFile, result, resultFile, temporaryFile, saved
+    pairFiles, kiraFile, result, resultFile, orderInputs
   },
   coefficientProgressStart["Locating coefficient inputs", 1];
   project = ExpandFileName[projectDirectory];
@@ -654,48 +702,23 @@ coefficientRunProject[
     ];
     Return[$Failed]
   ];
+  orderInputs=Lookup[options,"ReconstructionOrderInputs",Automatic];
+  If[orderInputs===Automatic,orderInputs=coefficientProjectReconstructionInputs[project,cardName]];
+  If[FailureQ[orderInputs],Return[orderInputs]];
   result = finiteFieldCoefficientSimplificationCore[
     pairFiles,
     kiraFile,
-    Join[options, <|"CoefficientSetup" -> card|>]
+    Join[options, <|"CoefficientSetup" -> card,"ReconstructionOrderInputs"->orderInputs|>]
   ];
   If[result === $Failed, Return[$Failed]];
   coefficientProgressStage["Writing CoefficientResult.wl"];
   resultFile = FileNameJoin[{resultDirectory, "CoefficientResult.wl"}];
-  temporaryFile = resultFile <> ".tmp-" <>
-    StringReplace[CreateUUID[], "-" -> ""];
   result = Append[result, "CoefficientResultFile" -> resultFile];
-  saved = Quiet @ Check[
-    Put[result, temporaryFile];
-    FileExistsQ[temporaryFile] && SameQ[Get[temporaryFile], result],
-    False
-  ];
-  If[! TrueQ[saved],
-    If[FileExistsQ[temporaryFile], DeleteFile[temporaryFile]];
-    coefficientProgressFailure[
-      "result writing",
-      resultFile
-    ];
-    Message[
-      CoefficientSimplification::project,
-      projectDirectory,
-      cardName,
-      "CoefficientResult.wl could not be written"
-    ];
-    Return[$Failed]
-  ];
-  If[FileExistsQ[resultFile], DeleteFile[resultFile]];
-  If[
-    Quiet @ Check[RenameFile[temporaryFile, resultFile]; True, False] =!= True,
-    coefficientProgressFailure["result writing", resultFile];
-    Message[
-      CoefficientSimplification::project,
-      projectDirectory,
-      cardName,
-      "the temporary result could not be installed"
-    ];
-    Return[$Failed]
-  ];
+  If[!TrueQ[coefficientWriteFinalResult[result,resultFile]],
+    coefficientProgressFailure["result writing",resultFile];
+    Message[CoefficientSimplification::project,projectDirectory,cardName,
+      "CoefficientResult.wl could not be written and read back exactly"];
+    Return[$Failed]];
   If[! TrueQ[options["KeepWorkingFiles"]] &&
       TrueQ[result["FiniteFieldReconstruction"]["CompleteTargetSet"]],
     coefficientRemoveWorkingFiles[kiraFile, resultFile]];
@@ -716,40 +739,22 @@ coefficientRunProject[
 CoefficientSimplification[
     projectDirectory_String,
     cardName_String,
-    OptionsPattern[]
+    opts:OptionsPattern[]
   ] := coefficientRunProject[
   projectDirectory,
   cardName,
   Automatic,
-  <|
-    "RatracerExecutable" -> OptionValue["RatracerExecutable"],
-    "Threads" -> OptionValue["Threads"],
-    "NormalizationKernels" -> OptionValue["NormalizationKernels"],
-    "TargetTimeLimit" -> OptionValue["TargetTimeLimit"],
-    "MaximumTargets" -> OptionValue["MaximumTargets"],
-    "KeepWorkingFiles" -> OptionValue["KeepWorkingFiles"],
-    "FactorScan" -> OptionValue["FactorScan"],
-    "ShiftScan" -> OptionValue["ShiftScan"]
-  |>
+  coefficientSimplificationOptions[{opts}]
 ];
 
 CoefficientSimplification[
     projectDirectory_String,
     cardName_String,
     resultFolder : (Automatic | _String),
-    OptionsPattern[]
+    opts:OptionsPattern[]
   ] := coefficientRunProject[
   projectDirectory,
   cardName,
   resultFolder,
-  <|
-    "RatracerExecutable" -> OptionValue["RatracerExecutable"],
-    "Threads" -> OptionValue["Threads"],
-    "NormalizationKernels" -> OptionValue["NormalizationKernels"],
-    "TargetTimeLimit" -> OptionValue["TargetTimeLimit"],
-    "MaximumTargets" -> OptionValue["MaximumTargets"],
-    "KeepWorkingFiles" -> OptionValue["KeepWorkingFiles"],
-    "FactorScan" -> OptionValue["FactorScan"],
-    "ShiftScan" -> OptionValue["ShiftScan"]
-  |>
+  coefficientSimplificationOptions[{opts}]
 ];

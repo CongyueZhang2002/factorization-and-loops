@@ -1,10 +1,27 @@
-# Integrated electromagnetic SIDIS
+# Integrated electromagnetic SIDIS UU
 
-This project uses a polarized or unpolarized incoming PDF as declared in
-card.wl and an unpolarized fragmentation function. There are no TMDs.
-Flavor charges come from generated electromagnetic vertices.
+The project uses an unpolarized incoming PDF and an unpolarized fragmentation
+function, with polarization and physical conventions declared in [card.wl](card.wl).
+The transverse momentum is integrated; this is collinear factorization, not TMD.
 
-The LO and NLO input cards are present. LO regeneration uses the common Born
-driver. Full NLO and NNLO current workflows are still being implemented;
-the presence of a card does not indicate that its result is complete.
-NNLO channel enumeration will be added with the flavor-resolved calculation.
+**The retained NNLO calculation is complete for all 13 declared channels.**
+Use [NNLO/README.md](NNLO/README.md) for the result inventory, normalization,
+independent reference comparisons and the exact final-assembly replay command.
+That replay uses the saved solved bulk/endpoint profiles; it does not regenerate
+diagrams or master integrals.
+
+Six NLO channels are also retained through epsilon^1. The supported NLO entry
+point, from the repository root, is:
+
+```bash
+wolframscript -file Scripts/run_nlo_hard_function.wls SIDIS_UU_NNLO q-q all
+```
+
+Select the required channel from the [project index](../README.md) and apply the
+CPU limits in [WORKFLOW.md](../../WORKFLOW.md). The common runner constructs the
+declared Born dependencies and real/virtual/counterterm contributions.
+Results use the shared epsilon-indexed PartonicResult format.
+
+A fresh arbitrary NNLO process still requires supported physical integral,
+DE and boundary/endpoint specifications. The saved complete channel results
+do not establish universal one-card NNLO orchestration.

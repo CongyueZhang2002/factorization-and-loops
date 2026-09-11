@@ -10,6 +10,8 @@ $driverRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 $driverImplementation=Association@Table[path->Import[path,"Text"],
  {path,DeleteDuplicates@Join[
    {$driverRoot<>"/Scripts/Coefficients/ScalarEndpointDriver.wl",
+    $driverRoot<>"/Scripts/Coefficients/ScalarEndpointCampaign.wl",
+    $driverRoot<>"/FeynFacet/Algebra/EpsilonRemainders.wl",
     $driverRoot<>"/FeynFacet/Algebra/RegulatorSeries.wl"},
    Flatten[FileNames["*.wl",$driverRoot<>"/FeynFacet/"<>#,Infinity]&/@
      {"Coefficients","Solutions","Boundary","DifferentialEquations/LocalAnalysis"}]]}];
@@ -32,7 +34,7 @@ ScalarEndpointFailureStatus[failure_] := Module[{tags},
   MemberQ[tags,"AcceptedEndpointSystemMissing"],"MISSING_ENDPOINT_SYSTEM",
   AnyTrue[tags,MemberQ[{"CoefficientRemainderClassUnresolved",
     "EndpointCoefficientTailSufficiencyNotEstablished"},#]&],"UNRESOLVED_COEFFICIENT_CLASS",
-  AnyTrue[tags,MemberQ[{"CoefficientOrdersMissing","PhysicalBoundaryInputOrdersUnavailable",
+  AnyTrue[tags,MemberQ[{"CoefficientOrdersMissing","PhysicalBoundaryInputOrdersUnavailable","InsufficientEpsilonOrdersDetected",
     "PhysicalEndpointAmplitudeOrderMissing","TangentialFunctionOrderMissing",
     "NormalizedEndpointCoefficientsInsufficient"},#]&],"MISSING_ORDERS",
   AnyTrue[tags,MemberQ[{"ScalarEndpointInputFileMissing","ScalarEndpointFamilyInputInvalid",
@@ -85,6 +87,10 @@ RunScalarEndpointFamily[inputValue_,outputValue_String,OptionsPattern[]] := Modu
   matching=read[endpointDirectory<>"/boundary_basis_matching.wxf","EndpointInput"];
   bounds=read[endpointDirectory<>"/laurent_bounds.wxf","EndpointInput"];
   sourceInput=read[endpointDirectory<>"/input.wxf","EndpointInput"];
+  If[KeyExistsQ[coefficientInput,"AcceptedEndpointBinding"]&&
+    coefficientInput["AcceptedEndpointBinding"]=!=<|"EndpointSystem"->endpoint,
+     "LaurentBounds"->bounds,"BoundaryBasisMatching"->matching,"SourceInput"->sourceInput|>,
+   fail[Failure["AcceptedEndpointFrameBindingMismatch",<||>],"EndpointInput"]];
   construction=read[Lookup[input,"PhysicalBoundaryConstruction",
     Lookup[sourceInput,"PhysicalBoundaryConstruction",Missing["PhysicalBoundaryConstruction"]]],"PhysicalBoundaryInput"];
   If[KeyExistsQ[input,"PhysicalBoundaryFiniteDefinitions"],

@@ -63,6 +63,19 @@ colorIndependentCoefficients[definitions_,targets_,workers_] := Module[{indices,
   colorCoefficientFail["ColorWorkerResultsIncomplete",<|"Failures"->Select[result,FailureQ]|>]];
  Association[result]
 ];
+(* Context mismatches must not turn requested color or distribution factors
+   into apparently independent kinematic coefficients. Compare arithmetic only. *)
+colorCoefficientCheckFactorContexts[data_,targets_] := Module[{symbols,names,foreign},
+ symbols=DeleteDuplicates@Cases[targets,s_Symbol/;Context[s]=!="System`",
+   {0,Infinity},Heads->True];
+ names=SymbolName/@symbols;
+ foreign=DeleteDuplicates@Cases[
+   KeyTake[data,{"AlgebraicDefinitions","DeltaTerms","PlusTerms","RegularRemainderCoefficients"}],
+   s_Symbol/;MemberQ[names,SymbolName[s]]&&!MemberQ[symbols,s],
+   {0,Infinity},Heads->True];
+ If[foreign=!={},colorCoefficientFail["CoefficientFactorContextMismatch",
+   <|"RequestedSymbols"->symbols,"DifferentContextSymbols"->foreign|>]]
+];
 CollectDistributionColorFactors[data_Association,request_Association]:=Catch[Module[
  {colors,coupling,external,targets,nc,records={},parts,add,group,vector,
   values,components,lo,hi,delta,plus,regular,coefficients,i,q,range,
@@ -81,6 +94,7 @@ CollectDistributionColorFactors[data_Association,request_Association]:=Catch[Mod
    !MatchQ[coupling,None|_Symbol]||!ListQ[external],colorCoefficientFail["ColorAndCouplingVariablesRequired"]];
  targets=Join[colors,If[coupling===None,{},{coupling}],external];nc=Length[colors];
  If[!DuplicateFreeQ[targets],colorCoefficientFail["DistinctCoefficientFactorsRequired"]];
+ colorCoefficientCheckFactorContexts[data,targets];
  If[(regulator=!=None&&!FreeQ[targets,regulator])||
    (normal=!=None&&!FreeQ[targets,normal]),
   colorCoefficientFail["RegulatorAndEndpointIndependentFactorsRequired"]];

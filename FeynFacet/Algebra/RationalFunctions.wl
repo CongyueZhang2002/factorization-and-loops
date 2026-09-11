@@ -78,7 +78,10 @@ coefficientRationalFieldReduce[expression_]:=Module[
  atoms=DeleteDuplicates@Join[
    Cases[expression,Power[_,p_]/;!IntegerQ[p],{0,Infinity}],
    Cases[expression,a:h_[___]/;!MemberQ[{List,Plus,Times,Power,Rational},h]:>a,{0,Infinity}]];
- rules=Map[Function[x,x->If[Head[x]===Power,power[x[[1]],x[[2]]],constant[x]]],atoms];
+ rules=Map[Function[x,x->Which[
+   Head[x]===Power,power[x[[1]],x[[2]]],
+   Head[x]===Complex,Re[x]+Im[x]constant[I],
+   True,constant[x]]],atoms];
  {expression/.rules,restore}
 ];
 

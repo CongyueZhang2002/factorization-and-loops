@@ -1,0 +1,517 @@
+FILE FeynFacet/Coefficients/FiniteField/Planning.wl
+(* Derive exact/finite coefficient jobs from source definitions and physical
+   endpoint bounds. No family labels, column numbers or epsilon orders are preset. *)
+BeginPackage["FeynFacet`"];
+PrepareCoefficientReconstructionPlan::usage =
+ "PrepareCoefficientReconstructionPlan[traceDirectory,request] discovers expensive columns, preserves exceptional summands exactly and proves sufficient orders for regular parts. Request supplies an accepted EndpointCatalog, SourceNormalization, PhysicalNormalization, KinematicRules, Assumptions and ThroughOrder.";
+Begin["`Private`"];
+$coefficientPlanSourceFields={"CardName","Setup","Pairs","AnalyticContext","Topologies",
+ "TopologyEquivalence","ReverseRules","MassDimensions","DimensionRule"};
+coefficientPlanFail[tag_,details_:<||>]:=Throw[Failure[tag,details],"CoefficientPlan"];
+coefficientPlanRead[x_String]:=If[FileExistsQ[x],endpointGroupRead[x],
+ coefficientPlanFail["CoefficientPlanDependencyMissing",<|"File"->x|>]];
+coefficientPlanRead[x_Association]:=x;
+coefficientPlanRead[___]:=coefficientPlanFail["CoefficientPlanDependencyRequired"];
+coefficientPlanBackend[arguments_List,marker_String]:=Module[{run},
+ run=RunProcess[Prepend[Prepend[arguments,$reconstructionPartitionBackend],"python3"]];
+ If[run["ExitCode"]=!=0||!StringContainsQ[run["StandardOutput"],marker],
+  coefficientPlanFail["CoefficientPartitionBackendFailed",<|"Diagnostic"->run["StandardError"]|>]];
+ True
+];
+coefficientPlanWrite[data_,file_]:=If[
+ FeynFacet`FamilyArtifactWrite[coefficientCanonicalContainers[data],file,"Compression"->True]===$Failed||
+ FeynFacet`FamilyArtifactRead[file]=!=coefficientCanonicalContainers[data],
+ coefficientPlanFail["CoefficientPlanReadBackFailed",<|"File"->file|>]];
+
+(* A unit coefficient table derives only the multiplier converting each source
+   normalized GLI to its physical master. It is never published as a result. *)
+coefficientPlanPhysicalFactors[inputs_,data_,masters_,normalization_,definitionRequest_] := Module[
+ {e=$feynFacetEpsilon,definitions,construction,unit,converted},
+ definitions=KeyTake[inputs["Metadata"],$coefficientPlanSourceFields];
+ construction=FeynFacet`ConstructMasterIntegralDefinitions[
+  Join[definitions,<|"OriginalMasterIntegralBasis"->masters,"DimensionalRegulator"->e|>],definitionRequest];
+ If[!AssociationQ[construction]||Lookup[construction,"UnresolvedIntegralDefinitions",None]=!=<||>,
+  Return[Failure["ReconstructionPhysicalDefinitionsRequired",<|"Cause"->construction|>]]];
+ unit=<|"Format"->"FeynFacet-MasterIntegralCoefficients","FormatVersion"->1,
+  "DimensionalRegulator"->e,"Definitions"->definitions,"PreFactor"->data["PhysicalFactor"],
+  "PhaseSpace"->inputs["Data"]["PhaseSpace"],"FractionMeasure"->inputs["Data"]["FractionMeasure"],
+  "Masters"->(<|"Master"->#,"Terms"->{<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->1|>}|>&/@masters),
+  "RemainderTerms"->{}|>;
+ converted=FeynFacet`ConstructPhysicalMasterCoefficientDensity[unit,
+  Association[(#["MasterIntegral"]->#)&/@Values[construction["MasterIntegralDefinitions"]]],normalization];
+ If[!AssociationQ[converted],Return[converted]];
+ <|"GlobalPreFactor"->converted["PreFactor"],
+   "MasterMultipliers"->Association[(coefficientMasterID[#["Master"]]->First[#["Terms"]]["PreFactor"])&/@converted["Masters"]],
+   "Definitions"->construction,"Normalization"->converted["PhysicalDensityNormalization"]|>
+];
+
+coefficientPrepareReconstructionPlan[inputs_Association,data_Association,
+ nativeDirectory_String,request_Association] := Catch[Module[
+ {catalog,normalization,sourceNormalization,threshold,selected,indices,masters,definitions,
+  sourceCatalog,match,mappings,physical,root,partitions={},plans=<||>,reports={},names,originals,
+  source,master,mapping,representative,candidates,frame,row,e,z,pref,signature,rules,domain,
+  directory,inventory,analysis,rejected,rejectedFile,partition,regular,order,orderRequest,
+  path,result,classification,allFiles,binding,prepared,through},
+ catalog=coefficientPlanRead[Lookup[request,"EndpointCatalog",None]];
+ normalization=coefficientPlanRead[Lookup[request,"PhysicalNormalization",None]];
+ sourceNormalization=Lookup[request,"SourceNormalization",None];
+ {rules,domain,through}=Lookup[request,{"KinematicRules","Assumptions","ThroughOrder"},None];
+ threshold=Lookup[request,"FiniteAboveBytes",16*2^20];
+ If[Lookup[catalog,"DataType",None]=!="EndpointCoefficientCatalog"||
+   !AssociationQ[sourceNormalization]||!IntegerQ[through]||domain===None||
+   !ListQ[rules]||!IntegerQ[threshold]||threshold<0,
+  coefficientPlanFail["CoefficientPlanningInputsRequired"]];
+ If[!AllTrue[rules,MatchQ[#,_Rule]&&MatchQ[First[#],_Symbol]&&
+   PolynomialQ[Last[#],DeleteDuplicates@Cases[Last[#],s_Symbol/;Context[s]=!="System`",{0,Infinity}]]&],
+  coefficientPlanFail["PolynomialCoefficientCoordinateRulesRequired"]];
+ root=projectAbsolutePath[Lookup[request,"PlanDirectory",FileNameJoin[{nativeDirectory,"ReconstructionPlan"}]]];
+ If[!DirectoryQ[root],CreateDirectory[root,CreateIntermediateDirectories->True]];
+ allFiles=data["OutputFiles"];
+ selected=Select[Range[Length[allFiles]],FileByteCount[allFiles[[#]]]>=threshold&&
+   data["OutputMetadata"][[#]]["MasterIndex"]>0&];
+ prepared=<|"DataType"->"CoefficientReconstructionPlan","SchemaVersion"->1,
+   "PreparationMethod"->"Source divisor partition and physical endpoint Laurent bounds",
+   "OrdinaryWorkingDirectory"->FileNameJoin[{nativeDirectory,"Reconstruction"}],
+   "SourceTraceManifestHash"->coefficientFileHash[finiteFieldTraceManifestFile[inputs["TraceDirectory"]]]|>;
+ If[selected==={},Return[Join[prepared,<|"DiscoveryReport"-><|"CandidateOutputs"->{},"FiniteOutputs"->{},"ExactFallbacks"->{}|>|>]]];
+ definitions=KeyTake[inputs["Metadata"],$coefficientPlanSourceFields];
+ indices=DeleteDuplicates[Lookup[data["OutputMetadata"][[selected]],"MasterIndex"]];
+ masters=data["Masters"][[indices]];
+ sourceCatalog=<|"Integrals"->masters,"Families"->definitions["Topologies"],"Normalization"->sourceNormalization|>;
+ match=FeynFacet`MatchCutIntegralCatalogs[sourceCatalog,catalog["CutCatalog"]];
+ If[!AssociationQ[match],coefficientPlanFail["SourceEndpointCatalogMatchFailed",<|"Cause"->match|>]];
+ mappings=Association[(coefficientMasterID[#["Source"]]->#)&/@match["Mappings"]];
+ physical=coefficientPlanPhysicalFactors[inputs,data,masters,normalization,Lookup[request,"DefinitionRequest",<||>]];
+ If[!AssociationQ[physical],coefficientPlanFail["PhysicalReconstructionNormalizationFailed",<|"Cause"->physical|>]];
+ names=SymbolName/@Values[data["SymbolRules"]];
+ originals=Association@KeyValueMap[SymbolName[#2]->#1&,data["SymbolRules"]];
+ Do[
+  Print["Deriving coefficient orders for output ",index," (",Round[FileByteCount[allFiles[[index]]]/2.^20,0.1]," MiB)"];
+  result=Catch[
+   source=allFiles[[index]];master=data["Masters"][[data["OutputMetadata"][[index]]["MasterIndex"]]];
+   mapping=Lookup[mappings,Key[coefficientMasterID[master]],None];
+   If[!AssociationQ[mapping]||mapping["Factor"]=!=1,
+    Throw[Failure["DirectUnitIntegralEmbeddingUnavailable",<|"Master"->master|>],"ExactColumn"]];
+   representative=mapping["Representative"];
+   candidates=FeynFacet`FindEndpointCoefficientFrames[catalog,{representative}];
+   If[!ListQ[candidates]||candidates==={},Throw[Failure["CoveringEndpointFrameUnavailable",<||>],"ExactColumn"]];
+   (* Prefer the matched family's accepted bounds when available, then the
+      existing dimension/gauge-size ordering. *)
+   candidates=Join[Intersection[{First[coefficientMasterID[representative]]},candidates],
+     DeleteCases[candidates,First[coefficientMasterID[representative]]]];
+   frame=catalog["Frames"][First[candidates]];
+   row=First[frame["RowsByIntegralClass"][catalog["IntegralClasses"][coefficientMasterID[representative]]]];
+   {e,z}=Lookup[frame["Endpoint"],{"DimensionalRegulator","NormalVariable"}];
+   signature=finiteFieldCertifyPhysicalVariables[
+     coefficientRegulatorNormalize[ReleaseHold[data["Signatures"][data["OutputMetadata"][[index]]["SignatureIndex"]]],e],
+     Join[inputs["Context"],<|"ExternalDistribution"->inputs["Data"]["PhaseSpace"]|>]];
+   If[signature===$Failed,Throw[Failure["PhysicalAnalyticSignatureRequired",<||>],"ExactColumn"]];
+   pref=signature/.Normal[inputs["Context"]["DimensionlessCoordinates"]];
+   pref=coefficientRegulatorNormalize[(pref/.normalization["KinematicRules"])*
+     physical["GlobalPreFactor"]physical["MasterMultipliers"][coefficientMasterID[master]],e];
+   orderRequest=<|"MasterRow"->row,"ThroughOrder"->through,"AliasNames"->names,"AliasOriginals"->originals,
+     "KinematicRules"->rules,"Assumptions"->domain,"PreFactor"->pref,
+     "CatalogMapping"->mapping,"SourceDefinitions"->definitions,
+     "TraceColumnBinding"-><|"OutputMetadata"->data["OutputMetadata"][[index]],
+       "Definitions"->KeyTake[data,{"Masters","SymbolRules","Signatures","Variables","PhysicalFactor"}]|>,
+     "PhysicalNormalizationRequest"->normalization,
+     "PhysicalNormalizationConstruction"->physical["Definitions"],
+     "AcceptedEndpointBinding"->frame["AcceptedEndpointBinding"]|>;
+   directory=FileNameJoin[{root,FileBaseName[source]}];
+   If[!DirectoryQ[directory],CreateDirectory[directory]];
+   path=FileNameJoin[{directory,"Source.divisors.json"}];
+   coefficientPlanBackend[{source,path},"DIVISOR INVENTORY"];
+   inventory=Import[path,"RawJSON"];
+   analysis=coefficientAnalyzeDivisors[inventory,e,z,names,originals,rules,domain];
+   rejected=Pick[inventory["Divisors"],FailureQ/@analysis];
+   classification=MapThread[<|"Divisor"->#1,"Analysis"->#2|>&,{inventory["Divisors"],analysis}];
+   coefficientPlanWrite[classification,FileNameJoin[{directory,"DivisorAnalysis.wl"}]];
+   rejectedFile=FileNameJoin[{directory,"RejectedDivisors.json"}];Export[rejectedFile,rejected,"RawJSON"];
+   coefficientPlanBackend[{"--partition",rejectedFile,source,FileNameJoin[{directory,"Partitions"}]},
+     "LITERAL PARTITION CREATED AND VERIFIED"];
+   partition=Import[FileNameJoin[{directory,"Partitions","Partition.json"}],"RawJSON"];
+   If[partition["Parts"]["Regular"]["Summands"]===0,Throw[Failure["NoRegularCoefficientSummands",<||>],"ExactColumn"]];
+   regular=Import[FileNameJoin[{directory,"Partitions","Regular.divisors.json"}],"RawJSON"];
+   orderRequest=Append[orderRequest,"Source"-><|"ExpressionFile"->regular["Source"],
+     "LiteralPartitionManifest"->FileNameJoin[{directory,"Partitions","Partition.json"}],
+     "InventoryFile"->FileNameJoin[{directory,"Partitions","Regular.divisors.json"}]|>];
+   order=FeynFacet`DetermineCoefficientReconstructionOrders[regular,frame["Endpoint"],frame["Bounds"],orderRequest];
+   If[!AssociationQ[order],Throw[order,"ExactColumn"]];
+   AssociateTo[plans,index->order];AppendTo[partitions,partition];
+   <|"Output"->index,"Status"->"FiniteRegularPart","RequiredUpperOrder"->order["RequiredCoefficientUpperOrder"],
+     "RegularSummands"->partition["Parts"]["Regular"]["Summands"],
+     "ExactSummands"->partition["Parts"]["Exact"]["Summands"],"EndpointFrame"->First[candidates]|>,
+  "ExactColumn"];
+  AppendTo[reports,If[FailureQ[result],<|"Output"->index,"Status"->"ExactRational","Reason"->result|>,result]],
+ {index,selected}];
+ prepared=Join[prepared,<|"DiscoveryReport"-><|"CandidateOutputs"->selected,"FiniteOutputs"->Keys[plans],
+   "ExactFallbacks"->Select[reports,#["Status"]==="ExactRational"&],"Columns"->reports|>,
+   "PlanningInputBinding"-><|"Request"->KeyDrop[request,{"EndpointCatalog","PlanDirectory"}],
+     "SourceDefinitions"->definitions,"SourceCatalogMatch"->match|>|>];
+ If[partitions=!={},
+  path=FileNameJoin[{root,"Partitions.json"}];Export[path,partitions,"RawJSON"];
+  coefficientPlanWrite[plans,FileNameJoin[{root,"CoefficientOrders.wl"}]];
+  prepared=Join[prepared,<|"PartitionManifest"->path,
+    "CoefficientOrderPlans"->FileNameJoin[{root,"CoefficientOrders.wl"}],
+    "PartitionWorkingDirectory"->FileNameJoin[{root,"Reconstruction"}]|>]];
+ coefficientPlanWrite[prepared,FileNameJoin[{root,"Plan.wl"}]];
+ prepared
+],"CoefficientPlan"];
+FeynFacet`PrepareCoefficientReconstructionPlan[traceDirectory_String,request_Association] := Module[
+ {inputs,data,native},
+ inputs=reconstructionInputs[ExpandFileName[traceDirectory],<|"CoefficientSetup"->Lookup[request,"CoefficientSetup",Automatic]|>];
+ If[!AssociationQ[inputs],Return[inputs]];
+ data=finiteFieldCompactTrace[inputs["TraceData"],inputs["TraceDirectory"],1,
+   Lookup[request,"CompactAboveBytes",10*2^20],Lookup[request,"CompactionEntrySeconds",30],
+   Lookup[request,"CompactionColumnSeconds",600]];
+ If[!AssociationQ[data],Return[data]];
+ native=If[KeyExistsQ[data,"Compaction"],data["Compaction"]["Directory"],inputs["TraceDirectory"]];
+ coefficientPrepareReconstructionPlan[inputs,data,native,request]
+];
+End[];EndPackage[];
+
+
+FILE FeynFacet/Coefficients/FiniteField/Orders.wl
+(* Pre-interpolation epsilon demands from the full regulated endpoint germ.
+   The rational numerator is polynomial, hence its epsilon valuation is >=0.
+   Every denominator has fixed epsilon/normal powers and a proved joint analytic unit. *)
+BeginPackage["FeynFacet`"];
+DetermineCoefficientReconstructionOrders::usage =
+ "DetermineCoefficientReconstructionOrders[inventory,endpoint,bounds,request] proves a fixed normal-pole class for rational coefficient tails and derives sufficient epsilon reconstruction orders. The request supplies alias decoding, kinematic rules, the matched master row, prefactors and the endpoint domain.";
+Begin["`Private`"];
+coefficientDivisorSeparation[expression_,e_Symbol] := Module[
+ {poly=Expand[expression],variables,coefficients,ep,order,constant,kin,factors,mixed=1},
+ variables=DeleteCases[Variables[poly],e];
+ If[!PolynomialQ[poly,Append[variables,e]]||poly===0,
+  Return[Failure["PolynomialDivisorRequired",<||>]]];
+ If[variables==={},Return[<|"RegulatorFactor"->poly,"KinematicFactor"->1,
+   "EpsilonValuation"->Exponent[poly,e,Min],"MixedUnit"->1|>]];
+ coefficients=CoefficientRules[poly,variables];
+ ep=Last[First[coefficients]];order=Exponent[ep,e,Min];constant=Coefficient[ep,e,order];
+ kin=Expand[Coefficient[poly,e,order]/constant];
+ If[Expand[poly-ep kin]=!=0||!FreeQ[kin,e],
+  factors=FactorList[poly];ep=1;kin=1;
+  Do[Which[FreeQ[factor[[1]],e],kin*=factor[[1]]^factor[[2]],
+    FreeQ[factor[[1]],Alternatives@@variables],ep*=factor[[1]]^factor[[2]],
+    True,mixed*=factor[[1]]^factor[[2]]],{factor,factors}];
+  If[Expand[poly-ep kin mixed]=!=0,Return[Failure["DivisorFactorizationIdentityFailed",<||>]]];
+  order=Exponent[Expand[ep],e,Min]];
+ <|"RegulatorFactor"->ep,"KinematicFactor"->kin,"MixedUnit"->mixed,"EpsilonValuation"->order|>
+];
+
+(* The same exact divisor classification drives partition discovery and the
+   final order proof. An unproved unit stays in the exact coefficient part. *)
+coefficientAnalyzeDivisors[inventory_,e_,z_,names_,originals_,rules_,domain_] := Module[
+ {unitCache=<||>},
+ Map[Function[text,Catch[Module[
+  {expression,separated,mapped,normal,mixedLeading,leading,variables,ok},
+  expression=reconstructionParseBlock[text,names,originals];
+  If[FailureQ[expression],Throw[expression]];
+  expression=coefficientRegulatorNormalize[expression,e];
+  separated=coefficientDivisorSeparation[expression,e];
+  If[FailureQ[separated],Throw[separated]];
+  mapped=Expand[separated["KinematicFactor"]/.rules];
+  If[!PolynomialQ[mapped,z]||mapped===0,
+   Throw[Failure["PolynomialNormalDivisorRequired",<||>]]];
+  normal=Exponent[mapped,z,Min];
+  mixedLeading=Expand[(separated["MixedUnit"]/.rules)/.{e->0,z->0}];
+  leading=Factor[Coefficient[mapped,z,normal]*mixedLeading];
+  If[!KeyExistsQ[unitCache,leading],
+   variables=DeleteDuplicates@Join[Variables[leading],Cases[domain,s_Symbol/;Context[s]=!="System`",{0,Infinity}]];
+   ok=If[variables==={},leading=!=0,
+    With[{vars=variables,condition=domain&&leading==0},
+     TrueQ[TimeConstrained[Resolve[Exists[vars,condition],Reals],5,$Failed]===False]]];
+   AssociateTo[unitCache,leading->ok]];
+  If[!TrueQ[unitCache[leading]],
+   Throw[Failure["TangentialDivisorUnitNotEstablished",<|"LeadingDivisor"->leading,
+     "Domain"->domain,"Divisor"->expression,"Separation"->separated|>]]];
+  Join[separated,<|"NormalOrder"->normal,"LeadingNormalCoefficient"->leading|>]
+ ]]],inventory["Divisors"]]
+];
+
+DetermineCoefficientReconstructionOrders[inventory_Association,endpoint_Association,
+ bounds_Association,request_Association] := Catch[Module[
+ {e,z,row,target,names,originals,rules,domain,pref,pv,uniform,sectors,active,sectorLow,
+  low,upper,divisors={},unitCache=<||>,separated,mapped,normal,leading,variables,
+  ok,expression,profiles,epsilonPoles,normalPoles,profile,entry,maximumPole,minimumEpsilon,
+  source,scope,normalGaugeLower,mixedLeading},
+ {e,z}=Lookup[endpoint,{"DimensionalRegulator","NormalVariable"}];
+ {row,target,names,originals,rules,domain,pref}=Lookup[request,
+   {"MasterRow","ThroughOrder","AliasNames","AliasOriginals","KinematicRules","Assumptions","PreFactor"}];
+ If[Lookup[endpoint,"DataType",None]=!="TangentialEndpointSystem"||
+   Lookup[bounds,"DataType",None]=!="TangentialEndpointLaurentBounds"||
+   !IntegerQ[row]||!TrueQ[1<=row<=endpoint["Dimension"]]||!IntegerQ[target]||
+   !ListQ[names]||!AssociationQ[originals]||!ListQ[rules]||MissingQ[domain],
+   Throw[Failure["CoefficientOrderInputsRequired",<||>]]];
+ If[!AllTrue[rules,MatchQ[#,_Rule]&&MatchQ[First[#],_Symbol]&&
+   PolynomialQ[Last[#],DeleteDuplicates@Cases[Last[#],s_Symbol/;Context[s]=!="System`",{0,Infinity}]]&],
+  Throw[Failure["PolynomialCoefficientCoordinateRulesRequired",<||>]]];
+ source=Lookup[request,"Source",None];
+ If[AssociationQ[source]&&KeyExistsQ[source,"ExpressionFile"],
+  If[projectAbsolutePath[Lookup[inventory,"Source",""]]=!=projectAbsolutePath[source["ExpressionFile"]]||
+    Lookup[inventory,"SourceSHA256",None]=!=coefficientFileHash[source["ExpressionFile"]],
+   Throw[Failure["DivisorInventorySourceBindingMismatch",<|"InventorySource"->Lookup[inventory,"Source",None],"RequestedSource"->source["ExpressionFile"],"InventoryHash"->Lookup[inventory,"SourceSHA256",None],"ActualHash"->coefficientFileHash[source["ExpressionFile"]]|>]]]];
+ pref=coefficientRegulatorNormalize[pref/.rules,e];
+ If[!FreeQ[pref,z],Throw[Failure["NormalDependentPrefactorNeedsTailAnalysis",<||>]]];
+ pv=FeynFacet`DetermineMeromorphicLaurentLowerBound[pref,e];
+ If[!IntegerQ[pv],Throw[Failure["PrefactorLaurentBoundRequired",<|"Value"->pv|>]]];
+ sectors=endpoint["PrimarySectors"];
+ uniform=Lookup[bounds,"UniformPrimarySectorOriginalCoefficientLaurentLowerBounds",<||>];
+ If[!AssociationQ[uniform]||!AllTrue[Lookup[sectors,"Exponent"],KeyExistsQ[uniform,#]&],
+  Throw[Failure["UniformPrimarySectorBoundsRequired",<||>]]];
+ active=Select[sectors,uniform[#["Exponent"]][[row]]=!=Infinity&];
+ If[active==={},Throw[Failure["StructurallyAbsentMasterRequiresExactZeroHandling",<||>]]];
+ If[!AllTrue[Lookup[active,"Exponent"],PolynomialQ[#,e]&&Exponent[#,e]<=1&&TrueQ[(#/.e->0)===0]&],
+  Throw[Failure["LinearRegulatorPrimaryExponentsRequired",<||>]]];
+ divisors=coefficientAnalyzeDivisors[inventory,e,z,names,originals,rules,domain];
+ If[AnyTrue[divisors,FailureQ],Throw[First[Select[divisors,FailureQ]]]];
+ profiles=inventory["Products"];
+ If[profiles==={},Throw[Failure["NonemptyDenominatorProductInventoryRequired",<||>]]];
+ epsilonPoles=Table[Total[(#[[2]] divisors[[#[[1]]]]["EpsilonValuation"])&/@profile["Factors"]],
+   {profile,profiles}];
+ normalPoles=Table[Total[(#[[2]] divisors[[#[[1]]]]["NormalOrder"])&/@profile["Factors"]],
+   {profile,profiles}];
+ minimumEpsilon=-Max[epsilonPoles];maximumPole=Max[normalPoles];
+ (* A zero-slope singular sector has no dimensional continuation for an
+    arbitrary omitted tail. It cannot be assigned a fictitious 1/epsilon. *)
+ normalGaugeLower=Min[coefficientEndpointNormalOrder[#,z]&/@endpoint["NormalGaugeMatrix"][[row]]];
+ If[AnyTrue[active,#["Exponent"]===0&]&&maximumPole>normalGaugeLower,
+  Throw[Failure["ZeroSlopeCoefficientTailNeedsCancellation",<||>]]];
+ sectorLow=Table[uniform[sector["Exponent"]][[row]]-sector["NilpotencyIndex"],{sector,active}];
+ If[!VectorQ[sectorLow,IntegerQ],Throw[Failure["IntegerEndpointPoleBoundsRequired",<||>]]];
+ low=Min[sectorLow];upper=target-pv-low;
+ scope="The supplied complete physical endpoint germ, uniformly on compact subsets of its stated tangential domain, and generic interior kinematics away from fixed divisors.";
+ <|"DataType"->"CoefficientReconstructionOrders","Status"->"SufficientOrdersDetermined",
+   "MasterRow"->row,"Master"->endpoint["OriginalMasterIntegralBasis"][[row]],
+   "ThroughOrder"->target,"DimensionalRegulator"->e,
+   "CoefficientLaurentLowerBound"->minimumEpsilon,
+   "RequiredCoefficientUpperOrder"->upper,"PrefactorLaurentLowerBound"->pv,
+   "EndpointDistributionLaurentLowerBound"->low,"NormalPoleOrderUpperBound"->maximumPole,
+   "LaurentRemainderClass"-><|"Status"->"EstablishedForSourceCoefficient",
+     "NormalDivisor"->z,"EpsilonOrderLowerBound"->upper+1,
+     "NormalPoleOrderUpperBound"->maximumPole,"UniformOnTangentialCompactSets"->True,
+     "Justification"-><|"Method"->"Exact regulator/kinematic factors, proved joint analytic units and uniform physical primary-sector bounds",
+       "Source"->Lookup[request,"Source",None],"SourceSHA256"->Lookup[inventory,"SourceSHA256",None],"TangentialAssumptions"->domain|>|>,
+   "DivisorAnalysis"->divisors,"DenominatorProductCount"->Length[profiles],
+   "Scope"->scope,"InputBindings"->Join[KeyTake[request,{"Source","CatalogMapping","PreFactor","KinematicRules",
+     "Assumptions","TraceColumnBinding","SourceDefinitions","PhysicalNormalizationRequest",
+     "PhysicalNormalizationConstruction","AcceptedEndpointBinding"}],
+      <|"SourceSHA256"->Lookup[inventory,"SourceSHA256",None],
+        "EndpointSystem"->endpoint,"LaurentBounds"->bounds|>]|>
+]];
+End[];
+EndPackage[];
+
+
+FILE FeynFacet/Coefficients/FiniteField/Execution.wl
+(* Shared production execution for complete rational columns and literal
+   exact/finite partitions. A finite order must come from a bound order plan. *)
+BeginPackage["FeynFacet`"];Begin["`Private`"];
+finiteFieldExecuteCoefficientPlan[inputs_Association,data_Association,
+ nativeDirectory_String,executable_String,options_Association,planInput_:Automatic] := Catch[Module[
+ {plan=planInput,directory,partDirectory,partData=None,sourceIndices={},orderPlans=<||>,
+  partPlans=<||>,partModes=<||>,jobs,partJobs={},records,partRecords={},collected,partCollected,
+  jobOptions,groups,indices,index,source,order,variable,candidates,part,run,result,
+  threshold=Lookup[options,"BundleBelowBytes",16*2^20],orderInputs},
+ If[StringQ[plan],plan=FeynFacet`FamilyArtifactRead[plan]];
+ If[plan===Automatic,
+  orderInputs=Lookup[options,"ReconstructionOrderInputs",None];
+  plan=If[AssociationQ[orderInputs],
+    coefficientPrepareReconstructionPlan[inputs,data,nativeDirectory,orderInputs],<||>]];
+ If[!AssociationQ[plan],reconstructionFail["execution plan","an association is required"]];
+ directory=Lookup[plan,"OrdinaryWorkingDirectory",FileNameJoin[{nativeDirectory,"Reconstruction"}]];
+ jobOptions=Join[<|"SeriesVariable"->None,"SeriesOrder"->None,"Threads"->options["Threads"],
+   "FactorScan"->True,"ShiftScan"->True,"ProgressInterval"->60,"Resume"->True|>,
+   KeyTake[options,{"Threads","FactorScan","ShiftScan","Resume","ProgressInterval"}]];
+ If[KeyExistsQ[plan,"PartitionManifest"],
+  If[Lookup[plan,"SourceTraceManifestHash",None]=!=
+    coefficientFileHash[finiteFieldTraceManifestFile[inputs["TraceDirectory"]]],
+   reconstructionFail["partition plan","the source trace definition binding differs"]];
+  partData=reconstructionPartitionTrace[data,plan["PartitionManifest"]];
+  If[!AssociationQ[partData],reconstructionFail["literal coefficient partition",partData]];
+  sourceIndices=DeleteDuplicates[partData["PartitionSourceIndices"]];
+  orderPlans=Lookup[plan,"CoefficientOrderPlans",<||>];
+  If[StringQ[orderPlans],orderPlans=FeynFacet`FamilyArtifactRead[orderPlans]];
+  If[!AssociationQ[orderPlans]||Sort[Keys[orderPlans]]=!=Sort[sourceIndices],
+   reconstructionFail["partition orders","a bound order plan for every regular source is required"]];
+  Do[
+   source=partData["PartitionSourceIndices"][[index]];
+   If[partData["PartitionKinds"][[index]]==="Exact",
+    AssociateTo[partModes,index->{None,None}],
+    order=orderPlans[source];
+    If[!AssociationQ[order]||order["Status"]=!="SufficientOrdersDetermined"||
+      projectAbsolutePath[order["InputBindings"]["Source"]["ExpressionFile"]]=!=partData["OutputFiles"][[index]],
+     reconstructionFail["partition orders","the regular-source order binding differs"]];
+    If[coefficientMasterID[order["InputBindings"]["CatalogMapping"]["Source"]]=!=
+      coefficientMasterID[data["Masters"][[data["OutputMetadata"][[source]]["MasterIndex"]]]],
+     reconstructionFail["partition orders","the source master differs"]];
+    If[Lookup[order["InputBindings"],"SourceSHA256",None]=!=
+        coefficientFileHash[partData["OutputFiles"][[index]]]||
+      Lookup[order["InputBindings"],"TraceColumnBinding",None]=!=
+       <|"OutputMetadata"->data["OutputMetadata"][[source]],
+         "Definitions"->KeyTake[data,{"Masters","SymbolRules","Signatures","Variables","PhysicalFactor"}]|>||
+      Lookup[order["InputBindings"],"SourceDefinitions",None]=!=
+       KeyTake[inputs["Metadata"],{"CardName","Setup","Pairs","AnalyticContext","Topologies",
+          "TopologyEquivalence","ReverseRules","MassDimensions","DimensionRule"}],
+      reconstructionFail["partition orders","the source content or mathematical definition binding differs"]];
+    candidates=Select[Keys[data["SymbolRules"]],
+      MemberQ[{"eps","ep","Epsilon",SymbolName[order["DimensionalRegulator"]]},SymbolName[#]]&];
+    If[Length[candidates]=!=1,reconstructionFail["partition orders","a unique regulator alias is required"]];
+    variable=First[candidates];
+    AssociateTo[partModes,index->{variable,order["RequiredCoefficientUpperOrder"]}];
+    AssociateTo[partPlans,index->order]],
+  {index,Length[partData["OutputFiles"]]}]];
+ jobs=reconstructionScheduleJobs[data,threshold,Automatic];
+ jobs=Map[Function[job,indices=Complement[job["Outputs"],sourceIndices];
+   If[indices==={},Nothing,Join[job,<|"Outputs"->indices,"Bytes"->Total[data["ExpressionBytes"][[indices]]]|>]]],jobs];
+ run[selected_,traceData_,where_] := Module[{},
+  If[!DirectoryQ[where],CreateDirectory[where,CreateIntermediateDirectories->True]];
+  If[TrueQ[Lookup[plan,"ResumeOnly",False]]&&!AllTrue[selected,
+    reconstructionJobReusableQ[#,traceData,where,executable,
+      Join[jobOptions,KeyTake[#,{"SeriesVariable","SeriesOrder"}]],True]&],
+   reconstructionFail["scheduled results","a required completed job is unavailable"]];
+  reconstructionRunSchedule[selected,traceData,where,executable,jobOptions]];
+ records=run[jobs,data,directory];
+ collected=reconstructionCollectScheduledJobs[directory,inputs["TraceDirectory"],data,records,jobOptions];
+ If[!AssociationQ[collected],reconstructionFail["scheduled result parsing",collected]];
+ If[AssociationQ[partData],
+  partDirectory=Lookup[plan,"PartitionWorkingDirectory",FileNameJoin[{directory,"Partitions"}]];
+  partJobs=Flatten[Map[Function[job,
+    groups=GatherBy[job["Outputs"],partModes[#]&];
+    Map[Function[outputs,Join[job,<|
+      "Name"->If[Length[groups]===1,job["Name"],job["Name"]<>"_"<>IntegerString[First[outputs],10,6]],
+      "Outputs"->outputs,"Bytes"->Total[partData["ExpressionBytes"][[outputs]]],
+      "SeriesVariable"->partModes[First[outputs]][[1]],"SeriesOrder"->partModes[First[outputs]][[2]]|>]],groups]],
+    reconstructionScheduleJobs[partData,threshold,Automatic]],1];
+  partRecords=run[partJobs,partData,partDirectory];
+  partCollected=reconstructionCollectScheduledJobs[partDirectory,inputs["TraceDirectory"],
+    partData,partRecords,jobOptions,partPlans];
+  If[!AssociationQ[partCollected],reconstructionFail["partition result parsing",partCollected]];
+  collected=reconstructionMergePartitionResults[data,collected,partData,partCollected]];
+ result=reconstructionAssembleProduction[Join[inputs,<|"TraceData"->data|>],collected,
+   Join[records,partRecords],executable,jobOptions];
+ If[AssociationQ[result]&&orderPlans=!=<||>,
+  result=Append[result,"CoefficientReconstructionOrderPlans"->orderPlans]];
+ result
+],$reconstructionFailure];
+End[];EndPackage[];
+
+
+FILE FeynFacet/Coefficients/PhysicalDensity.wl
+(* Coefficients of physical masters at an explicitly declared reference scale.
+   Finite Laurent records are never expanded or reclassified by this change. *)
+FeynFacet`ConstructPhysicalMasterCoefficientDensity::usage =
+ "ConstructPhysicalMasterCoefficientDensity[table,definitions,request] converts normalized-GLI coefficients to coefficients of physical masters at ReferenceScale. Definitions is keyed by GLI or {family,powers}. Request supplies Scale, ReferenceScale, positive-scale Assumptions and KinematicRules; FluxFactor, ObservedVariableJacobian and named AdditionalFactors are applied only when explicitly supplied.";
+
+physicalDensityID[key_] := If[MatchQ[key,{_String,{__Integer}}],key,coefficientMasterID[key]];
+physicalDensityExactQ[x_] := coefficientExactDataQ[x];
+physicalDensityFactorRecord[request_,key_] := If[KeyExistsQ[request,key],
+ If[!physicalDensityExactQ[request[key]]||MemberQ[{None,Automatic},request[key]],coefficientAssemblyFail["ExactDensityFactorRequired",<|"FactorName"->key|>]];
+ <|"Status"->"Supplied","Factor"->request[key]|>,<|"Status"->"NotSupplied"|>];
+
+FeynFacet`ConstructPhysicalMasterCoefficientDensity[input_,definitions_Association,request_Association] :=
+ Catch[Module[{raw=input,table,e,scale,reference,assumptions,rules,additional,factorRecords,
+  extra=1,byID=<||>,ids,definition,id,key,master,dim,powers,dimensions,loops,
+  conversion,scaling,multiplier,normalizations={},entries={},terms,sourceVariables,inputSource,observable,req,
+  transformed,change,flux,jacobian,remainders,record,sourcePhase},
+ inputSource=If[StringQ[input],ExpandFileName[input],Lookup[request,"SourceCoefficientFile",None]];
+ If[StringQ[raw],If[!FileExistsQ[raw],coefficientAssemblyFail["CoefficientFileMissing",<|"File"->raw|>]];
+  raw=If[ToLowerCase[FileExtension[raw]]==="wxf",Import[raw,"WXF"],Get[raw]]];
+ If[!AssociationQ[raw],coefficientAssemblyFail["CoefficientResultRequired"]];
+ If[TrueQ[Lookup[raw,"PhysicalMasterNormalizationApplied",False]],
+  coefficientAssemblyFail["PhysicalMasterNormalizationAlreadyApplied"]];
+ table=FeynFacet`ReadMasterIntegralCoefficients[raw];
+ If[FailureQ[table],coefficientAssemblyFail["CoefficientDensityInputInvalid",<|"Cause"->table|>]];
+ e=table["DimensionalRegulator"];req=coefficientRegulatorNormalize[request,e];
+ {scale,reference,assumptions,rules}=Lookup[req,{"Scale","ReferenceScale","Assumptions","KinematicRules"},None];
+ If[MemberQ[{scale,reference,assumptions,rules},None] ||
+   !physicalDensityExactQ[{scale,reference,assumptions,rules}] ||
+   !FreeQ[{scale,reference},e] || !ListQ[rules] ||
+   !AllTrue[rules,MatchQ[#,_Rule]&] || !DuplicateFreeQ[First/@rules] ||
+   !FreeQ[rules,e] || !TrueQ[Quiet[FullSimplify[scale>0 && reference>0,assumptions]]],
+  coefficientAssemblyFail["PositiveScaleAndExplicitKinematicRulesRequired"]];
+ change[x_] := x/.rules;
+ If[!TrueQ[Quiet[FullSimplify[change[scale]>0 && change[reference]>0,change[assumptions]]]],
+  coefficientAssemblyFail["KinematicRulesDoNotPreservePositiveScales"]];
+ sourceVariables=Lookup[req,"EliminatedKinematicVariables",{}];
+ If[!ListQ[sourceVariables]||!AllTrue[sourceVariables,MatchQ[#,_Symbol]&],
+  coefficientAssemblyFail["EliminatedKinematicVariablesMustBeSymbols"]];
+ additional=Lookup[req,"AdditionalFactors",<||>];
+ If[!AssociationQ[additional]||!AllTrue[Keys[additional],StringQ]||!physicalDensityExactQ[additional]||AnyTrue[Values[additional],MemberQ[{None,Automatic},#]&],
+  coefficientAssemblyFail["NamedExactAdditionalDensityFactorsRequired"]];
+ flux=physicalDensityFactorRecord[req,"FluxFactor"];
+ jacobian=physicalDensityFactorRecord[req,"ObservedVariableJacobian"];
+ factorRecords=<|"FluxFactor"->flux,"ObservedVariableJacobian"->jacobian,
+  "AdditionalFactors"->Association@KeyValueMap[#1-><|"Status"->"Supplied","Factor"->#2|>&,additional]|>;
+ extra=Times@@Join[Lookup[Select[{flux,jacobian},#["Status"]==="Supplied"&],"Factor",{}],Values[additional]];
+ extra=coefficientRegulatorNormalize[extra,e];
+ KeyValueMap[Function[{identity,value},
+  id=physicalDensityID[identity];
+  If[KeyExistsQ[byID,id],coefficientAssemblyFail["DuplicatePhysicalMasterDefinition",<|"Master"->id|>]];
+  If[!AssociationQ[value]||!KeyExistsQ[value,"MasterIntegral"]||
+    coefficientMasterID[value["MasterIntegral"]]=!=id,
+   coefficientAssemblyFail["PhysicalDefinitionMasterMismatch",<|"Master"->id|>]];
+  AssociateTo[byID,id->coefficientRegulatorNormalize[value,e,Lookup[value,"DimensionalRegulator",None]]]],definitions];
+ ids=coefficientMasterID/@Lookup[table["Masters"],"Master"];
+ If[Complement[ids,Keys[byID]]=!={},coefficientAssemblyFail["PhysicalMasterDefinitionsIncomplete",
+  <|"MissingMasterIntegrals"->Complement[ids,Keys[byID]]|>]];
+ Do[
+  master=entry["Master"];id=coefficientMasterID[master];definition=byID[id];
+  powers=Lookup[definition,"PropagatorPowers",None];dim=Lookup[definition,"Dimension",None];
+  loops=Lookup[definition,"LoopMomenta",None];
+  If[powers=!=Last[id]||!ListQ[loops]||!ListQ[Lookup[definition,"Prescription",None]]||
+    Length[loops]=!=Length[definition["Prescription"]]||dim===None||!physicalDensityExactQ[KeyTake[definition,{"Dimension","LoopMomenta","Prescription","MeasurePrefactor","MasterIntegralPrefactor","PropagatorPowers"}]],
+   coefficientAssemblyFail["PhysicalMasterScalingDefinitionIncomplete",<|"Master"->id|>]];
+  dimensions=Lookup[definition,"PropagatorMassDimensions",Automatic];
+  If[dimensions===Automatic,
+   If[!ListQ[Lookup[definition,"PropagatorTypes",None]]||
+     Length[definition["PropagatorTypes"]]=!=Length[powers]||
+     !AllTrue[definition["PropagatorTypes"],MemberQ[{"QuadraticLorentzian","LinearLorentzian"},#]&],
+    coefficientAssemblyFail["InversePropagatorMassDimensionsRequired",<|"Master"->id|>]];
+   dimensions=ConstantArray[2,Length[powers]]];
+  If[!VectorQ[dimensions,MatchQ[#,_Integer|_Rational]&]||Length[dimensions]=!=Length[powers],
+   coefficientAssemblyFail["InversePropagatorMassDimensionsRequired",<|"Master"->id|>]];
+  conversion=FeynFacet`MasterIntegralMeasureConversion[definition];
+  If[FailureQ[conversion],coefficientAssemblyFail["PhysicalMasterMeasureConversionFailed",
+    <|"Master"->id,"Cause"->conversion|>]];
+  scaling=(scale/reference)^(Length[loops]dim/2-powers.dimensions/2);
+  multiplier=conversion["Factor"]scaling;
+  terms=(Join[#,<|"PreFactor"->change[extra multiplier #["PreFactor"]],
+    "Coefficient"->change[#["Coefficient"]]|>]&/@entry["Terms"]);
+  If[AnyTrue[sourceVariables,!FreeQ[terms,#]&],coefficientAssemblyFail["CoefficientKinematicsIncomplete",<|"Master"->id|>]];
+  AppendTo[entries,Join[entry,<|"Terms"->terms|>]];
+  AppendTo[normalizations,<|"MasterIntegral"->master,"IntegralDefinition"->definition,
+   "MeasureConversion"->conversion,"PropagatorMassDimensions"->dimensions,
+   "ScaleExponent"->Length[loops]dim/2-powers.dimensions/2,
+   "ScaleFactor"->change[scaling],"PhysicalMasterCoefficientMultiplier"->change[multiplier]|>],
+ {entry,table["Masters"]}];
+ remainders=(Join[#,<|"PreFactor"->change[extra #["PreFactor"]],"Coefficient"->change[#["Coefficient"]]|>]&/@table["RemainderTerms"]);
+ If[AnyTrue[sourceVariables,!FreeQ[{change[table["PreFactor"]],remainders},#]&],
+  coefficientAssemblyFail["CoefficientKinematicsIncomplete"]];
+ sourcePhase=table["PhaseSpace"];
+ observable=If[KeyExistsQ[req,"ObservableMeasureConvention"],
+  <|"Status"->"Supplied","Convention"->req["ObservableMeasureConvention"]|>,
+  <|"Status"->"NotSupplied"|>];
+ record=Join[raw,table,<|"Masters"->entries,"RemainderTerms"->remainders,
+  "PreFactor"->change[table["PreFactor"]],"FractionMeasure"->change[table["FractionMeasure"]],
+  "Variables"->DeleteDuplicates[Cases[change[table["Variables"]],var_Symbol,{0,Infinity}]],
+  "PhaseSpace"->1,"SourcePhaseSpace"->sourcePhase,
+  "CoefficientConvention"->"PhysicalMasterAtReferenceScale",
+  "PhysicalMasterNormalizationApplied"->True,"Status"->"PhysicalMasterCoefficientDensityConstructed",
+  "PhysicalDensityNormalization"-><|"Scale"->change[scale],"ReferenceScale"->change[reference],
+    "Assumptions"->change[assumptions],"KinematicRules"->rules,
+    "EliminatedKinematicVariables"->sourceVariables,"Masters"->normalizations,
+    "SuppliedFactors"->factorRecords,"AdditionalFactorProduct"->change[extra],
+    "ObservableMeasureConvention"->observable,"SourceCoefficientFile"->inputSource,
+    "FactorDescriptions"->Lookup[req,"FactorDescriptions",<||>],
+    "ScaleConvention"->"All inverse-propagator mass dimensions scale together; dimensionless mass and kinematic ratios are fixed.",
+    "SourcePhaseSpace"->sourcePhase,"PhaseSpaceIncludedInPhysicalMasters"->True,
+    "GlobalDistributionPrefactorPreserved"->True,
+    "LaurentRepresentationsAndTruncationsPreserved"->True,
+    "CompleteDifferentialCrossSectionClaimed"->False|>|>];
+ transformed=FeynFacet`ReadMasterIntegralCoefficients[record,"DimensionalRegulator"->e];
+ If[FailureQ[transformed],coefficientAssemblyFail["ConvertedDensityCoefficientDataInvalid",<|"Cause"->transformed|>]];
+ transformed
+ ],"CoefficientAssembly"];
+FeynFacet`ConstructPhysicalMasterCoefficientDensity[___] :=
+ Failure["CoefficientTablePhysicalDefinitionsAndRequestRequired",<||>];

@@ -695,12 +695,13 @@ ibpPrepareKiraProject[
     records_List,
     targets_List,
     projectState_Association,
-    massDimensions_List
+    massDimensions_List,
+    topLevelTargets_List : {}
   ] := Module[
   {
     familyRoot, combinedDirectory, manifest, record, topology,
     name, familyTargets, familyDirectory, cutIndices, familyBlocks,
-    kinematics, reduceLines, jobLines
+    kinematics, reduceLines, jobLines, sectorTargets
   },
 
   familyRoot = FileNameJoin[{projectState["Directory"], "families"}];
@@ -716,6 +717,10 @@ ibpPrepareKiraProject[
     name = topology[[1]];
     cutIndices = Sort[record["CutIndices"]];
     familyTargets = Select[targets, SameQ[#[[1]], name] &];
+    sectorTargets=DeleteDuplicates@Join[familyTargets,
+      Select[topLevelTargets,SameQ[#[[1]],name]&]];
+    If[validateCutGLIs[sectorTargets,records]=!=True,
+      ibpFail["Kira configuration","top-level sector requests must preserve the original cuts"]];
     If[familyTargets === {},
       ibpFail["Kira target construction", "empty target family"]
     ];
@@ -735,7 +740,7 @@ ibpPrepareKiraProject[
         Quiet[
           kiraCreateConfigFiles[
             topology,
-            ibpMaximalSectorMasks[familyTargets],
+            ibpMaximalSectorMasks[sectorTargets],
             familyRoot,
             FeynCalc`KiraMassDimensions -> massDimensions,
             OverwriteTarget -> True,
@@ -905,9 +910,7 @@ ibpPrepareKiraProject[
 ];
 
 ibpKiraThreadCount[requested_: Automatic] := Module[{limit},
-  limit = Min[Max[1, $ProcessorCount],
-    If[ValueQ[Global`$FACETKernelLimit] && IntegerQ[Global`$FACETKernelLimit] &&
-      Global`$FACETKernelLimit > 0, Global`$FACETKernelLimit, 8]];
+  limit = Min[8, facetAllocatedProcessorCount[]];
   If[requested === Automatic, Return[limit]];
   If[! IntegerQ[requested] || requested < 1,
     ibpFail["Kira threads", "expected Automatic or a positive integer"]];
@@ -926,7 +929,9 @@ ibpRunKira[project_Association, requestedThreads_: Automatic] := Module[
   kira = runtime["KiraExecutable"];
   fermat = runtime["FermatExecutable"];
   parallel = ibpKiraThreadCount[requestedThreads];
-  logPath = FileNameJoin[{directory, "kira.log"}];
+  (* Kira itself overwrites kira.log on each later export. Keep the main
+     solve transcript under a distinct name for closure/recovery diagnostics. *)
+  logPath = FileNameJoin[{directory, "reduction.log"}];
   process = RunProcess[
     {kira, "--parallel=" <> ToString[parallel], "jobs.yaml"},
     All,
@@ -962,7 +967,7 @@ ibpRunKira[project_Association, requestedThreads_: Automatic] := Module[
 ];
 
 (* Exact Kira import, closure, and master validation. *)
-ibpImportRuleTable[name_, path_String] := Module[
+ibpImportRuleTable[name_, path_String] := Block[{Global`d}, Module[
   {dimension, imported},
   If[! FileExistsQ[path],
     ibpFail["Kira import", "missing reduction table " <> path]
@@ -991,7 +996,7 @@ ibpImportRuleTable[name_, path_String] := Module[
     ]
   ];
   imported
-];
+]];
 
 ibpImportKernelLimit[count_Integer] := Module[
   {importLimit},
@@ -1360,7 +1365,7 @@ ibpExportClosureFrontier[
     directory, runtime, kira, fermat, ordered, groups, knownNames,
     unknownNames, queries, name, file, jobPath, logPath, process, log,
     unreduced, resultPath, imported, rules, leftSides, missing,
-    unexpected, cutCheck
+    unexpected, cutCheck, missingReductions={}, supplemental=None, detailedLog
   },
   directory = project["Directory"];
   runtime = project["Runtime"];
@@ -1467,14 +1472,20 @@ ibpExportClosureFrontier[
     log,
     RegularExpression["unreduced integrals: ([0-9]+)"] -> "$1"
   ];
-  If[
-    Length[unreduced] =!= Length[queries] ||
-      ! AllTrue[unreduced, # === 0 &],
-    ibpFail[
-      "Kira export closure",
-      "kira2math did not report zero unreduced integrals for every frontier family"
-    ]
-  ];
+  If[Length[unreduced] =!= Length[queries],
+    ibpFail["Kira export closure","kira2math did not report every requested family"]];
+  If[Total[unreduced]>0,
+    (* Kira prints the counts to stdout but names the missing integrals only
+       in its detailed log. Require agreement before using that log. *)
+    detailedLog=Import[FileNameJoin[{directory,"kira.log"}],"Text"];
+    If[(FromDigits/@StringCases[detailedLog,
+        RegularExpression["unreduced integrals: ([0-9]+)"]->"$1"])=!=unreduced,
+      ibpFail["Kira export closure","the detailed export log disagrees with the captured process output"]];
+    Export[FileNameJoin[{directory,"export_closure_"<>IntegerString[iteration,10,3]<>".details.log"}],
+      detailedLog,"String"];
+    missingReductions=ibpUnreducedExportIntegrals[detailedLog,ordered,unreduced];
+    supplemental=ibpReduceMissingExportIntegrals[
+      project,missingReductions,iteration,records]];
   imported = Flatten @ Map[
     Function[query,
       resultPath = FileNameJoin[{
@@ -1487,8 +1498,12 @@ ibpExportClosureFrontier[
     ],
     queries
   ];
+  If[AssociationQ[supplemental],
+    imported=Join[Select[imported,!MemberQ[missingReductions,First[#]]&],supplemental["Rules"]]];
   rules = DeleteDuplicates[imported, SameQ];
   leftSides = First /@ rules;
+  If[!DuplicateFreeQ[leftSides],
+    ibpFail["Kira export closure","conflicting reduction rows for one dependency"]];
   missing = Complement[ordered, leftSides, SameTest -> SameQ];
   unexpected = Complement[leftSides, ordered, SameTest -> SameQ];
   If[missing =!= {} || unexpected =!= {},
@@ -1513,7 +1528,8 @@ ibpExportClosureFrontier[
       "QueryFingerprint" -> reductionFingerprint[ordered],
       "NewRuleCount" -> Length[rules],
       "ExportFingerprint" -> reductionFingerprint[rules],
-      "KiraReportedUnreduced" -> unreduced
+      "KiraReportedUnreduced" -> unreduced,
+      "SupplementalReduction" -> If[AssociationQ[supplemental],supplemental["Diagnostic"],None]
     |>
   |>
 ];

@@ -37,10 +37,31 @@ assemblyPhysicalPartons[setup_Association] := Module[{partons,hadrons,observed},
    "ObservedOutgoingPartons"->Association@Table[j->Last[partons][[j]],{j,observed}]|>
 ];
 assemblySameQ[first_, second_] := TrueQ[SameQ[first, second] || exactZeroQ[first - second]];
-coefficientTopologyMetadata[t_Association] := Module[{top=t["Topology"],name},
- name=If[StringQ[top[[1]]],top[[1]],SymbolName[top[[1]]]];
- Join[KeyTake[t,{"CutMomenta","CutIndices","CutDirections"}],
-  <|"Topology"->ReplacePart[top,1->name]|>]];
+coefficientTopologyMetadata[t_Association]:=cutTopologyDefinitionMetadata[t];
+coefficientTopologyRecords[records_List,source_:False]:=Module[{normalized,names},
+ normalized=normalizeCutTopologyRecord/@records;
+ If[AnyTrue[normalized,FailureQ],coefficientAssemblyFail["InvalidIntegralTopologyDefinition",
+  <|"Causes"->Select[normalized,FailureQ]|>]];
+ names=If[StringQ[#],#,SymbolName[#]]&/@(#[["Topology",1]]&/@normalized);
+ If[TrueQ[source]&&!DuplicateFreeQ[names],
+  coefficientAssemblyFail["DuplicateSourceTopologyNames"]];
+ normalized
+];
+assemblyPhysicalProjection[record_Association]:=Module[{setup,observed,fields,projection,parts,value,context},
+ setup=record["Definitions"]["Setup"];
+ observed=Keys[assemblyPhysicalPartons[setup]["ObservedOutgoingPartons"]];
+ parts=setup["Partons"];projection=<||>;
+ fields={"HadronLongSpin","HadronTransSpin","HadronLongDirection","HadronDualDirection"};
+ Do[If[KeyExistsQ[setup,field],
+  value=setup[field];
+  If[!MatchQ[value,Rule[_List,_List]]||(Length/@(List@@value))=!=(Length/@(List@@parts)),
+   coefficientAssemblyFail["PhysicalPolarizationProjectionRequired",<|"Field"->field|>]];
+  AssociateTo[projection,field->{First[value],Last[value][[observed]]}]],{field,fields}];
+ context=Lookup[record["Definitions"],"AnalyticContext",<||>];
+ Join[projection,KeyTake[setup,{"SetDistributionZero","Gamma5Scheme","DimensionRule"}],
+  <|"AnalyticConventions"->KeyTake[context,{"Gamma5Scheme","LoopDimension","DimensionRule",
+    "CutConvention","DistributionConvention","GlobalBasis","GlobalBasisGram","SetEvanescentZero"}]|>]
+];
 
 (* Combining terms with a common prefactor avoids expanding the large
    rational functions. A zero finite prefix retains its unknown remainder. *)
@@ -59,37 +80,68 @@ coefficientCombineTerms[terms_List] := Module[{groups,combine,all},
  all=combine/@groups;Select[all,!coefficientExactZeroTermQ[#]&]
 ];
 
-Options[AssembleCutContributions]={"MasterIntegralRules"->{},"TargetTopologies"->Automatic,
+Options[AssembleCutContributions]={"MasterIntegralRules"->{},"MasterIntegralRulesByContribution"->Automatic,"TargetTopologies"->Automatic,"TargetCatalog"->Automatic,
  "Weights"->Automatic,"AdditionalFactor"->1};
 AssembleCutContributions[items_List,OptionsPattern[]] := Catch[Module[
  {contributions,weights=OptionValue["Weights"],reference,e,rules=OptionValue["MasterIntegralRules"],
   topologyRecords=OptionValue["TargetTopologies"],byName,common,sourceFactor,
   grouped=<||>,representatives=<||>,remainders={},provenance={},parts,termList,metadata,masters,record,master,key,
   coefficient,terms,add,setupFields,physicalPartons,i,extra=OptionValue["AdditionalFactor"],definitions,
-  maps,identity,sourceTopologies,sourceMetadata},
+  maps,identity,sourceTopologies,sourceMetadata,ruleSets,perContribution=OptionValue["MasterIntegralRulesByContribution"],
+  catalog=OptionValue["TargetCatalog"],boundCatalog=None,mapRecord,sourceRecords,projection},
  If[items==={},coefficientAssemblyFail["CoefficientContributionsRequired"]];
  contributions=FeynFacet`ReadMasterIntegralCoefficients/@items;
  If[AnyTrue[contributions,FailureQ],
   coefficientAssemblyFail["CoefficientContributionReadFailed",<|"Failures"->Select[contributions,FailureQ]|>]];
  reference=First[contributions];e=reference["DimensionalRegulator"];
- If[!ListQ[rules]||!AllTrue[rules,MatchQ[#,_Rule]&]||
-   !FreeQ[Last/@rules,_Real|_Missing|_Failure|$Failed|Indeterminate|_DirectedInfinity|
-     _SeriesData|_Series|_SeriesCoefficient],
+ If[perContribution===Automatic,
+  ruleSets=ConstantArray[rules,Length[contributions]],
+  If[rules=!={}||!ListQ[perContribution]||Length[perContribution]=!=Length[contributions],
+   coefficientAssemblyFail["OneMasterIntegralRuleSetPerContributionRequired"]];
+  ruleSets=perContribution];
+ Do[
+  mapRecord=ruleSets[[i]];
+  If[AssociationQ[mapRecord],
+   If[Lookup[mapRecord,"DataType",None]=!="CutIntegralCatalogMatch"||
+     Lookup[mapRecord,"Status",None]=!="Complete"||
+     !ContainsAll[Keys[mapRecord],{"SourceDefinitions","SourceIntegrals","TargetCatalog","Rules"}]||
+     mapRecord["SourceDefinitions"]=!=contributions[[i]]["Definitions"]||
+     mapRecord["SourceIntegrals"]=!=Lookup[contributions[[i]]["Masters"],"Master"],
+    coefficientAssemblyFail["MatchingCompleteSourceCatalogRequired",<|"ContributionIndex"->i|>]];
+   If[!AssociationQ[mapRecord["TargetCatalog"]]||
+     !ContainsAll[Keys[mapRecord["TargetCatalog"]],{"Families","Normalization","Integrals"}],
+    coefficientAssemblyFail["BoundTargetIntegralCatalogRequired"]];
+   If[boundCatalog===None,boundCatalog=mapRecord["TargetCatalog"],
+    If[boundCatalog=!=mapRecord["TargetCatalog"],coefficientAssemblyFail["BoundTargetCatalogMismatch"]]];
+   ruleSets[[i]]=mapRecord["Rules"]],
+ {i,Length[ruleSets]}];
+ If[boundCatalog=!=None,
+  If[catalog===Automatic,catalog=boundCatalog,
+   If[catalog=!=boundCatalog,coefficientAssemblyFail["BoundTargetCatalogMismatch"]]]];
+ If[catalog=!=Automatic,
+  If[!AssociationQ[catalog]||!ListQ[Lookup[catalog,"Families",None]],
+   coefficientAssemblyFail["TargetIntegralCatalogRequired"]];
+  If[topologyRecords===Automatic,topologyRecords=catalog["Families"],
+   If[topologyRecords=!=catalog["Families"],coefficientAssemblyFail["BoundTargetTopologyMismatch"]]]];
+ If[!AllTrue[ruleSets,ListQ[#]&&AllTrue[#,MatchQ[#,_Rule]&]&]||
+   !coefficientExactDataQ[Last/@#&/@ruleSets],
   coefficientAssemblyFail["ExactMasterIntegralRulesRequired"]];
- rules=coefficientRegulatorNormalize[rules,e];
- If[!DuplicateFreeQ[coefficientMasterID/@(First/@rules)],
+ ruleSets=coefficientRegulatorNormalize[ruleSets,e];
+ If[!AllTrue[ruleSets,DuplicateFreeQ[coefficientMasterID/@(First/@#)]&],
   coefficientAssemblyFail["DuplicateMasterIntegralRules"]];
- maps=Association[(coefficientMasterID[First[#]]->coefficientCanonicalMasterExpression[Last[#]])&/@rules];
  If[weights===Automatic,weights=assemblyWeight[#["Definitions"]["Setup"]]&/@contributions];
  If[!ListQ[weights]||Length[weights]=!=Length[contributions]||
-   !FreeQ[{weights,extra},_Real|_Missing|_Failure|$Failed|Indeterminate|_DirectedInfinity],
+   !coefficientExactDataQ[{weights,extra}],
   coefficientAssemblyFail["ExactContributionWeightsRequired"]];
  physicalPartons=assemblyPhysicalPartons[reference["Definitions"]["Setup"]];
+ projection=assemblyPhysicalProjection[reference];
  setupFields={"PartonMomentum","PhaseSpaceMomentum","PartonIntegrated","MomentumFraction","HadronMomentum"};
  Do[
   If[assemblyPhysicalPartons[c["Definitions"]["Setup"]]=!=physicalPartons,
    coefficientAssemblyFail["ContributionPhysicalPartonsMismatch",
     <|"CardName"->Lookup[c["Definitions"],"CardName",None]|>]];
+  If[assemblyPhysicalProjection[c]=!=projection,
+   coefficientAssemblyFail["ContributionPolarizationOrConventionMismatch"]];
   If[KeyTake[c["Definitions"]["Setup"],setupFields]=!=KeyTake[reference["Definitions"]["Setup"],setupFields]||
     !assemblySameQ[c["FractionMeasure"],reference["FractionMeasure"]]||
     !assemblySameQ[c["PhaseSpace"],reference["PhaseSpace"]],
@@ -100,6 +152,7 @@ AssembleCutContributions[items_List,OptionsPattern[]] := Catch[Module[
   topologyRecords=Flatten[Lookup[Lookup[contributions,"Definitions"],"Topologies",{}],1]];
  If[!ListQ[topologyRecords]||!AllTrue[topologyRecords,AssociationQ],
   coefficientAssemblyFail["TargetTopologyDefinitionsRequired"]];
+ topologyRecords=coefficientTopologyRecords[topologyRecords];
  byName=Association[];
  Do[
   If[!KeyExistsQ[t,"Topology"],coefficientAssemblyFail["TopologyDefinitionMissing"]];
@@ -118,9 +171,10 @@ AssembleCutContributions[items_List,OptionsPattern[]] := Catch[Module[
    AssociateTo[grouped,targetKey->newTerms]]];
  Do[
   record=contributions[[i]];sourceFactor=weights[[i]] record["PreFactor"]/common;
+  maps=Association[(coefficientMasterID[First[#]]->coefficientCanonicalMasterExpression[Last[#]])&/@ruleSets[[i]]];
+  sourceRecords=coefficientTopologyRecords[Lookup[record["Definitions"],"Topologies",{}],True];
   sourceTopologies=Association[
-   (With[{name=#["Topology"][[1]]},If[StringQ[name],name,SymbolName[name]]]->#)&/@
-    Lookup[record["Definitions"],"Topologies",{}]];
+   (With[{name=#["Topology"][[1]]},If[StringQ[name],name,SymbolName[name]]]->#)&/@sourceRecords];
   Do[
    master=entry["Master"];identity=coefficientMasterID[master];
    If[!KeyExistsQ[maps,identity],
@@ -157,7 +211,7 @@ AssembleCutContributions[items_List,OptionsPattern[]] := Catch[Module[
    "Masters"->masters,"RemainderTerms"->coefficientCombineTerms[remainders],
    "Definitions"->definitions,"Variables"->DeleteDuplicates@Flatten[Lookup[contributions,"Variables",{}]],
    "CompleteTargetSet"->True,"ExactZeroMasterIntegrals"->{},
-   "Contributions"->provenance,"MasterIntegralRules"->rules,
+   "Contributions"->provenance,"MasterIntegralRulesByContribution"->ruleSets,"TargetCatalog"->catalog,
    "AdditionalFactor"->extra,"Status"->"CutContributionsAssembled",
    "CoefficientConvention"->"NormalizedGLI","PhysicalMasterNormalizationApplied"->False|>
  ],"CoefficientAssembly"];

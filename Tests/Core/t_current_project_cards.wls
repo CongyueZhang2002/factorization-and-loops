@@ -5,7 +5,7 @@ Do[
  Do[
   cpSetup=FeynFacet`ReadProcessCard[cpProject["Directory"]<>"/LO/"<>channel,"Born"];
   cpCard=FeynFacet`ReadContributionCard[cpProject["Directory"]<>"/LO/"<>channel,"Born"];
-  cpRequest=Join[FeynFacet`Private`projectAssemblyRequest[cpCard,channel,"Born"],
+  cpRequest=Join[FeynFacet`ProjectAssemblyRequest[cpCard,channel,"Born"],
    <|"EpsilonRange"->{0,2},"BornCouplingPower"->0|>];
   cpResult=FeynFacet`ConstructBornResult[cpSetup,cpRequest];
   cpExpected=If[project==="SIDIS_UU_NNLO",{4/9,0},{4/9}];

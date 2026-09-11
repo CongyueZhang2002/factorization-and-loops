@@ -61,9 +61,6 @@ ClearAll[
   reconstructionRunSchedule,
   reconstructionProgressSamples,
   reconstructionInputs,
-  reconstructionOrderExpressions,
-  reconstructionRepairAssembly,
-  reconstructionMergeOrders,
   reconstructionAssembleProduction,
   reconstructionColumnArtifact,
   reconstructionAssembledArtifact,
@@ -104,8 +101,8 @@ ReconstructionStatus::directory =
   "`1` holds no reconstruction progress data.";
 
 Options[ReconstructCoefficients] = {
-  "SeriesVariable" -> Automatic,
-  "SeriesOrder" -> 5,
+  "SeriesVariable" -> None,
+  "SeriesOrder" -> Automatic,
   "Threads" -> Automatic,
   "Schedule" -> Automatic,
   "BundleBelowBytes" -> 16 2^20,
@@ -341,10 +338,15 @@ reconstructionParseBlock[
   aliases = DeleteDuplicates @ Cases[
     expression,
     symbol_Symbol /; MemberQ[aliasNames, SymbolName[symbol]] :> symbol,
-    Infinity
+    {0, Infinity}
   ];
   rules = Dispatch[(# -> aliasOriginals[SymbolName[#]]) & /@ aliases];
-  expression /. rules
+  expression = expression /. rules;
+  If[! FreeQ[expression, symbol_Symbol /; MemberQ[aliasNames, SymbolName[symbol]]],
+    Return[Failure["UndecodedAlias", <|"MessageTemplate" ->
+      "a generated trace alias survived decoding"|>]]
+  ];
+  expression
 ];
 
 reconstructionResultFiles[directory_String] :=
@@ -552,10 +554,7 @@ reconstructionSelectManifest[
     traceDirectory_,
     markers_List
   ] := Module[{candidates},
-  (* No Return[Nothing] here: Return is not caught inside a Module
-     inside an anonymous Function and would leave a literal
-     Return[Nothing] in the list - the defect documented at
-     reconstructionRepairAssembly. *)
+  (* Use Nothing directly so rejected candidates disappear from the list. *)
   candidates = Map[
     Function[file,
       Module[{record, traceDirectoryOfFile, index, resolved},
@@ -785,6 +784,41 @@ reconstructionJobScript[
   ] <> "\n"
 ];
 
+(* Completed jobs are reusable only for the same scalar columns and native
+   program. A DONE comment alone does not bind a result to its inputs. *)
+reconstructionJobBinding[job_Association, traceData_Association, executable_String,
+    options_Association] := Module[{indices=job["Outputs"],files},
+ If[!StringMatchQ[job["Name"],RegularExpression["[A-Za-z0-9_-]+"]] ||
+   !MatchQ[indices,{__Integer}] || !DuplicateFreeQ[indices] ||
+   !AllTrue[indices,1<=#<=Length[traceData["OutputFiles"]]&],Return[$Failed]];
+ files=traceData["OutputFiles"][[indices]];
+ <|"Version"->1,"Outputs"->indices,"Files"->files,
+   "SourceHashes"->coefficientFileHashes[files],
+   "OutputMetadata"->traceData["OutputMetadata"][[indices]],
+   "Definitions"->KeyTake[traceData,{"Masters","SymbolRules","Signatures","Variables","PhysicalFactor","PartitionSourceIndices","PartitionKinds","SourcePartitions"}],
+   "SeriesVariable"->options["SeriesVariable"],
+   "SeriesOrder"->If[options["SeriesVariable"]===None,None,options["SeriesOrder"]],
+   "ExecutableHash"->coefficientFileHash[executable]|>
+];
+reconstructionJobBindingFile[directory_String,job_Association] :=
+ FileNameJoin[{directory,"Jobs",job["Name"]<>".binding.wl"}];
+reconstructionJobReusableQ[job_Association,traceData_Association,directory_String,
+    executable_String,options_Association,requireResult_] := Module[{file,saved,binding,trace,outputs,record},
+ If[!TrueQ[options["Resume"]],Return[False]];
+ file=reconstructionJobBindingFile[directory,job];
+ If[!FileExistsQ[file],Return[False]];
+ saved=FeynFacet`FamilyArtifactRead[file];
+ binding=reconstructionJobBinding[job,traceData,executable,options];
+ If[!AssociationQ[binding]||!AssociationQ[saved]||Lookup[saved,"Binding",None]=!=binding,Return[False]];
+ trace=reconstructionJobTraceFile[directory,job,options];
+ outputs=FileNameJoin[{directory,"Jobs",job["Name"]<>".outputs.txt"}];
+ If[!FileExistsQ[trace]||!FileExistsQ[outputs]||
+   coefficientFileHashes[{trace,outputs}]=!=Lookup[saved,"TraceHashes",None],Return[False]];
+ If[!TrueQ[requireResult],Return[True]];
+ record=reconstructionJobRecordFile[directory,job];
+ reconstructionJobDoneQ[record]&&coefficientFileHash[record]===Lookup[saved,"ResultHash",None]
+];
+
 reconstructionRunJob[
     job_Association,
     traceData_Association,
@@ -795,7 +829,7 @@ reconstructionRunJob[
   {
     outputFiles, traceFile, outputsFile, logFile, recordFile,
     progressFile, doneFile, scriptFile, arguments, script, result,
-    seconds, seriesVariable, seriesAlias, order, reuse
+    seconds, seriesVariable, seriesAlias, order, reuse, binding, bindingFile, bindingRecord
   },
   seriesVariable = options["SeriesVariable"];
   order = options["SeriesOrder"];
@@ -818,10 +852,10 @@ reconstructionRunJob[
   If[seriesAlias === $Failed,
     Return[$Failed]
   ];
-  (* Rebuilding a trace is deterministic given the same expressions, so
-     a saved one whose output list is complete is replayed instead. *)
-  reuse = FileExistsQ[traceFile] && FileExistsQ[outputsFile] &&
-    FileByteCount[traceFile] > 0 && FileByteCount[outputsFile] > 0;
+  binding=reconstructionJobBinding[job,traceData,executable,options];
+  If[!AssociationQ[binding],Return[$Failed]];
+  bindingFile=reconstructionJobBindingFile[directory,job];
+  reuse=reconstructionJobReusableQ[job,traceData,directory,executable,options,False];
   arguments = Join[
     {executable},
     If[reuse,
@@ -831,7 +865,7 @@ reconstructionRunJob[
         {"optimize"},
         If[seriesAlias === None,
           {},
-          {"to-series", seriesAlias, ToString[order]}
+          {"to-series", seriesAlias, ToString[order], "optimize"}
         ],
         {
           "finalize",
@@ -871,6 +905,11 @@ reconstructionRunJob[
       "no DONE marker was written", logFile];
     Return[$Failed]
   ];
+  bindingRecord=<|"Binding"->binding,
+    "TraceHashes"->coefficientFileHashes[{traceFile,outputsFile}],
+    "ResultHash"->coefficientFileHash[recordFile]|>;
+  FeynFacet`FamilyArtifactWrite[bindingRecord,bindingFile,"Compression"->True];
+  If[FeynFacet`FamilyArtifactRead[bindingFile]=!=bindingRecord,Return[$Failed]];
   <|
     "Name" -> job["Name"],
     "Outputs" -> job["Outputs"],
@@ -881,6 +920,7 @@ reconstructionRunJob[
     "RecordBytes" -> FileByteCount[recordFile],
     "LogFile" -> logFile,
     "ReusedTrace" -> reuse,
+    "Threads" -> options["Threads"],
     "Seconds" -> seconds,
     "Statistics" -> If[
       FileExistsQ[doneFile],
@@ -896,13 +936,21 @@ reconstructionRunSchedule[
     directory_String,
     executable_String,
     options_Association
-  ] := Module[{records = {}, record, recordFile, traceFile, done},
+  ] := Module[{records = {}, record, recordFile, traceFile, done, jobOptions},
+  (* One native job owns this queue's CPU allocation at a time. Resolve it
+     for each pending job; do not carry a residual one-core allocation from
+     a separately launched ordinary/series campaign into later jobs. *)
   coefficientProgressStart["Reconstructing coefficient columns", Length[jobs]];
   Do[
+    jobOptions=Join[options,KeyTake[jobs[[position]],{"SeriesVariable","SeriesOrder"}]];
+    jobOptions["Threads"]=finiteFieldThreadCount[Lookup[options,"Threads",Automatic]];
+    If[jobOptions["Threads"]===$Failed,
+      reconstructionFail["CPU allocation","a positive native thread count is required"]];
     recordFile = reconstructionJobRecordFile[directory, jobs[[position]]];
     traceFile = reconstructionJobTraceFile[
-      directory, jobs[[position]], options];
-    done = TrueQ[options["Resume"]] && reconstructionJobDoneQ[recordFile];
+      directory, jobs[[position]], jobOptions];
+    done = reconstructionJobReusableQ[jobs[[position]],traceData,directory,
+      executable,jobOptions,True];
     If[done,
       Print["  job ", jobs[[position]]["Name"], ": complete (",
         reconstructionTenth[FileByteCount[recordFile]/2.^20],
@@ -930,9 +978,10 @@ reconstructionRunSchedule[
       ],
       Print["  job ", jobs[[position]]["Name"], ": ",
         Length[jobs[[position]]["Outputs"]], " column(s), ",
-        reconstructionTenth[jobs[[position]]["Bytes"]/2.^20], " MB"];
+        reconstructionTenth[jobs[[position]]["Bytes"]/2.^20], " MB, ",
+        jobOptions["Threads"], " native threads"];
       record = reconstructionRunJob[
-        jobs[[position]], traceData, directory, executable, options
+        jobs[[position]], traceData, directory, executable, jobOptions
       ];
       If[record === $Failed,
         reconstructionFail["column reconstruction", jobs[[position]]["Name"]]
@@ -946,7 +995,7 @@ reconstructionRunSchedule[
     coefficientProgressUpdate[position, Length[jobs]],
     {position, Length[jobs]}
   ];
-  records
+  MapThread[Join[#1,KeyTake[Join[options,#2],{"SeriesVariable","SeriesOrder"}]]&,{records,jobs}]
 ];
 
 (* --- status -------------------------------------------------------- *)
@@ -1177,7 +1226,7 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
       Throw[$Failed, $reconstructionFailure]
     ];
     kiraFile = storeManifest["KiraFile"];
-    resultDirectory = DirectoryName[kiraFile];
+    resultDirectory = metadata["ResultDirectory"];
     projectDirectory = projectResultLocation[resultDirectory,coefficientWorkspaceRoot[]]["OwnerDirectory"];
     pairFiles = SortBy[
       FileNames["F*_C*.wl", FileNameJoin[{resultDirectory, "Pairs"}]],
@@ -1192,12 +1241,9 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
       _Association, options["CoefficientSetup"],
       _String, Quiet @ Check[Get[options["CoefficientSetup"]], $Failed],
       _,
-        ReadProcessCard[projectDirectory,metadata["CardName"]]
+        metadata["Setup"]
     ];
-    data = Block[
-      {analyticContextQ = coefficientAnalyticContextQ},
-      ibpInputData[pairFiles, False]
-    ];
+    data = coefficientInputData[pairFiles, store];
     If[
       data["CardName"] =!= metadata["CardName"] ||
         ! coefficientSameInputsQ[data, metadata],
@@ -1205,6 +1251,9 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
         "the Kira artifact belongs to another diagram set"];
       Throw[$Failed, $reconstructionFailure]
     ];
+    If[finiteFieldRestoreTraceCheckpoint[traceDirectory,
+      coefficientInputFileFingerprint[data["Sources"]],coefficientFileHash[kiraFile]]===$Failed,
+      reconstructionFail["input validation","the normalized source checkpoint is stale"]];
     resultSetup = If[
       AssociationQ[card],
       Join[data["Setup"], KeyTake[card, $coefficientLateSetupKeys]],
@@ -1261,316 +1310,99 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
 
 (* --- assembly ------------------------------------------------------ *)
 
-reconstructionOrderExpressions[
-    columns_Association,
-    outputCount_Integer,
-    order_
-  ] := Table[
-  Which[
-    ! KeyExistsQ[columns, output], 0,
-    order === None, columns[output],
-    True, Lookup[columns[output], order, 0]
-  ],
-  {output, outputCount}
-];
+reconstructionAssembleProduction[inputs_Association,collected_Association,
+ jobs_List,executable_String,options_Association] := Catch[Module[
+ {traceData=inputs["TraceData"],columns,terms,variable,upper,missing,primary,
+  trace,reconstruction,result,details},
+ columns=Lookup[collected,"ColumnTerms",None];
+ If[columns===None,
+  variable=collected["SeriesVariable"];upper=Lookup[options,"SeriesOrder",None];
+  columns=Association@KeyValueMap[Function[{index,value},
+   index->If[variable===None,
+    {<|"PreFactor"->1,"Representation"->"Exact","Coefficient"->value|>},
+    If[!AssociationQ[value]||Keys[value]=!=Range[Min[Keys[value]],upper],
+     reconstructionFail["result assembly","an incomplete finite column"]];
+    {<|"PreFactor"->1,"Representation"->"LaurentSeries","Coefficient"->
+      <|"SeriesVariable"->variable,"Orders"->value,"SeriesTruncation"->upper|>|>}]],
+   collected["Columns"]]];
+ missing=Complement[Range[Length[traceData["OutputFiles"]]],Keys[columns]];
+ If[missing=!={}||Sort[Keys[columns]]=!=Range[Length[traceData["OutputFiles"]]],
+  reconstructionFail["result assembly","incomplete or extra output coverage"]];
+ primary=Last@SortBy[jobs,Lookup[#,"RecordBytes",0]&];
+ trace=<|"TraceFile"->primary["TraceFile"],"TraceBytes"->Total[Lookup[jobs,"TraceBytes",0]],"BuildSeconds"->0|>;
+ reconstruction=<|"ColumnTerms"->Lookup[columns,Range[Length[traceData["OutputFiles"]]]],
+  "ResultFile"->primary["RecordFile"],"ResultBytes"->Total[Lookup[jobs,"RecordBytes",0]],
+  "ReconstructionSeconds"->Total[Lookup[jobs,"Seconds",0]]|>;
+ result=finiteFieldAssembleResult[inputs["Data"],inputs["Metadata"],inputs["KiraFile"],
+  inputs["Context"],traceData,trace,reconstruction,executable,options["Threads"]];
+ If[!AssociationQ[result],reconstructionFail["result assembly",result]];
+ details=Join[result["FiniteFieldReconstruction"],<|"Method"->"ScheduledColumnJobs",
+  "Schedule"->(KeyTake[#,{"Name","Outputs","Bytes","RecordBytes","Seconds","Statistics","SeriesVariable","SeriesOrder"}]&/@jobs),
+  "JobCount"->Length[jobs],"ResultFiles"->Lookup[jobs,"RecordFile"],
+  "ResultFileHashes"->coefficientFileHashes[Lookup[jobs,"RecordFile"]],
+  "TraceFiles"->Lookup[jobs,"TraceFile"],"ParseSeconds"->Lookup[collected,"ParseSeconds",0],
+  "BlockCount"->Lookup[collected,"BlockCount",0]|>];
+ Append[result,"FiniteFieldReconstruction"->details]
+],$reconstructionFailure];
 
-(* finiteFieldAssembleResult drops a master whose reconstructed column
-   vanishes with
+(* Parse jobs with their own epsilon mode. A finite term keeps its analytic
+   signature outside the Laurent coefficients until final master assembly. *)
+reconstructionCollectScheduledJobs[directory_String,traceDirectory_String,
+ data_Association,jobs_List,options_Association,orderPlans_Association:<||>] := Catch[Module[
+ {terms=<||>,blocks=0,seconds=0,jobOptions,collected,variable,upper,part,plan},
+ Do[
+  jobOptions=Join[options,KeyTake[job,{"SeriesVariable","SeriesOrder"}]];
+  variable=jobOptions["SeriesVariable"];upper=jobOptions["SeriesOrder"];
+  collected=reconstructionCollectResults[directory,traceDirectory,data,variable,{job["RecordFile"]}];
+  If[!AssociationQ[collected]||Sort[Keys[collected["Columns"]]]=!=Sort[job["Outputs"]],
+   reconstructionFail["result collection","a scheduled job has missing or extra outputs"]];
+  If[Intersection[Keys[terms],job["Outputs"]]=!={},
+   reconstructionFail["result collection","duplicate scheduled output"]];
+  KeyValueMap[Function[{index,value},
+   part=If[variable===None,<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->value|>,
+    If[Keys[value]=!=Range[Min[Keys[value]],upper],
+     reconstructionFail["result collection","a finite column has an incomplete order range"]];
+    <|"Representation"->"LaurentSeries","PreFactor"->1,"Coefficient"->
+      <|"SeriesVariable"->variable,"Orders"->value,"SeriesTruncation"->upper|>|>];
+   If[variable=!=None&&KeyExistsQ[orderPlans,index],
+    plan=orderPlans[index];
+    If[plan["RequiredCoefficientUpperOrder"]>upper,
+     reconstructionFail["result collection","the endpoint requires more epsilon orders"]];
+    part=Append[part,"LaurentRemainderClass"->plan["LaurentRemainderClass"]]];
+   AssociateTo[terms,index->{part}]],collected["Columns"]];
+  blocks+=collected["BlockCount"];seconds+=collected["ParseSeconds"],
+ {job,jobs}];
+ <|"ColumnTerms"->terms,"BlockCount"->blocks,"ParseSeconds"->seconds|>
+],$reconstructionFailure];
 
-     Function[{master, position}, Module[..., If[..., Return[Nothing]], ...]]
-
-   and Return is not caught inside a Module inside an anonymous Function
-   (verified: the list keeps a literal Return[Nothing]).  Nothing ever
-   vanished, so the entry survives as Return[Nothing] and poisons both
-   the assembled Expression and the momentum, fraction and cut checks
-   that read the master list.  A full rational run never noticed because
-   none of its retained columns is exactly zero, but in series mode whole orders
-   of a column vanish routinely.
-
-   The repair is done here rather than in Simplification.wl: the leaked
-   entries are dropped, the intended zero-coefficient masters with them,
-   the assembled expression is rebuilt from the surviving masters, and
-   every certification the leak invalidated is run again. *)
-reconstructionRepairAssembly[
-    result_Association,
-    data_Association,
-    metadata_Association,
-    context_Association
-  ] := Module[
-  {
-    masters, coefficients, remainder, reconstructed, forbiddenMomenta,
-    remainingMomenta, rootSubstitutions, remainingFractionObjects, cutCheck
-  },
-  masters = Select[
-    result["Masters"],
-    AssociationQ[#] && ! TrueQ[#["Coefficient"] === 0] &
-  ];
-  remainder = result["Remainder"];
-  coefficients = #["Coefficient"] & /@ masters;
-  reconstructed = result["PreFactor"] (
-    Total[#["Coefficient"] #["Master"] & /@ masters] + remainder
-  );
-  forbiddenMomenta = coefficientForbiddenMomenta[data["Setup"]];
-  remainingMomenta = remainingDeclaredMomenta[
-    {coefficients, remainder},
-    forbiddenMomenta
-  ];
-  rootSubstitutions = Lookup[context, "RootSubstitutions", <||>];
-  remainingFractionObjects = Select[
-    Join[
-      context["FractionVariables"],
-      context["FractionRootVariables"],
-      If[
-        AssociationQ[rootSubstitutions],
-        #["Root"] & /@ Values[rootSubstitutions],
-        {}
-      ]
-    ],
-    ! FreeQ[{coefficients, remainder}, #] &
-  ];
-  cutCheck = validateCutGLIs[
-    #["Master"] & /@ masters,
-    metadata["Topologies"]
-  ];
-  If[
-    remainingMomenta =!= {} || remainingFractionObjects =!= {} ||
-      ! FreeQ[reconstructed, System`D] || cutCheck =!= True,
-    Return[$Failed]
-  ];
-  Join[
-    result,
-    <|"Masters" -> masters, "Expression" -> reconstructed|>
-  ]
-];
-
-(* The production tail is finiteFieldAssembleResult itself: the root,
-   momentum, distribution and cut certifications, the master records and
-   the whole CoefficientResult header live there and are not worth
-   duplicating.  In series mode it runs once per order - each order is a
-   genuine rational column - and the per-order results are merged into
-   the series storage form afterwards. *)
-reconstructionMergeOrders[
-    perOrder_Association,
-    masterOrder_List,
-    variable_,
-    truncation_Integer
-  ] := Module[
-  {orders, skeleton, keyOf, byKey, masterKeys, masters, remainder,
-   expression, orderSet},
-  orders = Sort[Keys[perOrder]];
-  skeleton = perOrder[Last[orders]];
-  keyOf[entry_] := ToString[entry["Master"], InputForm];
-  byKey = AssociationMap[
-    Function[order,
-      Association[keyOf[#] -> # & /@ perOrder[order]["Masters"]]
-    ],
-    orders
-  ];
-  (* The in-memory constructor retains zero columns. In a finite series an
-     all-zero known prefix still has an unknown higher-order tail. *)
-  masterKeys = Select[
-    masterOrder,
-    Function[key, AnyTrue[Values[byKey], KeyExistsQ[#, key] &]]
-  ];
-  orderSet[values_Association] := Module[{present},
-    present = Select[values, ! TrueQ[# === 0] &];
-    If[
-      present === <||>,
-      KeyTake[values, Range[Min[Keys[values]], truncation]],
-      KeyTake[values, Range[Min[Keys[present]], truncation]]
-    ]
-  ];
-  masters = Map[
-    Function[key,
-      Module[{entry, values},
-        entry = SelectFirst[
-          Map[Lookup[#, key, Missing["Absent"]] &, Values[byKey]],
-          AssociationQ
-        ];
-        values = orderSet @ AssociationMap[
-          Function[order,
-            Lookup[
-              Lookup[byKey[order], key, <|"Coefficient" -> 0|>],
-              "Coefficient",
-              0
-            ]
-          ],
-          orders
-        ];
-        If[
-          values === <||>,
-          Nothing,
-          Append[
-            entry,
-            "Coefficient" -> reconstructionSeriesFromOrders[variable, values]
-          ]
-        ]
-      ]
-    ],
-    masterKeys
-  ];
-  remainder = reconstructionSeriesFromOrders[
-    variable,
-    orderSet @ AssociationMap[perOrder[#]["Remainder"] &, orders]
-  ];
-  expression = reconstructionSeriesFromOrders[
-    variable,
-    orderSet @ AssociationMap[perOrder[#]["Expression"] &, orders]
-  ];
-  Join[
-    skeleton,
-    <|
-      "Masters" -> masters,
-      "Remainder" -> remainder,
-      "Expression" -> expression,
-      "SeriesVariable" -> variable,
-      "SeriesTruncation" -> truncation
-    |>
-  ]
-];
-
-reconstructionAssembleProduction[
-    inputs_Association,
-    collected_Association,
-    jobs_List,
-    executable_String,
-    options_Association
-  ] := Catch[
-  Module[
-    {
-      traceData, columns, outputCount, missing, orders, truncation,
-      trace, reconstruction, perOrder, result, variable, primary,
-      reconstructionData
-    },
-    traceData = inputs["TraceData"];
-    columns = collected["Columns"];
-    outputCount = collected["OutputCount"];
-    missing = Complement[Range[outputCount], Keys[columns]];
-    If[missing =!= {},
-      Message[ReconstructCoefficients::coverage,
-        ToString[Length[missing]] <> " of " <> ToString[outputCount] <>
-          " outputs are absent, first " <>
-          ToString[Take[missing, UpTo[5]]]];
-      reconstructionFail["result assembly", "incomplete output coverage"]
-    ];
-    variable = collected["SeriesVariable"];
-    orders = If[
-      variable === None,
-      {None},
-      Sort @ DeleteDuplicates[Join @@ (Keys /@ Values[columns])]
-    ];
-    truncation = If[variable === None, None, Max[orders]];
-    If[
-      variable =!= None && truncation =!= options["SeriesOrder"],
-      Message[ReconstructCoefficients::coverage,
-        "the result files stop at order " <> ToString[truncation] <>
-          " but order " <> ToString[options["SeriesOrder"]] <> " was requested"];
-      reconstructionFail["result assembly", "a truncation mismatch"]
-    ];
-    primary = Last @ SortBy[jobs, Lookup[#, "RecordBytes", 0] &];
-    trace = <|
-      "TraceFile" -> Lookup[primary, "TraceFile", Missing["Resumed"]],
-      "TraceBytes" -> Total[Map[Lookup[#, "TraceBytes", 0] &, jobs]],
-      "BuildSeconds" -> 0
-    |>;
-    perOrder = AssociationMap[
-      Function[order,
-        reconstruction = <|
-          "Expressions" -> reconstructionOrderExpressions[
-            columns, outputCount, order],
-          "ResultFile" -> primary["RecordFile"],
-          "ReconstructionSeconds" -> Total[
-            Map[Lookup[#, "Seconds", 0] &, jobs]],
-          "ResultBytes" -> Total[Map[Lookup[#, "RecordBytes", 0] &, jobs]]
-        |>;
-        (* Lookup::invrl is the leak documented at
-           reconstructionRepairAssembly, which repairs and re-certifies
-           what it damaged; nothing else is silenced. *)
-        result = Quiet[
-          finiteFieldAssembleResult[
-            inputs["Data"],
-            inputs["Metadata"],
-            inputs["KiraFile"],
-            inputs["Context"],
-            traceData,
-            trace,
-            reconstruction,
-            executable,
-            options["Threads"]
-          ],
-          {Lookup::invrl}
-        ];
-        result = If[
-          result === $Failed,
-          $Failed,
-          reconstructionRepairAssembly[
-            result, inputs["Data"], inputs["Metadata"], inputs["Context"]
-          ]
-        ];
-        If[result === $Failed,
-          reconstructionFail[
-            "result assembly",
-            "the reconstructed coefficients violate the declared " <>
-              "kinematics or cut data" <>
-              If[order === None, "", " at order " <> ToString[order]]
-          ]
-        ];
-        result
-      ],
-      orders
-    ];
-    result = If[
-      variable === None,
-      perOrder[None],
-      reconstructionMergeOrders[
-        perOrder,
-        ToString[#, InputForm] & /@ traceData["Masters"],
-        variable,
-        truncation
-      ]
-    ];
-    reconstructionData = Join[
-      result["FiniteFieldReconstruction"],
-      <|
-        "Method" -> "ScheduledColumnJobs",
-        "SeriesVariable" -> variable,
-        "SeriesTruncation" -> truncation,
-        "Schedule" -> Map[
-          KeyTake[#, {"Name", "Outputs", "Bytes", "RecordBytes", "Seconds",
-            "ReusedTrace", "Statistics"}] &,
-          jobs
-        ],
-        "JobCount" -> Length[jobs],
-        "ResultFiles" -> Map[Lookup[#, "RecordFile", Missing["None"]] &, jobs],
-        "ResultFileHashes" -> Map[
-          Function[job,
-            With[{file = Lookup[job, "RecordFile", None]},
-              If[StringQ[file] && FileExistsQ[file],
-                FileHash[file, "SHA256", "HexString"],
-                Missing["None"]
-              ]
-            ]
-          ],
-          jobs
-        ],
-        "TraceFiles" -> Map[Lookup[#, "TraceFile", Missing["None"]] &, jobs],
-        "ReconstructionSeconds" -> Total[Map[Lookup[#, "Seconds", 0] &, jobs]],
-        "ParseSeconds" -> collected["ParseSeconds"],
-        "BlockCount" -> collected["BlockCount"],
-        "Threads" -> options["Threads"]
-      |>
-    ];
-    Join[
-      result,
-      <|
-        "FiniteFieldReconstruction" -> reconstructionData,
-        "SeriesVariable" -> variable,
-        "SeriesTruncation" -> truncation
-      |>
-    ]
-  ],
-  $reconstructionFailure
-];
+(* Merge a complete original output set from ordinary columns and both literal
+   parts of each partitioned column. Matching labels alone never justify reuse. *)
+reconstructionMergePartitionResults[original_Association,ordinary_Association,
+ partitionData_Association,partitioned_Association] := Catch[Module[
+ {fields={"Masters","SymbolRules","Signatures","Variables","PhysicalFactor"},terms,
+  grouped,indices,expected,kinds,sourceFiles},
+ If[KeyTake[original,fields]=!=KeyTake[partitionData,fields],
+  reconstructionFail["partition assembly","source definitions differ"]];
+ terms=ordinary["ColumnTerms"];
+ grouped=GroupBy[Range[Length[partitionData["OutputFiles"]]],
+  partitionData["PartitionSourceIndices"][[#]]&];
+ If[Intersection[Keys[terms],Keys[grouped]]=!={},
+  reconstructionFail["partition assembly","an original column was also reconstructed in full"]];
+ If[Sort[Keys[partitioned["ColumnTerms"]]]=!=Range[Length[partitionData["OutputFiles"]]],
+  reconstructionFail["partition assembly","a partition component is missing"]];
+ KeyValueMap[Function[{source,parts},
+  kinds=partitionData["PartitionKinds"][[parts]];
+  If[Sort[kinds]=!={"Exact","Regular"},
+   reconstructionFail["partition assembly","a source requires exactly one of each literal part"]];
+  sourceFiles=DeleteDuplicates[Lookup[Select[partitionData["SourcePartitions"],
+    ExpandFileName[#["Source"]]===ExpandFileName[original["OutputFiles"][[source]]]&],"Source"]];
+  If[Length[sourceFiles]=!=1,reconstructionFail["partition assembly","an unbound original source"]];
+  AssociateTo[terms,source->Flatten[Lookup[partitioned["ColumnTerms"],parts],1]]],grouped];
+ expected=Range[Length[original["OutputFiles"]]];
+ If[Sort[Keys[terms]]=!=expected,reconstructionFail["partition assembly","incomplete original coverage"]];
+ <|"ColumnTerms"->terms,"BlockCount"->ordinary["BlockCount"]+partitioned["BlockCount"],
+  "ParseSeconds"->ordinary["ParseSeconds"]+partitioned["ParseSeconds"]|>
+],$reconstructionFailure];
 
 (* The intermediate artifact: what the assembly CLI has always written.
    It stops short of the production result on purpose - a partial result

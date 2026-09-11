@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Independent validation; reference coefficients never enter production. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];

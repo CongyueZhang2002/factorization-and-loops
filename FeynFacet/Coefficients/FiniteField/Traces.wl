@@ -1,22 +1,24 @@
 finiteFieldMergeAssociationRecords[file_String, repeated_: True] := Module[
-  {result = <||>, count},
+  {result = <||>, count, consistent = True},
   count = coefficientScanRecords[
     file,
     Function[record,
-      If[! AssociationQ[record], Return[$Failed]];
-      KeyValueMap[
-        Function[{key, value},
-          If[KeyExistsQ[result, key],
-            If[repeated,
-              AssociateTo[result, key -> (result[key] + value)],
-              If[! SameQ[result[key], value], Return[$Failed]]
-            ],
-            AssociateTo[result, key -> value]
-          ]
-        ],
-        record
-      ];
-      True
+      If[! AssociationQ[record],
+        $Failed,
+        KeyValueMap[
+          Function[{key, value},
+            If[KeyExistsQ[result, key],
+              If[repeated,
+                AssociateTo[result, key -> (result[key] + value)],
+                If[! SameQ[result[key], value], consistent = False]
+              ],
+              AssociateTo[result, key -> value]
+            ]
+          ],
+          record
+        ];
+        If[consistent, True, $Failed]
+      ]
     ]
   ];
   If[count === $Failed, $Failed, result]
@@ -25,7 +27,7 @@ finiteFieldMergeAssociationRecords[file_String, repeated_: True] := Module[
 finiteFieldRationalSymbols[expression_] := DeleteDuplicates @ Cases[
   expression,
   symbol_Symbol /; finiteFieldRationalQ[symbol] :> symbol,
-  Infinity,
+  {0, Infinity},
   Heads -> False
 ];
 
@@ -55,6 +57,8 @@ finiteFieldTraceInputs[
       distributionFactor, laurentFactor, rationalLaurentFactor,
       masters, masterIndices,
       signatures = {}, signatureBuckets = <||>, signatureID,
+      signaturePairs = <||>, signaturePair, signaturePairCalls = 0,
+      signaturePairMisses = 0,
       symbolRules = <||>, aliasPrefix, registerSymbols, aliasRules,
       outputFiles = <||>, outputMetadata = <||>, firstTerm = <||>,
       contributionCounts = <||>, streams = <||>, streamOrder = {},
@@ -216,21 +220,34 @@ finiteFieldTraceInputs[
        the rational-in-trace-variables part of the combined signature
        folds into the coefficient, so buckets differing by such a
        factor merge at registration. *)
+    (* Cache the exact ordered pair within this invocation. Both the
+       canonical class ID and its folded rational factor are needed. *)
+    signaturePair[a_HoldComplete,b_HoldComplete] := Module[{key,stored,split},
+      signaturePairCalls++;
+      key=HoldComplete[a,b];
+      stored=Lookup[signaturePairs,key,Missing["NotFound"]];
+      If[!MissingQ[stored],Return[stored]];
+      signaturePairMisses++;
+      split=finiteFieldCanonicalizeSignature[
+        finiteFieldCombineSignatures[a,b],monomialExcluded];
+      stored={signatureID[First[split]],Last[split]};
+      AssociateTo[signaturePairs,key->stored];
+      stored
+    ];
+
     registerContribution[
         index_Integer,
-        combined_HoldComplete,
+        a_HoldComplete,
+        b_HoldComplete,
         targetString_String,
         coefficient_
-      ] := Module[{split},
-      split = finiteFieldCanonicalizeSignature[combined, monomialExcluded];
+      ] := Module[{pair},
+      pair=signaturePair[a,b];
       writeContribution[
         index,
-        signatureID @ First[split],
+        First[pair],
         targetString,
-        If[TrueQ[Last[split] === 1],
-          coefficient,
-          Last[split] coefficient
-        ]
+        If[TrueQ[Last[pair]===1],coefficient,Last[pair] coefficient]
       ]
     ];
 
@@ -262,10 +279,8 @@ finiteFieldTraceInputs[
                   Function[{coefficientSignature, reductionCoefficient},
                     registerContribution[
                       masterIndex,
-                      finiteFieldCombineSignatures[
-                        signature,
-                        coefficientSignature
-                      ],
+                      signature,
+                      coefficientSignature,
                       targetString,
                       reductionCoefficient
                     ]
@@ -279,10 +294,8 @@ finiteFieldTraceInputs[
               Function[{remainderSignature, rationalRemainder},
                 registerContribution[
                   0,
-                  finiteFieldCombineSignatures[
-                    signature,
-                    remainderSignature
-                  ],
+                  signature,
+                  remainderSignature,
                   targetString,
                   rationalRemainder
                 ]
@@ -465,6 +478,9 @@ finiteFieldTraceInputs[
           ];
           Scan[emitNormalizedTarget, normalizedBatch];
           coefficientProgressUpdate[processed, progressTotal];
+          If[$FrontEnd===Null&&(Mod[shard,4]===0||shard===shardCount),
+            Print["Normalized ",processed," / ",progressTotal," coefficient targets (",
+              shard," / ",shardCount," input partitions)"]];
           Clear[
             targetTerms, ruleTerms, jobs, chunks, normalizedChunks,
             normalizedBatch
@@ -596,6 +612,9 @@ finiteFieldTraceInputs[
       "ContributionCounts" -> Lookup[contributionCounts, outputOrder],
       "ScalePowers" -> scalePowers,
       "DescendStatistics" -> descendStatistics,
+      "SignaturePairCacheStatistics" -> <|
+        "Calls" -> signaturePairCalls, "Misses" -> signaturePairMisses,
+        "Entries" -> Length[signaturePairs]|>,
       "ExpressionBytes" -> FileByteCount /@ Lookup[outputFiles, outputOrder]
     |>
   ],
@@ -709,21 +728,32 @@ finiteFieldBuildTrace[
     executable_String,
     directory_String
   ] := Module[
-  {traceFile, inputsFile, outputsFile, arguments, result, seconds},
+  {traceFile, inputsFile, outputsFile, arguments, result, seconds,
+   binding, bindingFile, savedBinding, listedOutputs},
   traceFile = FileNameJoin[{directory, "MasterCoefficients.trace.gz"}];
   inputsFile = FileNameJoin[{directory, "TraceInputs.txt"}];
   outputsFile = FileNameJoin[{directory, "TraceOutputs.txt"}];
-  (* A completed trace whose output list matches the checkpoint can be
-     reused: rebuilding is deterministic given the same expressions. *)
+  bindingFile = FileNameJoin[{directory, "TraceBinding.wl"}];
+  binding = <|"Version" -> 1,
+    "Definitions" -> KeyTake[traceData, {"Masters", "OutputMetadata", "OutputOrder",
+      "SymbolRules", "Signatures", "Variables", "PhysicalFactor", "CompleteTargetSet"}],
+    "OutputFiles" -> traceData["OutputFiles"],
+    "InputHashes" -> coefficientFileHashes[traceData["OutputFiles"]],
+    "ExecutableHash" -> coefficientFileHash[executable]|>;
+  savedBinding = If[FileExistsQ[bindingFile],
+    Quiet[Check[FeynFacet`FamilyArtifactRead[bindingFile], $Failed]], $Failed];
+  listedOutputs = If[FileExistsQ[outputsFile],
+    StringReplace[Select[StringSplit[Import[outputsFile, "Text"], "\n"], # =!= "" &],
+      StartOfString ~~ DigitCharacter .. ~~ " " -> ""], {}];
+  (* The source expressions and ordered output definitions, not just their
+     number, determine the trace. Compaction must never reuse an earlier trace. *)
   If[
     FileExistsQ[traceFile] && FileExistsQ[inputsFile] &&
       FileExistsQ[outputsFile] &&
       (* a zero-byte trace is a kill-during-write artifact, never a
          completed trace (0-byte reuse EXIT5, 2026-08-23) *)
       FileByteCount[traceFile] > 0 &&
-      Length[
-        Select[StringSplit[Import[outputsFile, "Text"], "\n"], # =!= "" &]
-      ] === Length[traceData["OutputFiles"]],
+      savedBinding === binding && listedOutputs === traceData["OutputFiles"],
     Print["Reusing the existing shared trace (",
       Round[FileByteCount[traceFile]/2.^20, 0.1], " MB)"];
     Return[<|
@@ -775,6 +805,13 @@ finiteFieldBuildTrace[
     FileNameJoin[{directory, "BuildTrace.log"}]
   ];
   If[result === $Failed, Return[$Failed]];
+  listedOutputs = StringReplace[
+    Select[StringSplit[Import[outputsFile, "Text"], "\n"], # =!= "" &],
+    StartOfString ~~ DigitCharacter .. ~~ " " -> ""];
+  If[listedOutputs =!= traceData["OutputFiles"] ||
+     !FileExistsQ[traceFile] || FileByteCount[traceFile] === 0, Return[$Failed]];
+  If[FeynFacet`FamilyArtifactWrite[binding, bindingFile, "Compression" -> True] === $Failed ||
+     FeynFacet`FamilyArtifactRead[bindingFile] =!= binding, Return[$Failed]];
   <|
     "TraceFile" -> traceFile,
     "InputsFile" -> inputsFile,

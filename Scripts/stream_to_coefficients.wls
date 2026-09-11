@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Materialize a KiraStream directory as KiraResult.wl, then reconstruct
    and save the current master-coefficient table.
 
@@ -41,7 +42,7 @@ If[! AssociationQ[kira],
 Print["MATERIALIZESECONDS: ", Round[seconds, 0.1]];
 storedKira=If[FileExistsQ[kiraFile],FeynFacet`FamilyArtifactRead[kiraFile],$Failed];
 If[!AssociationQ[storedKira]||KeyDrop[storedKira,"Created"]=!=KeyDrop[kira,"Created"],
- FeynFacet`FamilyArtifactWrite[kira,kiraFile]];
+ FeynFacet`FamilyArtifactWrite[kira,kiraFile,"Compression"->Automatic]];
 Clear[kira,storedKira];
 ClearSystemCache[];
 Print["KIRAFILE: ", kiraFile, " (",

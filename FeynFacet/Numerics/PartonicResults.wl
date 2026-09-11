@@ -1,26 +1,13 @@
-(* Numerical checks on the common recursive result, independent of references. *)
+(* Only numerical pole evaluation belongs here; result algebra and finite
+   extraction live in Coefficients/PartonicResults and PartonicFinalization. *)
 BeginPackage["FeynFacet`"];
-PartonicScalarCoefficientRules::usage="PartonicScalarCoefficientRules[result] flattens each epsilon coefficient into scalar rules indexed by epsilon order, one Delta/Plus/Regular label per axis and the structure-function index.";
-VerifyPartonicPoleCancellation::usage="VerifyPartonicPoleCancellation[results,pointRules,request] checks every negative epsilon coefficient of several common partonic results at exact parameter points. Its evidence is numerical and is not an algebraic identity proof; complete input pole coefficients are retained for exact source matching.";
-FinalizePartonicResults::usage="FinalizePartonicResults[results,check,request] retains each requested finite epsilon range only after matching the complete input pole coefficients to a successful check. No reference coefficient is used or substituted.";
 Begin["`Private`"];
-PartonicScalarCoefficientRules[result_Association]:=Module[{n,walk,depth},
- If[!partonicResultValidQ[result],Return[Failure["CommonPartonicResultRequired",<||>]]];
- n=Length[Lookup[result,"StructureFunctions",{"Scalar"}]];depth=partonicDistributionDepth[result["DistributionBasis"]];
- walk[row_,path_,0]:=Table[Append[path,i]->If[ListQ[row],row[[i]],row],{i,n}];
- walk[row_,path_,d_Integer?Positive]:=Join[
-  walk[row["DeltaCoefficient"],Append[path,"Delta"],d-1],
-  Flatten[KeyValueMap[walk[#2,Append[path,{"Plus",#1}],d-1]&,row["PlusCoefficients"]],1],
-  walk[row["RegularCoefficient"],Append[path,"Regular"],d-1]];
- Association@Flatten[KeyValueMap[walk[#2,{#1},depth]&,result["Coefficients"]],1]
-];
-partonicPoleInput[results_]:=Association@Flatten@KeyValueMap[Function[{name,result},
- KeyValueMap[Prepend[#1,name]->#2&,KeySelect[PartonicScalarCoefficientRules[result],First[#]<0&]]],results];
 VerifyPartonicPoleCancellation[results_Association,points_List,request_Association:<||>]:=Module[
- {input,wp,tolerance,timelimit,numerical,values={},rows={},maximum=0,errors},
- If[results===<||>||!AllTrue[Values[results],partonicResultValidQ]||
-   !MatchQ[points,{{__Rule}..}],Return[Failure["PartonicResultsAndExactParameterPointsRequired",<||>]]];
- input=partonicPoleInput[results];wp=Lookup[request,"WorkingPrecision",50];
+ {input,wp,tolerance,timelimit,numerical,rows={},errors},
+ If[!MatchQ[points,{{__Rule}..}]||!FreeQ[points,_Real],
+   Return[Failure["ExactParameterPointsRequired",<||>]]];
+ input=partonicPoleInput[results];If[FailureQ[input],Return[input]];
+ wp=Lookup[request,"WorkingPrecision",50];
  tolerance=Lookup[request,"AbsoluteTolerance",10^-30];timelimit=Lookup[request,"TimeLimit",120];
  Do[
   numerical=Quiet[FeynFacetSolution`EvaluateGPLExpression[Values[input],rules,"WorkingPrecision"->wp,
@@ -32,38 +19,7 @@ VerifyPartonicPoleCancellation[results_Association,points_List,request_Associati
  {rules,points}];
  <|"DataType"->"PartonicPoleCancellationCheck","Status"->If[AllTrue[rows,#["FailedKeys"]==={}&],"Passed","Failed"],
   "Method"->"NumericalEvaluationAtExactParameterPoints","AlgebraicIdentityProof"->False,
-  "InputPoleCoefficients"->input,"CoefficientCount"->Length[input],"WorkingPrecision"->wp,
+  "InputPoleCoefficients"->input,"InputConventions"->partonicPoleConventions[results],"CoefficientCount"->Length[input],"WorkingPrecision"->wp,
   "AbsoluteTolerance"->tolerance,"PointChecks"->rows|>
-];
-FinalizePartonicResults[results_Association,check_Association,request_Association]:=Module[
- {ranges,metadata,out=<||>,result,range,coefficients,summary},
- If[Lookup[check,"DataType",None]=!="PartonicPoleCancellationCheck"||
-   Lookup[check,"Status",None]=!="Passed"||check["InputPoleCoefficients"]=!=partonicPoleInput[results],
-  Return[Failure["MatchingCompletePoleCancellationCheckRequired",<||>]]];
- ranges=Lookup[request,"EpsilonRanges",<||>];metadata=Lookup[request,"Metadata",<||>];
- summary=KeyDrop[check,"InputPoleCoefficients"];
- Do[
-  result=results[name];range=Lookup[ranges,name,{0,0}];
-  If[!MatchQ[range,{_Integer?NonNegative,_Integer?NonNegative}]||
-    FeynFacet`RequirePartonicEpsilonRange[result,range]=!=True,
-   Return[Failure["AvailableFiniteResultRangeRequired",<|"Result"->name,"Range"->range|>],Module]];
-  coefficients=KeySelect[result["Coefficients"],First[range]<=#<=Last[range]&];
-  coefficients=coefficients/.{
-   HoldPattern[PolyGamma[0,k_Integer?Positive]]:>HarmonicNumber[k-1]-EulerGamma,
-   HoldPattern[PolyGamma[m_Integer?Positive,k_Integer?Positive]]:>
-    (-1)^(m+1)Factorial[m](Zeta[m+1]-HarmonicNumber[k-1,m+1])};
-  If[!FreeQ[coefficients,_Integrate|_NIntegrate|_Inactive|_FeynCalc`GLI|_FeynCalc`PaVe|
-    _FeynCalc`B0|_FeynCalc`C0|_FeynCalc`D0|_Gamma|_PolyGamma|_HypergeometricPFQ|_Hypergeometric2F1|
-    _Conjugate|_Re|_Im|_FeynFacetSolution`F|_FeynFacetSolution`K|_Failure]||
-    Cases[coefficients,_Derivative,{0,Infinity},Heads->True]=!={},
-   Return[Failure["ExplicitIntegralFreeFiniteCoefficientsRequired",<|"Result"->name|>],Module]];
-  AssociateTo[out,name->FeynFacet`CreatePartonicResult[coefficients,
-   Join[KeyDrop[result,{"Coefficients","EpsilonRange","LaurentLowerBound"}],metadata,
-    Lookup[Lookup[request,"MetadataByResult",<||>],name,<||>],
-    <|"LaurentLowerBound"->First[range],"PoleCancellationVerified"->True,
-      "PoleCancellationVerificationMethod"->check["Method"],"PoleCancellationCheck"->summary,
-      "FiniteExpressionBasis"->"Explicit rational functions, logarithms, polylogarithms and standard GPLs",
-      "UnresolvedIntegrals"->False|>]]],
- {name,Keys[results]}];out
 ];
 End[];EndPackage[];

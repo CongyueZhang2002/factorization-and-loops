@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Prepare a generated measured-cut connection for the shared finite solver. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
@@ -9,7 +10,7 @@ If[Length[arguments]=!=4,
 directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contributionName];
 If[!AssociationQ[card],Print[card];Exit[1]];
-outputDirectory=directory<>"/Results/"<>StringReplace[contributionName,"."->"/"]<>
+outputDirectory=FileNameJoin[{card["Directory"],"Results",card["ContributionPath"]}]<>
  If[StringContainsQ[contributionName,"."],"","/MasterIntegrals"];
 input=FeynFacet`FamilyArtifactRead[outputDirectory<>"/DifferentialSystem.wl"];
 If[!AssociationQ[input]||!MemberQ[{"CutMasterDifferentialSystem","GlobalMasterDifferentialSystem"},Lookup[input,"DataType",None]],

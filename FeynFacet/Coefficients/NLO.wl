@@ -5,7 +5,7 @@ BeginPackage["FeynFacet`"];
 ConstructNLOVirtualContribution::usage="ConstructNLOVirtualContribution[table,request] evaluates the required one-loop masters, contracts them with exact coefficients and forms one oriented interference plus its conjugate. Request declares Scale, MandelstamVariables, Variables {v,w}, KinematicConditions, Assumptions and RenormalizationScaleSquared.";
 ConstructNLORealContribution::usage="ConstructNLORealContribution[table,request] recognizes analytic two-body phase-space masters and returns explicit delta/plus/regular Laurent coefficients. Request additionally supplies the endpoint domain conditions used by ConstructAnalyticEndpointExpansion.";
 ConstructZeroAmplitudeContribution::usage="ConstructZeroAmplitudeContribution[records,request] returns an exact zero only after checking every selected interference is present, has an explicitly zero integrand and has no remaining integral topology. It does not infer zero from the process name.";
-AssembleNLOHardFunction::usage="AssembleNLOHardFunction[contributions,request] combines named real, virtual, UV and collinear records, checks exact pole cancellation, and returns explicit finite NLO delta/plus/regular coefficients. Request supplies RequiredContributions, BornDensity, Scale, Variables, Assumptions, and optional ColorRules and Description.";
+AssembleNLOHardFunction::usage="AssembleNLOHardFunction[contributions,request] combines named real, virtual, UV and collinear records, checks exact pole cancellation, and returns explicit finite NLO delta/plus/regular coefficients. Request supplies RequiredContributions, Scale, Variables, Assumptions, and optional ColorRules and Description.";
 Begin["`Private`"];
 nloFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"AnalyticNLO"];
 nloCheck[x_,tag_]:=If[FailureQ[x]||x===$Failed||x===$Aborted,nloFail[tag,<|"Cause"->x|>],x];
@@ -114,42 +114,34 @@ ConstructZeroAmplitudeContribution[records_List,request_Association]:=Catch[Modu
   "ZeroDerivation"->"Every selected generated Dirac/color interference is exactly zero in D dimensions before integral reduction"|>]
  ],"AnalyticNLO"];
 AssembleNLOHardFunction[contributions_Association,request_Association]:=Catch[Module[
- {required,all,variables,s,v,w,assum,color,e,cs,logs,reduced,finite,poles,born,bornDelta,explicit,labels,rows,plusOrders,regulators,regulatorNames,combined},
- If[!ContainsAll[Keys[request],{"RequiredContributions","BornDensity","Scale","Variables","Assumptions"}],nloFail["NLOAssemblyRequestIncomplete"]];
- required=request["RequiredContributions"];If[Sort[Keys[contributions]]=!=Sort[required]||!DuplicateFreeQ[required],nloFail["NLOContributionCoverageIncomplete"]];
- combined=nloCheck[CombinePartonicResults[contributions,<|"Contribution"->"Total"|>],"NLOResultConventionMismatch"];
- all=Values[contributions];If[!AllTrue[all,AssociationQ[#]&&Lookup[#,"Format",None]==="FeynFacet-PartonicResult"&&Last[#["EpsilonRange"]]>=0&],nloFail["FiniteNLOContributionsRequired"]];
- {v,w}=request["Variables"];s=request["Scale"];assum=request["Assumptions"];color=Lookup[request,"ColorRules",{}];
- e=First[all]["DimensionalRegulator"];If[!AllTrue[all,#["Variables"]==={v,w}&],nloFail["NLOContributionVariableMismatch"]];
- If[!ContainsAll[Lookup[all,"Contribution"],{"Real","Virtual","Counterterm"}],nloFail["RealVirtualAndUVContributionsRequired"]];
- If[!AllTrue[all,MatchQ[#["EpsilonRange"],{_Integer,_Integer}]&&
-   Sort[Keys[#["Coefficients"]]]===(Range@@#["EpsilonRange"])&],
-  nloFail["ContiguousNLOContributionEpsilonOrdersRequired"]];
- rows=Flatten[Values /@ Lookup[all,"Coefficients"]];
- If[!AllTrue[rows,AssociationQ[#]&&ContainsAll[Keys[#],{"DeltaCoefficient","PlusCoefficients","RegularCoefficient"}]&&
-   AssociationQ[#["PlusCoefficients"]]&&AllTrue[Keys[#["PlusCoefficients"]],IntegerQ[#]&&#>=0&]&],
-  nloFail["ExplicitNLODistributionCoefficientsRequired"]];
- regulators=DeleteDuplicates[Lookup[all,"DimensionalRegulator"]];
- If[!AllTrue[regulators,Head[#]===Symbol&],nloFail["DeclaredNLORegulatorSymbolsRequired"]];
- regulatorNames=SymbolName /@ regulators;
- If[!FreeQ[rows,q_Symbol/;MemberQ[regulatorNames,SymbolName[q]]],
-  nloFail["RegulatorFreeNLOEpsilonCoefficientsRequired"]];
- plusOrders=Union[{0,1},Flatten[Keys /@ Lookup[rows,"PlusCoefficients"]]];
- cs=KeySelect[combined["Coefficients"],#<=0&];
- cs=cs/.color/.q_PolyGamma:>FunctionExpand[q];
- logs=nloCheck[FeynFacetSolution`ExpandPositiveLogarithms[cs,assum],"NLOLogarithmBranchesFailed"];
- reduced=nloMapDistributions[partonicCollect,logs];
- reduced=nloMapDistributions[Function[x,partonicCollect[nloCheck[FeynFacetSolution`ExpandPositiveLogarithms[x,assum],"NLOLogarithmBranchesFailed"]]],reduced];
- poles=KeySelect[reduced,#<0&];
- If[!AllTrue[Flatten[({#["DeltaCoefficient"],Values[#["PlusCoefficients"]],#["RegularCoefficient"]}& /@ Values[poles])],#===0&],
-  nloFail["NLOPolesDoNotCancel",<|"Residues"->poles|>]];
- finite=reduced[0];born=request["BornDensity"];
- If[!TrueQ[RequirePartonicEpsilonRange[born,{0,0}]],nloFail["BornResultRequired"]];
- explicit={finite};
- If[!FreeQ[explicit,_Integrate|_NIntegrate|_FeynFacetSolution`F|_FeynFacetSolution`K|_FeynFacetSolution`a|_FeynFacetSolution`G|_FeynFacetSolution`B|_FeynFacetSolution`C|_Inactive|_Hypergeometric2F1|_FeynCalc`GLI|_SeriesData|_Series|_SeriesCoefficient|_Failure|_Missing|_Re|_Im|_Conjugate|_PolyGamma|_Gamma|Indeterminate|_DirectedInfinity],nloFail["ExplicitIntegralFreeNLOHardFunctionRequired"]];
- CreatePartonicResult[<|0->finite|>,Join[KeyTake[request,{"Project","Channel","Scale","Variables","Coupling","CouplingPower","DimensionalPrefactor","PhysicalChannel","Polarization"}],
-  <|"Order"->"NLO","Contribution"->"Total","DimensionalRegulator"->e,
-  "PoleCancellation"->"Exact symbolic zero in every delta, plus and regular coefficient",
-  "Contributions"->required,"Domain"->assum,"Description"->Lookup[request,"Description",<||>]|>]]
- ],"AnalyticNLO"];
+  {required,combined,assum,color,coefficients,logs,reduced,check,final},
+  If[!ContainsAll[Keys[request],{"RequiredContributions","Scale","Variables","Assumptions"}],
+    nloFail["NLOAssemblyRequestIncomplete"]];
+  required=request["RequiredContributions"];
+  If[Sort[Keys[contributions]]=!=Sort[required]||!DuplicateFreeQ[required],
+    nloFail["NLOContributionCoverageIncomplete"]];
+  combined=nloCheck[CombinePartonicResults[contributions,<|"Contribution"->"Total"|>],
+    "NLOResultConventionMismatch"];
+  If[combined["Order"]=!="NLO"||combined["Scale"]=!=request["Scale"]||
+    combined["Variables"]=!=request["Variables"],nloFail["NLOContributionVariableMismatch"]];
+  If[!ContainsAll[combined["IncludedContributions"],{"Real","Virtual","Counterterm"}],
+    nloFail["RealVirtualAndUVContributionsRequired"]];
+  If[RequirePartonicEpsilonRange[combined,{0,0}]=!=True,nloFail["FiniteNLOContributionsRequired"]];
+  assum=request["Assumptions"];color=Lookup[request,"ColorRules",{}];
+  coefficients=KeySelect[combined["Coefficients"],#<=0&];
+  coefficients=coefficients/.color/.q_PolyGamma:>FunctionExpand[q];
+  logs=nloCheck[FeynFacetSolution`ExpandPositiveLogarithms[coefficients,assum],"NLOLogarithmBranchesFailed"];
+  reduced=nloMapDistributions[partonicCollect,logs];
+  reduced=nloMapDistributions[Function[x,partonicCollect[
+    nloCheck[FeynFacetSolution`ExpandPositiveLogarithms[x,assum],"NLOLogarithmBranchesFailed"]]],reduced];
+  combined=nloCheck[CreatePartonicResult[reduced,Join[combined,<|"Assumptions"->assum|>]],"SimplifiedNLOResultRequired"];
+  check=VerifyPartonicPoleCancellation[<|"Total"->combined|>];
+  If[!AssociationQ[check]||check["Status"]=!="Passed",
+    nloFail["NLOPolesDoNotCancel",<|"Check"->check|>]];
+  final=nloCheck[FinalizePartonicResults[<|"Total"->combined|>,check,<|"RequireAlgebraicIdentityProof"->True,"Metadata"-><|
+    "PoleCancellation"->"Exact symbolic zero in every delta, plus and regular coefficient",
+    "Contributions"->required,"Domain"->assum,"Description"->Lookup[request,"Description",<||>]|>|>],
+    "ExplicitIntegralFreeNLOHardFunctionRequired"];
+  final["Total"]
+],"AnalyticNLO"];
 End[];EndPackage[];

@@ -6,7 +6,7 @@ cfBorns=<||>;
 Do[
  cfChannel=channel;cfDir=cfDirectory<>"/LO/"<>channel;
  cfCard=FeynFacet`ReadContributionCard[cfDir,"Born"];cfSetup=FeynFacet`ReadProcessCard[cfDir,"Born"];
- cfRequest=Join[FeynFacet`Private`projectAssemblyRequest[cfCard,channel,"Born"],<|"EpsilonRange"->{0,2}|>];
+ cfRequest=Join[FeynFacet`ProjectAssemblyRequest[cfCard,channel,"Born"],<|"EpsilonRange"->{0,2}|>];
  cfBorn=FeynFacet`ConstructBornResult[cfSetup,cfRequest];
  FTTest`FTAssert[channel<>" generated Drell-Yan Born has no current spin average",
   AssociationQ[cfBorn]&&cfBorn["Coefficients"][0]["DeltaCoefficient"]==={4/9}];
@@ -15,7 +15,7 @@ Do[
   cfBorn["Coefficients"][2]["DeltaCoefficient"]==={0}];
  AssociateTo[cfBorns,channel->cfBorn],{channel,{"q-qbar","qbar-q"}}];
 cfCard=FeynFacet`ReadContributionCard[cfDirectory<>"/NLO/q-qbar","Counterterm"];
-cfRequest=Join[FeynFacet`Private`projectAssemblyRequest[cfCard,"q-qbar","Real"],
+cfRequest=Join[FeynFacet`ProjectAssemblyRequest[cfCard,"q-qbar","Real"],
  KeyTake[cfCard,{"Counterterms","Include","StructureFunctions","EpsilonRange"}]];
 cfCT=FeynFacet`ConstructCurrentCollinearCounterterm[cfBorns,cfRequest];
 cfKernel=FeynFacet`LeadingSplittingKernel[{"q","u"},{"q","u"},"U",z,cfCard["Counterterms"]["KernelParameters"]];

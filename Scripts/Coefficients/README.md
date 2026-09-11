@@ -1,87 +1,100 @@
 # Coefficient and distribution assembly
 
-These drivers take explicit process input. Family assignments, coefficient
-weights, domains and physical boundary data do not belong in package code.
-Generated files belong under `<process>/Results`.
+Use [WORKFLOW.md](../../WORKFLOW.md) for the overall sequence and CPU limits,
+and the [ppHX NNLO channel guide](../../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/README.md)
+for current input paths and replay commands. The drivers below take explicit
+mathematical data. Family assignments, physical weights and domains remain
+project inputs.
 
-1. `assemble_cut_coefficients.wls` combines weighted cut coefficient tables
-   using supplied exact master maps.
-2. `assemble_finite_master_density.wls` contracts the physical coefficient
-   table with finite master solutions, preserving requested epsilon orders
-   and shared explicit definitions.
-3. `prepare_endpoint_coefficient_inputs.wls` and
-   `construct_scalar_endpoint_families.wls` construct coefficient-weighted
-   endpoint functions. See [ScalarEndpointDriver.md](ScalarEndpointDriver.md)
-   for input fields, order determination, boundary extensions and reuse of
-   completed mathematical stages.
-4. `assemble_endpoint_subtracted_density.wls REQUEST.wl OUTPUT.wxf` combines
-   complete endpoint coverage with the full interior expression. It writes
-   explicit delta derivatives, generalized plus distributions, and the full
-   locally integrable remainder, through the requested epsilon order.
+## Input/output chain
 
-The last request contains `InteriorDensity`, a labelled association
-`EndpointSolutions`, and `Request`. Each input can be a record or file path.
-The request declares the normal/tangential variables, coordinate map and
-included Jacobian, interval, target order and endpoint domain conditions.
-Optional `ColorDecomposition` supplies `ColorVariables`, `CouplingVariable`,
-`ExternalFactors` and `PartonicChannel`. The output is serialized to a
-temporary file, read back exactly, and then renamed to the requested path.
+Run Wolfram drivers as `wolframscript -file Scripts/Coefficients/DRIVER ...`.
 
-`CollectDistributionColorFactors` collects Laurent monomials in the declared
-scalar factors; it does not turn a nonpolynomial color denominator into a
-truncated series. Each `ColorComponents` entry multiplies its `ColorFactor`,
-`CouplingVariable^CouplingPower`, and `ExternalFactor`. Integral definitions
-remain shared. The uncollected coefficient fields are retained in the same
-record so the mathematical input can be compared directly. Original
-algebraic and integral definitions are preserved exactly.
-Collection uses sparse Laurent polynomials only in the declared scalar
-factors, without expanding the kinematic coefficients.
+| Operation | Driver arguments | Main input contract |
+|---|---|---|
+| Weighted cut sum | `assemble_cut_coefficients.wls REQUEST.wl` | CoefficientFiles, Weights, OutputFile; bound master maps/catalog |
+| Physical density | `construct_physical_master_density.wls REQUEST.wl OUTPUT.wxf` | CoefficientFile and physical Request; optional DefinitionRequest |
+| Endpoint frame catalog | `build_endpoint_coefficient_catalog.wls CUT_CATALOG.wxf ACCEPTED_ENDPOINTS.json OUTPUT.wl` | Actual integral definitions and accepted physical endpoint/bound records |
+| Complete endpoint groups | `prepare_endpoint_coefficient_groups.wls REQUEST.wl CATALOG.wl OUTPUT_DIRECTORY` | Physical coefficients, endpoint coordinates/order and accepted frames |
+| Finite interior density | `assemble_finite_master_density.wls REQUEST.wl OUTPUT.wxf` | PhysicalCoefficientTable, FiniteSolutions and result-order Request |
+| Scalar endpoints | `construct_scalar_endpoint_families.wls CAMPAIGN_INPUT.wl OUTPUT_DIRECTORY` | CoefficientInputFiles from the group manifest, accepted endpoint manifest and physical boundary input |
+| Final distributions | `assemble_endpoint_subtracted_density.wls REQUEST.wl OUTPUT.wxf` | Complete InteriorDensity, labelled EndpointSolutions and distribution Request |
+| Retained-reference contraction | `check_finite_density_poles.wls REQUEST.wl REPORT.wxf` | Matching physical master references and requested coefficients |
 
-`EvaluateScalarEndpointAtBasePoint` provides a small independent endpoint
-check using the stored polynomial integral definitions and closed constants.
-Load `FeynFacet/Solution.m` when GPL evaluation is needed, and supply all
-external parameters using `ParameterRules`. Unsupported nonpolynomial
-integrals cause an explicit failure. This check uses no DE transport.
-`check_finite_density_poles.wls` contracts retained independent master
-references without recomputing AMFlow.
+Weighted independent sources can use MasterIntegralRulesFiles in the same
+order as CoefficientFiles, together with TargetCatalogFile. Bound match/relation
+records are checked against source definitions and the exact target catalog.
+Family names alone do not establish integral identity. The physical-density
+driver derives normalized master definitions through the general constructor;
+it does not copy definitions from an old assembled density.
 
-Read [EndpointDistributions.md](../../Design/EndpointDistributions.md) for
-the delta normalization, finite-interval plus prescription and test-function
-domain, and [CoefficientPoleCancellation.md](../../Design/CoefficientPoleCancellation.md)
-for moving reduction poles and the exact rational-series backend.
+The normal finite-coefficient production path is documented in
+[ReconstructionModule.md](../../Design/ReconstructionModule.md). It keeps moving
+divisor terms exact and derives sufficient orders for regular terms from
+physical endpoint bounds. The endpoint grouping step then constructs fresh
+complete coefficient rows in a common accepted DE basis and checks exact
+moving-pole cancellation.
 
-The current process demonstration and precise coverage are documented in
-`Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/Assembly/Stage4_2026-09-07/README.md`.
-The bare double-real result retains dimensional poles. Other NNLO cuts and
-factorization counterterms must be added before calling it a finite hard
-coefficient.
+The generated group manifest defines the scalar contribution inventory.
+Alternative saved frames are not missing contributions. Several owned
+contributions can use the same mathematical family. Preserve both whole-master
+coverage and ownership of split exact contributions.
 
-## Compact final distribution files
+## Scalar endpoint campaign
 
-`wolframscript -file Scripts/Coefficients/compact_distribution_result.wls SOURCE OUTPUT`
-keeps explicit color-resolved delta/plus/regular coefficients and all required
-shared definitions. It preserves domains and source path scopes and verifies
-exact source-to-result equality. It writes compressed WXF and a small report.
-Run the same command with a final `verify` argument in a fresh kernel to check
-the saved expression, definition records and metadata against SOURCE. Source
-and output must be different files. No integrals are reevaluated by either check.
+Read [ScalarEndpointDriver.md](ScalarEndpointDriver.md) before changing a
+campaign. It defines the single-family interface, worker pool, required orders,
+boundary extensions and stage reuse. Persistent output includes mathematical
+inputs, stage completion, scalar solutions, per-contribution results and an
+aggregate campaign report.
 
-## Analytic NLO campaigns
+Missing orders/inputs, unresolved coefficient classes, timeouts and explicit
+deferrals remain incomplete. A reused or structurally empty singular term can
+have NoChecksExecuted; that does not become a new passing epsilon audit.
 
-`Scripts/run_nlo_hard_function.wls PROJECT CAMPAIGN [all|assemble]` generates a
-complete NLO hard function using contribution cards, exact analytic masters,
-automatically sufficient epsilon orders and generated PDF/FF/UV counterterms.
-The worked UU/double-incoming-LL/TT example is documented in
-`Design/ProjectCardsAndResults.md`. The output is an ordinary Mathematica association
-with explicit epsilon coefficients for that order in the common `FeynFacet-PartonicResult` format. LO is stored under its own order/channel.
+## Final distribution request and format
 
-`assemble_endpoint_subtracted_density.wls` now applies the same compact format
-by default after color collection. A request can set `CompactOutput -> False`
-when redundant uncolored views are explicitly needed for a separate comparison.
-Timings report assembly, color collection and compaction separately.
+The request contains InteriorDensity, a labelled EndpointSolutions association,
+and Request. Inputs can be records or paths. Declare normal/tangential
+variables, the coordinate map, whether its Jacobian is included, interval,
+target order, analytic assumptions and test-function domain.
 
-The endpoint assembly driver requires `ResultMetadata` declaring `Order`,
-`Contribution`, `Scale`, `Variables` (tangential, normal), and `DensityConvention`;
-also supply project/channel identity, coupling and dimensional prefactor for a
-physical project result. It writes the common partonic format and retains the
-actual endpoint interval and finite shared definitions.
+Optional ColorDecomposition declares ColorVariables, CouplingVariable,
+ExternalFactors and PartonicChannel. Use the actual symbol contexts from the
+physics records. Color decomposition is an exact Laurent-monomial separation;
+it is not an expansion of a nonpolynomial color denominator.
+
+ResultMetadata identifies Project, Order, Channel, Contribution, variables,
+coordinate conventions and physical scope. The default ResultFormat is
+`"PartonicResult"`. Explicit `"EndpointDensity"` retains generalized endpoint
+distributions without asserting reduction to standard delta/logarithmic-plus
+terms. The accepted ppHX double-real contribution uses this explicit format.
+
+CompactOutput defaults to true. The driver keeps the closed shared definitions,
+checks exact read-back and compaction, and writes audit/summary sidecars.
+Use `compact_distribution_result.wls SOURCE OUTPUT [verify]` for an explicit
+lossless compaction/recheck; source and output must differ.
+
+See [EndpointDistributions.md](../../Design/EndpointDistributions.md) for
+normalization and test-function scope, and
+[CoefficientPoleCancellation.md](../../Design/CoefficientPoleCancellation.md)
+for complete-row cancellation. A bare double-real contribution retains
+dimensional poles; other NNLO cuts and counterterms are needed for a finite
+complete hard coefficient.
+
+## Performance and validation controls
+
+`assemble_finite_master_density.wls` accepts CoefficientWorkers (1-8, default 1)
+and EpsilonRemainderChecks. The default CoefficientFunctionDirectory is None,
+avoiding hundreds of redundant intermediate files. Final assembly supports
+the same epsilon audit and a bounded ColorDecomposition Workers setting.
+
+EvaluateScalarEndpointAtBasePoint gives a separate endpoint check without DE
+transport. Load FeynFacet/Solution.m for GPL evaluation and provide all external
+parameters. Unsupported definitions fail explicitly. A retained AMFlow
+contraction is distinct from fresh AMFlow integration and from a boundary-only
+reference check.
+
+Use [the shared validation contracts](../Validation/README.md). Do not make
+verification more expensive than the requested calculation without a concrete
+unresolved issue.

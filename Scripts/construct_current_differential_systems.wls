@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* One DE reduction is shared between all scalar structures of a component. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
@@ -8,7 +9,7 @@ If[Length[arguments]=!=4,Print["Usage: construct_current_differential_systems.wl
 directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contributionName];
 If[!AssociationQ[card],Print[card];Exit[1]];
-componentPath=StringReplace[contributionName,"."->"/"];
+componentPath=card["ContributionPath"];
 outputDirectory=directory<>"/Results/"<>componentPath;
 input=FeynFacet`FamilyArtifactRead[outputDirectory<>"/IntegralFamilies.wl"];
 If[!AssociationQ[input]||Lookup[input,"Format",None]=!="FeynFacet-CurrentIntegralFamilies",

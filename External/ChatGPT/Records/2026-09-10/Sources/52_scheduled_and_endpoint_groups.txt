@@ -1,0 +1,659 @@
+FILE FeynFacet/Coefficients/FiniteField/Execution.wl
+(* Shared production execution for complete rational columns and literal
+   exact/finite partitions. A finite order must come from a bound order plan. *)
+BeginPackage["FeynFacet`"];Begin["`Private`"];
+finiteFieldExecuteCoefficientPlan[inputs_Association,data_Association,
+ nativeDirectory_String,executable_String,options_Association,planInput_:Automatic] := Catch[Module[
+ {plan=planInput,directory,partDirectory,partData=None,sourceIndices={},orderPlans=<||>,
+  partPlans=<||>,partModes=<||>,jobs,partJobs={},records,partRecords={},collected,partCollected,
+  jobOptions,groups,indices,index,source,order,variable,candidates,part,run,
+  threshold=Lookup[options,"BundleBelowBytes",16*2^20]},
+ If[StringQ[plan],plan=FeynFacet`FamilyArtifactRead[plan]];
+ If[plan===Automatic,plan=<||>];
+ If[!AssociationQ[plan],reconstructionFail["execution plan","an association is required"]];
+ directory=Lookup[plan,"OrdinaryWorkingDirectory",FileNameJoin[{nativeDirectory,"Reconstruction"}]];
+ jobOptions=Join[<|"SeriesVariable"->None,"SeriesOrder"->None,"Threads"->options["Threads"],
+   "FactorScan"->True,"ShiftScan"->True,"ProgressInterval"->60,"Resume"->True|>,
+   KeyTake[options,{"Threads","FactorScan","ShiftScan","Resume","ProgressInterval"}]];
+ If[KeyExistsQ[plan,"PartitionManifest"],
+  If[Lookup[plan,"SourceTraceManifestHash",None]=!=
+    coefficientFileHash[finiteFieldTraceManifestFile[inputs["TraceDirectory"]]],
+   reconstructionFail["partition plan","the source trace definition binding differs"]];
+  partData=reconstructionPartitionTrace[data,plan["PartitionManifest"]];
+  If[!AssociationQ[partData],reconstructionFail["literal coefficient partition",partData]];
+  sourceIndices=DeleteDuplicates[partData["PartitionSourceIndices"]];
+  orderPlans=Lookup[plan,"CoefficientOrderPlans",<||>];
+  If[StringQ[orderPlans],orderPlans=FeynFacet`FamilyArtifactRead[orderPlans]];
+  If[!AssociationQ[orderPlans]||Sort[Keys[orderPlans]]=!=Sort[sourceIndices],
+   reconstructionFail["partition orders","a bound order plan for every regular source is required"]];
+  Do[
+   source=partData["PartitionSourceIndices"][[index]];
+   If[partData["PartitionKinds"][[index]]==="Exact",
+    AssociateTo[partModes,index->{None,None}],
+    order=orderPlans[source];
+    If[!AssociationQ[order]||order["Status"]=!="SufficientOrdersDetermined"||
+      ExpandFileName[order["InputBindings"]["Source"]["ExpressionFile"]]=!=partData["OutputFiles"][[index]],
+     reconstructionFail["partition orders","the regular-source order binding differs"]];
+    If[coefficientMasterID[order["InputBindings"]["CatalogMapping"]["Source"]]=!=
+      coefficientMasterID[data["Masters"][[data["OutputMetadata"][[source]]["MasterIndex"]]]],
+     reconstructionFail["partition orders","the source master differs"]];
+    candidates=Select[Keys[data["SymbolRules"]],
+      MemberQ[{"eps","ep","Epsilon",SymbolName[order["DimensionalRegulator"]]},SymbolName[#]]&];
+    If[Length[candidates]=!=1,reconstructionFail["partition orders","a unique regulator alias is required"]];
+    variable=First[candidates];
+    AssociateTo[partModes,index->{variable,order["RequiredCoefficientUpperOrder"]}];
+    AssociateTo[partPlans,index->order]],
+  {index,Length[partData["OutputFiles"]]}]];
+ jobs=reconstructionScheduleJobs[data,threshold,Automatic];
+ jobs=Map[Function[job,indices=Complement[job["Outputs"],sourceIndices];
+   If[indices==={},Nothing,Join[job,<|"Outputs"->indices,"Bytes"->Total[data["ExpressionBytes"][[indices]]]|>]]],jobs];
+ run[selected_,traceData_,where_] := Module[{},
+  If[!DirectoryQ[where],CreateDirectory[where,CreateIntermediateDirectories->True]];
+  If[TrueQ[Lookup[plan,"ResumeOnly",False]]&&!AllTrue[selected,
+    reconstructionJobReusableQ[#,traceData,where,executable,
+      Join[jobOptions,KeyTake[#,{"SeriesVariable","SeriesOrder"}]],True]&],
+   reconstructionFail["scheduled results","a required completed job is unavailable"]];
+  reconstructionRunSchedule[selected,traceData,where,executable,jobOptions]];
+ records=run[jobs,data,directory];
+ collected=reconstructionCollectScheduledJobs[directory,inputs["TraceDirectory"],data,records,jobOptions];
+ If[!AssociationQ[collected],reconstructionFail["scheduled result parsing",collected]];
+ If[AssociationQ[partData],
+  partDirectory=Lookup[plan,"PartitionWorkingDirectory",FileNameJoin[{directory,"Partitions"}]];
+  partJobs=Flatten[Map[Function[job,
+    groups=GatherBy[job["Outputs"],partModes[#]&];
+    Map[Function[outputs,Join[job,<|
+      "Name"->If[Length[groups]===1,job["Name"],job["Name"]<>"_"<>IntegerString[First[outputs],10,6]],
+      "Outputs"->outputs,"Bytes"->Total[partData["ExpressionBytes"][[outputs]]],
+      "SeriesVariable"->partModes[First[outputs]][[1]],"SeriesOrder"->partModes[First[outputs]][[2]]|>]],groups]],
+    reconstructionScheduleJobs[partData,threshold,Automatic]],1];
+  partRecords=run[partJobs,partData,partDirectory];
+  partCollected=reconstructionCollectScheduledJobs[partDirectory,inputs["TraceDirectory"],
+    partData,partRecords,jobOptions,partPlans];
+  If[!AssociationQ[partCollected],reconstructionFail["partition result parsing",partCollected]];
+  collected=reconstructionMergePartitionResults[data,collected,partData,partCollected]];
+ result=reconstructionAssembleProduction[Join[inputs,<|"TraceData"->data|>],collected,
+   Join[records,partRecords],executable,jobOptions];
+ If[AssociationQ[result]&&orderPlans=!=<||>,
+  result=Append[result,"CoefficientReconstructionOrderPlans"->orderPlans]];
+ result
+],$reconstructionFailure];
+End[];EndPackage[];
+
+
+FILE FeynFacet/Coefficients/FiniteField/Partitions.wl
+(* Literal source partitions preserve exact exceptional terms while only
+   the certified regular part is eligible for finite epsilon reconstruction. *)
+BeginPackage["FeynFacet`"];Begin["`Private`"];
+$reconstructionPartitionBackend=FileNameJoin[{DirectoryName[$InputFileName,3],"Backends","rational_divisors.py"}];
+reconstructionPartitionTrace[data_Association,file_String] := Catch[Module[
+ {records,validation,files={},metadata={},indices={},kinds={},sourceIndex,entry,part,record},
+ records=Import[file,"RawJSON"];
+ If[!ListQ[records]||records==={},Throw[Failure["PartitionManifestRequired",<||>]]];
+ validation=RunProcess[{"python3",$reconstructionPartitionBackend,"--verify",file}];
+ If[validation["ExitCode"]=!=0||!StringContainsQ[validation["StandardOutput"],"LITERAL PARTITIONS VERIFIED"],
+  Throw[Failure["LiteralPartitionValidationFailed",<|"Diagnostic"->validation["StandardError"]|>]]];
+ Do[
+  sourceIndex=FirstPosition[ExpandFileName/@data["OutputFiles"],ExpandFileName[record["Source"]],None];
+  If[sourceIndex===None,Throw[Failure["PartitionSourceNotInTrace",<|"Source"->record["Source"]|>]]];
+  sourceIndex=First[sourceIndex];
+  Do[
+   entry=record["Parts"][part];
+   AppendTo[files,ExpandFileName[entry["File"]]];
+   AppendTo[metadata,data["OutputMetadata"][[sourceIndex]]];
+   AppendTo[indices,sourceIndex];AppendTo[kinds,part],
+  {part,{"Regular","Exact"}}],
+ {record,records}];
+ Join[data,<|"OutputFiles"->files,"ExpressionBytes"->(FileByteCount/@files),
+  "OutputMetadata"->metadata,"CompleteTargetSet"->False,
+  "PartitionSourceIndices"->indices,"PartitionKinds"->kinds,
+  "SourcePartitions"->records,"PartitionManifest"->ExpandFileName[file]|>]
+]];
+End[];EndPackage[];
+
+
+FILE FeynFacet/Coefficients/ResultAssembly.wl
+(* One assembly path for exact and finite Laurent coefficient terms.
+   Analytic signatures remain outside each rational coefficient. *)
+finiteFieldAssembleResult[data_Association,metadata_Association,kiraFile_String,
+ context_Association,traceData_Association,trace_Association,
+ reconstruction_Association,executable_String,threads_Integer] := Catch[Module[
+ {e=$feynFacetEpsilon,supportContext,directRules,columnTerms,outputs,grouped,
+  terms,certifyTerm,signatureValue,recordsByName,equivalence,classByName,
+  masterData,remainder,forbiddenMomenta,remainingMomenta,rootSubstitutions,
+  remainingFractionObjects,cutCheck,reconstructionData},
+ If[!TrueQ[traceData["CompleteTargetSet"]],Throw[$Failed,"CoefficientAssembly"]];
+ supportContext=Join[context,<|"ExternalDistribution"->data["PhaseSpace"]|>];
+ directRules=Normal[context["DimensionlessCoordinates"]];
+ columnTerms=Lookup[reconstruction,"ColumnTerms",None];
+ If[columnTerms===None,
+  columnTerms=({<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->#|>}&/@reconstruction["Expressions"])];
+ If[!ListQ[columnTerms]||Length[columnTerms]=!=Length[traceData["OutputMetadata"]]||
+   !AllTrue[columnTerms,MatchQ[#,{__Association}]&],Throw[$Failed,"CoefficientAssembly"]];
+ signatureValue[index_]:=signatureValue[index]=finiteFieldCertifyPhysicalVariables[
+  coefficientRegulatorNormalize[ReleaseHold[traceData["Signatures"][index]],e],supportContext];
+ certifyTerm[t_,signature_] := Module[{term,p,c,declared},
+  declared=If[AssociationQ[Lookup[t,"Coefficient",None]],Lookup[t["Coefficient"],"SeriesVariable",None],None];
+  term=coefficientTermRead[coefficientRegulatorNormalize[t,e,declared],e];
+  p=finiteFieldCertifyPhysicalVariables[signature term["PreFactor"],supportContext];
+  c=term["Coefficient"];
+  c=If[term["Representation"]==="Exact",
+    finiteFieldCertifyPhysicalVariables[c,supportContext],
+    Append[c,"Orders"->(finiteFieldCertifyPhysicalVariables[#,supportContext]&/@c["Orders"])]];
+  If[!FreeQ[{p,c},$Failed],Throw[$Failed,"CoefficientAssembly"]];
+  Join[term,<|"PreFactor"->(p/.directRules),"Coefficient"->(c/.directRules)|>]
+ ];
+ outputs=MapThread[Function[{entry,values},
+  <|"MasterIndex"->entry["MasterIndex"],
+    "Terms"->(certifyTerm[#,signatureValue[entry["SignatureIndex"]]]&/@values)|>],
+  {traceData["OutputMetadata"],columnTerms}];
+ grouped=GroupBy[outputs,#["MasterIndex"]&];
+ terms[index_]:=Flatten[Lookup[Lookup[grouped,index,{}],"Terms",{}],1];
+ recordsByName=Association[#["Topology"][[1]]->#&/@metadata["Topologies"]];
+ equivalence=metadata["TopologyEquivalence"];
+ classByName=If[AssociationQ[equivalence]&&KeyExistsQ[equivalence,"Classes"],
+  Association[#["Representative"]->#&/@equivalence["Classes"]],<||>];
+ masterData=MapIndexed[Function[{master,position},Module[{record=recordsByName[master[[1]]],value},
+  value=terms[First[position]];
+  If[value==={},value={<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->0|>}];
+  <|"Master"->master,"Terms"->value,"TopologyName"->master[[1]],
+    "CutMomenta"->record["CutMomenta"],"CutIndices"->record["CutIndices"],
+    "CutDirections"->record["CutDirections"],
+    "TopologyClass"->Lookup[classByName,master[[1]],Missing["NotFound"]]|>]],
+  traceData["Masters"]];
+ remainder=terms[0];
+ forbiddenMomenta=coefficientForbiddenMomenta[data["Setup"]];
+ remainingMomenta=remainingDeclaredMomenta[{Lookup[masterData,"Terms"],remainder},forbiddenMomenta];
+ rootSubstitutions=Lookup[context,"RootSubstitutions",<||>];
+ remainingFractionObjects=Select[Join[context["FractionVariables"],context["FractionRootVariables"],
+   If[AssociationQ[rootSubstitutions],#["Root"]&/@Values[rootSubstitutions],{}]],
+  !FreeQ[{Lookup[masterData,"Terms"],remainder},#]&];
+ If[remainingMomenta=!={}||remainingFractionObjects=!={}||
+   !FreeQ[{Lookup[masterData,"Terms"],remainder,traceData["PhysicalFactor"]},System`D],Throw[$Failed,"CoefficientAssembly"]];
+ cutCheck=validateCutGLIs[Lookup[masterData,"Master"],metadata["Topologies"]];
+ If[cutCheck=!=True,Throw[$Failed,"CoefficientAssembly"]];
+  reconstructionData = <|
+    "Format" -> $finiteFieldReconstructionFormat,
+    "FormatVersion" -> $finiteFieldReconstructionVersion,
+    "Method" -> "SharedMultiOutputTrace",
+    "CompleteTargetSet" -> traceData["CompleteTargetSet"],
+    "ProcessedTargetCount" -> traceData["ProcessedTargetCount"],
+    "TargetCount" -> traceData["TargetCount"],
+    "OutputCount" -> Length[traceData["OutputOrder"]],
+    "SignatureCount" -> Length[traceData["Signatures"]],
+    "RationalVariableCount" -> Length[traceData["Variables"]],
+    "TraceBytes" -> trace["TraceBytes"],
+    "ReconstructedBytes" -> reconstruction["ResultBytes"],
+    "TraceBuildSeconds" -> trace["BuildSeconds"],
+    "ReconstructionSeconds" -> reconstruction["ReconstructionSeconds"],
+    "Threads" -> threads,
+    "RatracerExecutable" -> executable,
+    "RatracerExecutableHash" -> coefficientFileHash[executable],
+    "TraceFile" -> trace["TraceFile"],
+    "TraceFileHash" -> coefficientFileHash[trace["TraceFile"]],
+    "ResultFile" -> reconstruction["ResultFile"],
+    "ResultFileHash" -> coefficientFileHash[reconstruction["ResultFile"]]
+  |>;
+  Join[
+    <||>,
+    resultContext[data],
+    <|
+      "FractionMeasure" -> data["FractionMeasure"],
+      "PhaseSpace" -> data["PhaseSpace"],
+      "PreFactor" -> traceData["PhysicalFactor"],
+      "RemainderTerms" -> remainder,
+      "Masters" -> masterData,
+      "HadronicNormalization" -> <|
+        "PreFactor" -> traceData["PhysicalFactor"],
+        "DistributionFactor" -> context["ExpectedDistributionFactor"],
+        "LaurentValuation" -> context["ExpectedLaurentValuation"],
+        "DimensionlessCoordinates" -> context["DimensionlessCoordinates"],
+        "CoordinateRestriction" -> <|"Equalities"->Lookup[context,"CoordinateEqualities",{}],
+          "ExternalDistribution"->data["PhaseSpace"],"NormalDerivativeDataAvailable"->False|>,
+        "BranchGrammar" -> context["BranchGrammar"],
+        (* Provenance of the root treatment.  The root variables are no
+           longer a representation of the result - they are the
+           transient lift of the entrywise descend, and what the result
+           records is which of them were eliminated, with the exact
+           relation used, plus the descend telemetry. *)
+        "RootDescend" -> <|
+          "EliminatedRoots" -> If[
+            AssociationQ[rootSubstitutions],
+            Association @ KeyValueMap[
+              Function[{quantity, substitutionData},
+                quantity ->
+                  substitutionData["Constant"] substitutionData["Root"]^2
+              ],
+              rootSubstitutions
+            ],
+            <||>
+          ],
+          "TraceVariables" -> traceData["Variables"],
+          "ScalePowers" -> Lookup[traceData, "ScalePowers", {}],
+          "Statistics" -> Lookup[traceData, "DescendStatistics", <||>]
+        |>
+      |>,
+      "FiniteFieldReconstruction" -> reconstructionData,
+      "Topologies" -> metadata["Topologies"],
+      "KiraArtifact" -> ExpandFileName[kiraFile],
+      "ReverseRules" -> metadata["ReverseRules"],
+      "TopologyEquivalence" -> equivalence,
+      "Assumptions" -> data["AnalyticContext", "Assumptions"],
+      "AnalyticContext" -> data["AnalyticContext"],
+      "MassDimensions" -> metadata["MassDimensions"],
+      "KiraManifest" -> metadata["KiraManifest"],
+      "DimensionRule" -> $dimensionRule,
+      "ReductionInputFingerprint" -> metadata["ReductionInputFingerprint"],
+      "SourceInputFingerprint" -> metadata["SourceInputFingerprint"]
+    |>
+  ]
+], "CoefficientAssembly"];
+
+
+FILE FeynFacet/Coefficients/EndpointGroups.wl
+(* Planning adapters for coefficient rows in existing closed endpoint systems.
+   Integral identity and contribution ownership are independent of family labels. *)
+BeginPackage["FeynFacet`"];
+BuildEndpointCoefficientCatalog::usage=
+ "BuildEndpointCoefficientCatalog[cutCatalog,frames] indexes the exact affine integral classes occurring in accepted closed endpoint systems. Each frame supplies Endpoint, Bounds and its retained source references.";
+FindEndpointCoefficientFrames::usage=
+ "FindEndpointCoefficientFrames[catalog,masters] returns saved closed frames covering the requested physical master definitions, ordered by dimension and gauge size. Coverage alone does not certify the contracted coefficient row.";
+ConstructEndpointCoefficientGroups::usage=
+ "ConstructEndpointCoefficientGroups[table,catalog,request] assigns exact moving-pole contributions to suitable saved common DE frames, preserves finite regular terms, and verifies exact contracted-row cancellation with complete ownership records.";
+Begin["`Private`"];
+endpointGroupFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"EndpointGroups"];
+endpointGroupRead[value_String]:=If[ToLowerCase[FileExtension[value]]==="wxf",
+ Import[value,"WXF"],FeynFacet`FamilyArtifactRead[value]];
+endpointGroupRead[value_]:=value;
+BuildEndpointCoefficientCatalog[cutCatalog_Association,inputFrames_Association]:=Catch[Module[
+ {frames=<||>,integrals,equivalence,classes,frame,endpoint,bounds,basis,ids,rows,keys},
+ If[inputFrames===<||>||!ContainsAll[Keys[cutCatalog],{"Integrals","Families","Normalization"}],
+  endpointGroupFail["EndpointAndIntegralCatalogsRequired"]];
+ KeyValueMap[Function[{name,input},
+  endpoint=endpointGroupRead[input["Endpoint"]];bounds=endpointGroupRead[input["Bounds"]];
+  If[!AssociationQ[endpoint]||!AssociationQ[bounds]||
+    endpoint["DataType"]=!="TangentialEndpointSystem"||bounds["DataType"]=!="TangentialEndpointLaurentBounds"||
+    Length[endpoint["OriginalMasterIntegralBasis"]]=!=endpoint["Dimension"]||
+    Length[bounds["OriginalMasterIntegralLaurentLowerBounds"]]=!=endpoint["Dimension"],
+   endpointGroupFail["AcceptedEndpointFrameAndPhysicalBoundsRequired",<|"Frame"->name|>]];
+  AssociateTo[frames,name->Join[input,<|"Endpoint"->endpoint,"Bounds"->bounds,
+    "OriginalMasterIntegralBasis"->endpoint["OriginalMasterIntegralBasis"]|>]]],inputFrames];
+ integrals=DeleteDuplicatesBy[Join[cutCatalog["Integrals"],
+   Flatten[Lookup[Values[frames],"OriginalMasterIntegralBasis"],1]],coefficientMasterID];
+ equivalence=FeynFacet`FindCutIntegralEquivalences[integrals,cutCatalog["Families"],
+   "PreferredMasterIntegrals"->Lookup[cutCatalog,"PreferredIntegrals",cutCatalog["Integrals"]],
+   "Normalization"->cutCatalog["Normalization"]];
+ If[FailureQ[equivalence],endpointGroupFail["EndpointIntegralClassConstructionFailed",<|"Cause"->equivalence|>]];
+ If[!AllTrue[equivalence["Mappings"],MemberQ[{0,1},#["Factor"]]&],
+  endpointGroupFail["WeightedAffineIntegralEmbeddingRequired"]];
+ classes=Association@Map[coefficientMasterID[#["Source"]]->
+   If[#["Factor"]===0,0,coefficientMasterID[#["Representative"]]]&,equivalence["Mappings"]];
+ KeyValueMap[Function[{name,value},
+  basis=value["OriginalMasterIntegralBasis"];ids=coefficientMasterID/@basis;
+  If[!AllTrue[ids,KeyExistsQ[classes,#]&],endpointGroupFail["EndpointIntegralClassMissing"]];
+  keys=classes/@ids;
+  rows=GroupBy[Range[Length[basis]],keys[[#]]&];
+  AssociateTo[frames,name->Join[value,<|"RowsByIntegralClass"->rows,
+    "Dimension"->Length[basis],"GaugeLeafCount"->LeafCount[value["Endpoint"]["NormalGaugeMatrix"]]|>]]],frames];
+ <|"DataType"->"EndpointCoefficientCatalog","Frames"->frames,"IntegralClasses"->classes,
+   "CutCatalog"->cutCatalog,"IntegralEquivalences"->equivalence,
+   "Scope"->"Exact affine physical-integral identity and saved frame coverage. A fresh contracted-row cancellation and sufficient physical epsilon/normal orders remain required."|>
+],"EndpointGroups"];
+FindEndpointCoefficientFrames[catalog_Association,masters_List]:=Catch[Module[
+ {classes,ids,needed,frames},
+ classes=catalog["IntegralClasses"];ids=coefficientMasterID/@masters;
+ If[!AllTrue[ids,KeyExistsQ[classes,#]&],endpointGroupFail["CoefficientMasterOutsideEndpointCatalog"]];
+ needed=DeleteDuplicates[classes/@ids];
+ If[MemberQ[needed,0],endpointGroupFail["ZeroIntegralRequiresCoefficientCoverageHandling"]];
+ frames=Select[catalog["Frames"],ContainsAll[Keys[#["RowsByIntegralClass"]],needed]&];
+ Keys@SortBy[frames,{#["Dimension"],#["GaugeLeafCount"]}&]
+],"EndpointGroups"];
+
+(* Principal parts are taken from exact terms only. In particular, a fresh
+   regular Laurent prefix is never subjected to the old pole subtraction. *)
+endpointGroupPrincipalPart[expression_,z_Symbol,e_Symbol,location_] := Module[
+ {field,restore,delta,shifted,variables,reduced,m,series,part},
+ {field,restore}=coefficientRationalFieldReduce[expression];
+ If[!FreeQ[Last/@restore,z],
+  endpointGroupFail["NormalDependentAnalyticPrefactorNeedsPrincipalPartExpansion"]];
+ delta=Unique["normalDisplacement"];
+ shifted=field/.z->location+delta;
+ variables=DeleteDuplicates[Cases[shifted,_Symbol,{0,Infinity}]];
+ reduced=FeynFacet`CancelRationalExpressions[{shifted},variables];
+ If[!ListQ[reduced],endpointGroupFail["ExactCoefficientPrincipalPartFailed",<|"Cause"->reduced|>]];
+ reduced=First[reduced];
+ m=If[reduced===0,0,Max[0,-coefficientEndpointNormalOrder[reduced,delta]]];
+ If[!IntegerQ[m],endpointGroupFail["FiniteCoefficientPoleOrderRequired"]];
+ If[m===0,Return[<|"PoleOrder"->0,"PrincipalPart"->0|>]];
+ series=FeynFacet`RationalLaurentCoefficients[{reduced},variables,delta,{-m,-1}];
+ If[!MatchQ[series,{_Association}],endpointGroupFail["RationalPrincipalPartCoefficientsRequired",<|"Cause"->series|>]];
+ part=Total[KeyValueMap[#2 (z-location)^#1&,First[series]]]/.restore;
+ <|"PoleOrder"->m,"PrincipalPart"->part,
+   "Method"->"Exact rational principal part before epsilon expansion"|>
+];
+endpointGroupCancel[expression_] := Module[{field,restore,variables,result},
+ {field,restore}=coefficientRationalFieldReduce[expression];
+ variables=DeleteDuplicates[Cases[field,_Symbol,{0,Infinity}]];
+ If[variables==={},Return[field/.restore]];
+ result=FeynFacet`CancelRationalExpressions[{field},variables];
+ If[!ListQ[result],endpointGroupFail["ExactCoefficientGroupCancellationFailed",<|"Cause"->result|>]];
+ First[result]/.restore
+];
+endpointGroupPoleSupports[entries_List,z_Symbol,e_Symbol] := Module[
+ {groups=<||>,terms,divisors,location,key,record},
+ Do[
+  terms=Select[entries[[i]]["Terms"],#["Representation"]==="Exact"&];
+  divisors=coefficientEndpointCoalescingDivisors[
+    coefficientEndpointTermExpression/@terms,z,e];
+  Do[
+   If[!PolynomialQ[divisor,z]||Exponent[divisor,z]=!=1,
+    endpointGroupFail["RationalLinearMovingDivisorRequired",<|"Divisor"->divisor|>]];
+   location=Cancel[-Coefficient[divisor,z,0]/Coefficient[divisor,z,1]];
+   key=ToString[location,InputForm];
+   record=Lookup[groups,key,<|"DivisorLocation"->location,"Divisor"->z-location,"SourceRows"->{}|>];
+   record["SourceRows"]=Union[record["SourceRows"],{i}];
+   AssociateTo[groups,key->record],
+  {divisor,divisors}],
+ {i,Length[entries]}];
+ Values[groups]
+];
+
+endpointGroupAlign[entries_List,frame_Association,classes_Association] := Module[
+ {basis=frame["OriginalMasterIntegralBasis"],aligned,used={},key,row,mappings={}},
+ aligned=(<|"Master"->#,"Terms"->{}|>&/@basis);
+ Do[
+  key=classes[coefficientMasterID[entry["Master"]]];
+  If[!KeyExistsQ[frame["RowsByIntegralClass"],key],endpointGroupFail["CommonFrameIntegralMissing"]];
+  row=First[frame["RowsByIntegralClass"][key]];
+  If[MemberQ[used,row],endpointGroupFail["EquivalentCoefficientSourcesMustBeCombinedBeforeGrouping"]];
+  AppendTo[used,row];aligned[[row]]=entry;
+  AppendTo[mappings,<|"SourceMaster"->entry["Master"],"TargetMaster"->basis[[row]],"TargetRow"->row,"Factor"->1|>],
+ {entry,entries}];
+ <|"Entries"->aligned,"IntegralMappings"->mappings|>
+];
+ConstructEndpointCoefficientGroups[table_Association,catalog_Association,request_Association]:=Catch[Module[
+ {frames=catalog["Frames"],classes=catalog["IntegralClasses"],first,e,z,entries,residual,
+  groups,counts,whole,assigned=<||>,removed={},added={},groupEntries,entry,terms,pieces,
+  part,record,label,locations,coefficient,remaining,candidates,frame,aligned,row,cancelled,
+  attempt,trials,chosen,inputs=<||>,ordinary=<||>,owner,originalFamily,key,sourceFile,
+  rules=Lookup[request,"KinematicRules",{}],pref,basis,normalRequest,comparison,original,identities={}},
+ If[table["Format"]=!="FeynFacet-MasterIntegralCoefficients"||
+   !TrueQ[Lookup[table,"PhysicalMasterNormalizationApplied",False]]||frames===<||>,
+  endpointGroupFail["PhysicalCoefficientTableAndEndpointCatalogRequired"]];
+ first=First[Values[frames]]["Endpoint"];
+ {e,z}=Lookup[first,{"DimensionalRegulator","NormalVariable"}];
+ If[!AllTrue[Values[frames],
+   #["Endpoint"]["NormalVariable"]===z&&
+   #["Endpoint"]["TangentialVariable"]===first["TangentialVariable"]&],
+  endpointGroupFail["CommonEndpointCoordinateChartRequired"]];
+ entries=coefficientRegulatorNormalize[table["Masters"]/.rules,e,table["DimensionalRegulator"]];
+ residual=entries;pref=coefficientRegulatorNormalize[table["PreFactor"]/.rules,e];
+ sourceFile=Lookup[request,"SourceCoefficientFile",Lookup[table,"Source",None]];
+ If[coefficientEndpointCoalescingDivisors[{pref},z,e]=!={},
+  endpointGroupFail["GlobalPrefactorNeedsJointEndpointTreatment"]];
+ If[Lookup[table,"RemainderTerms",{}]=!={},endpointGroupFail["ConstantRemainderNeedsEndpointContribution"]];
+ normalRequest=Join[KeyDrop[request,{"KinematicRules"}],<|"KinematicRules"->{},
+   "GlobalPrefactor"->pref,"SourceCoefficientFile"->sourceFile,
+   "CancelNormalizedCoefficientRow"->True|>];
+ groups=endpointGroupPoleSupports[entries,z,e];
+ counts=Counts[Flatten[Lookup[groups,"SourceRows",{}]]];
+ whole=Select[Keys[counts],counts[#]===1&&AllTrue[entries[[#]]["Terms"],#["Representation"]==="Exact"&]&];
+ (* Each moved whole coefficient has one owner. Shared or finite-series
+    sources remain owners of their remainders and contribute exact pieces. *)
+ Do[
+  label="PoleGroup"<>IntegerString[g,10,4];
+  groupEntries={};
+  Do[
+   entry=entries[[i]];
+   If[MemberQ[whole,i],
+    AppendTo[groupEntries,entry];
+    residual[[i]]=Join[residual[[i]],<|"Terms"->{}|>],
+    terms={};pieces={};
+    Do[
+     If[entry["Terms"][[j,"Representation"]]=!="Exact",Continue[]];
+     coefficient=coefficientEndpointTermExpression[entry["Terms"][[j]]];
+     part=endpointGroupPrincipalPart[coefficient,z,e,groups[[g,"DivisorLocation"]]];
+     If[part["PrincipalPart"]===0,Continue[]];
+     record=<|"Master"->coefficientMasterID[entry["Master"]],"PoleLabel"->label,
+       "SourceTermIndex"->j,"PoleExpression"->part["PrincipalPart"]|>;
+     AppendTo[removed,record];AppendTo[added,record];AppendTo[pieces,record];
+     AppendTo[terms,<|"Representation"->"Exact","PreFactor"->1,"Coefficient"->part["PrincipalPart"]|>];
+     (* Only the exact exceptional term is changed. Finite regular terms,
+        including their unknown tails and source certificates, stay intact. *)
+     remaining=coefficientEndpointTermExpression[residual[[i,"Terms",j]]]-part["PrincipalPart"];
+     residual[[i,"Terms",j]]=<|"Representation"->"Exact","PreFactor"->1,
+       "Coefficient"->endpointGroupCancel[remaining]|>,
+    {j,Length[entry["Terms"]]}];
+    If[terms=!={},AppendTo[groupEntries,Join[entry,<|"Terms"->terms,
+      "PartialCoefficientContributions"->pieces|>]]];
+    residual[[i]]=Join[residual[[i]],<|"SeparatedCoefficientPoles"->Join[
+      Lookup[residual[[i]],"SeparatedCoefficientPoles",{}],pieces]|>]],
+  {i,groups[[g,"SourceRows"]]}];
+  If[groupEntries==={},Continue[]];
+  candidates=FeynFacet`FindEndpointCoefficientFrames[catalog,Lookup[groupEntries,"Master"]];
+  If[FailureQ[candidates],Throw[candidates,"EndpointGroups"]];
+  chosen=None;trials={};
+  Do[
+   frame=frames[name];
+   attempt=Catch[
+    If[coefficientEndpointCoalescingDivisors[
+      coefficientRegulatorNormalize[frame["Endpoint"]["NormalGaugeMatrix"],e,frame["Endpoint"]["DimensionalRegulator"]],z,e]=!={},
+     endpointGroupFail["CommonEmbeddingHasMovingPoles"]];
+    aligned=endpointGroupAlign[groupEntries,frame,classes];
+    row=(Total[coefficientEndpointTermExpression/@#["Terms"]]&/@aligned["Entries"]).
+      coefficientRegulatorNormalize[frame["Endpoint"]["NormalGaugeMatrix"],e,frame["Endpoint"]["DimensionalRegulator"]];
+    cancelled=TimeConstrained[endpointGroupCancel/@row,Lookup[request,"FrameTimeLimit",120],$TimedOut];
+    If[cancelled===$TimedOut,endpointGroupFail["CommonRowCancellationTimeLimit"]];
+    If[coefficientEndpointCoalescingDivisors[cancelled,z,e]=!={},
+     endpointGroupFail["CommonRowStillHasMovingDivisors"]];
+    <|"Family"->name,"ContributionLabel"->label,"CoefficientEntries"->aligned["Entries"],
+      "OriginalMasterIntegralBasis"->frame["OriginalMasterIntegralBasis"],
+      "SourceDifferentialSystemFile"->frame["SourceDifferentialSystemFile"],
+      "SourceCoefficientFile"->sourceFile,"Request"->normalRequest,
+      "CommonBasisEmbedding"->aligned["IntegralMappings"],
+      "NormalizedCoefficientRow"->cancelled,"CoefficientRowCancellation"-><|
+        "Method"->"Exact rational cancellation in the complete normalized row",
+        "RemainingCoalescingDivisors"->{},"EpsilonExpansionUsed"->False|>|>,
+   "EndpointGroups"];
+   If[AssociationQ[attempt],chosen=attempt;Break[]];
+   AppendTo[trials,<|"Frame"->name,"Cause"->attempt|>],
+  {name,Take[candidates,UpTo[Lookup[request,"MaximumFrameAttempts",3]]]}];
+  If[chosen===None,endpointGroupFail["CommonEndpointFrameNotFound",
+    <|"PoleGroup"->label,"Support"->Lookup[groupEntries,"Master"],"Attempts"->trials|>]];
+  AssociateTo[inputs,label->chosen],
+ {g,Length[groups]}];
+ (* Place every remaining source in its original saved frame when possible;
+    otherwise choose a covering saved frame. Auxiliary coordinates carry
+    zero coefficients, never invented zero physical boundary amplitudes. *)
+ Do[
+  entry=residual[[i]];
+  If[entry["Terms"]==={},Continue[]];
+  If[AllTrue[entry["Terms"],coefficientExactZeroTermQ]&&
+    Lookup[entry,"SeparatedCoefficientPoles",{}]==={},Continue[]];
+  originalFamily=First[coefficientMasterID[entry["Master"]]];
+  candidates=FeynFacet`FindEndpointCoefficientFrames[catalog,{entry["Master"]}];
+  If[FailureQ[candidates]||candidates==={},endpointGroupFail["OrdinaryEndpointFrameMissing"]];
+  owner=If[MemberQ[candidates,originalFamily],originalFamily,First[candidates]];
+  AssociateTo[ordinary,owner->Append[Lookup[ordinary,owner,{}],entry]],
+ {i,Length[residual]}];
+ KeyValueMap[Function[{name,values},
+  frame=frames[name];aligned=endpointGroupAlign[values,frame,classes];
+  AssociateTo[inputs,name-><|"Family"->name,"ContributionLabel"->name,
+    "CoefficientEntries"->aligned["Entries"],"OriginalMasterIntegralBasis"->frame["OriginalMasterIntegralBasis"],
+    "SourceDifferentialSystemFile"->frame["SourceDifferentialSystemFile"],
+    "SourceCoefficientFile"->sourceFile,"Request"->normalRequest,
+    "CommonBasisEmbedding"->aligned["IntegralMappings"]|>]],ordinary];
+ If[!coefficientPoleCoverage[removed,added,coefficientMasterID/@Lookup[entries,"Master"]],
+  endpointGroupFail["ExactCoefficientPieceCoverageFailed"]];
+ (* Per-source reconstruction is checked before applying any new DE frame. *)
+ Do[
+  original=Select[entries[[i]]["Terms"],#["Representation"]==="Exact"&];
+  remaining=If[MemberQ[whole,i],Total[coefficientEndpointTermExpression/@original],
+    Total[coefficientEndpointTermExpression/@Select[residual[[i]]["Terms"],#["Representation"]==="Exact"&]]+
+    Total[Lookup[Select[removed,#["Master"]===coefficientMasterID[entries[[i]]["Master"]]&],"PoleExpression",{}]]];
+  comparison=endpointGroupCancel[Total[coefficientEndpointTermExpression/@original]-remaining];
+  If[comparison=!=0,endpointGroupFail["ExactSourceCoefficientRecombinationFailed",<|"Master"->entries[[i]]["Master"]|>]];
+  If[Select[residual[[i]]["Terms"],#["Representation"]==="LaurentSeries"&]=!=
+     Select[entries[[i]]["Terms"],#["Representation"]==="LaurentSeries"&],
+   endpointGroupFail["FiniteRegularCoefficientChanged"]];
+  AppendTo[identities,entries[[i]]["Master"]],
+ {i,Length[entries]}];
+ <|"DataType"->"EndpointCoefficientGroups","CoefficientInputs"->inputs,
+   "PoleGroups"->groups,"RemovedCoefficientPieces"->removed,"AddedCoefficientPieces"->added,
+   "ExactSourceRecombinations"->identities,"FiniteRegularCoefficientsUnchanged"->True,
+   "SourceCoefficientFile"->sourceFile,"AppliedKinematicRules"->rules,
+   "Scope"->"Source coverage and fresh exact common-row cancellation. The existing endpoint order, physical boundary and domain checks are still required for each generated contribution."|>
+],"EndpointGroups"];
+End[];EndPackage[];
+
+
+
+FILE Scripts/Coefficients/ScalarEndpointCampaign.wl
+BeginPackage["ScalarEndpointCampaign`",{"ScalarEndpointDriver`"}];
+RunScalarEndpointCampaign::usage="RunScalarEndpointCampaign[input,output] dynamically assigns coefficient families to persistent workers and records every requested, missing or explicitly deferred family.";
+Begin["`Private`"];
+$campaignRoot=DirectoryName[ExpandFileName[$InputFileName],3];
+$workerPhysicalInputs=<||>;
+runJob[job_,seconds_,resume_,verbose_] := Module[{result,log,checked,audit,previous,compute,started=AbsoluteTime[],directory=job["OutputDirectory"]},
+ If[!DirectoryQ[directory],CreateDirectory[directory,CreateIntermediateDirectories->True]];
+ If[KeyExistsQ[job,"PreflightResult"],result=job["PreflightResult"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/summary.wxf"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status","Reason"}],directory<>"/summary.json"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status","Reason"}],directory<>"/progress.json"],
+  log=OpenAppend[directory<>"/construction.log"];
+  compute[]:=Block[{$Output={log},$Messages={log},$MaxExtraPrecision=50},
+    ScalarEndpointDriver`RunScalarEndpointFamily[job["Input"],directory,
+     "Resume"->resume,"TimeLimit"->seconds,"Verbose"->verbose,
+     "PhysicalInputCache"->$workerPhysicalInputs]];
+  checked=If[TrueQ[Lookup[job["Input"],"EpsilonRemainderChecks",False]],
+    FeynFacet`WithEpsilonRemainderChecks[compute[]],<|"Result"->compute[]|>];
+  result=checked["Result"];
+  Close[log];
+  If[FailureQ[result],result=<|"Family"->job["Family"],
+    "Status"->ScalarEndpointDriver`ScalarEndpointFailureStatus[result],"Failure"->result|>;
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/summary.wxf"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status"}],directory<>"/summary.json"]];
+  If[KeyExistsQ[checked,"EpsilonRemainderAudit"],
+   audit=Join[checked["EpsilonRemainderAudit"],<|"Generation"->Lookup[result,"Generation",None],
+     "ReusedStages"->Lookup[result,"ReusedStages",{}]|>];
+   previous=If[FileExistsQ[directory<>"/epsilon_audit.wxf"],
+     ScalarEndpointDriver`ReadScalarEndpointInput[directory<>"/epsilon_audit.wxf"],<||>];
+   If[audit["Status"]==="NoChecksExecuted"&&AssociationQ[previous]&&
+     Lookup[previous,"Status",None]==="Passed"&&Lookup[previous,"Generation",None]===audit["Generation"]&&
+     audit["ReusedStages"]=!={},audit=Join[previous,<|"AuditReused"->True,"ReusedStages"->audit["ReusedStages"]|>]];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[audit,directory<>"/epsilon_audit.wxf"];
+   If[AssociationQ[result],result=Append[result,"EpsilonRemainderAudit"->audit]]]];
+ If[!AssociationQ[result],result=<|"Family"->job["Family"],"Status"->"COMPUTATION_FAILURE",
+   "Failure"->Failure["ScalarFamilyWorkerResultInvalid",<|"Value"->result|>]|>];
+ result=Join[result,<|"Family"->job["Family"],"ContributionLabel"->Lookup[job,"ContributionLabel",job["Family"]],"OutputDirectory"->directory,
+   "WorkerKernelID"->$KernelID,"WorkerElapsedSeconds"->AbsoluteTime[]-started|>];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/campaign_result.wxf"];result];
+RunScalarEndpointCampaign[configuration_Association,outputValue_String] := Catch[Module[
+ {output=ExpandFileName[outputValue],sources,workers,seconds,common,overrides,deferred,
+  manifest,directories,requireAll,resume,verbose,jobs={},families={},labels={},source,input,
+  family,label,directory,config,missing,job,refs={},sourceInput,physicalCache,cacheFile,
+  bootstrap,driverFile,campaignFile,results,report,statuses,started=AbsoluteTime[],fail,
+  initializer,initializationResults,existingKernels,launched={},abort=False},
+ fail[tag_,data_:<||>]:=(ScalarEndpointDriver`WriteScalarEndpointArtifact[
+   <|"Status"->"CAMPAIGN_FAILURE","Failure"->Failure[tag,data],
+     "CoefficientInputFiles"->Lookup[configuration,"CoefficientInputFiles",{}]|>,output<>"/campaign_failure.wxf"];
+   Throw[Failure[tag,data],"ScalarEndpointCampaign"]);
+ sources=Lookup[configuration,"CoefficientInputFiles",{}];workers=Lookup[configuration,"Workers",1];
+ seconds=Lookup[configuration,"FamilyTimeLimit",1800];common=Lookup[configuration,"CommonInput",<||>];
+ overrides=Lookup[configuration,"FamilyInputOverrides",<||>];deferred=Lookup[configuration,"DeferredFamilies",<||>];
+ requireAll=TrueQ[Lookup[configuration,"RequireAllAcceptedFamilies",True]];
+ resume=TrueQ[Lookup[configuration,"Resume",True]];verbose=TrueQ[Lookup[configuration,"Verbose",True]];
+ If[!MatchQ[sources,{__String}]||!DuplicateFreeQ[sources]||!IntegerQ[workers]||!(1<=workers<=8)||
+   !NumericQ[seconds]||seconds<=0||!AllTrue[{common,overrides,deferred},AssociationQ]||
+   !AllTrue[Values[overrides],AssociationQ]||!AllTrue[Values[deferred],StringQ],
+  fail["ScalarEndpointCampaignInputInvalid"]];
+ manifest=ScalarEndpointDriver`ReadScalarEndpointInput[Lookup[configuration,"AcceptedEndpointManifest",None]];
+ If[!AssociationQ[manifest],fail["AcceptedEndpointManifestRequired"]];
+ directories=Lookup[manifest,"AcceptedDirectories",manifest];
+ If[!AssociationQ[directories]||!AllTrue[Keys[directories],StringQ]||!AllTrue[Values[directories],StringQ],
+  fail["AcceptedEndpointDirectoriesRequired"]];
+ If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[configuration,output<>"/campaign_input.wxf"];
+ Do[
+  source=ScalarEndpointDriver`ReadScalarEndpointInput[path];
+  If[!AssociationQ[source]||!KeyExistsQ[source,"Family"],
+   fail["ScalarCoefficientFamilyInputInvalid",<|"Path"->path,"Value"->source|>]];
+  family=ToString[source["Family"]];
+  If[!StringMatchQ[family,RegularExpression["[A-Za-z0-9_-]+"]],
+   fail["ScalarCoefficientFamilyIdentifierInvalid",<|"Family"->family|>]];
+  label=ToString[Lookup[source,"ContributionLabel",family]];
+  If[!StringMatchQ[label,RegularExpression["[A-Za-z0-9_-]+"]],
+    fail["ScalarCoefficientContributionLabelInvalid",<|"ContributionLabel"->label|>]];
+  If[MemberQ[labels,label],fail["DuplicateScalarCoefficientFamily",<|"Family"->family,"ContributionLabel"->label|>]];
+  AppendTo[families,family];AppendTo[labels,label];directory=output<>"/"<>label;
+  config=Join[common,Lookup[overrides,family,<||>],<|"Family"->family,"ContributionLabel"->label,"CoefficientInput"->ExpandFileName[path],
+    "EndpointSystemDirectory"->Lookup[directories,family,output<>"/MissingEndpoint/"<>family]|>];
+  job=<|"Family"->family,"ContributionLabel"->label,"Input"->config,"OutputDirectory"->directory|>;
+  If[KeyExistsQ[deferred,family],AssociateTo[job,"PreflightResult"->
+    <|"Family"->family,"Status"->"DEFERRED","Reason"->deferred[family]|>],
+   If[!KeyExistsQ[directories,family],AssociateTo[job,"PreflightResult"->
+     <|"Family"->family,"Status"->"MISSING_ENDPOINT_SYSTEM",
+       "Failure"->Failure["AcceptedEndpointSystemMissing",<||>]|>]]];
+  AppendTo[jobs,job],{path,sources}];
+ missing=Complement[Keys[directories],families];
+ If[requireAll,Do[AppendTo[jobs,<|"Family"->family,"OutputDirectory"->output<>"/"<>family,
+   "PreflightResult"->If[KeyExistsQ[deferred,family],
+    <|"Family"->family,"Status"->"DEFERRED","Reason"->deferred[family]|>,
+    <|"Family"->family,"Status"->"MISSING_COEFFICIENT_INPUT",
+      "Failure"->Failure["ScalarCoefficientFamilyInputMissing",<||>]|>]|>],{family,missing}]];
+ If[Complement[Keys[deferred],Lookup[jobs,"Family"]]=!={},
+  fail["DeferredFamilyOutsideRequestedCampaign",<|"Families"->Complement[Keys[deferred],Lookup[jobs,"Family"]]|>]];
+ (* Resolve common physical records once. Workers retain these immutable
+    values while each family's mathematical checkpoint records their content. *)
+ Do[If[KeyExistsQ[job,"Input"],
+   input=job["Input"];
+   refs=Join[refs,Select[Lookup[input,{"PhysicalBoundaryConstruction","PhysicalBoundaryFiniteDefinitions","CoefficientRemainderClasses"},None],StringQ]];
+   If[!KeyExistsQ[input,"PhysicalBoundaryConstruction"]&&KeyExistsQ[directories,job["Family"]],
+    sourceInput=ScalarEndpointDriver`ReadScalarEndpointInput[directories[job["Family"]]<>"/input.wxf"];
+    If[AssociationQ[sourceInput]&&StringQ[Lookup[sourceInput,"PhysicalBoundaryConstruction",None]],
+     AppendTo[refs,sourceInput["PhysicalBoundaryConstruction"]]]]],{job,jobs}];
+ physicalCache=Association@Table[path->ScalarEndpointDriver`ReadScalarEndpointInput[path],{path,DeleteDuplicates[refs]}];
+ cacheFile=output<>"/common_physical_input.wxf";
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[physicalCache,cacheFile];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[jobs,output<>"/family_jobs.wxf"];
+ driverFile=$campaignRoot<>"/Scripts/Coefficients/ScalarEndpointDriver.wl";
+ campaignFile=$campaignRoot<>"/Scripts/Coefficients/ScalarEndpointCampaign.wl";
+ initializer=Lookup[configuration,"WorkerInitializationFile",Automatic];
+ bootstrap=If[initializer===Automatic,$campaignRoot<>"/Addon/Load/LoadFACET.wl",ExpandFileName[initializer]];
+ If[!FileExistsQ[bootstrap],fail["ScalarEndpointWorkerInitializationMissing",<|"Path"->bootstrap|>]];
+ If[workers===1,
+  SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+  Block[{Print},Get[bootstrap]];
+  Get[driverFile];$workerPhysicalInputs=physicalCache;
+  results=runJob[#,seconds,resume,verbose]&/@jobs,
+  existingKernels=Kernels[];
+  If[existingKernels=!={},fail["ScalarEndpointCampaignRequiresOwnedWorkerPool"]];
+  launched=LaunchKernels[workers];
+  If[Length[launched]=!=workers,If[launched=!={},CloseKernels[launched]];
+    fail["ScalarEndpointWorkerPoolNotAvailable",<|"RequestedWorkers"->workers|>]];
+  initializationResults=With[{boot=bootstrap,driver=driverFile,campaign=campaignFile,cache=cacheFile},
+   ParallelEvaluate[$HistoryLength=0;$MaxExtraPrecision=50;
+    SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+    Block[{Print},Get[boot]];Get[driver];Get[campaign];
+    ScalarEndpointCampaign`Private`$workerPhysicalInputs=Import[cache,"WXF"];True,launched]];
+  If[!AllTrue[initializationResults,TrueQ],CloseKernels[launched];fail["ScalarEndpointWorkerInitializationFailed"]];
+  results=CheckAbort[With[{limit=seconds,reuse=resume,talk=verbose},
+    ParallelMap[ScalarEndpointCampaign`Private`runJob[#,limit,reuse,talk]&,jobs,
+      Method->"FinestGrained",DistributedContexts->None]],abort=True;$Aborted];
+  CloseKernels[launched];If[abort,fail["ScalarEndpointCampaignAborted",<|"CompletedFamilyArtifactsPreserved"->True|>]]];
+ statuses=Lookup[results,"Status"];
+ report=<|"DataType"->"ScalarEndpointFamilyCampaign","SchemaVersion"->1,"Results"->results,
+   "RequestedContributionCount"->Length[jobs],"RequestedFamilyCount"->Length[DeleteDuplicates[Lookup[jobs,"Family"]]],
+   "CoefficientInputFamilyCount"->Length[DeleteDuplicates[families]],
+   "ExplicitContributionCount"->Count[statuses,"ExplicitPhysicalScalarEndpointCoefficients"],
+   "DeferredContributionCount"->Count[statuses,"DEFERRED"],"MissingOrdersContributionCount"->Count[statuses,"MISSING_ORDERS"],
+   "UnresolvedCoefficientClassContributionCount"->Count[statuses,"UNRESOLVED_COEFFICIENT_CLASS"],
+   "OtherFailureContributionCount"->Count[statuses,Except["ExplicitPhysicalScalarEndpointCoefficients"|"DEFERRED"|"MISSING_ORDERS"|"UNRESOLVED_COEFFICIENT_CLASS"]],
+   "AcceptedFamiliesNotRequested"->If[requireAll,{},missing],
+   "Workers"->workers,"Scheduling"->"One scalar coefficient contribution per available persistent worker",
+   "ElapsedSeconds"->AbsoluteTime[]-started|>;
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[report,output<>"/campaign_report.wxf"];
+ ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyDrop[report,"Results"],output<>"/campaign_report.json"];
+ report
+],"ScalarEndpointCampaign"];
+End[];
+EndPackage[];

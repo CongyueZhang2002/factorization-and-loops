@@ -1,3 +1,4 @@
+Get[DirectoryName[ExpandFileName[$InputFileName],4]<>"/FeynFacet/Algebra/EpsilonRemainders.wl"];
 (* Driver control-flow tests only; mathematical constructors have separate
    exact tests and current-process pilots. *)
 Clear[FeynFacet`Private`coefficientMasterID,FeynFacet`DetermineMasterCoefficientEndpointOrders,
@@ -18,6 +19,10 @@ FeynFacet`ExtendTangentialEndpointSystem[endpoint_,depth_,OptionsPattern[]] := (
  ScalarDriverTestCall["Extension"];Join[endpoint,<|"MaximumNormalOrder"->depth|>]);
 FeynFacet`ConstructScalarEndpointProjection[plan_,endpoint_,bounds_] := (
  ScalarDriverTestCall["Projection"];
+ If[MemberQ[{"AuditGood","AuditLeak"},plan["Mode"]],
+  FeynFacet`Private`epsilonAuditMultiplier[
+   If[plan["Mode"]==="AuditLeak",1/Global`auditEpsilon,1],Global`auditEpsilon,
+   0,0,0,"Test/ScalarEndpointConstruction","mock"]];
  If[plan["Mode"]==="Timeout"&&!TrueQ[Global`$ScalarDriverSkipDelay],Pause[5]];
  <|"DataType"->"ScalarEndpointProjection","Mode"->plan["Mode"]|>);
 FeynFacet`ConstructScalarEndpointSolution[projection_,endpoint_,request_,OptionsPattern[]] := (

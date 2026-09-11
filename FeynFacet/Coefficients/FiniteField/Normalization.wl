@@ -111,13 +111,14 @@ finiteFieldResolveExecutable[value_] := Module[{environment, candidates},
   ]
 ];
 
-finiteFieldThreadCount[value_] := Which[
-  IntegerQ[value] && value > 0, value,
-  value === Automatic && ValueQ[Global`$FACETKernelLimit] &&
-      IntegerQ[Global`$FACETKernelLimit] && Global`$FACETKernelLimit > 0,
-    Global`$FACETKernelLimit,
-  value === Automatic, Max[1, $ProcessorCount],
+(* Native interpolation uses the allocated operating-system CPUs, not
+   Wolfram kernel licences or its internal OpenMP setting. *)
+finiteFieldThreadCount[value_] := With[{allocated=facetAllocatedProcessorCount[]},
+ Which[
+  IntegerQ[value] && value > 0, Min[value,allocated],
+  value === Automatic, allocated,
   True, $Failed
+ ]
 ];
 
 finiteFieldPhysicalFactor[context_Association] := Module[
@@ -829,10 +830,13 @@ finiteFieldCanonicalizeSignature[
 finiteFieldTargetContext[context_Association]:=Join[context,<|
  "ForbiddenVariables"->Complement[Lookup[context,"ForbiddenVariables",{}],
   Lookup[context,"FractionVariables",{}]]|>];
-finiteFieldCertifyPhysicalVariables[expression_,context_Association]:=Module[{value,remaining},
- (* Identities between color invariants and cancellation between analytic
-    prefactors must be applied before testing the physical variable set. *)
- value=Factor[finiteFieldNormalizeRegulatorConstants[expression/.Lookup[context,"ColorRules",{}]]];
+finiteFieldCertifyPhysicalVariables[expression_,context_Association]:=Module[{value,remaining,cancelled},
+ (* Variable elimination needs exact cancellation, not irreducible polynomial
+    factorization. Keep analytic normalization factors in the rational field. *)
+ value=finiteFieldNormalizeRegulatorConstants[expression/.Lookup[context,"ColorRules",{}]];
+ cancelled=FeynFacet`CancelRationalCoefficients[{value}];
+ If[!MatchQ[cancelled,{_}],Return[$Failed]];
+ value=First[cancelled];
  If[!FreeQ[value,_DirectedInfinity|Indeterminate|$Failed|$Aborted],Return[$Failed]];
  value=finiteFieldReduceCoordinateEqualities[value,context];
  If[value===$Failed||!exactDataQ[value]||!FreeQ[value,_DirectedInfinity|Indeterminate|$Aborted],Return[$Failed]];

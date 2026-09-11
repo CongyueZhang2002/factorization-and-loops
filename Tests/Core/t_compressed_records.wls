@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 recordRoot=DirectoryName[ExpandFileName[$InputFileName],3];Get[recordRoot<>"/Tests/TestKit.wl"];
 Block[{Print},Get[recordRoot<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
@@ -10,4 +11,8 @@ recordFile=CreateTemporary[];FeynFacet`FamilyArtifactWrite[recordValue,recordFil
 FTTest`FTAssert["plain records remain directly Get-readable despite regulator name collisions",Get[recordFile]===recordValue];
 FTTest`FTAssert["small plain records preserve package symbol contexts",
  FeynFacet`FamilyArtifactRead[recordFile]===recordValue];
-DeleteFile[recordFile];FTTest`FTReport[];
+DeleteFile[recordFile];recordDirectory=CreateDirectory[];
+FTTest`FTAssert["an invalid final rename reports failure and preserves the destination",
+ FeynFacet`FamilyArtifactWrite[recordValue,recordDirectory,"Compression"->True]===$Failed&&DirectoryQ[recordDirectory]];
+DeleteDirectory[recordDirectory,DeleteContents->True];
+FTTest`FTReport[];

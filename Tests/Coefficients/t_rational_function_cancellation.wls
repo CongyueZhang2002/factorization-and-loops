@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];Get[root<>"/FeynFacet/Algebra/RationalFunctions.wl"];
 Clear[x,y,z,e];
@@ -39,4 +40,7 @@ coefficientInput={(x-y)/(x^2-y^2)*model["g"]^4,2^(3-4e)+16*2^(-4e-1),
 coefficientOutput=FeynFacet`CancelRationalCoefficients[coefficientInput];
 FTAssert["batch coefficient cancellation restores common analytic factors exactly",
  ListQ[coefficientOutput]&&And@@(FullSimplify[#]===0&/@(coefficientOutput-coefficientInput))];
+FTAssert["rational imaginary coefficients use one common field generator",
+ FeynFacet`CancelRationalCoefficients[{I/(1-x)-I*x/(1-x),
+  2I/(1-x)-2I*x/(1-x)}]==={I,2I}];
 FTReport[];

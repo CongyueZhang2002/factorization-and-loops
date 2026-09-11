@@ -38,6 +38,24 @@ facetProcessorCount[] := facetProcessorCount[] = Module[{count = 0, text},
   Max[count, $ProcessorCount, 1]
 ];
 
+(* Native solvers use CPU allocation, not the number of Wolfram licenses.
+   OMP_NUM_THREADS may make $ProcessorCount equal one inside the kernel. *)
+facetAllocatedProcessorCount[] := Module[{environment,allowed,text,parts,width},
+  environment=Environment["FACET_CPU_COUNT"];
+  allowed=facetProcessorCount[];
+  If[FileExistsQ["/proc/self/status"],
+    text=Import["/proc/self/status","Text"];
+    parts=StringCases[text,StartOfLine~~"Cpus_allowed_list:"~~WhitespaceCharacter...~~
+      value:RegularExpression["[0-9,-]+"]:>value];
+    If[Length[parts]===1,
+      width=Total[Map[Function[part,With[{bounds=FromDigits/@StringSplit[part,"-"]},
+        If[Length[bounds]===1,1,Last[bounds]-First[bounds]+1]]],StringSplit[First[parts],","]]];
+      If[IntegerQ[width]&&width>0,allowed=Min[allowed,width]]]];
+  If[StringQ[environment]&&StringMatchQ[environment,DigitCharacter..]&&FromDigits[environment]>0,
+    allowed=Min[allowed,FromDigits[environment]]];
+  Max[1,allowed]
+];
+
 GlobalBasisGram = {
   {0, 1, 0, 0},
   {1, 0, 0, 0},

@@ -1,5 +1,8 @@
 # Inclusive electromagnetic Drell–Yan, NLO UU
 
+Execution and CPU policy: [WORKFLOW.md](../../WORKFLOW.md).
+Available retained channels: [project index](../README.md).
+
 The root card defines d sigma_hat/d Q2 = 4 pi alpha_em^2/(3 Nc Q2 s)
 times C_DY(z), with z=Q2/s. Rapidity, pair transverse momentum and lepton
 angles are integrated. C_DY includes the flavor charge squared. The complete

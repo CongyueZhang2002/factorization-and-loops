@@ -22,7 +22,7 @@ FTTest`FTAssert["unknown branches are left untouched",
 FTTest`FTAssert["two negative factors do not split onto wrong principal branches",
  FeynFacet`Private`expandPositiveMonomialPowers[Sqrt[ba bb],ba<0&&bb<0]===Sqrt[ba bb]];
 bornProject=FeynFacet`ReadProjectCard[root<>"/Projects/ppHX_UU_NNLO"];
-bornRequest=FeynFacet`Private`projectAssemblyRequest[bornProject,"u-ubar_g-g","Born"];
+bornRequest=FeynFacet`ProjectAssemblyRequest[bornProject,"u-ubar_g-g","Born"];
 FTTest`FTAssert["Born request inherits the declared color identities",
  bornRequest["ColorRules"]===bornProject["ColorRules"]];
 {bornSeconds,bornFresh}=AbsoluteTiming[FeynFacet`ConstructBornResult[

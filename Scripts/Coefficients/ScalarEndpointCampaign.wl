@@ -3,27 +3,44 @@ RunScalarEndpointCampaign::usage="RunScalarEndpointCampaign[input,output] dynami
 Begin["`Private`"];
 $campaignRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 $workerPhysicalInputs=<||>;
-runJob[job_,seconds_,resume_,verbose_] := Module[{result,log,started=AbsoluteTime[],directory=job["OutputDirectory"]},
+runJob[job_,seconds_,resume_,verbose_] := Module[{result,log,checked,audit,previous,compute,started=AbsoluteTime[],directory=job["OutputDirectory"]},
  If[!DirectoryQ[directory],CreateDirectory[directory,CreateIntermediateDirectories->True]];
  If[KeyExistsQ[job,"PreflightResult"],result=job["PreflightResult"];
    ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/summary.wxf"];
    ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status","Reason"}],directory<>"/summary.json"];
    ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status","Reason"}],directory<>"/progress.json"],
   log=OpenAppend[directory<>"/construction.log"];
-  result=Block[{$Output={log},$Messages={log},$MaxExtraPrecision=50},
+  compute[]:=Block[{$Output={log},$Messages={log},$MaxExtraPrecision=50},
     ScalarEndpointDriver`RunScalarEndpointFamily[job["Input"],directory,
      "Resume"->resume,"TimeLimit"->seconds,"Verbose"->verbose,
      "PhysicalInputCache"->$workerPhysicalInputs]];
-  Close[log]];
+  checked=If[TrueQ[Lookup[job["Input"],"EpsilonRemainderChecks",False]],
+    FeynFacet`WithEpsilonRemainderChecks[compute[]],<|"Result"->compute[]|>];
+  result=checked["Result"];
+  Close[log];
+  If[FailureQ[result],result=<|"Family"->job["Family"],
+    "Status"->ScalarEndpointDriver`ScalarEndpointFailureStatus[result],"Failure"->result|>;
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/summary.wxf"];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyTake[result,{"Family","Status"}],directory<>"/summary.json"]];
+  If[KeyExistsQ[checked,"EpsilonRemainderAudit"],
+   audit=Join[checked["EpsilonRemainderAudit"],<|"Generation"->Lookup[result,"Generation",None],
+     "ReusedStages"->Lookup[result,"ReusedStages",{}]|>];
+   previous=If[FileExistsQ[directory<>"/epsilon_audit.wxf"],
+     ScalarEndpointDriver`ReadScalarEndpointInput[directory<>"/epsilon_audit.wxf"],<||>];
+   If[audit["Status"]==="NoChecksExecuted"&&AssociationQ[previous]&&
+     Lookup[previous,"Status",None]==="Passed"&&Lookup[previous,"Generation",None]===audit["Generation"]&&
+     audit["ReusedStages"]=!={},audit=Join[previous,<|"AuditReused"->True,"ReusedStages"->audit["ReusedStages"]|>]];
+   ScalarEndpointDriver`WriteScalarEndpointArtifact[audit,directory<>"/epsilon_audit.wxf"];
+   If[AssociationQ[result],result=Append[result,"EpsilonRemainderAudit"->audit]]]];
  If[!AssociationQ[result],result=<|"Family"->job["Family"],"Status"->"COMPUTATION_FAILURE",
    "Failure"->Failure["ScalarFamilyWorkerResultInvalid",<|"Value"->result|>]|>];
- result=Join[result,<|"Family"->job["Family"],"OutputDirectory"->directory,
+ result=Join[result,<|"Family"->job["Family"],"ContributionLabel"->Lookup[job,"ContributionLabel",job["Family"]],"OutputDirectory"->directory,
    "WorkerKernelID"->$KernelID,"WorkerElapsedSeconds"->AbsoluteTime[]-started|>];
  ScalarEndpointDriver`WriteScalarEndpointArtifact[result,directory<>"/campaign_result.wxf"];result];
 RunScalarEndpointCampaign[configuration_Association,outputValue_String] := Catch[Module[
  {output=ExpandFileName[outputValue],sources,workers,seconds,common,overrides,deferred,
-  manifest,directories,requireAll,resume,verbose,jobs={},families={},source,input,
-  family,directory,config,missing,job,refs={},sourceInput,physicalCache,cacheFile,
+  manifest,directories,requireAll,resume,verbose,jobs={},families={},labels={},source,input,
+  family,label,directory,config,missing,job,refs={},sourceInput,physicalCache,cacheFile,
   bootstrap,driverFile,campaignFile,results,report,statuses,started=AbsoluteTime[],fail,
   initializer,initializationResults,existingKernels,launched={},abort=False},
  fail[tag_,data_:<||>]:=(ScalarEndpointDriver`WriteScalarEndpointArtifact[
@@ -53,11 +70,14 @@ RunScalarEndpointCampaign[configuration_Association,outputValue_String] := Catch
   family=ToString[source["Family"]];
   If[!StringMatchQ[family,RegularExpression["[A-Za-z0-9_-]+"]],
    fail["ScalarCoefficientFamilyIdentifierInvalid",<|"Family"->family|>]];
-  If[MemberQ[families,family],fail["DuplicateScalarCoefficientFamily",<|"Family"->family|>]];
-  AppendTo[families,family];directory=output<>"/"<>family;
-  config=Join[common,Lookup[overrides,family,<||>],<|"Family"->family,"CoefficientInput"->ExpandFileName[path],
+  label=ToString[Lookup[source,"ContributionLabel",family]];
+  If[!StringMatchQ[label,RegularExpression["[A-Za-z0-9_-]+"]],
+    fail["ScalarCoefficientContributionLabelInvalid",<|"ContributionLabel"->label|>]];
+  If[MemberQ[labels,label],fail["DuplicateScalarCoefficientFamily",<|"Family"->family,"ContributionLabel"->label|>]];
+  AppendTo[families,family];AppendTo[labels,label];directory=output<>"/"<>label;
+  config=Join[common,Lookup[overrides,family,<||>],<|"Family"->family,"ContributionLabel"->label,"CoefficientInput"->ExpandFileName[path],
     "EndpointSystemDirectory"->Lookup[directories,family,output<>"/MissingEndpoint/"<>family]|>];
-  job=<|"Family"->family,"Input"->config,"OutputDirectory"->directory|>;
+  job=<|"Family"->family,"ContributionLabel"->label,"Input"->config,"OutputDirectory"->directory|>;
   If[KeyExistsQ[deferred,family],AssociateTo[job,"PreflightResult"->
     <|"Family"->family,"Status"->"DEFERRED","Reason"->deferred[family]|>],
    If[!KeyExistsQ[directories,family],AssociateTo[job,"PreflightResult"->
@@ -70,6 +90,9 @@ RunScalarEndpointCampaign[configuration_Association,outputValue_String] := Catch
     <|"Family"->family,"Status"->"DEFERRED","Reason"->deferred[family]|>,
     <|"Family"->family,"Status"->"MISSING_COEFFICIENT_INPUT",
       "Failure"->Failure["ScalarCoefficientFamilyInputMissing",<||>]|>]|>],{family,missing}]];
+ If[!DuplicateFreeQ[Lookup[jobs,"OutputDirectory"]]||
+    !DuplicateFreeQ[Lookup[#,"ContributionLabel",#["Family"]]&/@jobs],
+  fail["DuplicateScalarContributionOutputDirectory"]];
  If[Complement[Keys[deferred],Lookup[jobs,"Family"]]=!={},
   fail["DeferredFamilyOutsideRequestedCampaign",<|"Families"->Complement[Keys[deferred],Lookup[jobs,"Family"]]|>]];
  (* Resolve common physical records once. Workers retain these immutable
@@ -112,13 +135,14 @@ RunScalarEndpointCampaign[configuration_Association,outputValue_String] := Catch
   CloseKernels[launched];If[abort,fail["ScalarEndpointCampaignAborted",<|"CompletedFamilyArtifactsPreserved"->True|>]]];
  statuses=Lookup[results,"Status"];
  report=<|"DataType"->"ScalarEndpointFamilyCampaign","SchemaVersion"->1,"Results"->results,
-   "RequestedFamilyCount"->Length[jobs],"CoefficientInputFamilyCount"->Length[families],
-   "ExplicitFamilyCount"->Count[statuses,"ExplicitPhysicalScalarEndpointCoefficients"],
-   "DeferredFamilyCount"->Count[statuses,"DEFERRED"],"MissingOrdersFamilyCount"->Count[statuses,"MISSING_ORDERS"],
-   "UnresolvedCoefficientClassFamilyCount"->Count[statuses,"UNRESOLVED_COEFFICIENT_CLASS"],
-   "OtherFailureFamilyCount"->Count[statuses,Except["ExplicitPhysicalScalarEndpointCoefficients"|"DEFERRED"|"MISSING_ORDERS"|"UNRESOLVED_COEFFICIENT_CLASS"]],
+   "RequestedContributionCount"->Length[jobs],"RequestedFamilyCount"->Length[DeleteDuplicates[Lookup[jobs,"Family"]]],
+   "CoefficientInputFamilyCount"->Length[DeleteDuplicates[families]],
+   "ExplicitContributionCount"->Count[statuses,"ExplicitPhysicalScalarEndpointCoefficients"],
+   "DeferredContributionCount"->Count[statuses,"DEFERRED"],"MissingOrdersContributionCount"->Count[statuses,"MISSING_ORDERS"],
+   "UnresolvedCoefficientClassContributionCount"->Count[statuses,"UNRESOLVED_COEFFICIENT_CLASS"],
+   "OtherFailureContributionCount"->Count[statuses,Except["ExplicitPhysicalScalarEndpointCoefficients"|"DEFERRED"|"MISSING_ORDERS"|"UNRESOLVED_COEFFICIENT_CLASS"]],
    "AcceptedFamiliesNotRequested"->If[requireAll,{},missing],
-   "Workers"->workers,"Scheduling"->"One family per available persistent worker",
+   "Workers"->workers,"Scheduling"->"One scalar coefficient contribution per available persistent worker",
    "ElapsedSeconds"->AbsoluteTime[]-started|>;
  ScalarEndpointDriver`WriteScalarEndpointArtifact[report,output<>"/campaign_report.wxf"];
  ScalarEndpointDriver`WriteScalarEndpointArtifact[KeyDrop[report,"Results"],output<>"/campaign_report.json"];

@@ -2,6 +2,8 @@
 
 FeynFacet is a general framework for NNLO calculations. Process-specific cards,
 family assignments and computed results live outside this package.
+Start with [WORKFLOW.md](../WORKFLOW.md) for execution directions;
+this file describes mathematical ownership and extension points.
 
 ## Entry points
 
@@ -100,8 +102,9 @@ unknown/inconclusive results explicitly.
 
 **A new external implementation.** Keep native code and protocols in `Backends`.
 Keep the Wolfram translation with its existing domain or in `Interfaces` when
-it is genuinely a shared vendor interface. Measurements belong under
-`Tests/Benchmarks` and never run during loading.
+it is a shared vendor interface. Benchmark implementations belong under
+`Tests/Benchmarks`; measured results belong in the owning project's
+`Results/Validation`. Benchmarks never run during package loading.
 
 Core declarations live in `Kernel/Exports.wl`; domain additions declare usage
 alongside their public implementation. Add the implementation path to
@@ -220,3 +223,16 @@ Scalar loop functions use the normalization documented in the
 [FeynCalc FAQ](https://feyncalc.github.io/FeynCalcBookDev/Extra/FrequentlyAskedQuestions.html):
 FeynCalc B0/C0 have 1/(i pi^2), so their conversion to the package's
 1/(i pi^(D/2)) Gamma formulas carries pi^(-epsilon).
+
+## Shared project and result code
+
+Projects/Cards.wl composes cards and compiles process definitions.
+Projects/Contributions.wl supplies resolved assembly requests, physical result
+identities and common Born dependency handling. Projects/NLO.wl and
+Projects/Current.wl retain their distinct contribution algorithms.
+
+Coefficients/PartonicResults.wl owns the recursive result schema and scalar
+indexing. Coefficients/PartonicFinalization.wl owns exact pole checks and finite
+extraction; Numerics/PartonicResults.wl adds numerical pole evaluation.
+The standalone Solution.m profile remains independent of these symbolic
+project operations.

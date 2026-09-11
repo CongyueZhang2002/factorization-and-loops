@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
 subtractionRoot=DirectoryName[ExpandFileName[$InputFileName],3];
@@ -9,6 +10,10 @@ subtractionRead[x_]:=If[StringQ[x],If[ToLowerCase[FileExtension[x]]==="wxf",Impo
 subtractionInput=subtractionRead[First[subtractionArgs]];
 If[!AssociationQ[subtractionInput]||!AssociationQ[Lookup[subtractionInput,"EndpointSolutions",None]],
  Print["EndpointSubtractionRequestRequired"];Exit[2]];
+subtractionFormat=Lookup[subtractionInput,"ResultFormat","PartonicResult"];
+If[!MemberQ[{"PartonicResult","EndpointDensity"},subtractionFormat]||
+ !AssociationQ[Lookup[subtractionInput,"ResultMetadata",None]],
+ Print["Explicit ResultMetadata and a supported ResultFormat are required"];Exit[2]];
 subtractionInterior=subtractionRead[subtractionInput["InteriorDensity"]];
 subtractionEndpoints=Map[subtractionRead,subtractionInput["EndpointSolutions"]];
 subtractionCompute[]:=AssembleEndpointSubtractedDensity[subtractionInterior,subtractionEndpoints,subtractionInput["Request"]];
@@ -36,8 +41,11 @@ If[KeyExistsQ[subtractionResult,"ColorComponents"]&&TrueQ[Lookup[subtractionInpu
  subtractionCompactionSeconds=First[AbsoluteTiming[
   subtractionResult=FeynFacet`CompactFiniteDistributionResult[subtractionResult]]];
  If[FailureQ[subtractionResult],Print[subtractionResult];Exit[1]]];
-If[!AssociationQ[Lookup[subtractionInput,"ResultMetadata",None]],Print["ResultMetadataRequired"];Exit[2]];
-subtractionResult=FeynFacet`PartonicResultFromEndpointDensity[subtractionResult,subtractionInput["ResultMetadata"]];
+(* Generalized endpoint distributions remain explicit when requested.
+   This does not identify them with the standard delta/logarithmic-plus basis. *)
+subtractionResult=Switch[subtractionFormat,
+ "PartonicResult",FeynFacet`PartonicResultFromEndpointDensity[subtractionResult,subtractionInput["ResultMetadata"]],
+ "EndpointDensity",Join[subtractionResult,<|"ResultIdentity"->subtractionInput["ResultMetadata"]|>]];
 If[FailureQ[subtractionResult],Print[subtractionResult];Exit[1]];
 subtractionFile=ExpandFileName[Last[subtractionArgs]];
 If[!DirectoryQ[DirectoryName[subtractionFile]],CreateDirectory[DirectoryName[subtractionFile],CreateIntermediateDirectories->True]];
@@ -45,8 +53,8 @@ subtractionTemporary=subtractionFile<>".partial";
 If[Export[subtractionTemporary,subtractionResult,"WXF",PerformanceGoal->"Size"]===$Failed,Print["EndpointDensityWriteFailed"];Exit[1]];
 If[Import[subtractionTemporary,"WXF"]=!=subtractionResult,Print["EndpointDensityReadBackMismatch"];Exit[1]];
 RenameFile[subtractionTemporary,subtractionFile,OverwriteTarget->True];
-subtractionSummary=Join[KeyTake[subtractionResult,{"Format","Status","EpsilonRange","MasterCount","UnknownInitialConstantCount"}],
- <|"AssemblySeconds"->subtractionSeconds,"ColorCollectionSeconds"->subtractionColorSeconds,"CompactionAndVerificationSeconds"->subtractionCompactionSeconds,
+subtractionSummary=Join[KeyTake[subtractionResult,{"Format","DataType","Status","EpsilonRange","EpsilonOrderRange","MasterCount","UnknownInitialConstantCount"}],
+ <|"ResultFormat"->subtractionFormat,"AssemblySeconds"->subtractionSeconds,"ColorCollectionSeconds"->subtractionColorSeconds,"CompactionAndVerificationSeconds"->subtractionCompactionSeconds,
  "ComputationTimings"->Lookup[subtractionResult,"ComputationTimings",<||>],
  "EpsilonRemainderAudit"->If[AssociationQ[subtractionAudit],KeyTake[subtractionAudit,
    {"Status","ChecksByStage","DistinctMultiplierChecks","RepeatedMultiplierChecksReused"}],None],

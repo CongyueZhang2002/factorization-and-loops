@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Share exact powered-integral identities across all declared components. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];

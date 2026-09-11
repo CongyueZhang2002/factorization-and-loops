@@ -1,5 +1,9 @@
 # General master-integral production path
 
+This is the master-solution portion of [WORKFLOW.md](../../WORKFLOW.md), not the
+whole diagram-to-hard-function workflow. The current ppHX inputs are indexed in
+[the NNLO channel guide](../../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/README.md).
+
 A closed differential system and requested master epsilon orders enter
 `ConstructMasterIntegralSolution`. It determines sufficient expansion orders,
 prepares the connection, constructs explicit finite coefficients, and writes
@@ -161,24 +165,24 @@ GPL is optional because conversion can increase file size and numerical cost.
 Checks are proportional to a change; ordinary runs do not require a new symbolic
 proof or a complete all-family numerical comparison.
 
-## Boundary mathematics and retired implementations
+## Physical boundaries and retired implementations
 
-Active `Private/Transport/Boundary/` modules compute local Frobenius expansions,
-residues, mode matching and induced boundary-function DEs.
-`Private/Transport/Orders/` handles Laurent and expansion-order mathematics.
-`Private/Transport/Functions/` contains optional GPL/elliptic kernel conversion.
+Active FeynFacet/Boundary modules construct physical relations, integrate
+boundary coefficients and apply ordinary/singular matching to explicit finite
+solutions. Local Frobenius mathematics belongs to
+FeynFacet/DifferentialEquations/LocalAnalysis; sufficient-order propagation
+belongs to FeynFacet/Solutions/Orders; generic GPL operations belong to
+FeynFacet/Functions. See [the Boundary guide](../Boundary/README.md) for the
+current commands and required physical inputs.
 
-The old lazy coefficient operators, letter-map composition, singular-junction
-adapters and CF303/old physical-boundary campaigns are archived in
-[the dated backup](../../Archive/RetiredCode/FeynFacet/2026-09-06-production-consolidation/README.md).
-They are outside package loading and active test discovery. There are no public
-compatibility aliases or launchers for them.
+Physical-mode selection, completeness of asymptotic regions, branch prescriptions
+and analytic continuation domains remain explicit mathematical requirements.
+A stored solution up to constants does not supply them automatically.
 
-Path concatenation, regularized singular matching, tangential-base-point
-normalization and epsilon propagation through those old matching maps are
-archived capabilities. Connecting these operations to the finite-solution format
-remains unfinished. Keeping local Frobenius/residue algorithms does not, by itself,
-preserve the former end-to-end boundary-composition interface.
+Old lazy coefficient operators and superseded composition implementations are
+under [the dated backup](../../Archive/RetiredCode/FeynFacet/2026-09-06-production-consolidation/README.md).
+They are outside loading and test discovery. Do not use the old
+Private/Transport directory names or archived interfaces as current entry points.
 
 The separate stage-3 and complete-master validation drivers are documented in
 [../Validation/README.md](../Validation/README.md).

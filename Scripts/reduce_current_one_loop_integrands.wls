@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
@@ -10,7 +11,7 @@ If[!AssociationQ[card],Print[card];Exit[1]];
 path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
 source=FeynFacet`FamilyArtifactRead[path<>"/Integrands.wl"];
 If[!AssociationQ[source],Print["Generated current integrands required"];Exit[1]];
-If[FeynFacet`RequireMatchingProcessDefinition[source,FeynFacet`ReadProcessCard[directory,contribution]]=!=True,
+If[FeynFacet`RequireMatchingProcessDefinition[source,FeynFacet`ReadProcessCard[card]]=!=True,
  Print["Generated inputs do not match the current process card; regenerate the contribution"];Exit[1]];
 setup=source["ProcessDefinition"];
 If[setup["ForwardAmplitudes"]["LoopOrder"]=!=1||setup["ConjugateAmplitudes"]["LoopOrder"]=!=0,

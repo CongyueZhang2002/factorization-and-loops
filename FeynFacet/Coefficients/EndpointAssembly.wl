@@ -195,7 +195,7 @@ FeynFacet`DetermineMasterCoefficientEndpointOrders[entries_List,
   "OriginalMasterIntegralBasis"->Lookup[endpoint,"OriginalMasterIntegralBasis",Range[n]],
   "ProjectedMasterIdentities"->If[AllTrue[normalizedEntries,KeyExistsQ[#,"Master"]&],
     coefficientMasterID[#["Master"]]&/@
-     Select[normalizedEntries,Lookup[#,"PartialCoefficientContributions",{}]==={}&&AnyTrue[#["Terms"],!coefficientExactZeroTermQ[#]&]&],{}],
+     Select[normalizedEntries,Lookup[#,"PartialCoefficientContributions",{}]==={}&&(AnyTrue[#["Terms"],!coefficientExactZeroTermQ[#]&]||Lookup[#,"SeparatedCoefficientPoles",{}]=!={})&],{}],
   "SeparatedCoefficientPoles"->Flatten[Lookup[normalizedEntries,"SeparatedCoefficientPoles",{}],1],
   "PartialCoefficientContributions"->Flatten[Lookup[normalizedEntries,"PartialCoefficientContributions",{}],1],
   "GlobalPrefactorIncluded"->True,"GlobalPrefactor"->pref,

@@ -1,7 +1,11 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 assemblyTestRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{assemblyTestRoot,"Tests","TestKit.wl"}]];
 Get[FileNameJoin[{assemblyTestRoot,"FeynFacet","Solutions","Orders","LaurentBounds.wl"}]];
+Get[FileNameJoin[{assemblyTestRoot,"FeynFacet","Integrals","CutFamilies.wl"}]];
+Get[FileNameJoin[{assemblyTestRoot,"FeynFacet","Algebra","RegulatorSeries.wl"}]];
+Get[FileNameJoin[{assemblyTestRoot,"FeynFacet","Algebra","EpsilonRemainders.wl"}]];
 BeginPackage["FeynFacet`"];
 AssembleCutContributions::usage="Assemble weighted cut contributions.";
 NA::usage="An unobserved external leg.";
@@ -91,7 +95,7 @@ FTAssert["inexact master-map factors are rejected before assembly",
   "MasterIntegralRules"->{FeynCalc`GLI["assemblyTestSource",{1}]->0.5FeynCalc`GLI[assemblyTestTarget,{1}]}],
  Failure["ExactMasterIntegralRulesRequired",_Association]]];
 FTAssert["missing and failed master-map factors are rejected before assembly",
- AllTrue[{Missing["UnknownMap"],Failure["UnknownMap",<||>],$Failed},Function[bad,
+ AllTrue[{Missing["UnknownMap"],Failure["UnknownMap",<||>],$Failed,$Aborted},Function[bad,
   MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},
    "MasterIntegralRules"->{FeynCalc`GLI["assemblyTestSource",{1}]->bad}],
   Failure["ExactMasterIntegralRulesRequired",_Association]]]]];
@@ -126,4 +130,88 @@ FTAssert["incomplete observed-parton declarations are rejected",
  MatchQ[FeynFacet`AssembleCutContributions[{
  assemblyTestRecord[FeynCalc`GLI["assemblyTestSource",{1}],{assemblyTestExact[2]},assemblyTestTopology["assemblyTestSource"],assemblyTestMalformed]},
  "Weights"->{1}],Failure["PhysicalPartonDefinitionsRequired",_Association]]];
+
+assemblyTestIndependent=FeynFacet`AssembleCutContributions[
+ {assemblyTestString,assemblyTestRecord[FeynCalc`GLI["assemblyTestSource",{1}],
+  {assemblyTestExact[7]},assemblyTestTopology["assemblyTestSource",1]]},
+ "Weights"->{1,1},
+ "MasterIntegralRulesByContribution"->{
+  {FeynCalc`GLI["assemblyTestSource",{1}]->FeynCalc`GLI["assemblyTestTarget",{1}]},
+  {FeynCalc`GLI["assemblyTestSource",{1}]->FeynCalc`GLI["assemblyTestOtherTarget",{1}]}},
+ "TargetTopologies"->{assemblyTestTopology["assemblyTestTarget"],assemblyTestTopology["assemblyTestOtherTarget",1]}];
+FTAssert["independent source family names receive their own exact maps",
+ AssociationQ[assemblyTestIndependent]&&Length[assemblyTestIndependent["Masters"]]===2&&
+ Sort[(First[Values[assemblyTestExpand[#,{0,0}]["Coefficients"]]]&/@assemblyTestIndependent["Masters"])]==={2,7}];
+FTAssert["a contribution cannot silently inherit an omitted rule set",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString,assemblyTestSymbol},"Weights"->{1,1},
+ "MasterIntegralRulesByContribution"->{{}}],
+ Failure["OneMasterIntegralRuleSetPerContributionRequired",_Association]]];
+FTAssert["global and per-contribution map specifications cannot conflict",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},
+ "MasterIntegralRules"->{FeynCalc`GLI["assemblyTestSource",{1}]->0},
+ "MasterIntegralRulesByContribution"->{{}}],
+ Failure["OneMasterIntegralRuleSetPerContributionRequired",_Association]]];
+
+(* Complete definitions and bound maps remain attached across file round-trips. *)
+assemblyTestChangeTop[record_,topologies_]:=Join[record,<|
+ "Definitions"->Join[record["Definitions"],<|"Topologies"->topologies|>]|>];
+FTAssert["different acceptance domains cannot be identified by the identity fallback",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestChangeTop[assemblyTestString,
+  {Append[assemblyTestTopology["assemblyTestSource"],"AdditionalAcceptanceBoundaries"->assemblyTestLoop>0]}]},
+  "Weights"->{1},"TargetTopologies"->{Append[assemblyTestTopology["assemblyTestSource"],
+  "AdditionalAcceptanceBoundaries"->assemblyTestLoop>1]}],Failure["UnmappedMasterTopologyMismatch",_Association]]];
+FTAssert["same named target definitions cannot overwrite a different measure",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},
+ "TargetTopologies"->{Append[assemblyTestTopology["assemblyTestSource"],"MeasurePrefactor"->1],
+  Append[assemblyTestTopology["assemblyTestSource"],"MeasurePrefactor"->2]}],
+ Failure["InconsistentTargetTopology",_Association]]];
+FTAssert["duplicate source family names are rejected before constructing a lookup",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestChangeTop[assemblyTestString,
+  {assemblyTestTopology["assemblyTestSource"],assemblyTestTopology["assemblyTestSource"]}]},
+ "Weights"->{1}],Failure["DuplicateSourceTopologyNames",_Association]]];
+assemblyTestSpin=assemblyTestRecord[FeynCalc`GLI["assemblyTestSource",{1}],{assemblyTestExact[2]},
+ assemblyTestTopology["assemblyTestSource"],Append[assemblyTestSetup,
+ "HadronLongSpin"->({1,1}->{0,0,0,0})]];
+FTAssert["incoming polarization projections must agree",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString,assemblyTestSpin},"Weights"->{1,1}],
+ Failure["ContributionPolarizationOrConventionMismatch",_Association]]];
+assemblyTestScheme=Join[assemblyTestString,<|"Definitions"->Append[assemblyTestString["Definitions"],
+ "AnalyticContext"-><|"Gamma5Scheme"->"Larin"|>]|>];
+FTAssert["analytic conventions cannot be combined silently",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString,assemblyTestScheme},"Weights"->{1,1}],
+ Failure["ContributionPolarizationOrConventionMismatch",_Association]]];
+FTAssert["aborted values cannot become contribution weights or overall factors",
+ AllTrue[{{"Weights"->{$Aborted}},{"Weights"->{1},"AdditionalFactor"->$Aborted}},
+  MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},Sequence@@#],
+   Failure["ExactContributionWeightsRequired",_Association]]&]];
+assemblyTestTargetCatalog=<|"Families"->{assemblyTestTopology["assemblyTestTarget"]},
+ "Integrals"->{FeynCalc`GLI["assemblyTestTarget",{1}]},"Normalization"->1|>;
+assemblyTestRead=FeynFacet`ReadMasterIntegralCoefficients[assemblyTestString];
+assemblyTestBound=<|"DataType"->"CutIntegralCatalogMatch","Status"->"Complete",
+ "SourceDefinitions"->assemblyTestRead["Definitions"],
+ "SourceIntegrals"->Lookup[assemblyTestRead["Masters"],"Master"],
+ "TargetCatalog"->assemblyTestTargetCatalog,
+ "Rules"->{FeynCalc`GLI["assemblyTestSource",{1}]->FeynCalc`GLI["assemblyTestTarget",{1}]}|>;
+FTAssert["a bound singular map supplies its target definitions",
+ AssociationQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},
+  "MasterIntegralRules"->BinaryDeserialize[BinarySerialize[assemblyTestBound]]]]];
+FTAssert["bound source definitions are checked for singular and per-contribution maps",
+ AllTrue[{{"MasterIntegralRules"->Append[assemblyTestBound,"SourceDefinitions"-><||>]},
+  {"MasterIntegralRulesByContribution"->{Append[assemblyTestBound,"SourceIntegrals"->{}]}}},
+  MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},Sequence@@#],
+  Failure["MatchingCompleteSourceCatalogRequired",_Association]]&]];
+FTAssert["direct target topologies cannot bypass bound target definitions",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},
+ "MasterIntegralRules"->assemblyTestBound,"TargetTopologies"->{assemblyTestTopology["assemblyTestTarget",1]}],
+ Failure["BoundTargetTopologyMismatch",_Association]]];
+FTAssert["a different explicit target catalog cannot replace a bound catalog",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},
+ "MasterIntegralRulesByContribution"->{assemblyTestBound},
+ "TargetCatalog"->Append[assemblyTestTargetCatalog,"Normalization"->2]],
+ Failure["BoundTargetCatalogMismatch",_Association]]];
+FTAssert["an incomplete catalog match cannot be used as an exact map",
+ MatchQ[FeynFacet`AssembleCutContributions[{assemblyTestString},"Weights"->{1},
+ "MasterIntegralRules"->Append[assemblyTestBound,"Status"->"UnmatchedIntegralsRemain"]],
+ Failure["MatchingCompleteSourceCatalogRequired",_Association]]];
+
 FTReport[];

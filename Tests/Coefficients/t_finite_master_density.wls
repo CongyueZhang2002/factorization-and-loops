@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 finiteDensityTestRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{finiteDensityTestRoot,"Tests","TestKit.wl"}]];
 Get[FileNameJoin[{finiteDensityTestRoot,"FeynFacet","Algebra","RegulatorSeries.wl"}]];
@@ -7,6 +8,7 @@ Get[FileNameJoin[{finiteDensityTestRoot,"FeynFacet","Solutions","Orders","Lauren
 Get[FileNameJoin[{finiteDensityTestRoot,"FeynFacet","Solutions","Representation.wl"}]];
 Get[FileNameJoin[{finiteDensityTestRoot,"FeynFacet","Solutions","SharedDefinitions.wl"}]];
 Begin["FeynFacet`Private`"];
+Get[FileNameJoin[{Global`finiteDensityTestRoot,"FeynFacet","Core","ParallelTasks.wl"}]];
 Get[FileNameJoin[{Global`finiteDensityTestRoot,"FeynFacet","Coefficients","FinalResults.wl"}]];
 $feynFacetEpsilon=Global`finiteDensityTestEpsilon;
 End[];
@@ -157,8 +159,8 @@ FTAssert["meromorphic sum bounds retain elementary regulator factors",
   Pi^finiteDensityTestEpsilon/finiteDensityTestEpsilon^2,finiteDensityTestEpsilon]===-2];
 FTAssert["a cancelled meromorphic sum gives a conservative lower bound",
  FeynFacet`DetermineMeromorphicLaurentLowerBound[Exp[finiteDensityTestEpsilon]-1,finiteDensityTestEpsilon]===0];
-FTAssert["a reciprocal never negates an unproved structural denominator bound",
- FailureQ[FeynFacet`DetermineMeromorphicLaurentLowerBound[1/(Exp[finiteDensityTestEpsilon]-1),finiteDensityTestEpsilon]]];
+FTAssert["a reciprocal uses the proved first nonzero denominator coefficient",
+ FeynFacet`DetermineMeromorphicLaurentLowerBound[1/(Exp[finiteDensityTestEpsilon]-1),finiteDensityTestEpsilon]===-1];
 finiteDensityTestMeromorphic=finiteDensityTestTable;
 finiteDensityTestMeromorphic["Masters"]=ReplacePart[finiteDensityTestMeromorphic["Masters"],
  {1,"Terms"}->{finiteDensityTestExact[2^finiteDensityTestEpsilon+2finiteDensityTestEpsilon]}];
@@ -206,6 +208,24 @@ finiteDensityTestCorruptResults=FeynFacet`AssembleFiniteMasterIntegralDensity[#,
  {finiteDensityTestTable,finiteDensityTestChanged};
 FTAssert["a corrupted saved coefficient function is rejected instead of silently reused",
  AnyTrue[finiteDensityTestCorruptResults,MatchQ[#,Failure["SavedCoefficientFunctionInvalid",_Association]]&]];
+finiteDensityZeroPadded=Join[finiteDensityTestB,<|
+ "RequestedMasterIntegralOrderRanges"-><|1->{-2,0}|>,
+ "MasterIntegralCoefficients"->Join[<|-2->{1->0},-1->{1->0}|>,finiteDensityTestB["MasterIntegralCoefficients"]]|>];
+finiteDensityZeroPaddedResult=FeynFacet`AssembleFiniteMasterIntegralDensity[
+ finiteDensityTestTable,Append[finiteDensityTestSources,"familyB"->finiteDensityZeroPadded],finiteDensityTestRequest];
+FTAssert["explicit leading zero master orders do not demand spurious coefficient orders",
+ AssociationQ[finiteDensityZeroPaddedResult]&&finiteDensityZeroPaddedResult["Coefficients"]===finiteDensityTestResult["Coefficients"]&&
+ SelectFirst[finiteDensityZeroPaddedResult["MasterOrderRequirements"],#["Solution"]==="familyB"&]["ExactZeroMasterCoefficientOrders"]==={-2,-1}];
+finiteDensityMissingZero=Append[finiteDensityZeroPadded,"MasterIntegralCoefficients"->
+ KeyDrop[finiteDensityZeroPadded["MasterIntegralCoefficients"],-1]];
+FTAssert["a missing stored master coefficient is never inferred to vanish",
+ FailureQ[FeynFacet`AssembleFiniteMasterIntegralDensity[
+  finiteDensityTestTable,Append[finiteDensityTestSources,"familyB"->finiteDensityMissingZero],finiteDensityTestRequest]]];
+finiteDensityGenuinePole=Append[finiteDensityZeroPadded,"MasterIntegralCoefficients"->
+ Append[finiteDensityZeroPadded["MasterIntegralCoefficients"],-1->{1->1}]];
+FTAssert["a nonzero pole keeps its coefficient epsilon demand",
+ FailureQ[FeynFacet`AssembleFiniteMasterIntegralDensity[
+  finiteDensityTestTable,Append[finiteDensityTestSources,"familyB"->finiteDensityGenuinePole],finiteDensityTestRequest]]];
 DeleteDirectory[finiteDensityTestDirectory,DeleteContents->True];
 
 FTReport[];

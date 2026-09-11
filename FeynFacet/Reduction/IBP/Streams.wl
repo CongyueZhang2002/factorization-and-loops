@@ -914,7 +914,7 @@ kiraStreamImportCore[solveData_Association] := Module[
   manifestData["ContentFingerprint"] = reductionFingerprint[
     kiraStreamManifestPayload[manifestData]
   ];
-  Put[manifestData, kiraStreamManifestFile[building]];
+  FeynFacet`FamilyArtifactWrite[manifestData, kiraStreamManifestFile[building]];
 
   If[! kiraStreamManifestQ[Get[kiraStreamManifestFile[building]], building],
     ibpFail[

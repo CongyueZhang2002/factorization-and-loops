@@ -276,9 +276,6 @@ FeynFacet`EnumerateNLOCollinearChannels[channel_Association,request_Association]
   "Coverage"->"All nonzero kernels within the declared flavor basis, with quark-flavor conservation; confirm the remaining Born channels by diagram generation"|>
  ],"CollinearCounterterms"];
 
-partonicZeroTreeQ[value_Association]:=AllTrue[Values[value],partonicZeroTreeQ];
-partonicZeroTreeQ[value_List]:=AllTrue[value,partonicZeroTreeQ];
-partonicZeroTreeQ[value_]:=TrueQ[value===0];
 collinearBornCorner[row_,0]:=row;
 collinearBornCorner[row_Association,n_Integer?Positive]:=(
  If[!partonicZeroTreeQ[row["PlusCoefficients"]]||!partonicZeroTreeQ[row["RegularCoefficient"]],
