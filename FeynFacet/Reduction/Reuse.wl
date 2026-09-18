@@ -4,7 +4,40 @@ BeginPackage["FeynFacet`"];
 ReuseIntegralReduction::usage="ReuseIntegralReduction[families,targets,reduction] reuses closed IBP rules for exactly identical integral-family definitions, allowing family-name changes. It verifies source target coverage and never interprets an unresolved target as a master.";
 ApplyIntegralReduction::usage="ApplyIntegralReduction[coefficientRows,reduction] substitutes a closed exact integral reduction into sparse external-coefficient rows and cancels the resulting master coefficients with exact rational arithmetic. It retains the row labels and never evaluates or expands the master integrals.";
 TransformIntegralReductionEquations::usage="TransformIntegralReductionEquations[families,reduction] rewrites retained exact reduction identities in new complete inverse-propagator coordinates. Uncovered new targets remain to be solved; the transformed identities can be supplied as ExtraEquations to the common IBP solver.";
+EliminateKnownIntegralRules::usage="EliminateKnownIntegralRules[rows,targets,rules] substitutes supplied exact closed linear integral identities into every sparse equation. It retains all remaining columns, including integrals outside the requested targets, and returns the residual equations and required target images. The identities are assumed established by their producer; this operation does not prove new physical relations or discard unresolved columns.";
 Begin["`Private`"];
+EliminateKnownIntegralRules[rows_List,targets_List,rules_List]:=Catch[Module[
+ {lhs,parsed,objects,columns,masters,output,images,coefficients,rationalQ},
+ If[!AllTrue[rows,AssociationQ]||!MatchQ[rules,{(_Rule)...}]||
+   !AllTrue[targets,MatchQ[#,_FeynCalc`GLI]&],cutFamilyFail["SparseIntegralEquationsAndExactRulesRequired"]];
+ lhs=First/@rules;
+ If[!DuplicateFreeQ[lhs]||!AllTrue[lhs,MatchQ[#,_FeynCalc`GLI]&],
+   cutFamilyFail["DistinctIntegralRuleLeftSidesRequired"]];
+ parsed=linearIntegralSum/@(Last/@rules);
+ If[!AllTrue[parsed,linearIntegralSumQ[#]&&Together[#["Remainder"]]===0&],
+   cutFamilyFail["HomogeneousLinearKnownIntegralRulesRequired"]];
+ objects=Union[Flatten[Keys/@Lookup[parsed,"Terms",{}]]];
+ If[Intersection[objects,lhs]=!={},cutFamilyFail["ClosedKnownIntegralRulesRequired"]];
+ columns=Union[targets,Flatten[Keys/@rows],objects];
+ If[!AllTrue[columns,MatchQ[#,_FeynCalc`GLI]&],cutFamilyFail["IntegralEquationColumnsRequired"]];
+ coefficients=Join[Flatten[Values/@rows],Flatten[Values/@Lookup[parsed,"Terms",{}]]];
+ rationalQ[value_]:=Module[{v=Together[value],variables},
+   variables=DeleteDuplicates[Cases[v,_Symbol,{0,Infinity}]];
+   FreeQ[v,_Real|_Complex|_FeynCalc`GLI]&&PolynomialQ[Numerator[v],variables]&&PolynomialQ[Denominator[v],variables]];
+ If[!AllTrue[DeleteDuplicates[coefficients],rationalQ],cutFamilyFail["ExactRationalKnownIntegralCoefficientsRequired"]];
+ masters=Complement[columns,lhs];
+ output=FeynFacet`ApplyIntegralReduction[AssociationThread[Range[Length[rows]],rows],
+   <|"Rules"->rules,"Masters"->masters|>];
+ If[!AssociationQ[output],cutFamilyFail["KnownIntegralEliminationFailed",<|"Cause"->output|>]];
+ output=DeleteDuplicates[DeleteCases[Values[output],<||>]];
+ images=targets/.Dispatch[rules];
+ <|"Format"->"FeynFacet-ResidualIntegralEquations","Rows"->output,
+   "Targets"->Union[Cases[images,_FeynCalc`GLI,{0,Infinity}]],"OriginalTargets"->targets,
+   "TargetImages"->images,"KnownRules"->rules,"OriginalEquationCount"->Length[rows],
+   "OriginalColumnCount"->Length[Union[Flatten[Keys/@rows]]],
+   "ResidualColumnCount"->Length[Union[Flatten[Keys/@output]]],
+   "Scope"->"Exact substitution of supplied closed identities into all equations. Every remaining integral column is retained; no master minimality or new physical relation is inferred."|>
+],"CutFamily"];
 ReuseIntegralReduction[families:{__Association},targets_List,reduction_Association]:=Catch[Module[
  {old=Lookup[reduction,"Families",{}],signature,positions,newToOld,oldToNew,mapped,known,rules,
   masters,images,missing,selected},
@@ -36,7 +69,7 @@ ReuseIntegralReduction[families:{__Association},targets_List,reduction_Associati
    "AllTargetsCovered"->True,"ClosedOnDeclaredMasters"->True|>|>]
 ],"CutFamily"];
 ApplyIntegralReduction[rows_Association,reduction_Association]:=Catch[Module[
- {rules,masters,images=<||>,local,objects,coefficients,output,terms,result,final,parsed},
+  {rules,masters,images=<||>,local,objects,coefficients,output,terms,result,final,parsed,offset=0},
  rules=Lookup[reduction,"Rules",None];masters=Lookup[reduction,"Masters",None];
  If[!MatchQ[rules,{(_Rule)...}]||!ListQ[masters]||!AllTrue[Values[rows],AssociationQ],
   cutFamilyFail["ClosedReductionAndSparseCoefficientRowsRequired"]];
@@ -54,9 +87,15 @@ ApplyIntegralReduction[rows_Association,reduction_Association]:=Catch[Module[
   terms=Flatten[KeyValueMap[Function[{integral,coefficient},
     KeyValueMap[#1->coefficient #2&,images[integral]]],row],1];
   result=If[terms==={},<||>,Merge[terms,Total]];
-  coefficients=FeynFacet`CancelRationalCoefficients[Values[result]];
+   name->result],rows];
+  (* Cancel one batch, allowing the backend to deduplicate and split large
+     inputs. A native-process launch for every sparse equation is prohibitive. *)
+  coefficients=FeynFacet`CancelRationalCoefficients[Flatten[Values/@Values[output]]];
   If[!ListQ[coefficients],cutFamilyFail["ReducedCoefficientCancellationFailed",<|"Cause"->coefficients|>]];
-  name->Select[AssociationThread[Keys[result],coefficients],#=!=0&]],rows];
+  output=Map[Function[row,Module[{n=Length[row],values},
+    If[n===0,Return[<||>]];
+    values=coefficients[[offset+Range[n]]];offset+=n;
+    Select[AssociationThread[Keys[row],values],#=!=0&]]],output];
  final=Lookup[reduction,"FinalBasisReduction",None];
  If[final=!=None,
   If[!AssociationQ[final]||KeyExistsQ[final,"FinalBasisReduction"],

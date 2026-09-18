@@ -1,4 +1,4 @@
-# Leading-order QCD energy-energy correlation
+# Electron–positron energy-energy correlation
 
 This project reproduces the full massless vector-current e+e- EEC through
 order alpha_s, including self pairs and both angular endpoints. All process
@@ -145,8 +145,8 @@ The NNLO two-body Virtual raw contribution is also generated and integrated,
 including the two-loop/tree interference, the one-loop square and the exactly
 vanishing generated two-gluon candidate. It retains its Laurent poles. An
 independent one-loop form-factor product checks the square through its finite
-coefficient. Four-body physical master integration and measured real-virtual
-integration are still required for the complete result. See the campaign record
+coefficient. Four-body physical master integration remains required for the complete result.
+The full raw real–virtual distribution has since been accepted (details below). See the campaign record
 for timing, reuse and the current DE job.
 
 The one-loop three-particle source can now be generated from its card with
@@ -184,9 +184,10 @@ cover, and establishes the external-prescription limit in a convergent
 negative-epsilon neighborhood. It retains the virtual causal phase. The second
 constructs exact regulator-dependent Taylor subtractions and partially integrated
 face/corner terms. Results are `Work/InclusiveScalarLoopEndpointCharts.wl` and
-`Work/InclusiveScalarLoopSubtractions.wl`. They are integration inputs: the finite
-strata still must be integrated before an inclusive rate or accepted RV result
-exists. These stages never insert a measured literature coefficient.
+`Work/InclusiveScalarLoopSubtractions.wl`. They are alternative integration inputs; their finite strata have not been
+integrated. The accepted inclusive rate instead uses the original-source IBP
+reduction and the physical scalar providers described below. Neither route
+inserts a measured literature coefficient.
 
 The inclusive preparation now also proves that its measurement coordinates
 exhaust the original phase space, rather than just producing a regular square.
@@ -205,7 +206,8 @@ exact mixed cut/virtual changes of loop momentum group them into eight classes,
 and coefficient cancellation leaves seven scalar integrals to evaluate. These
 are not asserted to be independent masters. The coefficients use a single
 dimensional regulator after substituting D=4-2 epsilon in the native relations.
-Physical scalar values remain to be applied before obtaining the inclusive rate.
+The seven scalar values and their contracted inclusive rate are now saved by
+the following stages.
 
 Typed Kira imports now use the native initial IBP-system master declaration.
 FireFly's `masters.final` instead lists reconstructed RHS identifiers and can
@@ -242,3 +244,12 @@ card definition. Corrected or interrupted source regeneration cannot pair stale
 interiors with a new rate. Explicit contacts outside the declared endpoints are
 rejected. The NNLO result card now selects DoubleReal, RealVirtual, Virtual and
 Counter-UV, but must not be assembled as complete until DoubleReal is solved.
+
+Future derivative reductions may request `EliminateKnownRules -> True`. This
+substitutes the accepted physical integral identities before native reconstruction;
+the residual system retains every remaining integral column. Known rules are
+included in the workspace definition, so changing them requires a new workspace.
+No running reconstruction is migrated. The corresponding low-level option is
+`KnownIntegralRules` in `KiraReduction`. The supplied identities must be exact,
+closed, linear and compatible with the typed families. Their physical validity
+comes from the earlier reduction, not from substitution itself.

@@ -237,7 +237,9 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
  {records,directory,extension,generated,seeds,equationRecord,equations,unknowns,names,familyOrder,idMap,idRules,
   variables,variableNames,variableRules,reverseVariables,coefficientText,coefficientValues,rows,text,project,
   imported,declared,closed,seconds,generationSeconds,generationWorkers,jobs,totalEquationCount,familySeedCounts,generationWorkerSeconds=Missing["NotRetained"],generationKernelCount=Missing["NotRetained"],definition,cachedIdentifiers,cachedResult,finish,head=Global`FeynFacetIBP,aliases,
-  scaleNormalization=None,scale=Lookup[request,"HomogeneousScale",None],restoredRules,
+   scaleNormalization=None,scale=Lookup[request,"HomogeneousScale",None],restoredRules,
+   knownRules=Lookup[request,"KnownIntegralRules",{}],solveTargets=targets,elimination=None,
+   eliminationSeconds=0,composed,residualIsZero=False,
   solver=Lookup[request,"RationalSolver","Fermat"]},
  If[Lookup[request,"EquationSource","TypedIBP"]==="NativeDiagnostic",
   Return[kiraNativeCutFamilyReduction[families,targets,request]]];
@@ -246,8 +248,16 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
  records=FeynFacet`CreateCutIntegralFamily/@families;
  If[!AllTrue[records,AssociationQ],cutFamilyFail["ValidatedCutIntegralFamiliesRequired"]];
  names=First[#["Topology"]]&/@records;
- If[!DuplicateFreeQ[names]||!ContainsAll[names,First/@targets]||!AllTrue[targets,VectorQ[#[[2]],IntegerQ]&]||
-   validateCutGLIs[targets,records]=!=True,cutFamilyFail["DistinctFamiliesAndUnpinchedTargetsRequired"]];
+  If[!DuplicateFreeQ[names]||!ContainsAll[names,First/@targets]||!AllTrue[targets,VectorQ[#[[2]],IntegerQ]&]||
+    validateCutGLIs[targets,records]=!=True,cutFamilyFail["DistinctFamiliesAndUnpinchedTargetsRequired"]];
+  If[!MatchQ[knownRules,{(_Rule)...}]||validateCutGLIs[knownRules,records]=!=True,
+    cutFamilyFail["ExactUnpinchedKnownIntegralRulesRequired"]];
+  If[knownRules=!={},
+   elimination=FeynFacet`EliminateKnownIntegralRules[{},targets,knownRules];
+   If[!AssociationQ[elimination],cutFamilyFail["ClosedKnownIntegralRulesRequired",<|"Cause"->elimination|>]];
+   solveTargets=elimination["Targets"];
+   If[Intersection[Lookup[request,"PreferredMasterIntegrals",{}],First/@knownRules]=!={},
+    cutFamilyFail["PreferredMastersMustRemainAfterKnownRuleElimination"]]];
  If[!StringQ[Lookup[request,"WorkingDirectory",None]],cutFamilyFail["KiraWorkingDirectoryRequired"]];
  directory=ExpandFileName[request["WorkingDirectory"]];
  extension=Lookup[request,"SeedExtension",{1,1}];
@@ -255,28 +265,36 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
  definition=<|"Format"->"FeynFacet-KiraCutFamilyInput","EquationSource"->"TypedIBP","EquationVersion"->3,
   "Families"->(KeyTake[# ,{"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"}]&/@records),
   "Targets"->Sort[DeleteDuplicates[targets]],"SeedExtension"->extension|>;
- definition=Join[definition,KeyTake[request,{"SeedIntegrals","SeedPolicy","PreferredMasterIntegrals","ExtraEquations","HomogeneousScale","RationalSolver"}]];
+  definition=Join[definition,KeyTake[request,{"SeedIntegrals","SeedPolicy","PreferredMasterIntegrals","ExtraEquations","HomogeneousScale","RationalSolver","KnownIntegralRules"}]];
  directory=cutKiraSelectWorkspace[directory,definition,Lookup[request,"NewWorkspaceForChangedInputs",False]];
  cutKiraWorkspaceDefinition[directory,definition];
  finish[initialRules_,initialDeclared_,solveSeconds_,equationCount_,seedCounts_,generationTime_]:=Module[{result},
-  closed=cutKiraCloseSelectedReduction[project,initialRules,targets,initialDeclared,records,request];
+   closed=If[solveTargets==={},<|"Rules"->{},"Masters"->{},"SolutionWorkspace"->directory,
+     "SelectionClosure"-><|"Status"->"AllTargetsZeroByKnownRules","DeclaredMasterSource"->"SuppliedExactRules","Iterations"->{}|>|>,
+     cutKiraCloseSelectedReduction[project,initialRules,solveTargets,initialDeclared,records,request]];
   restoredRules=If[AssociationQ[scaleNormalization],
     FeynFacet`RestoreIntegralEquationScale[closed["Rules"],scaleNormalization],closed["Rules"]];
-  If[!ListQ[restoredRules],cutFamilyFail["OriginalIntegralScaleRestorationFailed",<|"Cause"->restoredRules|>]];
-  result=<|"Format"->"FeynFacet-CutFamilyReduction","FormatVersion"->1,"Families"->records,"Targets"->targets,
-   "Rules"->restoredRules,"Masters"->closed["Masters"],"SelectionClosure"->closed["SelectionClosure"],
+   If[!ListQ[restoredRules],cutFamilyFail["OriginalIntegralScaleRestorationFailed",<|"Cause"->restoredRules|>]];
+   composed=If[knownRules==={},<|"Rules"->restoredRules,"Masters"->closed["Masters"]|>,
+     ibpCloseReductionRules[Join[knownRules,restoredRules],targets]];
+   result=<|"Format"->"FeynFacet-CutFamilyReduction","FormatVersion"->1,"Families"->records,"Targets"->targets,
+    "Rules"->composed["Rules"],"Masters"->composed["Masters"],"SelectionClosure"->closed["SelectionClosure"],
    "Workspace"->closed["SolutionWorkspace"],"InputWorkspace"->directory,"Seconds"->solveSeconds,
    "EquationSource"->"TypedIBP","RationalSolver"->solver,"NativeSymmetriesUsed"->False,"NativeZeroSectorsUsed"->False,
    "EquationGenerationSeconds"->generationTime,
    "EquationGenerationWorkerSeconds"->generationWorkerSeconds,
-   "EquationGenerationKernels"->generationKernelCount,
+    "EquationGenerationKernels"->generationKernelCount,
+    "KnownRuleEliminationSeconds"->eliminationSeconds,
+    "KnownRuleElimination"->If[AssociationQ[elimination],KeyTake[elimination,
+      {"OriginalEquationCount","OriginalColumnCount","ResidualColumnCount","Scope"}],None],
    "EquationCount"->equationCount,"SeedCounts"->seedCounts,
    "IndexedIntegralCount"->Length[unknowns],"OrdinaryPrescriptionLimitEstablished"->False,
    "MasterMinimality"->"Not asserted beyond the supplied IBP seed closure",
    "EquationScaleNormalization"->If[AssociationQ[scaleNormalization],KeyTake[scaleNormalization,
      {"Scale","PropagatorScaleWeights","EquationCount","ExactChangeOfUnknownsEstablished","Convention"}],None]|>;
-  FamilyArtifactWrite[result,FileNameJoin[{directory,"Reduction.wl"}],Compression->Automatic];
-  result];
+   FamilyArtifactWrite[result,FileNameJoin[{directory,"Reduction.wl"}],Compression->Automatic];
+   result];
+  If[solveTargets==={},unknowns={};Return[finish[{}, {},0,0,{},0]]];
  If[TrueQ[Lookup[request,"ReuseSavedReduction",True]]&&FileExistsQ[FileNameJoin[{directory,"Reduction.wl"}]],
   cachedResult=FamilyArtifactRead[FileNameJoin[{directory,"Reduction.wl"}]];
   If[AssociationQ[cachedResult]&&Lookup[cachedResult,"Format",None]==="FeynFacet-CutFamilyReduction"&&
@@ -286,10 +304,16 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
    AllTrue[{"IntegralIdentifiers.wxf","equations.kira","targets"},
     FileExistsQ[FileNameJoin[{directory,#}]]&],
   cachedIdentifiers=FamilyArtifactRead[FileNameJoin[{directory,"IntegralIdentifiers.wxf"}]];
-  If[AssociationQ[cachedIdentifiers]&&ContainsAll[Keys[cachedIdentifiers],
-    {"IndexedIntegrals","IdentifierHead","CoefficientDecodeRules"}],
+   If[AssociationQ[cachedIdentifiers]&&ContainsAll[Keys[cachedIdentifiers],
+     {"IndexedIntegrals","IdentifierHead","CoefficientDecodeRules"}],
+    If[knownRules=!={},
+     elimination=FamilyArtifactRead[directory<>"/EquationElimination.wl"];
+     If[!AssociationQ[elimination]||Lookup[elimination,"Targets",None]=!=solveTargets||
+       Lookup[elimination,"OriginalTargets",None]=!=targets,
+      cutFamilyFail["SavedResidualIntegralEquationDefinitionRequired"]];
+     residualIsZero=elimination["ResidualColumnCount"]===0];
    unknowns=cachedIdentifiers["IndexedIntegrals"];head=cachedIdentifiers["IdentifierHead"];
-   If[scale=!=None,
+   If[scale=!=None&&!residualIsZero,
     scaleNormalization=FamilyArtifactRead[directory<>"/EquationScaleNormalization.wl"];
     If[!AssociationQ[scaleNormalization]||Lookup[scaleNormalization,"Scale",None]=!=scale,
      cutFamilyFail["SavedIntegralEquationScaleNormalizationRequired"]]];
@@ -297,6 +321,8 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
    project=Join[cachedIdentifiers,<|"Directory"->directory,"Runtime"->ibpRuntime[],
     "Manifest"->{<|"Name"->head|>},"EquationSource"->"TypedIBP",
     "InputFingerprint"->reductionFingerprint[definition],"IntegralIndex"->idMap|>];
+   If[residualIsZero,Return[finish[{},solveTargets,0,elimination["OriginalEquationCount"],
+     Missing["RetainedEquationFile"],0]]];
    {seconds,imported}=AbsoluteTiming[
     If[!FileExistsQ[directory<>"/results/FeynFacetIBP/kira_targets.m"],
      Print["Resuming the native solve from verified typed IBP equation files"];
@@ -339,19 +365,32 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
  totalEquationCount=Length[equations];familySeedCounts=Length[#["Seeds"]]&/@generated;
  generationWorkerSeconds=Total[Lookup[generated,"GenerationSeconds"]];
  generationKernelCount=Length[DeleteDuplicates[Lookup[generated,"GenerationKernel"]]];
- Clear[generated,jobs,seeds,equationRecord];
- If[scale=!=None,
-  scaleNormalization=cutKiraNormalizeScale[records,equations,targets,scale];
-  equations=scaleNormalization["Rows"];
+  Clear[generated,jobs,seeds,equationRecord];
+  If[knownRules=!={},
+   {eliminationSeconds,elimination}=AbsoluteTiming[
+     FeynFacet`EliminateKnownIntegralRules[equations,targets,knownRules]];
+   If[!AssociationQ[elimination],cutFamilyFail["KnownIntegralEquationEliminationFailed",<|"Cause"->elimination|>]];
+   equations=elimination["Rows"];residualIsZero=equations==={};
+   If[elimination["Targets"]=!=solveTargets,cutFamilyFail["ConsistentResidualTargetsRequired"]];
+   If[FamilyArtifactWrite[KeyDrop[elimination,{"Rows","KnownRules","TargetImages"}],
+     directory<>"/EquationElimination.wl"]===$Failed,cutFamilyFail["IntegralEquationEliminationWriteFailed"]];
+   Print["Substituted ",Length[knownRules]," known integral identities: ",totalEquationCount,
+     " equations -> ",Length[equations]," residual equations; ",elimination["OriginalColumnCount"],
+     " -> ",elimination["ResidualColumnCount"]," equation columns"]];
+  If[scale=!=None,
+   scaleNormalization=If[residualIsZero,None,cutKiraNormalizeScale[records,equations,solveTargets,scale]];
+   If[AssociationQ[scaleNormalization],
+   equations=scaleNormalization["Rows"];
   scaleNormalization=KeyDrop[scaleNormalization,{"Rows","OriginalRowScaleDegrees"}];
   If[FamilyArtifactWrite[scaleNormalization,directory<>"/EquationScaleNormalization.wl",Compression->Automatic]===$Failed,
     cutFamilyFail["IntegralEquationScaleNormalizationWriteFailed"]];
-  Print["Removed equation scale ",scale," by a verified change of integral unknowns"]];
- project=cutKiraPrepareEquationSystem[records,targets,equations,directory,
+   Print["Removed equation scale ",scale," by a verified change of integral unknowns"]]];
+  project=cutKiraPrepareEquationSystem[records,solveTargets,equations,directory,
    Lookup[request,"PreferredMasterIntegrals",{}]];
  Clear[equations];
  project=Join[project,<|"InputFingerprint"->reductionFingerprint[definition]|>];
- unknowns=project["IndexedIntegrals"];head=project["IdentifierHead"];
+  unknowns=project["IndexedIntegrals"];head=project["IdentifierHead"];
+  If[residualIsZero,Return[finish[{},solveTargets,0,totalEquationCount,familySeedCounts,generationSeconds]]];
  Export[FileNameJoin[{directory,"jobs.yaml"}],cutKiraEquationJob[solver],"String"];
  Print["Typed IBP system: ",totalEquationCount," equations, ",Length[unknowns]," integral identifiers"];
  {seconds,imported}=AbsoluteTiming[

@@ -713,3 +713,29 @@ solves and a bounded factor-scan benchmark in a NEW workspace. Those optimizatio
 are not implemented or benchmarked; preserve the healthy current reconstruction.
 The complete NLO coefficient is still unfinished, and no measured NLO literature
 coefficient has been opened or compared.
+
+### Exact residual equations for subsequent reductions (16:14 UTC)
+
+The running native job is preserved. Its current dependency reconstruction has
+advanced from410/420 to418/420 coefficients; the remaining two still need
+additional prime-field probes. No RR DE completion is inferred.
+
+The general `EliminateKnownIntegralRules` operation substitutes accepted closed
+linear identities into every equation and retains all remaining columns, even
+those outside the requested target span. `KiraReduction` accepts the explicit
+`KnownIntegralRules` option, binds those rules in its workspace definition,
+reconstructs the residual targets, restores physical scale factors, and composes
+the original target images. `ConstructCutDifferentialSystem` can select this
+operation for later derivative solves with `EliminateKnownRules -> True`.
+It is opt-in and has not changed the active native reconstruction.
+
+Sparse coefficient application now batches exact cancellation across rows;
+previously each row launched a separate native simplification process. The
+backend still deduplicates expressions and bounds its native input chunks.
+There is no new finite-field or numerical approximation in this change.
+Fourteen residual-system assertions pass in34.137s including startup: agreement
+with an ordinary native reduction, physical-scale restoration, all-column
+retention, exact zero targets, cached/unfinished imports, empty residuals and
+changed-input rejection. The earlier scale/dependency regression also passes in
+38.712s. Receipts are `Archive/Runs/2026-09-18/NLOEECChecks/Residual*.json`.
+This is implementation validation, not a measured RR production speedup.

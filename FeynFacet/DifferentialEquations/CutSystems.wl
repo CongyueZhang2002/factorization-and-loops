@@ -1,7 +1,7 @@
 (* Differentiate the current spanning integrals and reduce their union until
    all requested derivatives close. No preferred process or family enters. *)
 BeginPackage["FeynFacet`"];
-ConstructCutDifferentialSystem::usage="ConstructCutDifferentialSystem[families,targets,parameters,request] builds a closed multivariable DE from typed cut families. It repeatedly reduces all original and derivative targets with explicit IBPs. Request supplies WorkingDirectory, optional MomentumDerivatives indexed by parameter, SeedExtension, GenerationKernels for independent symbolic equation generation, MaximumClosureIterations, rational ValidationPoints for a cheap flatness check, and InitialReduction to resume from compatible exact family reduction rules. Only requested targets and their derivatives determine the evolving basis. No boundary value or master minimality is inferred.";
+ConstructCutDifferentialSystem::usage="ConstructCutDifferentialSystem[families,targets,parameters,request] builds a closed multivariable DE from typed cut families. It repeatedly reduces all original and derivative targets with explicit IBPs. Request supplies WorkingDirectory, optional MomentumDerivatives indexed by parameter, SeedExtension, GenerationKernels for independent symbolic equation generation, MaximumClosureIterations, rational ValidationPoints for a cheap flatness check, and InitialReduction to resume from compatible exact family reduction rules. EliminateKnownRules -> True substitutes accepted closed identities into subsequent systems before reconstruction in new workspaces. Only requested targets and their derivatives determine the evolving basis. No boundary value or master minimality is inferred.";
 IntegralRelationsFromCutDifferentialSystem::usage="IntegralRelationsFromCutDifferentialSystem[system,request] differentiates the declared master integrals with the typed integral definitions and equates them to a known exact DE. It returns rational integral equations for reuse by reduction, not equations inferred from truncated master values. request may supply ScalarRules and MomentumDerivatives.";
 ReduceMasterDifferentialSystem::usage="ReduceMasterDifferentialSystem[system,reduction] restricts an exact multivariable master DE to a subset spanning basis using closed integral identities. It verifies R_selected=Identity and every exact compatibility equation dR+R A_reduced-A_original R=0. With CloseDifferentialRelations -> True it closes differential consequences when the subset still contains dependent integrals. It preserves the generic-kinematic scope of the reduction and does not infer endpoint distribution identities.";
 
@@ -49,7 +49,8 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   allTargets,derivatives,newTargets,history={},matrices,images,iteration,closed=False,
   derivativeRequest,rows,residual,flatness,points,checks,unknown,coefficients,regulator,seconds,
   seedRefinement,seedPlans,seeds,frontier,local,extra,added,refinementHistory={},
-  initial=Lookup[request,"InitialReduction",None],definition,initialRelations,restrictedTargets,restricted},
+  initial=Lookup[request,"InitialReduction",None],definition,initialRelations,restrictedTargets,restricted,
+   eliminateKnown=Lookup[request,"EliminateKnownRules",False],knownRequest},
  If[!DuplicateFreeQ[parameters]||!StringQ[Lookup[request,"WorkingDirectory",None]],
   cutFamilyFail["DistinctDEParametersAndWorkingDirectoryRequired"]];
  records=FeynFacet`CreateCutIntegralFamily/@families;
@@ -64,7 +65,10 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
  If[!AssociationQ[moving]||!SubsetQ[parameters,Keys[moving]],
   cutFamilyFail["MomentumDerivativesIndexedByDEParameterRequired"]];
  baseRequest=KeyDrop[request,{"MomentumDerivatives","MaximumClosureIterations","ValidationPoints",
-  "DimensionalRegulator","DimensionRule","RefineDerivativeSeeds","InitialReduction"}];
+  "DimensionalRegulator","DimensionRule","RefineDerivativeSeeds","InitialReduction","EliminateKnownRules"}];
+  If[!MemberQ[{True,False},eliminateKnown],cutFamilyFail["BooleanKnownRuleEliminationRequired"]];
+  knownRequest[prior_]:=If[TrueQ[eliminateKnown],
+    <|"KnownIntegralRules"->Select[prior["Rules"],First[#]=!=Last[#]&]|>,<||>];
  seedRefinement=Lookup[request,"RefineDerivativeSeeds",Lookup[request,"SeedPolicy","Rectangular"]==="TargetDownsets"];
  If[!MemberQ[{True,False},seedRefinement],cutFamilyFail["BooleanDerivativeSeedRefinementRequired"]];
  allTargets=Sort[DeleteDuplicates[targets]];
@@ -101,7 +105,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   newTargets=Sort[DeleteDuplicates[Join[basis,Cases[derivatives,_FeynCalc`GLI,Infinity]]]];
   If[!SubsetQ[reduction["Targets"],newTargets],
    allTargets=Union[allTargets,newTargets];
-   reduction=FeynFacet`KiraReduction[records,allTargets,Join[baseRequest,
+   reduction=FeynFacet`KiraReduction[records,allTargets,Join[baseRequest,knownRequest[reduction],
     <|"WorkingDirectory"->FileNameJoin[{directory,"DerivativeClosure"<>ToString[iteration]}]|>]];
    If[!AssociationQ[reduction],cutFamilyFail["DerivativeCutReductionFailed",<|"Cause"->reduction|>]]];
   nextBasis=Sort[ibpCloseReductionRules[reduction["Rules"],Union[targets,newTargets]]["Masters"]];
@@ -124,7 +128,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
    If[added=!={},
     AssociateTo[baseRequest,"SeedIntegrals"->Union[seeds,added]];
     Print["Refining derivative reduction with ",Length[added]," predecessor seeds"];
-    reduction=FeynFacet`KiraReduction[records,allTargets,Join[baseRequest,
+    reduction=FeynFacet`KiraReduction[records,allTargets,Join[baseRequest,knownRequest[reduction],
       <|"WorkingDirectory"->FileNameJoin[{directory,"DerivativeSeedRefinement"<>ToString[iteration]}]|>]];
     If[!AssociationQ[reduction],cutFamilyFail["RefinedDerivativeReductionFailed",<|"Cause"->reduction|>]];
     AppendTo[refinementHistory,<|"Iteration"->iteration,"FrontierCount"->Length[frontier],
