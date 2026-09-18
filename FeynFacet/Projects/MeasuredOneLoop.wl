@@ -2,8 +2,23 @@
    the measurement; endpoints and Hermitian completion remain explicit. *)
 BeginPackage["FeynFacet`"];
 PrepareMeasuredCurrentOneLoopContribution::usage="PrepareMeasuredCurrentOneLoopContribution[card,mode] generates a one-loop/tree current interference, reduces the virtual loop, and inserts the card's tuple measurement into physical three-particle phase space. It stores causal scalar integration representations and separate inclusive contacts in the contribution Work directory. This preparation does not write an accepted Results.wl.";
-IntegrateMeasuredCurrentOneLoopInterior::usage="IntegrateMeasuredCurrentOneLoopInterior[card,mode] prepares the card-owned one-loop radiative density, verifies its energy endpoint integrability including original external causal factors, and integrates every noncontact tuple group through the requested Laurent range. It stores explicit GPL coefficients in Work/MeasuredOneLoopInterior.wl, before Hermitian completion and measurement-variable endpoint distributions. Compatible row records may be reused in resume mode.";
+IntegrateMeasuredCurrentOneLoopInterior::usage="IntegrateMeasuredCurrentOneLoopInterior[card,mode] prepares the card-owned one-loop radiative density, verifies its energy endpoint integrability including original external causal factors, adds its conjugate on verified scalar branches, and integrates every noncontact tuple group through the requested Laurent range. It stores Hermitian GPL coefficients in Work/MeasuredOneLoopInterior.wl, before measurement-variable endpoint distributions. Compatible row records may be reused in resume mode.";
+VerifyMeasuredCurrentOneLoopContactOrder::usage="VerifyMeasuredCurrentOneLoopContactOrder[card,mode] proves an ordinary-contact bound for every noncontact tuple density on its full two-variable integration domain and stores Work/MeasuredContactOrder.wl. It uses the original prescribed products and actual measurement maps; inclusive moments and contact coefficients remain separate. Matching proofs may be reused in resume mode.";
 Begin["`Private`"];
+measuredLoopInteriorReusableQ[row_,definition_,density_]:=Module[{range,labels,keys},
+ If[!AssociationQ[row]||Lookup[row,"Format",None]=!="FeynFacet-OneLoopMeasuredInterior"||
+   Lookup[row,"IntegrationDefinition",None]=!=definition||
+   Lookup[Lookup[row,"InputCompanions",<||>],"Density",None]=!=density||
+   !TrueQ[Lookup[row,"IntegralEvaluated",False]]||
+   !TrueQ[Lookup[row,"ConjugateInterferenceAdded",False]]||
+   Lookup[row,"EndpointDistributionIncluded",None]=!=False||
+   !AssociationQ[Lookup[row,"Coefficients",None]],Return[False]];
+ range=definition["EpsilonRange"];labels=Lookup[row,"StructureFunctions",{}];
+ keys=Flatten[Table[{j,k},{j,Length[labels]},{k,First[range],Last[range]}],1];
+ labels=!={}&&Lookup[row,"EpsilonRange",None]===range&&ContainsAll[Keys[row["Coefficients"]],keys]&&
+  TrueQ[Lookup[Lookup[row,"IntegrationEndpointProof",<||>],"WholeEnergyIntervalVerified",False]]&&
+  TrueQ[Lookup[row["IntegrationEndpointProof"],"ExternalPrescriptionLimitEstablished",False]]
+];
 PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]:=Catch[Module[
  {setup,request,geometry,specification,definition,path,file,saved,source,coordinates,kin,
   reduced,normalized,terms,noncontact={},contacts={},one,weight,e=Global`Epsilon,
@@ -73,20 +88,27 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
  projectWrite[output,file];output
 ],"ProjectCards"];
 IntegrateMeasuredCurrentOneLoopInterior[card_Association,mode_String:"resume"]:=Catch[Module[
- {prepared,path,range,rows={},row,file,saved,definition,seconds,timings={},output,coefficients,labels=None},
+ {prepared,path,range,rows={},row,file,saved,definition,seconds,timings={},output,coefficients,labels=None,request,density},
  prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopContribution[card,mode],"PreparedMeasuredLoopContributionRequired"];
  path=card["WorkDirectory"];range=card["EpsilonRange"];
+ request=<|"TimeLimit"->180,"PrintTimings"->True,"ConjugateInterference"->True,
+   "Assumptions"->card["Assembly"]["Assumptions"],
+   "ComplexParameters"->Lookup[prepared["CalculationDefinition"]["ProcessDefinition"],"ComplexParameters",{}]|>;
  Do[
+  density=prepared["NoncontactTerms"][[i]];
   definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],
-   "ParticleTuples"->prepared["NoncontactTerms"][[i]]["ParticleTuples"],"EpsilonRange"->range|>;
+   "ParticleTuples"->density["ParticleTuples"],"EpsilonRange"->range,"IntegrationSchema"->2,
+   "Conjugation"->KeyTake[request,{"ConjugateInterference","Assumptions","ComplexParameters"}]|>;
   file=path<>"/IntegratedScalarLoopRow"<>ToString[i]<>".wl";saved=None;
   If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file]];
-  If[AssociationQ[saved]&&Lookup[saved,"IntegrationDefinition",None]===definition,
-   row=saved;seconds=0,
-   {seconds,row}=AbsoluteTiming[FeynFacet`IntegrateOneLoopMeasurementInterior[prepared["NoncontactTerms"][[i]],range,
-     <|"TimeLimit"->180,"PrintTimings"->True|>]];
+  If[measuredLoopInteriorReusableQ[saved,definition,density],row=saved;seconds=0,
+   {seconds,row}=AbsoluteTiming[FeynFacet`IntegrateOneLoopMeasurementInterior[density,range,request]];
    row=projectCheck[row,"MeasuredLoopInteriorIntegrationFailed"];
-   row=Join[row,<|"IntegrationDefinition"->definition,"ParticleTuples"->definition["ParticleTuples"],"TotalSeconds"->seconds|>];
+   (* Exact input equality binds reuse to the actual prepared mathematics.
+      The existing binary companion stores this input without text duplication
+      or a new content hash. *)
+   row=Join[row,<|"IntegrationDefinition"->definition,"ParticleTuples"->definition["ParticleTuples"],"TotalSeconds"->seconds,
+     "InputCompanions"-><|"Density"->density|>|>];
    projectWrite[row,file]];
   If[labels===None,labels=row["StructureFunctions"]];
   If[labels=!=row["StructureFunctions"],projectFail["CommonMeasuredLoopStructuresRequired"]];
@@ -98,8 +120,40 @@ IntegrateMeasuredCurrentOneLoopInterior[card_Association,mode_String:"resume"]:=
   "DimensionalRegulator"->Global`Epsilon,"EpsilonRange"->range,
   "Variables"->card["Assembly"]["Variables"],"CalculationDefinition"->prepared["CalculationDefinition"],
   "PreparationTimings"->prepared["StageSeconds"],"IntegrationTimings"->timings,
-  "ConjugateInterferenceAdded"->False,"EndpointDistributionIncluded"->False,
-  "Scope"->"Explicit Laurent coefficients on the open measurement domain for one causal amplitude orientation. Self contacts and measurement-variable endpoint distributions remain separate, as does Hermitian completion."|>;
+  "ConjugateInterferenceAdded"->True,"EndpointDistributionIncluded"->False,
+  "Scope"->"Explicit Hermitian Laurent coefficients on the open measurement domain. Self contacts and measurement-variable endpoint distributions remain separate."|>;
  projectWrite[output,path<>"/MeasuredOneLoopInterior.wl"];output
+],"ProjectCards"];
+VerifyMeasuredCurrentOneLoopContactOrder[card_Association,mode_String:"resume"]:=Catch[Module[
+ {prepared,file,saved,definition,inputs,rows={},seconds,proof,output,moments},
+ prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopContribution[card,mode],"PreparedMeasuredLoopContributionRequired"];
+ file=card["WorkDirectory"]<>"/MeasuredContactOrder.wl";
+ definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],"ContactDerivativeOrder"->0,
+   "Assumptions"->card["Assembly"]["Assumptions"]|>;
+ inputs=prepared["NoncontactTerms"];
+ moments=projectCheck[FeynFacet`ConstructFinalStateMeasurementMoments[
+   prepared["CalculationDefinition"]["PhaseSpace"],prepared["CalculationDefinition"]["FinalStateMeasurement"],{0,1}],
+   "GeneratedInclusiveMeasurementMomentWeightsRequired"];
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&Lookup[saved,"Format",None]==="FeynFacet-MeasuredCurrentContactOrder"&&
+    Lookup[saved,"CalculationDefinition",None]===definition&&
+    Lookup[Lookup[saved,"InputCompanions",<||>],"Densities",None]===inputs&&
+    Length[Lookup[saved,"Rows",{}]]===Length[inputs]&&
+    AllTrue[Lookup[saved,"Rows",{}],TrueQ[Lookup[#["Proof"],"CompleteEnergyMeasurementCoverVerified",False]]&&
+      Lookup[#["Proof"],"ContactDerivativeOrderBound",None]===0&],
+   output=Join[saved,<|"MeasurementMoments"->moments,"Reused"->True|>];
+   If[Lookup[saved,"MeasurementMoments",None]=!=moments,projectWrite[output,file]];
+   Return[output,Module]]];
+ Do[
+  {seconds,proof}=AbsoluteTiming[FeynFacet`VerifyOneLoopMeasurementContactOrder[inputs[[i]],0,
+    <|"Assumptions"->card["Assembly"]["Assumptions"],"PrintTimings"->True|>]];
+  proof=projectCheck[proof,"MeasuredContactOrderProofFailed"];
+  AppendTo[rows,<|"Row"->i,"ParticleTuples"->inputs[[i]]["ParticleTuples"],
+    "Proof"->proof,"Seconds"->seconds|>],{i,Length[inputs]}];
+ output=<|"Format"->"FeynFacet-MeasuredCurrentContactOrder","CalculationDefinition"->definition,
+  "ContactDerivativeOrderBound"->0,"Rows"->rows,"MeasurementMoments"->moments,"Reused"->False,
+  "InputCompanions"-><|"Densities"->inputs|>,"ContactCoefficientsDetermined"->False,
+  "Scope"->"Every noncontact tuple group has only ordinary endpoint contact ambiguities after extending its computed interior. Its conjugate obeys the same bound. Explicit self pairs retain their separately declared contact support; they must not be counted twice in subsequent moment completion."|>;
+ projectWrite[output,file];output
 ],"ProjectCards"];
 End[];EndPackage[];

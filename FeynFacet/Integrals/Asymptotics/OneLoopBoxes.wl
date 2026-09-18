@@ -11,7 +11,10 @@ ExpandMasslessBoxCornerJets::usage="ExpandMasslessBoxCornerJets[resolved,orders]
 ExpandAnalyticEndpointFaceJets::usage="ExpandAnalyticEndpointFaceJets[resolved,normalOrders] takes exact face jets of verified analytic Gamma, power, Gauss and Appell endpoint factors. Inactive Gauss functions remain analytic until after their face restriction.";
 ExpandMasslessBoxFaceJets::usage="ExpandMasslessBoxFaceJets[resolved,normalOrders] computes exact-in-epsilon Taylor coefficients of each smooth box factor on a declared face. normalOrders associates any nonempty subset of normal variables to nonnegative jet orders. Tangential variables remain unevaluated functions; coincident or zero Appell arguments reduce exactly to Gauss functions.";
 Begin["`Private`"];
-boxCornerValue[expr_,variables_]:=Cancel[expr]/.Thread[variables->0];
+(* A candidate chart may be singular and will then be rejected by its
+   caller. Suppress only the expected arithmetic messages of this probe. *)
+boxCornerValue[expr_,variables_]:=Quiet[Cancel[expr]/.Thread[variables->0],
+ {Power::infy,Infinity::indet}];
 boxAnalyticZeroAtCornerQ[expr_,variables_,conditions_]:=Module[{value=Cancel[expr],denominator},
  denominator=Denominator[value]/.Thread[variables->0];
  TrueQ[FullSimplify[denominator!=0,Assumptions->conditions]]&&

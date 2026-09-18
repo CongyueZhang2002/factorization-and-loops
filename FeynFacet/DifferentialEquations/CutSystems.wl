@@ -49,7 +49,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   allTargets,derivatives,newTargets,history={},matrices,images,iteration,closed=False,
   derivativeRequest,rows,residual,flatness,points,checks,unknown,coefficients,regulator,seconds,
   seedRefinement,seedPlans,seeds,frontier,local,extra,added,refinementHistory={},
-  initial=Lookup[request,"InitialReduction",None],definitionKeys,initialRelations},
+  initial=Lookup[request,"InitialReduction",None],definition,initialRelations,restrictedTargets,restricted},
  If[!DuplicateFreeQ[parameters]||!StringQ[Lookup[request,"WorkingDirectory",None]],
   cutFamilyFail["DistinctDEParametersAndWorkingDirectoryRequired"]];
  records=FeynFacet`CreateCutIntegralFamily/@families;
@@ -71,10 +71,10 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
  If[initial===None,
   reduction=FeynFacet`KiraReduction[records,allTargets,Join[baseRequest,
    <|"WorkingDirectory"->FileNameJoin[{directory,"InitialReduction"}]|>]],
-  definitionKeys={"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"};
+  definition[record_]:=Join[cutDefinitionConventions[record],KeyTake[record,{"Topology","Cuts"}]];
   If[!AssociationQ[initial]||Lookup[initial,"Format",None]=!="FeynFacet-CutFamilyReduction"||
     !ContainsAll[Keys[initial],{"Families","Targets","Rules","Masters"}]||
-    (KeyTake[#,definitionKeys]&/@initial["Families"])=!=(KeyTake[#,definitionKeys]&/@records)||
+    (definition/@initial["Families"])=!=(definition/@records)||
     !ListQ[initial["Targets"]]||!ListQ[initial["Masters"]]||
     !MatchQ[initial["Rules"],{(_Rule)...}]||!ContainsAll[initial["Targets"],allTargets]||
     validateCutGLIs[{initial["Rules"],initial["Targets"],initial["Masters"]},records]=!=True,
@@ -84,11 +84,11 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
       cutFamilyFail["LinearInitialIntegralReductionRequired"]];parsed["Terms"]]],initial["Rules"]];
   initialRelations=DeleteCases[initialRelations,<||>];
   AssociateTo[baseRequest,"ExtraEquations"->Join[Lookup[baseRequest,"ExtraEquations",{}],initialRelations]];
-  reduction=Join[initial,<|"Masters"->ibpCloseReductionRules[initial["Rules"],allTargets]["Masters"]|>];
-  Print["Resuming differential closure from ",Length[reduction["Masters"]]," spanning integrals and ",
+  reduction=initial;
+  Print["Resuming differential closure from ",Length[ibpCloseReductionRules[initial["Rules"],allTargets]["Masters"]]," spanning integrals and ",
    Length[initialRelations]," retained exact relations"]];
  If[!AssociationQ[reduction],cutFamilyFail["InitialCutReductionFailed",<|"Cause"->reduction|>]];
- basis=Sort[reduction["Masters"]];
+ basis=Sort[ibpCloseReductionRules[reduction["Rules"],allTargets]["Masters"]];
  If[basis==={},cutFamilyFail["NonzeroCutMasterBasisRequired"]];
  Do[
   {seconds,derivatives}=AbsoluteTiming[Table[
@@ -138,6 +138,11 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
  {iteration,iterations}];
  If[!closed,cutFamilyFail["CutDifferentialClosureIncomplete",<|"History"->history,
    "RemainingBasis"->basis,"Reduction"->reduction|>]];
+ restrictedTargets=Union[targets,basis,Cases[derivatives,_FeynCalc`GLI,Infinity]];
+ restricted=ibpCloseReductionRules[reduction["Rules"],restrictedTargets];
+ If[Sort[restricted["Masters"]]=!=basis,cutFamilyFail["RestrictedCutReductionMustSpanDEBasis"]];
+ reduction=Join[reduction,<|"Targets"->restrictedTargets,"Rules"->restricted["Rules"],"Masters"->basis,
+   "Restriction"->"Requested source integrals and derivatives of the closed DE basis. The complete native solve remains in its recorded workspace."|>];
  images=Map[Factor,derivatives/.Dispatch[reduction["Rules"]],{2}];
  unknown=Complement[DeleteDuplicates[Cases[images,_FeynCalc`GLI,Infinity]],basis];
  If[unknown=!={},cutFamilyFail["UnreducedCutDerivatives",<|"Integrals"->unknown|>]];
@@ -155,7 +160,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   "DimensionRule"->Lookup[request,"DimensionRule",D->4-2regulator],
   "MasterIntegralBasis"->basis,"ConnectionMatrices"->matrices,
   "RequestedMasterIntegrals"->targets,"RequestedMasterValues"->(targets/.Dispatch[reduction["Rules"]]),
-  "Families"->records,"Reduction"->Join[reduction,<|"Masters"->basis|>],"ClosureHistory"->history,
+  "Families"->records,"Reduction"->reduction,"ClosureHistory"->history,
   "SeedRefinementHistory"->refinementHistory,"Validation"->checks,
   "InitialReductionReused"->(initial=!=None),
   "MomentumDerivatives"->moving,

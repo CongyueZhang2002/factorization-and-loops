@@ -62,6 +62,23 @@ FTTest`FTAssert["four- and six-dimensional regulator conventions give identical 
 replica=FeynFacet`CreateCutIntegralFamily[Join[family,<|
  "Topology"->ReplacePart[family["Topology"],1->conventionReplica]|>]];
 duplicate=FeynCalc`GLI[conventionReplica,unit[[2]]];
+broadInitial=Join[system["Reduction"],<|"Families"->{family,replica},
+ "Targets"->Append[system["Reduction"]["Targets"],duplicate],
+ "Masters"->Append[system["Reduction"]["Masters"],duplicate]|>];
+restrictedSystem=FeynFacet`ConstructCutDifferentialSystem[{family,replica},{unit},{cX,cZ},
+ <|"WorkingDirectory"->work<>"/RestrictedInitial","Threads"->1,"MomentumDerivatives"->moving,
+   "InitialReduction"->broadInitial|>];
+FTTest`FTAssert["a broader retained solve returns a consistent reduction for only the requested DE span",
+ AssociationQ[restrictedSystem]&&restrictedSystem["MasterIntegralBasis"]==={unit}&&
+ !MemberQ[restrictedSystem["Reduction"]["Targets"],duplicate]&&
+ Complement[DeleteDuplicates[Cases[
+  restrictedSystem["Reduction"]["Targets"]/.restrictedSystem["Reduction"]["Rules"],_FeynCalc`GLI,Infinity]],
+  restrictedSystem["Reduction"]["Masters"]]==={}];
+branchChanged=Join[family,<|"BranchPrescription"->"Different physical branch"|>];
+FTTest`FTAssert["retained equations require the shared physical branch convention",
+ MatchQ[FeynFacet`ConstructCutDifferentialSystem[{branchChanged},{unit},{cX,cZ},
+  <|"WorkingDirectory"->work<>"/DifferentBranch","InitialReduction"->system["Reduction"]|>],
+ Failure["CompatibleInitialCutReductionRequired",_]]];
 duplicated=Join[system,<|"MasterIntegralBasis"->{unit,duplicate},"Families"->{family,replica},
  "ConnectionMatrices"->(DiagonalMatrix[{#[[1,1]],#[[1,1]]}]&/@system["ConnectionMatrices"]),
  "RequestedMasterIntegrals"->{unit,duplicate},"RequestedMasterValues"->{unit,duplicate},

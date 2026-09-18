@@ -61,6 +61,11 @@ singular=FeynFacet`ConstructOneLoopMeasurementDensity[reduced,coordinates,defini
  Join[request,<|"Weight"->weight/(2FeynCalc`SPD[pk1,pk2])^5|>]];
 FTTest`FTAssert["nonintegrable regulated energy endpoints cannot be expanded under the integral",
  MatchQ[FeynFacet`ResolveOneLoopMeasurementIntegrationEndpoints[singular],Failure["RegulatedEnergyEndpointSubtractionRequired",_]]];
+interiorPole=FeynFacet`ConstructOneLoopMeasurementDensity[reduced,coordinates,definition,
+ Join[request,<|"Weight"->weight/(2FeynCalc`SPD[pq,pk1]/ps-1/2)^2|>]];
+FTTest`FTAssert["integrable energy endpoints do not conceal a pole inside the integration interval",
+ MatchQ[FeynFacet`ResolveOneLoopMeasurementIntegrationEndpoints[interiorPole],
+ Failure["UniformMeasuredEnergyIntervalNotEstablished",_]]];
 globalBasisSymbolBefore=System`Names["Global`GLI"];
 integrated=FeynFacet`IntegrateOneLoopMeasurementInterior[density,{-1,-1}];
 FTTest`FTAssert["loading the GPL evaluator does not introduce a global FeynCalc shadow",
@@ -72,5 +77,44 @@ If[AssociationQ[integrated],
  reference=I Pi^2*ps/(512Pi^3)*Beta[3,3]Hypergeometric2F1[3,3,6,pz]/.{ps->2,pz->1/3};
  FTTest`FTAssert["the integrated Laurent coefficient agrees with the independent Euler moment",
   NumberQ[value]&&Abs[value-N[reference,40]]<10^-28]];
+hermitian=FeynFacet`IntegrateOneLoopMeasurementInterior[density,{-1,0},<|"ConjugateInterference"->True|>];
+FTTest`FTAssert["Hermitian completion cancels the imaginary pole before GPL integration",
+ AssociationQ[hermitian]&&hermitian["ConjugateInterferenceAdded"]&&
+ hermitian["Coefficients"][{1,-1}]===0];
+If[AssociationQ[hermitian],
+ hermitianValue=FeynFacetSolution`EvaluateGPLExpression[hermitian["Coefficients"][{1,0}],
+   {ps->2,pz->1/3},"WorkingPrecision"->40];
+ FTTest`FTAssert["the surviving real bubble coefficient retains the causal phase",
+  NumberQ[hermitianValue]&&Abs[hermitianValue-N[2 I Pi reference,40]]<10^-28]];
+FTTest`FTAssert["a conjugate interference cannot be added twice",
+ MatchQ[FeynFacet`IntegrateOneLoopMeasurementInterior[
+  Join[density,<|"ConjugateInterferenceAdded"->True|>],{-1,0},<|"ConjugateInterference"->True|>],
+ Failure["MeasuredLoopConjugateAlreadyIncluded",_]]];
+contactOrder=FeynFacet`VerifyOneLoopMeasurementContactOrder[density,0];
+FTTest`FTAssert["the endpoint contact order follows from a complete regulated two-variable cover",
+ AssociationQ[contactOrder]&&contactOrder["ContactDerivativeOrderBound"]===0&&
+ Length[contactOrder["ChartVerifications"]]===8&&!contactOrder["ContactCoefficientsDetermined"]];
+higherContact=FeynFacet`ConstructOneLoopMeasurementDensity[reduced,coordinates,definition,
+ Join[request,<|"Weight"->weight/pz^2|>]];
+FTTest`FTAssert["stronger measured-angle poles are not silently assumed to have ordinary contacts",
+ MatchQ[FeynFacet`VerifyOneLoopMeasurementContactOrder[higherContact,0],
+ Failure["RequestedMeasuredContactOrderNotEstablished",_]]];
+FTTest`FTAssert["a sufficient higher endpoint subtraction order can be established from the same density",
+ AssociationQ[FeynFacet`VerifyOneLoopMeasurementContactOrder[higherContact,1]]];
+cacheDefinition=<|"EpsilonRange"->{-1,0},"IntegrationSchema"->2|>;
+cacheRow=Join[hermitian,<|"IntegrationDefinition"->cacheDefinition,"InputCompanions"-><|"Density"->density|>|>];
+FTTest`FTAssert["integrated-row reuse requires the actual prepared density and complete proof",
+ FeynFacet`Private`measuredLoopInteriorReusableQ[cacheRow,cacheDefinition,density]&&
+ !FeynFacet`Private`measuredLoopInteriorReusableQ[cacheRow,cacheDefinition,Join[density,<|"ChangedKernel"->True|>]]&&
+ !FeynFacet`Private`measuredLoopInteriorReusableQ[KeyDrop[cacheRow,"IntegrationEndpointProof"],cacheDefinition,density]];
+FTTest`FTAssert["partial Laurent rows cannot satisfy a wider cached coverage claim",
+ !FeynFacet`Private`measuredLoopInteriorReusableQ[
+  Join[cacheRow,<|"Coefficients"->KeyDrop[cacheRow["Coefficients"],{{1,0}}]|>],cacheDefinition,density]];
+cacheDirectory=CreateDirectory[];cacheFile=cacheDirectory<>"/IntegratedRow.wl";
+FeynFacet`FamilyArtifactWrite[cacheRow,cacheFile];cacheRead=FeynFacet`FamilyArtifactRead[cacheFile];
+FTTest`FTAssert["exact row inputs round-trip in binary metadata without duplicating readable formulas",
+ FeynFacet`Private`measuredLoopInteriorReusableQ[cacheRead,cacheDefinition,density]&&
+ StringFreeQ[Import[cacheFile,"Text"],"InputCompanions"]];
+FeynFacet`FamilyArtifactDelete[cacheFile];DeleteDirectory[cacheDirectory];
 Print["ONE LOOP MEASUREMENT DENSITY TEST COMPLETE"];
 FTTest`FTReport[];

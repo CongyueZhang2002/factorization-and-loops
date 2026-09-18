@@ -5,6 +5,7 @@ BeginPackage["FeynFacet`"];
 CompileLinearMeasurement::usage="CompileLinearMeasurement[request] rewrites delta(Value-Observable) as Jacobian delta(CutPolynomial), monic in the first nonzero integration variable. Request specifies Observable, Value, IntegrationVariables and Assumptions. Measurement cuts carry no independent positive-energy condition.";
 CompileMeasurement::usage="CompileMeasurement[request] compiles delta(Value-Observable) to a degree-at-most-two polynomial measurement cut and its exact unit-cut Jacobian. Rational observables require a denominator with proved fixed nonzero sign on the declared open domain. The polynomial is kept unchanged for raised cuts; constants in integration coordinates are explicit contact constraints.";
 FinalStateMeasurementTerms::usage="FinalStateMeasurementTerms[specification,momenta] instantiates a card-defined observable and weight for ordered or unordered final-state tuples. Arguments, Observable, Variable, Weight and Tuples specify the mathematics; repeated entries are retained when requested, including contact contributions.";
+ConstructFinalStateMeasurementMoments::usage="ConstructFinalStateMeasurementMoments[phaseSpace,specification,orders] derives the inclusive momentum-space weights obtained by integrating each measurement delta against a nonnegative integer power of its measured variable. Tuple ordering/repetitions, momentum conservation and massless unit cuts are applied exactly. ConstantWeights identifies moments proportional to the unweighted inclusive rate; no amplitude or inclusive rate is evaluated.";
 Begin["`Private`"];
 CompileLinearMeasurement[request_Association]:=Catch[Module[
  {variables,assumptions,constraint,fraction,num,den,coefficients,constant,selected,scale,polynomial,jacobian},
@@ -89,4 +90,29 @@ FinalStateMeasurementTerms[specification_Association,momenta:{__Symbol}]:=Catch[
      "Observable"->(observable/.rules),"Weight"->(weight/.rules),
      "TupleConvention"->tuples|>],indices]
 ]];
+
+ConstructFinalStateMeasurementMoments[phaseSpace_Association,specification_Association,
+ orders:{__Integer}]:=Catch[Module[{definition,terms,unitRules,routing,kin,weights,loops},
+ If[!DuplicateFreeQ[orders]||Min[orders]<0,
+  Throw[Failure["DistinctNonnegativeMeasurementMomentOrdersRequired",<||>],"MeasurementMoment"]];
+ terms=FeynFacet`FinalStateMeasurementTerms[specification,phaseSpace["FinalMomenta"]];
+ definition=FeynFacet`CreateMasslessPhaseSpaceDefinition[KeyDrop[phaseSpace,"Measurements"]];
+ If[!ListQ[terms]||!AssociationQ[definition],
+  Throw[Failure["MasslessFinalStateMeasurementMomentDefinitionRequired",<|"Terms"->terms,"Definition"->definition|>],"MeasurementMoment"]];
+ unitRules=FeynFacet`UnitCutScalarProductRules[definition];
+ If[!ListQ[unitRules],Throw[Failure["PhysicalUnitCutMomentRelationsRequired",<||>],"MeasurementMoment"]];
+ routing=definition["MomentumConservationRules"];kin=definition["Topology"][[5]];
+ loops=definition["Topology"][[3]];
+ weights=Association@Table[n->Cancel[Together[
+   (FeynCalc`ExpandScalarProduct[FeynCalc`FCI[
+      Total[(#["Weight"]#["Observable"]^n)&/@terms]]/.routing]/.kin)/.unitRules]],{n,orders}];
+ If[!FreeQ[weights,_Failure|_Missing|Indeterminate|_DirectedInfinity],
+  Throw[Failure["ExplicitInclusiveMeasurementMomentWeightsRequired",<||>],"MeasurementMoment"]];
+ <|"Format"->"FeynFacet-FinalStateMeasurementMoments","Variable"->specification["Variable"],
+  "Orders"->orders,"InclusiveWeights"->weights,
+  "ConstantWeights"->Select[weights,FreeQ[#,Alternatives@@loops]&],
+  "TupleConvention"->specification["Tuples"],"TupleCount"->Length[terms],
+  "PhaseSpaceDefinition"->definition,"InclusiveRateEvaluated"->False,
+  "Convention"->"Each measurement delta is integrated first: its nth moment is Weight times Observable^n. No cut-polynomial Jacobian remains after this exact measurement integral. State, flavor, amplitude and coupling factors are supplied by the same raw contribution."|>
+],"MeasurementMoment"];
 End[];EndPackage[];

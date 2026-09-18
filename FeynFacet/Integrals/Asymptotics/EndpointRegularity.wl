@@ -1,0 +1,58 @@
+(* A sufficient uniform analyticity test for the exact scalar endpoint
+   factors. Conditions refer only to external parameters; the entire closed
+   normal-coordinate cube is checked, including artificial sector seams. *)
+BeginPackage["FeynFacet`"];
+VerifyResolvedEndpointCube::usage="VerifyResolvedEndpointCube[resolved,parameterConditions] proves that every smooth factor of a resolved causal scalar density is uniformly analytic in its normal coordinates on the closed unit cube, after finite regulator poles are cleared. It verifies rational denominator units, positive power bases and supported real Gauss/Appell branches. Parameter conditions must be independent of normal coordinates. Unsupported or unproved factors return Failure; integer endpoint powers are reported separately.";
+Begin["`Private`"];
+VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
+ {xs,e,conditions,variables,nonempty,prove,rational,analytic,factors,powers,unverified={},gauss},
+ If[!TrueQ[Lookup[resolved,"JointAnalyticFactorsVerified",False]],
+  loopEndpointFail["VerifiedAnalyticResolvedEndpointFactorsRequired"]];
+ {xs,e}=Lookup[resolved,{"NormalVariables","DimensionalRegulator"}];
+ If[!FreeQ[parameters,Alternatives@@Append[xs,e]],
+  loopEndpointFail["CoordinateIndependentEndpointParameterConditionsRequired"]];
+ variables=DeleteDuplicates[Cases[parameters,s_Symbol/;Context[s]=!="System`",{0,Infinity}]];
+ nonempty=If[variables==={},parameters,
+   With[{vv=variables,condition=parameters},TimeConstrained[Resolve[Exists[vv,condition],Reals],10,$Failed]]];
+ If[nonempty=!=True,loopEndpointFail["NonemptyEndpointParameterDomainRequired"]];
+ conditions=parameters&&And@@(0<=#<=1&/@xs);
+ prove[claim_]:=prove[claim]=TrueQ[TimeConstrained[FullSimplify[claim,Assumptions->conditions],10,False]];
+ rational[value_]:=Module[{v=Cancel[Together[value]],den,order,unit},
+  If[!PolynomialQ[Numerator[v],Append[xs,e]]||!PolynomialQ[Denominator[v],Append[xs,e]],Return[False]];
+  den=Denominator[v];order=Exponent[den,e,Min];
+  If[!IntegerQ[order],Return[False]];
+  unit=Coefficient[den,e,order];
+  AllTrue[First/@Rest[FactorList[unit]],prove[#!=0]&]];
+ gauss[value_]:=Module[{tests},
+  tests=<|"ParametersIndependentOfCoordinates"->FreeQ[Take[List@@value,3],Alternatives@@xs],
+    "ArgumentIndependentOfRegulator"->FreeQ[value[[4]],e],
+    "RegularRationalArgument"->rational[value[[4]]],"ArgumentBelowOne"->prove[value[[4]]<1],
+    "PositiveLowerParameter"->TrueQ[(value[[3]]/.e->0)>0]|>;
+  If[!AllTrue[Values[tests],TrueQ],AppendTo[unverified,<|"Function"->value,"Conditions"->tests|>]];
+  AllTrue[Values[tests],TrueQ]];
+ analytic[value_]:=analytic[value]=With[{ok=Which[
+  FreeQ[value,Alternatives@@xs],True,
+  rational[value],True,
+  MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,analytic],
+  Head[value]===Power&&!IntegerQ[value[[2]]]&&FreeQ[value[[2]],Alternatives@@xs],
+   FreeQ[value[[1]],e]&&rational[value[[1]]]&&prove[value[[1]]>0],
+  MatchQ[value,_Hypergeometric2F1|Inactive[Hypergeometric2F1][___]],
+   gauss[value],
+  Head[value]===AppellF1,
+   FreeQ[Take[List@@value,4],Alternatives@@xs]&&
+    TrueQ[(value[[1]]/.e->0)>0]&&TrueQ[((value[[4]]-value[[1]])/.e->0)>0]&&
+    AllTrue[Take[List@@value,-2],FreeQ[#,e]&&rational[#]&&prove[#<1]&],
+  True,False]},
+  If[!TrueQ[ok]&&!MemberQ[{Plus,Times},Head[value]],AppendTo[unverified,value]];ok];
+ factors=DeleteDuplicates[Lookup[resolved["Terms"],"SmoothFactor"]];
+ Do[If[!analytic[factor],loopEndpointFail["UniformAnalyticEndpointCubeNotEstablished",
+    <|"UnverifiedFactors"->DeleteDuplicates[unverified]|>]],
+  {factor,factors}];
+ powers=Flatten[Lookup[resolved["Terms"],"Powers"]]/.e->0;
+ <|"Status"->"AnalyticClosedEndpointCubeVerified","NormalVariables"->xs,
+  "ParameterConditions"->parameters,"ClosedCubeConditions"->conditions,
+  "DistinctSmoothFactors"->Length[factors],"IntegerPowers"->powers,
+  "NonnegativeIntegerPowers"->AllTrue[powers,IntegerQ[#]&&#>=0&],
+  "Argument"->"On the closed normal-coordinate cube, rational denominator units do not vanish, bases of regulator powers are positive and supported real Gauss/Appell arguments stay below one. Compactness therefore supplies uniform bounds for a small regulator disk after the scalar factors' finite meromorphic poles are cleared. Artificial chart seams are included."|>
+],"OneLoopEndpoint"];
+End[];EndPackage[];

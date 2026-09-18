@@ -143,6 +143,8 @@
     "Integrals/Evaluations/OneLoopBoxes.wl",
     "Integrals/Asymptotics/OneLoopBoxes.wl",
     "Integrals/Asymptotics/OneLoopCombinations.wl",
+    "Integrals/Asymptotics/EndpointRegularity.wl",
+    "Integrals/Asymptotics/MeasurementContacts.wl",
     "Integrals/Evaluations/OneLoopExpansion.wl",
     "Integrals/Evaluations/OneLoopMeasurements.wl",
     "Integrals/Evaluations/MasslessVertices.wl",

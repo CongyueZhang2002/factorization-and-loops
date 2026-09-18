@@ -366,3 +366,55 @@ invocation had a wrong supervisor completion prefix despite ten passing assertio
 another failed earlier in input preparation. The test now diagnoses preparation
 failures explicitly; the subsequent diagnostic run passed. That transient's cause
 has not been established, and its receipt remains unsuccessful.
+
+
+## Hermitian completion and uniform endpoint domains
+
+Pro reviewed b9b0daf7 in 18m25s (record 09). The normalization, prescribed-product
+bound, negative-real GPL inversion and native scale restoration were accepted.
+Three concrete repairs now cover whole-interval regularity, consistent returned
+restricted DE metadata, and exact binding of integrated rows to actual prepared
+mathematical inputs. The row input lives in the existing binary companion; no
+new hash or duplicate readable source formula was added.
+
+Hermitian completion now conjugates the full scalar Laurent density on verified
+branches before GPL integration. The first production invocation completed all
+three groups in 378.03 s; global Factor before word collection caused excessive
+cost, especially 155.82 s for the first finite coefficient. Removing that global
+factorization allows the existing GPL collector to cancel matching words first.
+The optimized full three-row regeneration completed in 140.24 s including startup
+and the stronger domain checks (BoundHermitianInterior.*), down from 378.03 s.
+Its finite-coefficient integrations took 23.20, 23.58 and 24.24 s internally.
+All three preceding Hermitian coefficients independently agree with direct
+quadrature to more than 30 digits; that check took 37.39 s.
+
+Whole-energy-domain proofs passed for all actual groups in 37.02 s. The weighted
+z(1-z) endpoint study uses a complete half-square/positive-sector cover and checks
+both the original prescribed products and artificial seams. All 24 retained
+charts passed the stronger closed-cube factor test in 22.93 s; their exploratory
+resolutions took 114.52 s. This is a contact-order bound, not evaluated contacts.
+The card-owned loop-contact-order stage is being run and must complete before
+its result is claimed. Self-pair contacts must not be added again if the combined
+endpoint contacts are subsequently obtained from the inclusive moments.
+
+Focused checks now pass: 24 measured-loop/integration/contact-order/reuse assertions
+(6.60 s), eight closed-cube regularity assertions (3.67 s), and twelve DE restriction
+and convention assertions (9.77 s). The restricted-DE change postdates the running
+RR kernel; reload/re-import its completed reductions through the current constructor
+before accepting its final DE record. No full NLO EEC coefficient exists yet.
+
+
+The card-owned ordinary-contact proof has now completed: 181.93 s including
+startup, covering all 24 charts of the three prescribed tuple groups. Its saved
+record is RealVirtual/Work/MeasuredContactOrder.wl with paired binary input
+metadata. The common measurement-moment constructor derives the inclusive
+moment weights directly from each card's tuple sum, momentum conservation and
+unit massless cuts. For these cards they are 1 and 1/2; no fixed EEC factor is
+inserted. Six general moment assertions pass (5.05 s), including changed tuple
+ordering, two/three/four particle states and a constant observable. The production
+moment-weight update reuses the proven charts and took 7.32 s. The inclusive
+amplitude integral itself has not yet been evaluated.
+
+The optimized Hermitian result now has an exact prepared-input companion, and
+its subsequent full-input/coverage/proof-checked resume took 8.72 s. There remains
+no complete alpha_s-squared EEC result or literature hard-coefficient comparison.

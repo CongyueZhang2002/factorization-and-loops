@@ -52,7 +52,7 @@ The standard public `RunProjectResult` dispatches on the integration geometry,
 not on the project name. `Scripts/run_measured_result.wls` exposes the same
 measured calculation directly. Individual development stages are available
 through `Scripts/run_measured_contribution.wls` (prepare, de, masters,
-interior, check, virtual, loop, loop-interior). The complete calculation uses the result card.
+interior, check, virtual, loop, loop-interior, loop-contact-order). The complete calculation uses the result card.
 
 ## Perturbative naming
 
@@ -156,12 +156,18 @@ It writes `Work/PreparedScalarLoopDensity.wl`: exact causal B0/D0 combinations
 after triangle reduction, with the derived measurement roots, Jacobians and
 dimensional measure. Self contacts remain separate inclusive integrals. This is
 an integration input, not the real-virtual result. The card-driven `loop-interior resume` stage now verifies energy endpoints and
-integrates all noncontact groups through the requested Laurent range, saving
-explicit GPL coefficients in `Work/MeasuredOneLoopInterior.wl`. It reuses only
-rows with a matching calculation definition, tuple group and epsilon range.
+adds the conjugate on verified scalar branches and integrates all noncontact
+groups through the requested Laurent range, saving explicit Hermitian GPL coefficients in `Work/MeasuredOneLoopInterior.wl`. It reuses only
+rows whose exact prepared mathematical input, definition, tuple group, orientation
+and complete epsilon coverage agree. The exact input is retained in binary metadata;
+no new content hash or duplicate readable formula is needed.
 These coefficients agree with direct scalar-density integration at an internal
-point. Self contacts, regulated measured-angle endpoint completion and Hermitian
-completion are still required; neither stage writes an accepted Results.wl.
+point. The energy-domain proof covers the whole interval, including possible
+interior poles. `loop-contact-order resume` separately proves a bound on possible
+endpoint delta derivatives from the original regulated two-variable density,
+including artificial sector seams. Contact coefficients and final assembly still
+require the generated inclusive rate; these development stages do not write an
+accepted Results.wl.
 
 Typed Kira reductions accept `RationalSolver -> "FireFly"` for finite-field
 rational reconstruction, or `"Fermat"` for direct symbolic elimination. An
