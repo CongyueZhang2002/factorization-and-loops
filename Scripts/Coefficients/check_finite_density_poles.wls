@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Get[DirectoryName[ExpandFileName[$InputFileName],3]<>"/FeynFacet/Core/RecordFormat.wl"];
 Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;
 densityCheckRoot=DirectoryName[ExpandFileName[$InputFileName],3];
@@ -6,9 +7,9 @@ Get[densityCheckRoot<>"/FeynFacet/Coefficients/DensityValidation.wl"];
 densityCheckArguments=Rest[$ScriptCommandLine];
 If[Length[densityCheckArguments]=!=2,Print["Expected REQUEST.wl OUTPUT.wxf"];Exit[2]];
 densityCheckRequestPath=ExpandFileName[densityCheckArguments[[1]]];densityCheckOutput=ExpandFileName[densityCheckArguments[[2]]];
-densityCheckInput=Get[densityCheckRequestPath];
+densityCheckInput=FeynFacetRecords`ReadRecord[densityCheckRequestPath];
 densityCheckResolve[p_String] := ExpandFileName[If[StringStartsQ[p,"/"],p,FileNameJoin[{DirectoryName[densityCheckRequestPath],p}]]];
-densityCheckLoad[p_String] := If[ToLowerCase[FileExtension[p]]==="wxf",Import[p,"WXF"],Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Get[p]]];
+densityCheckLoad[p_String] := If[ToLowerCase[FileExtension[p]]==="wxf",Import[p,"WXF"],Block[{$Context="Global`",$ContextPath={"System`","Global`"}},FeynFacetRecords`ReadRecord[p]]];
 densityCheckData=densityCheckLoad[densityCheckResolve[densityCheckInput["DensityFile"]]];
 densityCheckOrders=Lookup[densityCheckInput["Request"],"Orders",Automatic];
 If[densityCheckOrders===Automatic,densityCheckOrders=Sort[Keys[densityCheckData["Coefficients"]]]];

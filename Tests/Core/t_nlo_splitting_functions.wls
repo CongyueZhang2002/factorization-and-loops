@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Universal P1 kernels: independent upstream C++ values and sum rules. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
@@ -17,7 +18,7 @@ errors=Table[
  channel=StringReplace[row["Class"],StartOfString~~("P1pol"|"P1T"|"P1")->""];
  n=row["FlavorCount"];xx=row["X"];
  aa=kernel[{"q",1},{"q",1},spin,evolution,n];
- ab=kernel[{"qbar",1},{"q",1},spin,evolution,n];
+ ab=kernel[{"qb",1},{"q",1},spin,evolution,n];
  sea=kernel[{"q",2},{"q",1},spin,evolution,n];
  selected=Switch[channel,
   "nsp",combine[combine[aa,ab],sea,-2],
@@ -45,7 +46,7 @@ moment[row_,order_]:=Module[{regular=Factor[Expand[row["RegularCoefficient"]]],s
   AccuracyGoal->8,PrecisionGoal->8,MaxRecursion->16]];
 sumRules=Flatten[Table[
  qq=kernel[{"q",1},{"q",1},"U",evolution,3,tt];
- qb=kernel[{"qbar",1},{"q",1},"U",evolution,3,tt];
+ qb=kernel[{"qb",1},{"q",1},"U",evolution,3,tt];
  qs=kernel[{"q",2},{"q",1},"U",evolution,3,tt];
  gq=kernel["g",{"q",1},"U",evolution,3,tt];
  qg=kernel[{"q",1},"g","U",evolution,3,tt];
@@ -56,9 +57,9 @@ sumRules=Flatten[Table[
 Print["Momentum-sum residuals ",sumRules];
 FTTest`FTAssert["both parent momentum sum rules hold including restored TR",Max[Abs[sumRules]]<2 10^-7];
 uu=combine[kernel[{"q",1},{"q",1},"U","SpaceLike",3],
- kernel[{"qbar",1},{"q",1},"U","SpaceLike",3],-1];
+ kernel[{"qb",1},{"q",1},"U","SpaceLike",3],-1];
 ll=combine[combine[kernel[{"q",1},{"q",1},"L","SpaceLike",3],
- kernel[{"qbar",1},{"q",1},"L","SpaceLike",3]],kernel[{"q",2},{"q",1},"L","SpaceLike",3],-2];
+ kernel[{"qb",1},{"q",1},"L","SpaceLike",3]],kernel[{"q",2},{"q",1},"L","SpaceLike",3],-2];
 FTTest`FTAssert["valence number and nonsinglet axial charge are conserved",
  Max[Abs[{moment[uu,0],moment[ll,0]}]]<10^-7];
 FTTest`FTReport[];

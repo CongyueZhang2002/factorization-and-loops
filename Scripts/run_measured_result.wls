@@ -1,0 +1,11 @@
+Print["FEYNFACET DRIVER ENTERED"];
+$HistoryLength=0;$MaxExtraPrecision=50;
+root=DirectoryName[ExpandFileName[$InputFileName],2];Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+args=Rest[$ScriptCommandLine];
+If[Length[args]<1,Print["Usage: run_measured_result.wls RESULT_CARD [all|resume|assemble]"];Exit[2]];
+mode=If[Length[args]>=2,args[[2]],"resume"];
+{seconds,result}=AbsoluteTiming[FeynFacet`RunMeasuredProjectResult[ExpandFileName[First[args]],mode]];
+If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
+Print["STAGE SECONDS ",InputForm[result["StageSeconds"]]];
+Print["IN KERNEL SECONDS ",seconds];
+Print["MEASURED PROJECT RESULT COMPLETE"];Exit[0];

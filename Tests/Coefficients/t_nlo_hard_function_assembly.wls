@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];$HistoryLength=0;$MaxExtraPrecision=50;
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;passed=0;failed=0;
 check[label_,test_]:=If[TrueQ[test],passed++;Print["PASS ",label],failed++;Print["FAIL ",label]];
@@ -27,4 +28,24 @@ broken=inputs;broken["R"]=ReplacePart[broken["R"],{"Coefficients",Key[0],"Regula
 check["residual regulator inside epsilon coefficient rejected",FailureQ[FeynFacet`AssembleNLOHardFunction[broken,request]]];
 broken=inputs;broken["R"]=ReplacePart[broken["R"],{"Coefficients",Key[0],"RegularCoefficient"}->OtherRegulator`epTest];
 check["same-named regulator in another context rejected",FailureQ[FeynFacet`AssembleNLOHardFunction[broken,request]]];
+positiveInputs=Association@KeyValueMap[Function[{name,value},name->
+ FeynFacet`CreatePartonicResult[Append[value["Coefficients"],1->row[1,<|3->2|>,wTest^2]],
+  KeyDrop[value,{"Coefficients","EpsilonRange","LaurentLowerBound"}]]],inputs];
+positiveResult=FeynFacet`AssembleNLOHardFunction[positiveInputs,Join[request,<|"ThroughOrder"->1|>]];
+check["finite assembly retains explicitly requested positive epsilon coefficients",
+ AssociationQ[positiveResult]&&positiveResult["EpsilonRange"]==={0,1}&&
+ positiveResult["Coefficients"][1]===row[3,<|3->6|>,3wTest^2]];
+zeroSetup=<|"ForwardAmplitudes"-><|"DiagramIndices"->{1}|>,
+ "ConjugateAmplitudes"-><|"DiagramIndices"->{1}|>,"Partons"->{},
+ "HadronLongSpin"->{},"HadronTransSpin"->{}|>;
+zeroRecords={<|"Setup"->zeroSetup,"Pair"-><|"Forward"->1,"Conjugate"->1|>,
+ "Integrand"->0,"Topologies"->{}|>};
+zeroRequest=<|"Contribution"->"Virtual","DimensionalRegulator"->epTest,
+ "Scale"->sTest,"Variables"->{vTest,wTest},"EpsilonRange"->{-2,2}|>;
+zeroResult=FeynFacet`ConstructZeroAmplitudeContribution[zeroRecords,zeroRequest];
+check["an exactly vanishing complete interference covers the requested positive epsilon orders",
+ AssociationQ[zeroResult]&&zeroResult["EpsilonRange"]==={-2,2}&&
+ zeroResult["ExactInEpsilon"]===True&&AllTrue[Values[zeroResult["Coefficients"]],#===row[0]&]];
+check["the exact-zero path rejects conflicting requested upper epsilon orders",
+ FailureQ[FeynFacet`ConstructZeroAmplitudeContribution[zeroRecords,Join[zeroRequest,<|"ThroughOrder"->1|>]]]];
 Print["NLO_HARD_FUNCTION_ASSEMBLY_TESTS ",passed,"/",passed+failed];Exit[If[failed===0,0,1]];

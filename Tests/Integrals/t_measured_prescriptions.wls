@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
@@ -63,15 +64,14 @@ FTTest`FTAssert["a particle-mass derivative acts on the smooth insertion as well
  FullSimplify[D[mpWeighted["Value"],mpMass]-
   (1-mpMass/mpS)D[mpMassive["IntegratedPhaseSpace"],mpMass]/2+
   mpMassive["IntegratedPhaseSpace"]/(2mpS),mpS>mpMass>0]===0];
-If[AssociationQ[mpCertificate],FeynFacet`FamilyArtifactWrite[mpCertificate,
- root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Results/Validation/MeasuredPrescriptionCertificate.wl"]];
 mpRawTop=ReplacePart[mpPrescribedTop,2->Append[mpPrescribedTop[[2]],FeynCalc`FCI[FeynCalc`SFAD[mpK1+mpK2]]]];
 mpRaw=FeynFacet`CreateCutIntegralDefinition[Join[mpPrescribed,<|"Topology"->mpRawTop|>]];
 mpRawMaster=FeynCalc`GLI[MeasuredThreeParticle,Append[mpMaster[[2]],1]];
 mpRawCertificate=FeynFacet`CertifyOrdinaryPrescriptionRemoval[mpRaw,mpRawMaster,mpRequest];
 FTTest`FTAssert["raw products can be certified before linearly dependent denominators are partial-fractioned",
  AssociationQ[mpRaw]&&AssociationQ[mpRawCertificate]&&mpRawCertificate["OrdinaryPrescriptionRemoved"]===True&&
- FailureQ[FeynFacet`CreateCutIntegralFamily[mpRaw]]];
+ AssociationQ[FeynFacet`CreateCutIntegralFamily[mpRaw]]&&
+ Length[FeynFacet`CreateCutIntegralFamily[mpRaw]["DependentDenominatorRelations"]]===1];
 mpReferenceProp=FeynCalc`FeynAmpDenominator[FeynCalc`StandardPropagatorDenominator[
  0,FeynCalc`FCI[FeynCalc`SPD[mpP+mpR,mpK2]],0,{1,1}]];
 mpReferenceTop=ReplacePart[mpRawTop,2->Append[mpRawTop[[2]],mpReferenceProp]];
@@ -83,4 +83,4 @@ FTTest`FTAssert["a timelike polarization reference uses the same future-causal G
 FTTest`FTAssert["a complex measurement root is rejected",
  FailureQ[FeynFacet`ApplyMeasurementCutToTestFunction[
   FeynFacet`CutPropagator[mpJ(I-mpZ),1],mpZ,1,mpJ>0]]];
-FTTest`FTReport[];
+Print["AFFINE REGRESSION COMPLETE"];FTTest`FTReport[];

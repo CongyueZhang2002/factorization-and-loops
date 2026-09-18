@@ -12,32 +12,34 @@ class ContributionStages(unittest.TestCase):
                     "Contribution": "DoubleReal.Gluons",
                     "Execution": {"Kernels": 7, "KiraThreads": 8,
                                   "ReconstructionThreads": 8, "NormalizationKernels": 7}}
-        self.owner = "Projects/Example/NNLO/q-q"
+        self.owner = "Projects/Example/Raw/NNLO/q-q"
 
     def test_diagrams_use_component_card_and_channel_owned_output(self):
         self.assertEqual(stage_arguments(self.job, "GeneratePairs"),
-                         [self.owner, "DoubleReal.Gluons", "DoubleReal/Gluons/Amplitudes", "7"])
+                         [self.owner, "DoubleReal.Gluons", "resume", "7"])
 
     def test_reduction_uses_the_regenerated_amplitudes(self):
         self.assertEqual(stage_arguments(self.job, "ReducePairs"),
-                         [self.owner, "DoubleReal/Gluons/Amplitudes",
-                          "DoubleReal/Gluons/Reduction", "solve", "8"])
+                         [self.owner, "DoubleReal/Work/Components/Gluons/Work/Amplitudes",
+                          "DoubleReal/Work/Components/Gluons/Work/Reduction", "solve", "8"])
 
     def test_reconstruction_distinguishes_native_and_kernel_counts(self):
         self.assertEqual(stage_arguments(self.job, "ReconstructCoefficients"),
-                         [self.owner, "DoubleReal/Gluons/Reduction", "8", "7"])
+                         [self.owner, "DoubleReal/Work/Components/Gluons/Work/Reduction", "8", "7"])
 
     def test_current_stages_keep_card_identity(self):
         self.assertEqual(stage_arguments(self.job, "PrepareSources"),
                          ["Example", "NNLO", "q-q", "DoubleReal.Gluons", "prepare"])
-        self.assertEqual(stage_arguments(self.job, "EvaluateCurrent"),
-                         ["Example", "NNLO", "q-q", "DoubleReal.Gluons"])
+        with self.assertRaises(ValueError):
+            stage_arguments(self.job, "EvaluateCurrent")
+        with self.assertRaises(ValueError):
+            stage_arguments(self.job, "Combine")
 
     def test_unsafe_or_empty_card_components_are_rejected(self):
         for field, value in [("Project", ".."), ("Order", "NNLO/other"),
                              ("Channel", "q" + chr(92) + "q"),
                              ("Contribution", "DoubleReal..Gluons"),
-                             ("Contribution", ".Gluons"), ("Contribution", "...")]:
+                             ("Contribution", ".Gluons"), ("Contribution", "..."), ("Contribution", "A.B.C")]:
             with self.subTest(field=field, value=value):
                 with self.assertRaises(ValueError):
                     job_identity({**self.job, field: value})

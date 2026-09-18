@@ -1,5 +1,7 @@
+Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];$HistoryLength=0;$MaxExtraPrecision=50;
 Get[root<>"/Tests/TestKit.wl"];Get[root<>"/FeynFacet/Coefficients/PartonicResults.wl"];Get[root<>"/FeynFacet/Physics/Counterterms.wl"];
+Get[root<>"/Tests/Support/BornCollinearReference.wl"];
 colors=<|"CA"->ca,"CF"->cf,"TR"->tr,"FlavorCount"->nf|>;
 qq=FeynFacet`LeadingSplittingKernel[{"q",1},{"q",1},"U",xi,colors];
 gq=FeynFacet`LeadingSplittingKernel["g",{"q",1},"U",xi,colors];
@@ -19,14 +21,14 @@ born=FeynFacet`CreatePartonicResult[<|0-><|"DeltaCoefficient"->1/(sb vb),"PlusCo
  <|"Order"->"LO","Contribution"->"Born","Scale"->sb,"Variables"->{vb,wb},"MandelstamVariables"->{sb,tb,ub},"DimensionalRegulator"->ep|>];
 unit=<|"Variable"->xi,"DeltaCoefficient"->0,"PlusCoefficients"-><|0->1|>,"RegularCoefficient"->0|>;
 requests=Association@Table[leg-><|"Leg"->leg,"Scale"->scale,"Variables"->{v,w}|>,{leg,{"IncomingA","IncomingB","Observed"}}];
-outputs=FeynFacet`ConvolveBornCollinearKernel[born,unit,#]& /@ requests;
+outputs=FTBornCollinearReference`ConvolveBornCollinearKernel[born,unit,#]& /@ requests;
 FTTest`FTAssert["all three rescalings return explicit output",FreeQ[outputs,_Failure|_Integrate|_SeriesData]];
 FTTest`FTAssert["incoming A plus needs no extra delta",outputs["IncomingA"]["DeltaCoefficient"]===0];
 FTTest`FTAssert["FF plus pullback includes finite interval delta",Simplify[outputs["Observed"]["DeltaCoefficient"]-Log[v]/(scale v)]===0];
 FTTest`FTAssert["incoming B nonlinear pullback includes endpoint slope",Simplify[outputs["IncomingB"]["DeltaCoefficient"]-Log[v/(1-v)]/(scale v),0<v<1]===0];
 FTTest`FTAssert["FF retains dimensional observed measure",Simplify[D[outputs["Observed"]["CollinearMap"]["MeasureWeight"],ep]/outputs["Observed"]["CollinearMap"]["MeasureWeight"]-2Log[1-v+v w]]===0];
 logKernel=Join[unit,<|"PlusCoefficients"-><|1->1|>|>];
-logOutput=FeynFacet`ConvolveBornCollinearKernel[born,logKernel,requests["Observed"]];
+logOutput=FTBornCollinearReference`ConvolveBornCollinearKernel[born,logKernel,requests["Observed"]];
 FTTest`FTAssert["log plus pullback carries delta log squared",Simplify[logOutput["DeltaCoefficient"]-Log[v]^2/(2scale v)]===0];
 (* Independent test-function action: integrate in xi, eliminating the Born
    delta in w; compare with the returned distributions acting in w. *)

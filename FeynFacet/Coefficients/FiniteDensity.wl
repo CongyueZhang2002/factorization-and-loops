@@ -10,7 +10,7 @@ finiteDensityFail[tag_,data_:<||>] := Throw[Failure[tag,Join[If[AssociationQ[$fi
 finiteDensityRead[file_String] := Module[{value},
  If[!FileExistsQ[file],finiteDensityFail["FiniteDensityInputFileMissing",<|"File"->file|>]];
  value=If[ToLowerCase[FileExtension[file]]==="wxf",Import[file,"WXF"],
-  Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Get[file]]];
+  FeynFacetRecords`ReadRecord[file]];
  If[!AssociationQ[value],finiteDensityFail["FiniteDensityInputRecordRequired",<|"File"->file|>]];value
 ];
 finiteDensityLoadSolution[input_,label_] := Module[{data=input,directory=None,file=None},

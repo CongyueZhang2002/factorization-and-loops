@@ -1,13 +1,13 @@
 #!/usr/bin/env wolframscript
-(* Exact lifting and verification of finite-field strip gauges.
+(* Exact lifting and verification of finite-field off-diagonal basis transformations.
    - NormalizeEpsFormAffineSample fixes the normalization columns;
    - the CF254 (9,6) lift (Codex-era modular artifacts in
      Tests/Fixtures/DifferentialEquations/FiniteFieldRaw, input record copied there from the
      legacy tree on 2026-08-21) reconstructs exactly and is a DLOG FORM:
      regulator-free letters, residues free of x and y; its residues carry
      1/(1+eps), so it is NOT yet an epsilon form -- that is the contract
-     of this rung (the sector driver factorizes the regulator afterwards;
-     CF254's certified family record was built from exactly this strip),
+     of this block-level test (the sector driver factorizes the regulator afterwards;
+     CF254's certified family record was built from exactly this block),
      and the verifier now says so explicitly (DLogFormCertified True,
      CanonicalEpsFormCertified False) instead of only "identities zero";
    - a solution with a regulator-dependent letter, or with residues that
@@ -79,7 +79,7 @@ badResidueInstalled = Quiet[Check[FeynFacet`Private`RecordVerifiedOffDiagonalBas
 benchmark = FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldBenchmark"}];
 fixture = legacyOffDiagonalBlockRecord[
   FeynFacet`FamilyArtifactRead[FileNameJoin[
-    {benchmark, "fixtures", "fixture_CF254_9_6.wl"}]]];
+    {root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldRaw", "CF254_9_6_input.wl"}]]];
 canonicalData = legacyFiniteFieldRecord /@ (FeynFacet`FamilyArtifactRead /@
   FileNames["*_mod_*.wl", FileNameJoin[{benchmark, "frozen_M0", "a4_run",
     "ff_artifacts_A4_CF254_9_6_155035"}]]);

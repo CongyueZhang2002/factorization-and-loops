@@ -1,5 +1,5 @@
 (* Reader for finite solution records; independent of their constructor. *)
-readData[path_] := Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Get[path]];
+readData[path_] := FeynFacetRecords`ReadRecord[path];
 Options[ReadMasterIntegralSolution]={"BoundaryCoefficientValues"->Automatic};
 ReadMasterIntegralSolution[directory_String,OptionsPattern[]] := Module[
  {c,coeff,masterCoefficients,orderData,boundaryValues=OptionValue["BoundaryCoefficientValues"],record},
@@ -27,4 +27,3 @@ ReadMasterIntegralSolution[directory_String,OptionsPattern[]] := Module[
   "AlgebraicDefinitions"->readData[FileNameJoin[{directory,"algebraic_expressions.m"}]],
   "Coefficients"->coeff|>]
 ];
-

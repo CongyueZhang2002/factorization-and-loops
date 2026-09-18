@@ -60,6 +60,19 @@ modelElectromagneticCharges[config_Association]:=Module[{charges},
   fail["ElectromagneticCharges",charges,"Declare exact UpType and DownType photon-quark charges for SMQCD."]];
  charges
 ];
+(* These are the same model declarations used before amplitude generation;
+   external flavor multiplicities do not have an independent card copy. *)
+modelFlavorEquivalenceClasses[config_Association,species_Association]:=Module[
+ {counts,charges,classes=<||>,types=<|"UpType"->3,"DownType"->4|>,baseline=<|"UpType"->2/3,"DownType"->-1/3|>,members,labels,fields},
+ counts=modelMasslessFlavorDeclarations[config];charges=modelElectromagneticCharges[config];
+ labels=Select[Keys[species],MatchQ[#,{"q",_}]&];fields=species[#]&/@labels;
+ If[!DuplicateFreeQ[fields]||!AllTrue[labels,Lookup[species,Key[{"qb",Last[#]}],None]===-species[#]&],
+  Return[Failure["UniqueFlavorRepresentativesAndConjugateFieldsRequired",<||>]]];
+ Do[members=Cases[Keys[species],label:{"q",_}/;
+    MatchQ[species[label],FeynArts`F[_,{_Integer}]]&&species[label][[1]]===types[type]:>Last[label]];
+  If[members=!={},AssociateTo[classes,type-><|"Members"->DeleteDuplicates[members],"Multiplicity"->counts[type],
+    "Charge"->Lookup[charges,type,baseline[type]]|>]],{type,Keys[counts]}];classes
+];
 modelReplacePhotonQuarkCharges[charges_Association]:=Module[
  {counts=<||>,types=<|3->"UpType",4->"DownType"|>,baseline=<|3->2/3,4->-1/3|>,replace},
  replace[entry_]:=Module[{fields,classes,type,rows,quarkClass},

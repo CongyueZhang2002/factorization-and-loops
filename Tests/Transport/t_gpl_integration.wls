@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];
 Get[root<>"/FeynFacet/Solution.m"];
@@ -30,10 +31,10 @@ FTAssert["a genuinely divergent lower endpoint is rejected",
  MatchQ[integrate[g[{2},t]/t^2],Failure["GPLLowerEndpointNotFinite",_]]];
 FTAssert["reciprocals of earlier logarithms are not a GPL closure claim",
  MatchQ[integrate[1/(1+Log[1+t])],Failure["NonPolynomialDependenceOnGPL",_]]];
-FTAssert["non-rational kernels remain unsupported",
- MatchQ[integrate[1/Sqrt[(1-t^2)(1-2 t^2)]],Failure["NonRationalGPLCoefficient",_]]];
+FTAssert["a generic quartic-root kernel remains outside the supported quadratic field",
+ MatchQ[integrate[1/Sqrt[(1-t^2)(1-2 t^2)]],Failure["QuadraticRadicandRequired",_]]];
 FTAssert["letters depending on their integration variable are rejected",
- MatchQ[integrate[g[{t+1},t]/(t-2)],Failure["GPLVariableOrLettersNotSupported",_]]];
+ MatchQ[integrate[g[{t+1},t]/(t-2)],Failure["RationalGPLPullbackRequired",_]]];
 FTAssert["logarithm normalization is preserved",
  integrate[Log[3-t]/(t-2)]===g[{2,3},z]+Log[3] g[{2},z]];
 FTAssert["a stricter weight limit is respected after an earlier successful call",
@@ -65,5 +66,3 @@ FTAssert["a divergent endpoint is not fixed by declaring a prescription",
 FTAssert["trailing zeros do not cure a nonunit endpoint with nonzero logarithm",
  FailureQ[FeynFacetSolution`EvaluateGPLExpression[g[{2,0},2]]]];
 FTReport[];
-
-

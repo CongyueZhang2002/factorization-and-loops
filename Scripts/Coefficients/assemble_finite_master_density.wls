@@ -12,7 +12,7 @@ Block[{Print},Get[FileNameJoin[{finiteDensityRoot,"Addon","Load","LoadFACET.wl"}
 Get[FileNameJoin[{finiteDensityRoot,"FeynFacet","Solution.m"}]];
 Get[FileNameJoin[{finiteDensityRoot,"FeynFacet","Coefficients","FiniteDensity.wl"}]];
 $PrePrint=.;
-finiteDensityInput=Get[finiteDensityRequestFile];
+finiteDensityInput=FeynFacetRecords`ReadRecord[finiteDensityRequestFile];
 If[!AssociationQ[finiteDensityInput]||!AssociationQ[Lookup[finiteDensityInput,"FiniteSolutions",None]]||
  !AssociationQ[Lookup[finiteDensityInput,"Request",None]]||!KeyExistsQ[finiteDensityInput,"PhysicalCoefficientTable"],
  Print["PhysicalCoefficientTable, FiniteSolutions and Request are required"];Exit[2]];

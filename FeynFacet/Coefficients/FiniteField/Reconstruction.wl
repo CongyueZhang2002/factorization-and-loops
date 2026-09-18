@@ -924,7 +924,7 @@ reconstructionRunJob[
     "Seconds" -> seconds,
     "Statistics" -> If[
       FileExistsQ[doneFile],
-      Quiet @ Check[Get[doneFile], <||>],
+      Quiet @ Check[FeynFacet`FamilyArtifactRead[doneFile], <||>],
       <||>
     ]
   |>
@@ -972,7 +972,7 @@ reconstructionRunSchedule[
           "Statistics" -> Module[{file},
             file = FileNameJoin[{
               directory, "Jobs", jobs[[position]]["Name"] <> ".done"}];
-            If[FileExistsQ[file], Quiet @ Check[Get[file], <||>], <||>]
+            If[FileExistsQ[file], Quiet @ Check[FeynFacet`FamilyArtifactRead[file], <||>], <||>]
           ]
         |>
       ],
@@ -1067,7 +1067,7 @@ ReconstructionStatus[directory_String] := Module[
     Function[work,
       Map[
         Function[file,
-          labelOf[work, FileBaseName[file]] -> Quiet @ Check[Get[file], <||>]
+          labelOf[work, FileBaseName[file]] -> Quiet @ Check[FeynFacet`FamilyArtifactRead[file], <||>]
         ],
         FileNames["*.done", FileNameJoin[{work, "Jobs"}]]
       ]
@@ -1083,7 +1083,7 @@ ReconstructionStatus[directory_String] := Module[
     Map[
       Function[work,
         work -> Map[
-          Function[file, Quiet @ Check[Get[file], <||>]],
+          Function[file, Quiet @ Check[FeynFacet`FamilyArtifactRead[file], <||>]],
           FileNames["*.done", FileNameJoin[{work, "Jobs"}]]
         ]
       ],
@@ -1211,7 +1211,7 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
     store = FileNameJoin[{workDirectory, "KiraStore"}];
     storeManifest = If[
       FileExistsQ[coefficientStoreManifestFile[store]],
-      Quiet @ Check[Get[coefficientStoreManifestFile[store]], $Failed],
+      Quiet @ Check[FeynFacet`FamilyArtifactRead[coefficientStoreManifestFile[store]], $Failed],
       $Failed
     ];
     metadata = If[
@@ -1239,7 +1239,7 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
     ];
     card = Switch[options["CoefficientSetup"],
       _Association, options["CoefficientSetup"],
-      _String, Quiet @ Check[Get[options["CoefficientSetup"]], $Failed],
+      _String, Quiet @ Check[FeynFacet`FamilyArtifactRead[options["CoefficientSetup"]], $Failed],
       _,
         metadata["Setup"]
     ];
@@ -1251,9 +1251,6 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
         "the Kira artifact belongs to another diagram set"];
       Throw[$Failed, $reconstructionFailure]
     ];
-    If[finiteFieldRestoreTraceCheckpoint[traceDirectory,
-      coefficientInputFileFingerprint[data["Sources"]],coefficientFileHash[kiraFile]]===$Failed,
-      reconstructionFail["input validation","the normalized source checkpoint is stale"]];
     resultSetup = If[
       AssociationQ[card],
       Join[data["Setup"], KeyTake[card, $coefficientLateSetupKeys]],
@@ -1290,6 +1287,12 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
         "the card declares no distribution factor and Laurent valuation"];
       Throw[$Failed, $reconstructionFailure]
     ];
+    If[finiteFieldRestoreTraceCheckpoint[traceDirectory,
+      coefficientInputFileFingerprint[data["Sources"]],coefficientFileHash[kiraFile],
+      <|"Context"->context,"PhysicalFactor"->physicalFactor,
+      "InputCompanions"->coefficientInputCompanions[data["Sources"]],
+        "MaximumTargets"->Length[metadata["Targets"]]|>]===$Failed,
+      reconstructionFail["input validation","the normalized source checkpoint or full target coverage is stale"]];
     <|
       "TraceDirectory" -> ExpandFileName[traceDirectory],
       "TraceData" -> traceData,

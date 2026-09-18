@@ -2616,11 +2616,7 @@ InterpolateOffDiagonalBasisTransformationBlockInEpsilon[samples_List, prime_Inte
   |>
 ];
 
-finiteFieldOffDiagonalBlockPutAtomic[expression_, file_String] := Module[
-  {temporary = file <> ".tmp"},
-  Put[expression, temporary];
-  RenameFile[temporary, file, OverwriteTarget -> True]
-];
+finiteFieldOffDiagonalBlockPutAtomic[expression_,file_String]:=FeynFacet`FamilyArtifactWrite[expression,file];
 
 (* A2 certificate: the lifted solution vector (basis-transformation block numerator
    coefficients over the support, then residues), reduced at a regulator

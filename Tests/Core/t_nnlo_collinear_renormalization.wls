@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
@@ -19,7 +20,7 @@ z2=zker[{"q",1},{"q",1},2];
 inverse=zker[{"q",1},{"q",1},2,<|"Inverse"->True|>];
 matrixProduct=rowSum[Table[
  FeynFacet`MellinConvolveDistributions[zker[{"q",1},j,1],zker[j,{"q",1},1],xx],
- {j,{{"q",1},{"qbar",1},"g"}}]];
+ {j,{{"q",1},{"qb",1},"g"}}]];
 FTTest`FTAssert["Z inverse cancels through a squared including gluon mixing",
  AssociationQ[z2]&&zeroRowQ[rowSum[{z2,inverse,rowScale[matrixProduct,-1]}]]];
 z2scale=zker[{"q",1},{"q",1},2,<|"ScaleLog"->lf|>];
@@ -39,4 +40,11 @@ FTTest`FTAssert["all intermediate flavors are present even without a gluon Born 
  AssociationQ[gg]&&!FreeQ[gg["RegularCoefficient"],Log[xx]]];
 FTTest`FTAssert["helicity pole kernels require an explicit operator scheme",
  FailureQ[zker[{"q",1},"g",2,<||>,"L"]]];
+pdfDistribution=FeynFacet`PDFCountertermDistribution[{"q",1},{"q",1},
+ <|"Spin"->"U","Variable"->xx,"DimensionalRegulator"->ee,"KernelParameters"->colors,
+ "PerturbativeOrder"->2,"ScaleLog"->lf,"OperatorScheme"->"MSbar"|>];
+FTTest`FTAssert["the PDF distribution exposes the complete NNLO operator counterterm",
+ AssociationQ[pdfDistribution]&&pdfDistribution["Role"]==="PDF"&&
+ pdfDistribution["Daughter"]==={"q",1}&&pdfDistribution["Parent"]==={"q",1}&&
+ zeroRowQ[rowSum[{pdfDistribution,rowScale[z2scale,-1]}]]];
 FTTest`FTReport[];

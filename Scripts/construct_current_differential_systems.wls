@@ -6,11 +6,10 @@ Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 arguments=Rest[$ScriptCommandLine];
 If[Length[arguments]=!=4,Print["Usage: construct_current_differential_systems.wls PROJECT ORDER CHANNEL CONTRIBUTION.COMPONENT"];Exit[2]];
 {projectName,orderName,channelName,contributionName}=arguments;
-directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
+directory=root<>"/Projects/"<>projectName<>"/Raw/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contributionName];
 If[!AssociationQ[card],Print[card];Exit[1]];
-componentPath=card["ContributionPath"];
-outputDirectory=directory<>"/Results/"<>componentPath;
+outputDirectory=card["WorkDirectory"];
 input=FeynFacet`FamilyArtifactRead[outputDirectory<>"/IntegralFamilies.wl"];
 If[!AssociationQ[input]||Lookup[input,"Format",None]=!="FeynFacet-CurrentIntegralFamilies",
  Print["Prepared integral families are required"];Exit[1]];
@@ -21,7 +20,7 @@ FeynFacet`FamilyArtifactWrite[combined,outputDirectory<>"/ReductionInput.wl",Com
 parameters=card["Assembly"]["Variables"];scale=card["Assembly"]["Scale"];
 validationPoints=Table[Join[Thread[parameters->Table[(2+j)/(7+2j+4sample),{j,Length[parameters]}]],
  {scale->1,D->(17+2sample)/5}],{sample,0,1}];
-request=<|"WorkingDirectory"->directory<>"/Kira/"<>componentPath<>"/DifferentialSystem",
+request=<|"WorkingDirectory"->outputDirectory<>"/Kira/DifferentialSystem",
  "Threads"->Lookup[card["Execution"],"KiraThreads",1],"PrintTimings"->True,
  "SeedExtension"->{1,1},"ValidationPoints"->validationPoints|>;
 {seconds,system}=AbsoluteTiming[FeynFacet`ConstructCutDifferentialSystem[

@@ -6,7 +6,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/FeynFacet/Solution.m"];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=3,Print["Expected SOLUTION_DIRECTORY REQUEST.wl REPORT.wxf"];Exit[2]];
-data=FeynFacetSolution`ReadMasterIntegralSolution[args[[1]]];request=Get[args[[2]]];
+data=FeynFacetSolution`ReadMasterIntegralSolution[args[[1]]];request=FeynFacetRecords`ReadRecord[args[[2]]];
 If[!AssociationQ[data]||!AssociationQ[request],Print["Invalid inputs"];Exit[2]];
 point=request["Point"];repeats=Lookup[request,"Repeats",3];
 If[!ListQ[point]||!IntegerQ[repeats]||repeats<1,Print["Invalid point or repeat count"];Exit[2]];

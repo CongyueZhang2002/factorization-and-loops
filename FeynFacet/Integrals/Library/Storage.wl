@@ -1,0 +1,130 @@
+(* Indexed on canonical family and propagator powers, with standard binary
+   sector numbering. Only the selected catalog, sector and value are read. *)
+BeginPackage["FeynFacet`"];
+MasterIntegralLibraryInventory::usage="MasterIntegralLibraryInventory[request] lists family/sector/master coverage without loading the solved expressions.";
+Begin["`Private`"];
+$masterLibraryReadCache=None;$masterLibraryReadStatistics=<||>;
+masterLibraryBump[key_]:=AssociateTo[$masterLibraryReadStatistics,key->(Lookup[$masterLibraryReadStatistics,key,0]+1)];
+masterLibraryRead[file_]:=Module[{result},
+ If[AssociationQ[$masterLibraryReadCache]&&KeyExistsQ[$masterLibraryReadCache,file],
+  Return[$masterLibraryReadCache[file]]];
+ result=FeynFacet`FamilyArtifactRead[file];
+ If[!AssociationQ[result],masterLibraryFail["InvalidMasterLibraryRecord",<|"File"->file|>]];
+ If[AssociationQ[$masterLibraryReadCache],AssociateTo[$masterLibraryReadCache,file->result]];
+ masterLibraryBump[Which[StringEndsQ[file,"Catalog.wl"],"CatalogReads",
+  StringEndsQ[file,"Index.wl"],"SectorIndexReads",
+  StringEndsQ[file,"Relations.wl"],"RelationReads",True,"ValueReads"]];result
+];
+masterLibraryWrite[value_,file_]:=(
+ If[FeynFacet`FamilyArtifactWrite[value,file]=!=file,
+  masterLibraryFail["MasterLibraryWriteFailed",<|"File"->file|>]];
+ If[AssociationQ[$masterLibraryReadCache],AssociateTo[$masterLibraryReadCache,file->value]];file);
+masterLibraryCatalogFile[dir_,c_]:=dir<>"/Families/"<>c["Bucket"]<>"/Catalog.wl";
+masterLibraryCatalog[file_]:=Module[{r},
+ If[!FileExistsQ[file],Return[<|"DataType"->"IntegralFamilyCatalog","SchemaVersion"->2,
+  "NextFamilyNumber"->1,"Families"-><||>|>]];
+ r=masterLibraryRead[file];
+ If[Lookup[r,"DataType",None]=!="IntegralFamilyCatalog"||Lookup[r,"SchemaVersion",None]=!=2||
+  !AssociationQ[Lookup[r,"Families",None]]||!IntegerQ[Lookup[r,"NextFamilyNumber",None]],
+  masterLibraryFail["InvalidIntegralFamilyCatalog",<|"File"->file|>]];r
+];
+masterLibrarySector[file_]:=Module[{r},
+ If[!FileExistsQ[file],Return[<|"DataType"->"IntegralSectorIndex","SchemaVersion"->2,
+  "NextMasterNumber"->1,"Entries"-><||>|>]];
+ r=masterLibraryRead[file];
+ If[Lookup[r,"DataType",None]=!="IntegralSectorIndex"||Lookup[r,"SchemaVersion",None]=!=2||
+  !AssociationQ[Lookup[r,"Entries",None]]||!IntegerQ[Lookup[r,"NextMasterNumber",None]],
+  masterLibraryFail["InvalidIntegralSectorIndex",<|"File"->file|>]];r
+];
+masterLibraryLocation[dir_,c_,family_]:=Module[{relative},
+ If[!StringQ[family]||!StringMatchQ[family,"F"~~DigitCharacter..],
+  masterLibraryFail["InvalidLibraryFamilyIdentifier"]];
+ relative="Families/"<>c["Bucket"]<>"/"<>family<>"/Sectors/S"<>ToString[c["Sector"]];
+ <|"FamilyIdentifier"->c["Bucket"]<>"/"<>family,"Sector"->c["Sector"],
+  "RelativeDirectory"->relative,"Directory"->dir<>"/"<>relative|>
+];
+masterLibraryLocate[dir_,c_]:=Module[{catalog,family,location,sector,key,entry},
+ If[FileExistsQ[dir<>"/Index.wl"],masterLibraryFail["FlatMasterLibraryMustBeRegenerated"]];
+ catalog=masterLibraryCatalog[masterLibraryCatalogFile[dir,c]];
+ family=Lookup[catalog["Families"],c["FamilyKey"],None];
+ If[family===None,Return[Missing["IntegralFamilyNotStored"]]];
+ location=masterLibraryLocation[dir,c,family];
+ sector=masterLibrarySector[location["Directory"]<>"/Index.wl"];
+ key=masterLibraryKey[c["Powers"]];entry=Lookup[sector["Entries"],key,None];
+ If[entry===None,Return[Missing["MasterIntegralNotStored"]]];
+ If[!AssociationQ[entry]||!StringMatchQ[Lookup[entry,"Master", ""],"M"~~DigitCharacter..],
+  masterLibraryFail["InvalidMasterSectorEntry"]];
+ Join[location,entry,<|"File"->location["Directory"]<>"/"<>entry["Master"]<>".wl",
+  "Identifier"->location["FamilyIdentifier"]<>"/S"<>ToString[c["Sector"]]<>"/"<>entry["Master"]|>]
+];
+masterLibraryLoadValue[location_]:=Module[{record},
+ record=masterLibraryRead[location["File"]];
+ If[Lookup[record,"DataType",None]=!="StoredMasterIntegralValue"||
+  Lookup[record,"Powers",None]=!=location["Powers"]||!AssociationQ[Lookup[record,"Value",None]],
+  masterLibraryFail["InvalidStoredMasterValue",<|"File"->location["File"]|>]];
+ record["Value"]=masterLibraryValue[record["Value"],FeynFacetLibrary`eps];record
+];
+masterLibraryCoverage[value_]:=If[KeyExistsQ[value,"ExactValue"],
+ <|"ExactAnalyticFunction"->True|>,Join[<|"ExactAnalyticFunction"->False|>,
+ KeyTake[value,{"LaurentLowerBound","KnownThroughOrder"}]]];
+masterLibraryStore[dir_,c_,stored_,provenance_]:=Module[
+ {lock,acquired=False,result,catalogFile,catalog,family,newFamily=False,number,location,
+  sectorFile,sector,key,entry,record,merged,id,file,masterNumber,newMaster=False},
+ If[FileExistsQ[dir<>"/Index.wl"],masterLibraryFail["FlatMasterLibraryMustBeRegenerated"]];
+ If[!DirectoryQ[dir],Quiet[CreateDirectory[dir,CreateIntermediateDirectories->True]]];
+ lock=dir<>"/WriteLock";
+ Do[If[StringQ[Quiet[Check[CreateDirectory[lock],$Failed]]],acquired=True;Break[]];Pause[.05],{200}];
+ If[!acquired,masterLibraryFail["MasterLibraryWriterBusy",<|"Directory"->dir|>]];
+ result=CheckAbort[Catch[Block[{$masterLibraryReadCache=None},
+  catalogFile=masterLibraryCatalogFile[dir,c];catalog=masterLibraryCatalog[catalogFile];
+  family=Lookup[catalog["Families"],c["FamilyKey"],None];
+  If[family===None,
+   number=catalog["NextFamilyNumber"];
+   While[DirectoryQ[dir<>"/Families/"<>c["Bucket"]<>"/F"<>IntegerString[number,10,6]],number++];
+   family="F"<>IntegerString[number,10,6];newFamily=True;
+   catalog["NextFamilyNumber"]=number+1;
+   AssociateTo[catalog["Families"],c["FamilyKey"]->family]];
+  location=masterLibraryLocation[dir,c,family];sectorFile=location["Directory"]<>"/Index.wl";
+  sector=masterLibrarySector[sectorFile];key=masterLibraryKey[c["Powers"]];
+  entry=Lookup[sector["Entries"],key,None];
+  If[entry===None,
+   masterNumber=sector["NextMasterNumber"];
+   While[FileExistsQ[location["Directory"]<>"/M"<>IntegerString[masterNumber,10,6]<>".wl"],masterNumber++];
+   id="M"<>IntegerString[masterNumber,10,6];sector["NextMasterNumber"]=masterNumber+1;
+   record=<|"Provenance"->{}|>;merged=stored;newMaster=True,
+   id=entry["Master"];
+   record=masterLibraryLoadValue[Join[location,entry,<|"File"->location["Directory"]<>"/"<>id<>".wl"|>]];
+   merged=masterLibraryMergeValues[record["Value"],stored,location["FamilyIdentifier"]<>"/"<>id]];
+  file=location["Directory"]<>"/"<>id<>".wl";
+  record=<|"DataType"->"StoredMasterIntegralValue","Powers"->c["Powers"],"Value"->merged,
+   "Provenance"->DeleteDuplicates[Append[Lookup[record,"Provenance",{}],provenance]]|>;
+  masterLibraryWrite[record,file];
+  entry=Join[<|"Master"->id,"Powers"->c["Powers"]|>,masterLibraryCoverage[merged]];
+  AssociateTo[sector["Entries"],key->entry];masterLibraryWrite[sector,sectorFile];
+  If[newFamily,
+   masterLibraryWrite[<|"DataType"->"CanonicalIntegralFamily","Family"->family,
+    "Definition"->c["FamilyDefinition"]|>,
+    dir<>"/Families/"<>c["Bucket"]<>"/"<>family<>"/Family.wl"];
+   masterLibraryWrite[catalog,catalogFile]];
+  <|"Status"->If[newMaster,"MasterIntegralStored","MasterIntegralCoverageUpdated"],
+   "Identifier"->location["FamilyIdentifier"]<>"/S"<>ToString[c["Sector"]]<>"/"<>id,
+   "FamilyIdentifier"->location["FamilyIdentifier"],"Sector"->c["Sector"]|>
+ ],"MasterLibrary"],Quiet[DeleteDirectory[lock]];Abort[]];
+ Quiet[DeleteDirectory[lock]];result
+];
+MasterIntegralLibraryInventory[request_Association:<||>]:=Catch[Module[
+ {dir=masterLibraryDirectory[request],families={},entries={},relations=0,catalog,family,index,relative},
+ Do[catalog=masterLibraryCatalog[file];
+  Do[AppendTo[families,StringReplace[DirectoryName[file],dir<>"/Families/"->""]<>"/"<>id];
+   Do[index=masterLibrarySector[sector];
+    If[FileExistsQ[DirectoryName[sector]<>"/Relations.wl"],
+     relations+=Length[masterLibraryReadRelations[DirectoryName[sector]<>"/Relations.wl"]["Relations"]]];
+    relative=StringReplace[DirectoryName[sector],dir<>"/Families/"->""];
+    entries=Join[entries,(Append[#,"Identifier"->relative<>"/"<>#["Master"]]&/@Values[index["Entries"]])],
+   {sector,FileNames["Index.wl",DirectoryName[file]<>"/"<>id<>"/Sectors",Infinity]}],
+  {id,Values[catalog["Families"]]}],
+ {file,FileNames["Catalog.wl",dir<>"/Families",2]}];
+ <|"FamilyCount"->Length[families],"MasterCount"->Length[entries],
+  "RelationCount"->relations,"Families"->families,"Entries"->entries|>
+],"MasterLibrary"];
+End[];EndPackage[];

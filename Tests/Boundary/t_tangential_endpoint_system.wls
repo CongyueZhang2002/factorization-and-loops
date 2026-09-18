@@ -101,24 +101,12 @@ FTAssert["negative epsilon connection paths lower symbolic-v coefficient bounds"
  tepZero[tepExpand[tepNegativeSolution["EndpointTerms"][[1,"Coefficients",Key[0]]],tepNegativeSolution]-
   {(tepV-1/4)FeynFacetSolution`C[2,0],0}]];
 
-tepSource=Get[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal","UU_08_10_canonical",
- "Stage1And2_2026-09-06","CF198","FamilyDifferentialSystem.wl"}]];
-{tepSourceV,tepSourceW}=tepSource["KinematicVariables"];
-tepSourceE=tepSource["DimensionalRegulator"];
-tepRows={8};
-tepNormal=-tepSource["ConnectionMatrices"][[2,tepRows,tepRows]];
-tepTangent=Subtract@@tepSource["ConnectionMatrices"][[All,tepRows,tepRows]];
-tepRules={tepSourceV->tepV,tepSourceW->1-tepV-tepZ,tepSourceE->tepE};
+(* An analytic one-scale phase-space block exercises the integer shift
+   without requiring any saved production master. *)
 tepProcess=ConstructTangentialEndpointSystem[
- tepSystem[tepNormal/.tepRules,tepTangent/.tepRules],tepRequest];
-FTAssert["current-process phase-space block has exponent 1-2 epsilon and constant angle amplitude",
+ tepSystem[{{(1-2 tepE)/tepZ}},{{0}}],tepRequest];
+FTAssert["one-scale phase-space normalization retains its epsilon exponent",
  AssociationQ[tepProcess] && tepZero[tepProcess["NormalGaugeMatrix"]-{{tepZ}}] &&
  tepZero[tepProcess["TangentialConnectionMatrix"]] &&
  tepProcess["PrimarySectors"][[1,"Exponent"]]===-2 tepE];
-tepOut=FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","Assembly","TangentialEndpoint_2026-09-07"}];
-If[!DirectoryQ[tepOut],CreateDirectory[tepOut,CreateIntermediateDirectories->True]];
-Put[<|"ScalarSystem"->tepScalar,"MovingJordanSystem"->tepResonant,
- "PhysicalBoundaryMatching"->tepMatch,"FinitePhysicalSolution"->tepSolution,
- "IntegerResonance"->tepInteger,"CF198PhaseSpaceBlock"->tepProcess|>,tepOut<>"/focused_examples.wl.tmp"];
-RenameFile[tepOut<>"/focused_examples.wl.tmp",tepOut<>"/focused_examples.wl",OverwriteTarget->True];
 FTReport[];

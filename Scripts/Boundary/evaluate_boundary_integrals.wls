@@ -5,7 +5,7 @@ Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];
 If[Length[$ScriptCommandLine]<2,Print["Usage: evaluate_boundary_integrals.wls input.wxf"];Exit[1]];
 file=ExpandFileName[Last[$ScriptCommandLine]];base=DirectoryName[file];
 resolve[path_]:=ExpandFileName[If[StringStartsQ[path,"/"],path,FileNameJoin[{base,path}]]];
-read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 spec=read[file];plan=read[resolve[spec["BoundaryAmplitudeReduction"]]];
 output=resolve[spec["OutputDirectory"]];If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];
 indices=Lookup[spec,"BoundaryInputIndices",Range[Length[plan["BoundaryInputs"]]]];

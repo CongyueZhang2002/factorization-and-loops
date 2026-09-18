@@ -5,7 +5,7 @@
    Only the signs of the original external invariants fix causal phases. *)
 BeginPackage["FeynFacet`"];
 EvaluateMasslessBoxIntegral::usage=
- "EvaluateMasslessBoxIntegral[{s,t,qSquared},epsilon,{low,high},conditions] returns explicit arbitrary-order Laurent coefficients of the unit-power massless box with at most one off-shell external leg, normalized by d^D ell/(i pi^(D/2)). Real physical invariant signs determine the causal phases. The on-shell qSquared=0 limit is taken before epsilon expansion.";
+ "EvaluateMasslessBoxIntegral[{s,t,qSquared},epsilon,{low,high},conditions,prescription] returns explicit arbitrary-order Laurent coefficients of the unit-power massless box with at most one off-shell external leg. The optional prescription is +1 (default) or -1; real invariant signs determine the corresponding causal phases. The on-shell limit is taken before epsilon expansion.";
 Begin["`Private`"];
 boxFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"MasslessBox"];
 boxSign[invariant_,conditions_]:=Which[
@@ -33,17 +33,32 @@ boxContinuousPolyLog[n_Integer,x_,conditions_]:=Module[{below,above},
 ];
 boxFiniteHypergeometricCoefficient[n_Integer,x_,conditions_]:=Module[{value},
  If[TrueQ[FullSimplify[x==1,Assumptions->conditions]],Return[-Zeta[n]]];
+ (* Euler reflection reduces the weight-two real combination for every
+    positive argument, on both sides of one. Its dilogarithm argument is
+    1-x<1, so the removable x=1 point needs no product 0 Log[0] or
+    piecewise inversion. Higher weights retain the general formula. *)
+ If[n===2&&TrueQ[FullSimplify[x>0,Assumptions->conditions]],
+  Return[Log[x]^2/2+PolyLog[2,1-x]-Zeta[2]]];
  value=(-1)^n/Factorial[n]boxLogAbs[x,conditions]^(n-1)*
    (boxLogAbs[x,conditions]-boxLogAbs[1-x,conditions])-
     boxContinuousPolyLog[n,x,conditions];
  If[TrueQ[FullSimplify[x!=1,Assumptions->conditions]],value,
   Piecewise[{{-Zeta[n],x==1}},value]]
 ];
-EvaluateMasslessBoxIntegral[{s_,t_,mass_},e_Symbol,{low_Integer,high_Integer},conditions_]:=
+EvaluateMasslessBoxIntegral[invariants:{_,_,_},e_Symbol,range:{low_Integer,high_Integer},conditions_,prescription_Integer:1]:=
+ If[FeynFacet`$MasterIntegralLibraryMode==="Disabled",
+  evaluateMasslessBox[invariants,e,range,conditions,prescription],
+  masterLibraryEvaluateVector[masterLibraryBoxDefinition[invariants,e,conditions,prescription],range,
+   Function[{},evaluateMasslessBox[invariants,e,{Min[low,-2],high},conditions,prescription]],
+   <|"Invariants"->invariants,"Assumptions"->conditions,"LoopPrescription"->prescription,
+    "Normalization"->"d^D ell/(i pi^(D/2)), conjugated for negative prescription",
+    "EvaluationMethod"->"MasslessOneOffShellBoxPolylogarithms",
+    "EndpointPowers"->"Interior Laurent expansion; endpoint distributions require regulated limits."|>]];
+evaluateMasslessBox[{s_,t_,mass_},e_Symbol,{low_Integer,high_Integer},conditions_,prescription_Integer]:=
  Catch[Module[
  {third=Factor[mass-s-t],onShell,signs,args,phase,phaseMass,depth,core,coefficient,
-  prefactor,series,coefficients,logarithmic,logs,values,weight,k,j},
- If[low>high||!FreeQ[{s,t,mass,conditions},e|_Real|_Failure|_Missing|$Failed|$Aborted],
+  prefactor,series,coefficients,logarithmic,logs,values,weight,k,j,causalLogs},
+ If[low>high||!MemberQ[{1,-1},prescription]||!FreeQ[{s,t,mass,conditions},e|_Real|_Failure|_Missing|$Failed|$Aborted],
   boxFail["ExactMasslessBoxLaurentRequestRequired"]];
  onShell=TrueQ[FullSimplify[mass==0,Assumptions->conditions]];
  signs={boxSign[s,conditions],boxSign[t,conditions]};
@@ -52,7 +67,7 @@ EvaluateMasslessBoxIntegral[{s_,t_,mass_},e_Symbol,{low_Integer,high_Integer},co
   boxFail["NonzeroThirdBoxInvariantRequired",<|"Invariant"->third|>]];
  depth=Max[0,high+2];args=Factor/@{-third/s,-third/t};
  If[!onShell,AppendTo[args,Factor[-third mass/(s t)]]];
- phase[sign_,order_Integer]:=If[order===0,1,If[sign===1,(I Pi)^order/Factorial[order],0]];
+ phase[sign_,order_Integer]:=If[order===0,1,If[sign===1,(prescription I Pi)^order/Factorial[order],0]];
  phaseMass[order_]:=If[onShell,0,phase[signs[[3]],order]];
  logs=boxLogAbs[#,conditions]&/@args;
  values=Table[boxFiniteHypergeometricCoefficient[j,args[[i]],conditions],
@@ -71,6 +86,18 @@ EvaluateMasslessBoxIntegral[{s_,t_,mass_},e_Symbol,{low_Integer,high_Integer},co
     phase[signs[[1]],k-j]values[[2,j-1]]-
     If[onShell,0,phaseMass[k-j]values[[3,j-1]]],{j,2,k}]];
   coefficient,{k,0,depth}];
+ If[onShell&&depth>=2,
+  (* The two Gauss arguments obey y2=y1/(y1-1). Landen's identity,
+     with reflection after inversion when needed, reduces their weight-two
+     sum to (L+Ls)(L+Lt)-Pi^2/2. Here L=log|u/(s t)| and
+     Ls=log|s|-i prescription Pi theta(s), and similarly for Lt.
+     The nonzero real invariant signs have already been proved above;
+     no identity is applied to unproved complex or cut arguments.
+     Higher weights continue to use the general polylogarithm expansion. *)
+  logarithmic=boxLogAbs[third/(s t),conditions];
+  causalLogs=MapThread[Log[#2 #1]-prescription I Pi If[#2===1,1,0]&,
+    {{s,t},signs}];
+  core[[3]]=(logarithmic+causalLogs[[1]])(logarithmic+causalLogs[[2]])-Pi^2/2];
  prefactor=2/(s t e^2)*Gamma[1+e]Gamma[1-e]^2/Gamma[1-2e]*
    Exp[e boxLogAbs[third/(s t),conditions]];
  coefficients=FeynFacet`Private`regulatorSeriesCoefficients[
@@ -83,7 +110,7 @@ EvaluateMasslessBoxIntegral[{s_,t_,mass_},e_Symbol,{low_Integer,high_Integer},co
   "Coefficients"->Association@KeyValueMap[{1,#1}->#2&,coefficients],
   "LaurentLowerBounds"->{-2},"StoredOrderRanges"->{{low,high}},
   "KnownThroughOrders"->{high},"ExactTails"->{False},
-  "Invariants"->{s,t,mass},"Assumptions"->conditions,"LoopPrescription"->1,
+  "Invariants"->{s,t,mass},"Assumptions"->conditions,"LoopPrescription"->prescription,
   "Normalization"->"d^D ell/(i pi^(D/2))",
   "EvaluationMethod"->"MasslessOneOffShellBoxPolylogarithms",
   "KinematicLimitsTakenBeforeRegulatorExpansion"->If[onShell,{mass->0},{}],

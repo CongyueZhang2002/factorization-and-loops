@@ -12,9 +12,15 @@ FeynFacetSolution`QuadraticRootChart[q_,t_Symbol,v_Symbol]:=Catch[Module[
   gplFail["QuadraticRadicandRequired"]];
  {c,b,a}=Table[Coefficient[polynomial,t,i],{i,0,2}];
  If[TrueQ[c===0],gplFail["NonzeroQuadraticRootBasePointRequired"]];
- delta=Factor[b^2-4a c];den=1-b v/(2c)+delta v^2/(16c^2);
- r=Cancel[v/den];w=Factor[Sqrt[c](1-delta v^2/(16c^2))/den];
- inverse=2c t/(c+b t/2+Sqrt[c]Sqrt[polynomial]);
+ If[a===0,
+  (* A linear radicand needs a polynomial map. The general conic map
+     introduces avoidable coordinate poles in this degenerate case. *)
+  r=v+b v^2/(4c);w=Sqrt[c](1+b v/(2c));
+  inverse=2c t/(c+Sqrt[c]Sqrt[polynomial]),
+  delta=Factor[b^2-4a c];den=1-b v/(2c)+delta v^2/(16c^2);
+  r=Cancel[v/den];w=Factor[Sqrt[c](1-delta v^2/(16c^2))/den];
+  inverse=2c t/(c+b t/2+Sqrt[c]Sqrt[polynomial])
+ ];
  If[Cancel[Together[w^2-(polynomial/.t->r)]]=!=0||Cancel[D[r,v]/.v->0]=!=1,
   gplFail["QuadraticChartIdentityFailed"]];
  <|"OriginalVariable"->t,"Parameter"->v,"Radicand"->polynomial,
@@ -25,52 +31,93 @@ FeynFacetSolution`QuadraticRootChart[q_,t_Symbol,v_Symbol]:=Catch[Module[
   "Scope"->"Nonzero root at the basepoint; ordinary convergent integrals, with no change of finite-part prescriptions."|>
 ],"GPLIntegration"];
 gplRationalPrimitive[expression_,t_]:=Module[{normalized,words},
- normalized=gplNormalizeLogs[expression,t];gplBound[normalized];
+ normalized=gplEndpointScalars[gplNormalizeLogs[expression,t]];gplBound[normalized];
  words=gplWords[normalized,t];
- Total[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]]
+ gplPrimitiveSum[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]]
 ];
 gplRationalIntegral[expression_,t_,s_]:=Module[{primitive,lower},
  primitive=gplRationalPrimitive[expression,t];lower=gplAtZero[primitive,t];
- (primitive/.t->s)-lower
+ gplUpperValue[primitive,t,s]-lower
 ];
-gplPullbackWord[word_List,r_,v_]:=Module[{pull,answer},
- pull[{}]=1;
- pull[w_List]:=pull[w]=If[AllTrue[w,#===0&],
-  gplNormalizeLogs[Log[r],v]^Length[w]/Factorial[Length[w]],
-  gplRationalIntegral[Cancel[D[r,v]/(r-First[w])]pull[Rest[w]],v,v]];
- answer=pull[word];Clear[pull];answer
+gplPullbackWord[word_List,r_,v_]:=gplPullbackWord[word,r,v]=Which[
+ word==={},1,
+ AllTrue[word,#===0&],gplNormalizeLogs[Log[r],v]^Length[word]/Factorial[Length[word]],
+ True,gplRationalIntegral[Cancel[Together[D[r,v]/(r-First[word])]]*
+   gplPullbackWord[Rest[word],r,v],v,v]
 ];
-gplNormalizeArguments[expression_,v_]:=Module[{objects,rules,r,word,base,values=<||>},
+gplNormalizeArguments[expression_,v_]:=Module[{objects,rules,r,word,base,canonicalMap},
+ canonicalMap[z_]:=canonicalMap[z]=Cancel[Together[z]];
  objects=DeleteDuplicates[Cases[expression,g_FeynFacetSolution`G/;!FreeQ[g,v],{0,Infinity}]];
  rules=Table[
-  {word,r}=List@@object;
+  {word,r}=List@@object;r=canonicalMap[r];
   If[!FreeQ[word,v]||!gplRationalQ[r,v],gplFail["RationalGPLPullbackRequired"]];
-  If[r===v,object->object,
-   base=Quiet[Cancel[r]/.v->0];
+  If[r===v,object->FeynFacetSolution`G[word,v],
+   base=Quiet[r/.v->0];
    If[base=!=0,gplFail["GPLPullbackMustPreserveZeroBasePoint"]];
-   object->gplPullbackWord[word,Cancel[r],v]],{object,objects}];
- expression/.rules
+   object->gplPullbackWord[word,r,v]],{object,objects}];
+ Clear[canonicalMap];expression/.rules
 ];
 FeynFacetSolution`PullbackGPL[expression_,{Rule[t_Symbol,r_],v_Symbol},opts:OptionsPattern[FeynFacetSolution`IntegrateGPL]]:=
- Block[{$gplMaxLeaves=OptionValue["MaxExpressionLeaves"],$gplMaxTerms=OptionValue["MaxTerms"],
+ Block[{$gplAssumptions=OptionValue["Assumptions"],$gplMaxLeaves=OptionValue["MaxExpressionLeaves"],$gplMaxTerms=OptionValue["MaxTerms"],
   $gplMaxWeight=OptionValue["MaxWeight"],$gplMaxDegree=OptionValue["MaxPoleDegree"],
   $gplMaxEndpointOrder=OptionValue["MaxEndpointExpansionOrder"]},
- Internal`InheritedBlock[{gplShuffle,gplIntegrateWord,gplRationalDecomposition,gplSeries},
+ gplWithMemoization[{$gplAssumptions,$gplMaxLeaves,$gplMaxTerms,$gplMaxWeight,$gplMaxDegree,$gplMaxEndpointOrder},
  TimeConstrained[Catch[gplNormalizeLogs[gplNormalizeArguments[expression/.t->r,v],v],
   "GPLIntegration"],OptionValue["TimeLimit"],Failure["GPLPullbackTimeLimit",<||>]]]];
+(* Two affine radicands define a conic after rationalizing the first.
+   Compose the two zero-preserving charts, keeping both original root
+   branches. This does not assert rationalizability of a general root field. *)
+gplLinearRootPairChart[radicands_List,t_,v_]:=Module[
+ {c,b,aa,bb,eta,den,r,roots,inverse,normalizedRoots,jacobian,initialRoots},
+ If[Length[radicands]=!=2||!AllTrue[radicands,PolynomialQ[#,t]&&Exponent[#,t]===1&],
+  Return[Failure["TwoAffineRadicandsRequired",<||>]]];
+ c=(#/.t->0)&/@radicands;b=Coefficient[#,t,1]&/@radicands;
+ If[MemberQ[c,0],Return[Failure["NonzeroQuadraticRootBasePointRequired",<||>]]];
+ {aa,bb}=Cancel/@(b/c);eta=Factor[bb(bb-aa)/16];
+ den=1-bb v/2+eta v^2;
+ r=v(den+aa v/4)/den^2;initialRoots=Sqrt/@c;
+ roots={initialRoots[[1]](den+aa v/2)/den,initialRoots[[2]](1-eta v^2)/den};
+ normalizedRoots=(Sqrt/@radicands)/initialRoots;
+ inverse=4t/((1+normalizedRoots[[2]])Total[normalizedRoots]);
+ jacobian=(den+aa v/2)(1-eta v^2)/den^3;
+ If[!And@@MapThread[Cancel[Together[#1^2-(#2/.t->r)]]===0&,{roots,radicands}]||
+   !And@@MapThread[Cancel[(#1/.v->0)-#2]===0&,{roots,initialRoots}]||
+   (r/.v->0)=!=0||Cancel[D[r,v]/.v->0]=!=1||
+   Cancel[Together[D[r,v]-jacobian]]=!=0||
+   Cancel[Together[4r/((1+roots[[2]]/initialRoots[[2]])Total[roots/initialRoots])-v]]=!=0,
+  Return[Failure["LinearRootPairChartIdentityFailed",<||>]]];
+ <|"OriginalVariableExpression"->r,"SquareRootExpressions"->roots,
+   "ParameterExpression"->inverse,"Jacobian"->jacobian|>
+];
+gplPositiveRootScale[radicands_,t_]:=Module[{candidates},
+ If[Length[radicands]=!=2||!ValueQ[$gplAssumptions],Return[1]];
+ candidates=DeleteDuplicates[Flatten[
+  ({#, -#}&[Cancel[Coefficient[#,t,1]/(#/.t->0)]])&/@radicands]];
+ SelectFirst[SortBy[candidates,LeafCount],TrueQ[Quiet[Refine[#>0,$gplAssumptions]]]&,1]
+];
 gplIntegrateQuadraticRoot[expression_,t_,s_]:=Module[
- {radicands,q,v=Unique["conicParameter"],chart,r,w,replaced,rootRule,body,answer},
+ {radicands,q,v=Unique["conicParameter"],chart,r,roots,replaced,index,body,answer,scale,jacobian,inverse},
  radicands=DeleteDuplicates[Cases[expression,
   Power[base_,power_Rational]/;Denominator[power]===2&&!FreeQ[base,t]:>Factor[base],{0,Infinity}]];
- If[Length[radicands]=!=1,gplFail["SingleQuadraticRootRequired",
-   <|"Radicands"->radicands|>]];
- q=First[radicands];chart=FeynFacetSolution`QuadraticRootChart[q,t,v];
+ chart=Which[
+  Length[radicands]===1,
+   q=First[radicands];FeynFacetSolution`QuadraticRootChart[q,t,v],
+  Length[radicands]===2&&AllTrue[radicands,PolynomialQ[#,t]&&Exponent[#,t]===1&],
+   gplLinearRootPairChart[radicands,t,v],
+  True,gplFail["RationalSquareRootChartNotConstructed",<|"Radicands"->radicands|>]];
  If[FailureQ[chart],Throw[chart,"GPLIntegration"]];
- r=chart["OriginalVariableExpression"];w=chart["SquareRootExpression"];
+ scale=gplPositiveRootScale[radicands,t];
+ r=chart["OriginalVariableExpression"]/.v->v/scale;
+ roots=If[Length[radicands]===1,{chart["SquareRootExpression"]},chart["SquareRootExpressions"]]/.v->v/scale;
+ jacobian=(chart["Jacobian"]/.v->v/scale)/scale;
+ inverse=scale chart["ParameterExpression"];
  replaced=expression/.Power[base_,power_Rational]/;Denominator[power]===2&&!FreeQ[base,t]:>
-   If[Cancel[Together[base-q]]===0,w^(2power),gplFail["OneQuadraticRootFieldRequired"]];
- body=(replaced/.t->r)chart["Jacobian"];
- body=gplNormalizeArguments[body,v];
+   Module[{index=SelectFirst[Range[Length[radicands]],
+     Cancel[Together[base-radicands[[#]]]]===0&,Missing["Root"]]},
+    If[MissingQ[index],gplFail["RootOutsideRationalizedField"],roots[[index]]^(2power)]];
+ body=gplRefineConstantRadicals[(replaced/.t->r)jacobian,v];
+ body=gplNormalizeRationalIntegrand[body,v];gplBound[body];
  answer=gplRationalIntegral[body,v,v];
- answer/.v->(chart["ParameterExpression"]/.t->s)
+ answer=gplCollectCoefficients[answer/.v->(inverse/.t->s)];
+ gplBound[answer];answer
 ];

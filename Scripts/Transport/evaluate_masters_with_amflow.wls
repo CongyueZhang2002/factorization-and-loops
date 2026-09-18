@@ -1,11 +1,12 @@
 #!/usr/bin/env wolframscript
+Get[DirectoryName[ExpandFileName[$InputFileName],3]<>"/FeynFacet/Core/RecordFormat.wl"];
 (* Numerical boundary/reference data from auxiliary mass flow.
    All process definitions and external runtime paths are explicit inputs. *)
 $HistoryLength=0;$PrePrint=.;
 Get[FileNameJoin[{DirectoryName[ExpandFileName[$InputFileName],3],"FeynFacet","Interfaces","AMFlowRuntime.wl"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]!=2,Print["Expected REQUEST.wl OUTPUT.wxf"];Exit[2]];
-request=Get[args[[1]]];output=ExpandFileName[args[[2]]];
+request=FeynFacetRecords`ReadRecord[args[[1]]];output=ExpandFileName[args[[2]]];
 If[!DirectoryQ[DirectoryName[output]],CreateDirectory[DirectoryName[output],CreateIntermediateDirectories->True]];
 (* AMFlow's working precision can exceed the accuracy requested of its fit.
    Preserve that distinction in the numerical coefficients supplied downstream. *)

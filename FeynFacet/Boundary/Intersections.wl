@@ -176,7 +176,9 @@ ConstructEulerEndpointBoundaryValues[endpoint_Association,intersection_Associati
  cancel[a_]:=Module[{answer=FeynFacet`CancelRationalCoefficients[Flatten[Normal[a]]]},
   If[!ListQ[answer],tangentialEndpointFail["ExactEulerBoundaryCancellationFailed"]];
   Partition[answer,Last[Dimensions[a]]]];
- exponents=Cancel/@Diagonal[t connection];integerPowers=Cancel[#-beta]&/@exponents;
+ exponents=Cancel/@Diagonal[t connection];
+ integerPowers=FeynFacet`CancelRationalCoefficients[exponents-beta];
+ If[!ListQ[integerPowers],tangentialEndpointFail["EulerExponentCancellationFailed"]];
  If[!FreeQ[exponents,t]||!AllTrue[integerPowers,IntegerQ]||
   !AllTrue[Flatten[cancel[t connection-DiagonalMatrix[exponents]]],#===0&],
   tangentialEndpointFail["PhysicalTangentialSystemNeedsGeneralBoundaryTransport"]];
@@ -257,7 +259,7 @@ PullBackEndpointBoundaryValues[source_Association,target_Association,values_Asso
 
 PullBackEndpointBoundaryValues[source_Association,target_Association,values_Association,request_Association]:=
  Catch[Module[{rs,ts,r,t,e,a,b,d,u,images,substitution,sourceMatrices,targetMatrices,
-  l,pulled,checks,order,leading,v,lambda,beta,cancel,coefficientMatrix,sector},
+  l,pulled,checks,order,leading,v,lambda,beta,cancel,coefficientMatrix,sector,factor,logDerivative},
  If[!MemberQ[{"PhysicalEndpointBoundaryValuesDetermined","ExactEndpointBoundaryBasisConstructed"},Lookup[values,"Status",None]]||
   source["OriginalMasterIntegralBasis"]=!=target["OriginalMasterIntegralBasis"]||
   source["OriginalMasterIntegralBasis"]=!=values["MasterIntegralBasis"],
@@ -267,6 +269,8 @@ PullBackEndpointBoundaryValues[source_Association,target_Association,values_Asso
  {a,b}=Lookup[request,{"NormalUnitPower","TangentialPower"},None];
  If[!IntegerQ[a]||!MatchQ[b,_Integer|_Rational]||b===0,
   tangentialEndpointFail["ExplicitPositiveMonomialOverlapRequired"]];
+ If[b<0&&Lookup[values,"TangentialAnalyticFactor",1]=!=1,
+  tangentialEndpointFail["AnalyticUnitAtReciprocalEndpointRequiresContinuation"]];
  d=Denominator[b];u=If[d===1,t,Unique["positiveTangentialRoot"]];
  images={r u^(d a),u^(d b)};substitution=Thread[{rs,ts}->images];
  cancel[m_]:=Module[{answer=FeynFacet`CancelRationalCoefficients[Flatten[Normal[m]]]},
@@ -284,8 +288,10 @@ PullBackEndpointBoundaryValues[source_Association,target_Association,values_Asso
  leading=l/.r->0;
  {lambda,beta}=Lookup[values,{"NormalExponent","TangentialRegulatorExponent"}];
  coefficientMatrix=cancel[leading.(values["RationalCoefficientMatrix"]/.ts->u^(d b))];
+ factor=Lookup[values,"TangentialAnalyticFactor",1]/.ts->u^(d b);
+ logDerivative=Cancel[(Lookup[values,"TangentialAnalyticLogDerivative",0]/.ts->u^(d b))D[u^(d b),u]];
  beta=Cancel[a lambda+b beta];
- If[!AllTrue[Flatten[cancel[D[coefficientMatrix,u]+d beta coefficientMatrix/u-
+ If[!AllTrue[Flatten[cancel[D[coefficientMatrix,u]+(d beta/u+logDerivative)coefficientMatrix-
    d u^(d-1)(target["TangentialConnectionMatrix"]/.t->u^d).coefficientMatrix]],#===0&]||
   !AllTrue[Flatten[cancel[(target["NormalResidue"]/.t->u^d).coefficientMatrix-lambda coefficientMatrix]],#===0&],
   tangentialEndpointFail["TransferredPhysicalBoundaryEquationMismatch"]];
@@ -295,6 +301,8 @@ PullBackEndpointBoundaryValues[source_Association,target_Association,values_Asso
  Join[KeyDrop[values,{"PrimarySector","EulerConstantMap"}],<|
   "NormalVariable"->r,"TangentialVariable"->t,"NormalExponent"->lambda,
   "TangentialRegulatorExponent"->beta,"RationalCoefficientMatrix"->coefficientMatrix,
+  "TangentialAnalyticFactor"->(factor/.u->t^(1/d)),
+  "TangentialAnalyticLogDerivative"->(Cancel[logDerivative/(d u^(d-1))]/.u->t^(1/d)),
   "PrimarySector"->sector,
   "Overlap"-><|"NormalUnitPower"->a,"TangentialPower"->b,"PositiveTangentialRamification"->d,
    "GaugeComparison"->(l/.u->t^(1/d))|>,

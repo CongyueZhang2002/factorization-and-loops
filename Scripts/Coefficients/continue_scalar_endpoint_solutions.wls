@@ -5,7 +5,7 @@ continuationRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[continuationRoot<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=2,Print["Expected REQUEST.wl OUTPUT_DIRECTORY"];Exit[2]];
-configuration=Get[First[args]];destination=ExpandFileName[Last[args]];
+configuration=FeynFacetRecords`ReadRecord[First[args]];destination=ExpandFileName[Last[args]];
 If[!DirectoryQ[destination],CreateDirectory[destination,CreateIntermediateDirectories->True]];
 construction=Import[configuration["PhysicalBoundaryConstruction"],"WXF"];
 families=configuration["Families"];workers=Lookup[configuration,"Workers",1];

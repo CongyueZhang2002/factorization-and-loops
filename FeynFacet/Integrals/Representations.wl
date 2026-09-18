@@ -8,7 +8,7 @@ Clear[miRepFC,miRepFamilyName,miRepReadReference,miRepSourceData,miRepKiraRules,
 miRepFC[z_] := Module[{symbols,rules},
  symbols=DeleteDuplicates[Cases[z,s_Symbol /; MemberQ[
   {"GLI","FCTopology","FeynAmpDenominator","StandardPropagatorDenominator",
-   "PropagatorDenominator","Pair","Momentum","SPD","SP"},SymbolName[s]],
+   "PropagatorDenominator","GenericPropagatorDenominator","Pair","Momentum","SPD","SP"},SymbolName[s]],
   {0,Infinity},Heads->True]];
  (* Resolve the replacement symbols before traversing held Association values. *)
  rules=(#->Symbol["FeynCalc`"<>SymbolName[#]]& /@ symbols);
@@ -22,7 +22,7 @@ miRepReadReference[ref_,root_] := Module[{path},
  path=ExpandFileName[FileNameJoin[{root,ref["RelativePath"]}]];
  If[!FileExistsQ[path],epsOrderFail["IntegralDefinitionFileMissing",<|"Path"->path|>]];
  If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],
-  Block[{$Context="Global`",$ContextPath={"System`","Global`","FeynCalc`","FeynFacet`"}},Get[path]]]
+  FeynFacet`FamilyArtifactRead[path]]
 ];
 
 (* The Kira writer emits one scalar-product rule per line. Read that restricted
@@ -97,7 +97,12 @@ miRepFamilyData[source_,master_] := Module[{family,records,record,top,s,flow,loo
   If[Length[matches]>1,epsOrderFail["AmbiguousMasterTopologyName",<|"Family"->family|>]];
   record=If[matches==={},None,First[matches]]];
  If[!AssociationQ[record],epsOrderFail["MasterTopologyNotFound",<|"MasterIntegral"->master|>]];
- s=Join[KeyDrop[source,{"Topologies","TopologyRecord"}],record];
+ (* A family receives physical conventions, not the entire reduction/DE and
+    its validation history. Retaining that history once per master made even
+    small definition catalogs hundreds of megabytes. *)
+ s=Join[KeyTake[source,{"DimensionalRegulator","Dimension","KinematicRules",
+   "KinematicConditions","Assumptions","Prescription","MomentumSpaceConvention",
+   "MasterIntegralPrefactor","TimeDirection","Setup","LoopSectorData"}],record];
  top=Lookup[s,"Topology",None];
  If[!MatchQ[top,_FeynCalc`FCTopology] || Length[top]<5 ||
    miRepFamilyName[top[[1]]]=!=miRepFamilyName[family],
@@ -176,7 +181,8 @@ miRepDefinition[s_,master_,e_] := Module[
    "InversePropagator"->cores[[#1]],"Power"->nu[[#1]],
    "DeltaDerivativeOrder"->Max[0,nu[[#1]]-1],
    "DistributionCoefficient"->If[nu[[#1]]>0,(-1)^(nu[[#1]]-1)/(nu[[#1]]-1)!,0]|>&,{cuts,cm}];
- definition=<|"MasterIntegral"->master,"LoopMomenta"->loops,"ExternalMomenta"->top[[4]],
+ definition=<|"MasterIntegral"->master,"MomentumSpaceTopology"->ReplacePart[top,5->kin],
+  "LoopMomenta"->loops,"ExternalMomenta"->top[[4]],
   "DimensionalRegulator"->e,"Dimension"->dim,"InversePropagators"->cores,
   "PropagatorMomenta"->Lookup[desc,"Momentum"],
   "PropagatorTypes"->Lookup[desc,"Type"],
@@ -439,7 +445,7 @@ miRepPhaseVolume[definition_] := Module[
 Options[FeynFacet`ConstructMasterIntegralRepresentations]={
  "InputRoot"->Automatic,"ParametrizationTimeLimit"->30};
 miRepBuild[input_,request_,root_,seconds_,definitionsOnly_:False] := Module[
- {source,e,masters,result=<||>,failures=<||>,familyData=<||>,prepared=<||>,d,s,key,def,rep,pref,rows,kin},
+ {source,e,masters,result=<||>,failures=<||>,familyData=<||>,prepared=<||>,d,s,key,def,rep,pref,rows,kin,libraryValue,libraryWrite},
  If[!StringQ[root] || !(seconds===Infinity || TrueQ[NumericQ[seconds] && seconds>0]),
   epsOrderFail["RepresentationConstructionOptionsInvalid"]];
  If[!MemberQ[{"GenericKinematics","EndpointDistributions"},Lookup[request,"PrescriptionScope","GenericKinematics"]],
@@ -476,6 +482,13 @@ miRepBuild[input_,request_,root_,seconds_,definitionsOnly_:False] := Module[
      FailureQ[FeynFacet`RequireOrdinaryPrescriptionCertificate[
        def["OrdinaryPrescriptionCertificate"],"EndpointDistributions"]],
      epsOrderFail["EndpointDistributionPrescriptionCertificateRequired"]];
+   def=Append[def,"EvaluationScope"->Lookup[request,"PrescriptionScope","GenericKinematics"]];
+   libraryValue=If[TrueQ[definitionsOnly],Missing["DefinitionOnly"],
+     FeynFacet`FindMasterIntegralValue[def,Automatic]];
+   If[FailureQ[libraryValue],Throw[libraryValue,"EpsilonOrders"]];
+   If[AssociationQ[libraryValue],
+    d=<|"Representation"->"UnitCube","Terms"->{<|"IntegrationVariables"->{},
+      "Prefactor"->libraryValue["ExactValue"]|>},"LibraryReuse"->libraryValue["LibraryReuse"]|>,
    If[AnyTrue[def["PropagatorPowers"][[def["CutIndices"]]],#<=0&],
     d=<|"Representation"->"UnitCube","Terms"->{<|"IntegrationVariables"->{},"Prefactor"->0|>}|>,
     d=Which[
@@ -493,6 +506,16 @@ miRepBuild[input_,request_,root_,seconds_,definitionsOnly_:False] := Module[
       If[AssociationQ[product],product,<|"Representation"->"MomentumSpace",
        "ParameterRepresentationStatus"->"CoupledLoopAndPhaseSpaceParametrizationRequired"|>]]
     ]
+   ];
+   If[!TrueQ[definitionsOnly]&&AssociationQ[d]&&
+      MatchQ[Lookup[d,"Terms",None],{__Association}]&&
+      AllTrue[d["Terms"],Lookup[#,"IntegrationVariables",None]==={}&],
+    libraryWrite=FeynFacet`StoreMasterIntegralValue[def,
+     <|"ExactValue"->Total[Lookup[d["Terms"],"Prefactor"]]|>,
+     <|"Provenance"-><|"Producer"->"ConstructMasterIntegralRepresentations",
+       "Method"->Lookup[d,"ConstructionMethod","Explicit analytic formula"]|>|>];
+    If[FailureQ[libraryWrite],Throw[libraryWrite,"EpsilonOrders"]];
+    d=Append[d,"LibraryStorage"->libraryWrite]]
    ];
    Join[def,d,<|"MasterIntegral"->masters[[j]],"Status"->"IntegralRepresentationConstructed"|>],
   "EpsilonOrders"];

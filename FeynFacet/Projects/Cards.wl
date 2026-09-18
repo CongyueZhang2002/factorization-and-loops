@@ -1,11 +1,17 @@
 (* Shared project physics, ordered channels, and small contribution cards. *)
 BeginPackage["FeynFacet`"];
-ReadProjectCard::usage="ReadProjectCard[directory] reads the root card.wl and attaches its actual directory.";
-ReadContributionCard::usage="ReadContributionCard[channelDirectory,name] composes the project settings with one order/channel contribution. A component is selected as DoubleReal.Gluons.";
+ReadProjectCard::usage="ReadProjectCard[directory] reads the root Common-Card.wl and attaches its actual directory.";
+ReadContributionCard::usage="ReadContributionCard[sourceDirectory,name] composes a raw contribution with common physics. Counterterms resolve target-channel components; a third output-channel argument compiles only that component. Ordinary components use names such as DoubleReal.Gluons.";
 ReadProcessCard::usage="ReadProcessCard[compiledCard] or ReadProcessCard[channelDirectory,name] builds a complete amplitude setup from the shared project physics and contribution card.";
 WriteProjectCard::usage="WriteProjectCard[association,file] writes a human-readable Wolfram card; short nested associations remain on one row.";
 ProjectChannelName::usage="ProjectChannelName[project,physicalChannel] returns the explicit catalog name for a physical incoming/observed/recoil channel.";
 RequireMatchingProcessDefinition::usage="RequireMatchingProcessDefinition[artifact,process] requires exact agreement between a stored generated process definition and the current compiled card. Changed charges, spin assignments, momentum or diagram selections require regeneration.";
+PlanCountertermContributionCards::usage="PlanCountertermContributionCards[channelDirectory] derives concrete source-channel counterterm card definitions from the distribution transition kernels, without reading any lower-order folder.";
+BuildCountertermProjectCard::usage="BuildCountertermProjectCard[channelDirectory] compiles common physics and counterterm defaults for mathematical planning without a persisted aggregate counterterm card.";
+CompileCountertermCard::usage="CompileCountertermCard[targetDirectory,definition] compiles an explicit source-target counterterm component for mathematical planning. Source-owned raw operator cards are read with ReadContributionCard.";
+ReadCountertermCards::usage="ReadCountertermCards[targetDirectory] selects the relevant components of source-owned counterterms across Raw/order channels. Association keys contain the source channel and operator name.";
+WriteCountertermCards::usage="WriteCountertermCards[targetDirectory,definitions] writes each operator under its perturbative source channel and returns the components needed by the requested target. An identical existing card is reused; conflicting definitions are rejected.";
+VerifyCountertermCardCoverage::usage="VerifyCountertermCardCoverage[channelDirectory,cards] compares the complete multiset of resolved source-order, source-stage and weighted operator products with the common project's required counterterms. Card names and grouping do not determine mathematical coverage.";
 Begin["`Private`"];
 RequireMatchingProcessDefinition[artifact_Association,process_Association]:=Module[{stored,fields},
  stored=Lookup[artifact,"ProcessDefinition",None];
@@ -17,41 +23,541 @@ RequireMatchingProcessDefinition[artifact_Association,process_Association]:=Modu
 RequireMatchingProcessDefinition[___]:=Failure["GeneratedArtifactAndCompiledProcessRequired",<||>];
 
 projectFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"ProjectCards"];
+SetAttributes[projectWithCountertermPlanning,HoldFirst];
+projectWithCountertermPlanning[body_]:=If[AssociationQ[$projectCountertermDefinitionCache],body,
+ Block[{$projectCountertermDefinitionCache=<||>},body]];
+
 projectCheck[value_,tag_]:=If[!AssociationQ[value],projectFail[tag,<|"Cause"->value|>],value];
+(* Authored cards specify particles and sums, never their evaluated counts. *)
+projectCheckStateDeclarations[a_Association]:=(
+ If[Intersection[Keys[a],{"SymmetryFactor","AssemblyWeight","FlavorMultiplicity","EndpointPowers","EndpointConditions",
+    "CurrentNormalization","BareCouplingRules","CollinearMaps"}]=!={},
+  projectFail["DerivedNormalizationFieldsAreNotCardInputs",<|"Fields"->Intersection[Keys[a],
+    {"SymmetryFactor","AssemblyWeight","FlavorMultiplicity","EndpointPowers","EndpointConditions",
+     "CurrentNormalization","BareCouplingRules","CollinearMaps"}]|>]];
+ Scan[projectCheckStateDeclarations,Values[a]]);
+projectCheckStateDeclarations[a_List]:=Scan[projectCheckStateDeclarations,a];
+projectCheckStateDeclarations[_]:=Null;
+projectAmplitudeFlavorClasses[card_Association]:=If[
+ Lookup[card,"FlavorSummation",None]==="MasslessQCD"&&!KeyExistsQ[card,"Current"],
+ <|"MasslessQuarks"-><|"Members"->qcdFlavorLabels[Keys[card["SpeciesMap"]]],
+   "Multiplicity"->card["Counterterms"]["KernelParameters"]["FlavorCount"]|>|>,Lookup[card,"FlavorClasses",<||>]];
+projectUnobservedPartons[card_Association]:=Lookup[card,"UnobservedPartons",If[KeyExistsQ[card,"Current"],{},
+ Prepend[Lookup[card,"Radiation",{}],Lookup[card["Channels"][card["Channel"]],"Recoil",Missing["Recoil"]]]]];
+projectVerifyComponentStateSums[card_Association]:=Module[{rows,base,merged,channel,fixed,check},
+ If[!KeyExistsQ[card,"Components"]||Lookup[card,"Contribution",None]==="Counterterm",Return[True]];
+ base=KeyDrop[card,"Components"];channel=card["Channels"][card["Channel"]];
+ fixed=Join[channel["Incoming"],If[KeyExistsQ[channel,"Observed"],{channel["Observed"]},{}]];
+ rows=Map[Function[component,merged=projectMerge[base,component];
+   <|"UnobservedPartons"->projectUnobservedPartons[merged],"FlavorSum"->Lookup[merged,"FlavorSum",{}],
+     "Context"->projectIdentityValue[KeyTake[merged,{"Contribution","AmplitudeLoops","LoopMomenta","DiagramIndices",
+       "ProcessOverrides","UnobservedGluonStates","Assembly","Polarization","SpinParameters","Kinematics",
+       "Current","SpeciesMap","ProcessDefaults"}]]|>],card["Components"]];
+ check=FeynFacet`VerifyDisjointFlavorStateSums[rows,fixed,projectAmplitudeFlavorClasses[card]];
+ If[check=!=True,projectFail["ContributionStateSumsOverlap",<|"Cause"->check|>]];True
+];
+
+projectCompileStateFactors[card_Association]:=Module[{channel,unobserved,fields,fixed,summed,classes,count,selection,state},
+ If[Lookup[card,"Contribution",None]==="Counterterm",Return[card]];
+ If[KeyExistsQ[card,"Components"],projectVerifyComponentStateSums[card];Return[card]];
+ channel=card["Channels"][card["Channel"]];
+ unobserved=projectUnobservedPartons[card];
+ If[!ListQ[unobserved]||!AllTrue[unobserved,KeyExistsQ[card["SpeciesMap"],#]&],
+  projectFail["ExplicitUnobservedSpeciesRequired"]];
+ fields=card["SpeciesMap"][#]&/@Join[If[KeyExistsQ[channel,"Observed"],{channel["Observed"]},{}],unobserved];
+ selection=If[KeyExistsQ[channel,"Observed"],
+   If[Lookup[card,"DiagramIndices",All]=!=All||Intersection[Keys[Lookup[card,"ProcessOverrides",<||>]],
+     {"ForwardAmplitudes","ConjugateAmplitudes"}]=!={},projectFail["CompleteAmplitudeRequiredForInclusiveTagReduction"]];
+   <|"Representation"->"OneTuplePerOrbit","Tuple"->{1},"Ordered"->True|>,
+   <|"Representation"->"FullTupleSum"|>];
+ state=projectCheck[FeynFacet`FinalStateMeasurementNormalization[fields,selection],"FinalStateMeasurementCountingFailed"];
+ summed=Lookup[card,"FlavorSum",{}];
+ If[!ListQ[summed],projectFail["ExplicitDummyFlavorLabelsRequired"]];
+ fixed=Join[channel["Incoming"],If[KeyExistsQ[channel,"Observed"],{channel["Observed"]},{}]];
+ classes=projectAmplitudeFlavorClasses[card];
+ count=If[summed==={},<|"Multiplicity"->1,"FlavorCounts"-><||>,"DummyFlavorAutomorphisms"->1|>,
+   projectCheck[FeynFacet`FlavorAssignmentMultiplicity[unobserved,fixed,summed,classes],"FlavorAssignmentCountingFailed"]];
+ Join[card,<|"SymmetryFactor"->state["Factor"],
+   "FlavorMultiplicity"->count["Multiplicity"],"StateCounting"->Join[count,<|"Measurement"->state|>]|>]
+];
+$projectObservableNormalizationCache=<||>;
+projectCompleteCurrentNormalization[card_Association]:=Module[
+ {definition,key,cached,reference=None,channel,template,refCard,setup,request,born,value,structure,normalization},
+ If[!KeyExistsQ[card,"Current"],Return[card]];
+ definition=Lookup[card["Assembly"],"ObservableNormalization",None];
+ If[!AssociationQ[definition]||KeyExistsQ[card["Assembly"],"CurrentNormalization"],
+  projectFail["ObservableDefinitionReplacesIndependentCurrentNormalization"]];
+ key=KeyTake[card,{"Current","Assembly","ProcessDefaults","SpeciesMap","IncomingMomenta","FinalMomenta",
+   "Polarization","SpinParameters","GluonSpinIndices","GluonPolarizationReferences","Channels","BareSourceContributions","Counterterms","ColorRules"}];
+ cached=Lookup[$projectObservableNormalizationCache,Key[key],None];
+ If[AssociationQ[cached],Return[Join[card,<|"Assembly"->Join[card["Assembly"],<|"CurrentNormalization"->cached["Factor"],
+   "ObservableNormalizationDerivation"->cached|>]|>]]];
+ If[Lookup[definition,"Coefficient",None]==="BornNormalized",
+  channel=Lookup[definition,"ReferenceChannel",None];structure=Lookup[definition,"ReferenceStructure",None];
+  template=Lookup[Lookup[Lookup[Lookup[card,"BareSourceContributions",<||>],"LO",<||>],channel,<||>],"Born",None];
+  If[!AssociationQ[template]||!StringQ[structure]||Lookup[definition,"ReferenceFlavorCharges",None]=!="Unit",
+   projectFail["ExplicitBornNormalizationReferenceRequired"]];
+  refCard=projectMerge[card,template];
+  refCard=Join[refCard,<|"Order"->"LO","Contribution"->"Born","CardName"->"Born","Channel"->channel,
+    "EpsilonRange"->{0,0},"Assembly"->Join[refCard["Assembly"],<|"CurrentNormalization"->1|>]|>];
+  setup=projectCheck[FeynFacet`ReadProcessCard[refCard],"BornNormalizationProcessRequired"];
+  setup["ElectromagneticCharges"]=AssociationThread[Keys[card["ProcessDefaults"]["MasslessQuarkFlavors"]],
+    ConstantArray[1,Length[card["ProcessDefaults"]["MasslessQuarkFlavors"]]]];
+  request=Join[projectCheck[FeynFacet`ProjectAssemblyRequest[refCard],"BornNormalizationRequestRequired"],<|"EpsilonRange"->{0,0}|>];
+  born=projectCheck[FeynFacet`ConstructCurrentBornResult[setup,request],"BornNormalizationCalculationFailed"];
+  value=born["Coefficients"][0];
+  While[AssociationQ[value]&&KeyExistsQ[value,"DeltaCoefficient"],
+   If[!TrueQ[value["RegularCoefficient"]===0]&&!TrueQ[value["RegularCoefficient"]===ConstantArray[0,Length[born["StructureFunctions"]]]],
+    projectFail["EndpointBornReferenceRequired"]];value=value["DeltaCoefficient"]];
+  If[!ListQ[value]||!MemberQ[born["StructureFunctions"],structure],projectFail["ScalarBornReferenceStructureRequired"]];
+  value=value[[First@FirstPosition[born["StructureFunctions"],structure]]];
+  reference=<|"Coefficient"->value,"DimensionalRegulator"->Global`Epsilon,
+    "Source"->"GeneratedCanonicalTreeCurrent","Channel"->channel,"Structure"->structure,"FlavorCharges"->"Unit"|>];
+ normalization=projectCheck[FeynFacet`CurrentObservableNormalization[definition,reference],"ObservableNormalizationFailed"];
+ AssociateTo[$projectObservableNormalizationCache,key->normalization];
+ Join[card,<|"Assembly"->Join[card["Assembly"],<|"CurrentNormalization"->normalization["Factor"],
+   "ObservableNormalizationDerivation"->normalization|>]|>]
+];
+projectCompleteCollinearMaps[card_Association]:=Module[{assembly=card["Assembly"],momenta,geometry,maps,leg},
+ If[KeyExistsQ[assembly,"CollinearMaps"],projectFail["CollinearMapsAreDerivedFromMomentumDefinitions"]];
+ If[Lookup[assembly,"CollinearConvolution",None]=!="MomentumRescaling",Return[card]];
+ If[!KeyExistsQ[card,"Current"]||!KeyExistsQ[assembly,"KinematicRules"],projectFail["CurrentMomentumGeometryRequired"]];
+ momenta=DeleteDuplicates[Join[card["IncomingMomenta"],{card["Current"]["Momentum"],First[card["FinalMomenta"]]}]];
+ geometry=<|"Coordinates"->Prepend[assembly["Variables"],assembly["Scale"]],"EndpointVariable"->Last[assembly["Variables"]],
+   "DimensionalRegulator"->Global`Epsilon,"ExternalMomenta"->momenta,"KinematicRules"->assembly["KinematicRules"],
+   "DensityPrefactor"->assembly["CurrentNormalization"],"Assumptions"->assembly["Assumptions"]|>;
+ maps=Association@KeyValueMap[Function[{name,definition},
+   leg=Join[KeyTake[definition,{"Role","Variable"}],<|"Momentum"->If[definition["Role"]==="PDF",
+     card["IncomingMomenta"][[definition["Index"]]],First[card["FinalMomenta"]]]|>];
+   name->projectCheck[FeynFacet`ConstructCollinearMomentumMap[geometry,leg],"MomentumConvolutionMapDerivationFailed"]],assembly["FactorizationLegs"]];
+ Join[card,<|"Assembly"->Join[assembly,<|"CollinearMaps"->maps|>]|>]
+];
 projectMerge[a_Association,b_Association]:=Association@Table[k->If[KeyExistsQ[a,k]&&KeyExistsQ[b,k]&&AssociationQ[a[k]]&&AssociationQ[b[k]],
  projectMerge[a[k],b[k]],If[KeyExistsQ[b,k],b[k],a[k]]],{k,Union[Keys[a],Keys[b]]}];
 projectAbsolutePath[path_String]:=With[{parts=FileNameSplit[ExpandFileName[path]]},FileNameJoin[Join[Take[parts,1],DeleteCases[Rest[parts],""]]]];
 projectRootDirectory[directory_String]:=Module[{dir=projectAbsolutePath[directory]},
- While[DirectoryName[dir]=!=dir&&!FileExistsQ[FileNameJoin[{dir,"card.wl"}]],dir=DirectoryName[dir]];
- If[!FileExistsQ[FileNameJoin[{dir,"card.wl"}]],projectFail["ProjectCardNotFound",<|"Directory"->directory|>]];FileNameJoin[FileNameSplit[dir]]];
-ReadProjectCard[directory_String]:=Catch[Module[{dir,card},
- dir=projectRootDirectory[directory];card=Get[FileNameJoin[{dir,"card.wl"}]];
- projectCheck[card,"ProjectCardAssociationRequired"];
+ While[DirectoryName[dir]=!=dir&&!FileExistsQ[FileNameJoin[{dir,"Common-Card.wl"}]],dir=DirectoryName[dir]];
+ If[!FileExistsQ[FileNameJoin[{dir,"Common-Card.wl"}]],projectFail["ProjectCardNotFound",<|"Directory"->directory|>]];FileNameJoin[FileNameSplit[dir]]];
+ReadProjectCard[directory_String]:=Catch[Module[{dir,card,ct,normalization,e=Global`Epsilon,rules},
+ dir=projectRootDirectory[directory];card=Get[FileNameJoin[{dir,"Common-Card.wl"}]];
+  projectCheck[card,"ProjectCardAssociationRequired"];
+  projectCheckStateDeclarations[card];
  If[!ContainsAll[Keys[card],{"Project","ProcessDefaults","Channels","SpeciesMap","Kinematics","Counterterms","Orders","Polarization","SpinParameters"}],
   projectFail["ProjectCardIncomplete"]];
- Join[card,<|"Directory"->dir|>]],"ProjectCards"];
-projectChannelLocation[directory_String]:=Module[{project,dir,relative},
+ ct=card["Counterterms"];
+ If[KeyExistsQ[card,"FlavorClasses"],projectFail["FlavorClassesAreDerivedFromModelDeclarations"]];
+ card["FlavorClasses"]=Catch[modelFlavorEquivalenceClasses[card["ProcessDefaults"],card["SpeciesMap"]],$collinearFailure];
+ If[!AssociationQ[card["FlavorClasses"]],projectFail["ModelFlavorClassesRequired"]];
+ If[!TrueQ[FullSimplify[ct["KernelParameters"]["FlavorCount"]==
+    Total[Values[card["ProcessDefaults"]["MasslessQuarkFlavors"]]]]],
+  projectFail["KernelFlavorCountDisagreesWithAmplitudeModel"]];
+ If[!KeyExistsQ[ct,"BareCouplingFactor"],projectFail["DeclaredBareCouplingFactorRequired"]];
+ normalization=projectCheck[FeynFacet`MSbarCouplingNormalization[e,ct["BareCouplingFactor"]],
+   "BareCouplingNormalizationFailed"];
+ If[!FreeQ[ct["BareCouplingFactor"],Alternatives@@Join[
+   Lookup[Lookup[card,"Assembly",<||>],"Variables",{}],
+   {ct["Coupling"],ct["RenormalizationScaleSquared"]},
+   Values[ct["FactorizationScalesSquared"]]]],projectFail["UniversalBareCouplingFactorRequired"]];
+  If[KeyExistsQ[card,"Current"],
+   If[KeyExistsQ[card["Assembly"],"BareCouplingRules"],projectFail["BareCouplingRulesAreDerivedFromCountertermsDefinition"]];
+   rules=FeynFacet`BareStrongCouplingRules[ct,e];
+   If[!MatchQ[rules,{_Rule}],projectFail["BareStrongCouplingConversionFailed",<|"Cause"->rules|>]];
+   card["Assembly"]=Join[card["Assembly"],<|"BareCouplingRules"->rules|>]];
+  projectCompleteCollinearMaps[projectCompleteCurrentNormalization[FeynFacet`CompleteBareSourcePhysics[Join[card,<|"Directory"->dir,"Counterterms"->Join[ct,<|"CouplingNormalization"->normalization,
+   "PoleNormalization"->normalization["PoleNormalization"]|>]|>]]]]],"ProjectCards"];
+projectChannelLocation[directory_String]:=Module[{project,dir,relative,order,channel,raw},
  dir=projectAbsolutePath[directory];project=projectCheck[ReadProjectCard[dir],"ProjectCardRequired"];
  relative=Drop[FileNameSplit[dir],Length[FileNameSplit[project["Directory"]]]];
- If[Length[relative]=!=2||!KeyExistsQ[project["Orders"],First[relative]]||
-   !MemberQ[project["Orders"][First[relative]],Last[relative]],
+ If[Length[relative]=!=3||!MemberQ[{"Raw","Results"},First[relative]],
+  projectFail["StagedOrderAndChannelDirectoryRequired",<|"Directory"->dir|>]];
+ {order,channel}=Rest[relative];
+ If[!KeyExistsQ[project["Orders"],order]||!KeyExistsQ[project["Channels"],channel]||
+   (First[relative]==="Results"&&!MemberQ[project["Orders"][order],channel]),
   projectFail["DeclaredOrderAndChannelRequired",<|"Directory"->dir|>]];
- <|"ProjectCard"->project,"Directory"->dir,"Order"->First[relative],"Channel"->Last[relative]|>];
-ReadContributionCard[directory_String,name_String]:=Catch[Module[{location,parts,file,card,component,project},
+ raw=FileNameJoin[{project["Directory"],"Raw",order,channel}];
+ <|"ProjectCard"->project,"Directory"->raw,"Order"->order,"Channel"->channel|>
+];
+projectContributionPaths[base_String]:=<|"ContributionDirectory"->base,
+ "WorkDirectory"->FileNameJoin[{base,"Work"}],"ResultFile"->FileNameJoin[{base,"Results.wl"}]|>;
+ReadContributionCard[directory_String,name_String]:=Catch[Module[
+ {location,parts,file,card,component,project,shared,base,kind},
  location=projectChannelLocation[directory];project=location["ProjectCard"];parts=StringSplit[name,"."];
- If[!MemberQ[{1,2},Length[parts]]||!AllTrue[parts,StringMatchQ[#,LetterCharacter~~(LetterCharacter|DigitCharacter)...]&],
+ If[!MemberQ[{1,2},Length[parts]]||!AllTrue[parts,
+   StringMatchQ[#,LetterCharacter~~(LetterCharacter|DigitCharacter|"-"|"_")...]&],
   projectFail["ContributionNameRequired"]];
- file=FileNameJoin[{location["Directory"],"Cards",First[parts]<>".wl"}];
+ base=FileNameJoin[{location["Directory"],First[parts]}];file=FileNameJoin[{base,"Card.wl"}];
  If[!FileExistsQ[file],projectFail["ContributionCardNotFound",<|"File"->file|>]];
- card=projectCheck[Get[file],"ContributionCardAssociationRequired"];
+  card=projectCheck[Get[file],"ContributionCardAssociationRequired"];
+  projectCheckStateDeclarations[card];
+ kind=Lookup[card,"Contribution",None];
+ If[kind==="Counterterm",
+  card=projectCheck[projectCompileSourceCounterterm[location["Directory"],Join[card,<|"CardName"->First[parts]|>]],
+   "CountertermCardCompilationFailed"],
+  shared=Lookup[Lookup[Lookup[Lookup[project,"BareSourceContributions",<||>],location["Order"],<||>],
+    location["Channel"],<||>],kind,<||>];
+  card=projectMerge[shared,card]];
  If[Length[parts]===2,
   component=Lookup[Lookup[card,"Components",<||>],Last[parts],Missing[]];
-  card=projectMerge[KeyDrop[card,"Components"],projectCheck[component,"ContributionComponentRequired"]]];
- Join[projectMerge[project,card],KeyDrop[location,"ProjectCard"],<|"ProjectDirectory"->project["Directory"],
-  "CardFile"->file,"CardName"->name,"ContributionPath"->StringRiffle[parts,"/"]|>]],"ProjectCards"];
+  card=projectMerge[KeyDrop[card,"Components"],projectCheck[component,"ContributionComponentRequired"]];
+  base=FileNameJoin[{base,"Work","Components",Last[parts]}]];
+  projectCompileStateFactors[Join[projectMerge[project,card],KeyDrop[location,"ProjectCard"],projectContributionPaths[base],
+  <|"ProjectDirectory"->project["Directory"],"CardFile"->file,"CardName"->name,
+    "ContributionPath"->StringRiffle[parts,"/"]|>]]
+],"ProjectCards"];
+ReadContributionCard[directory_String,name_String,outputChannel_String]:=Catch[Module[{file,raw,card},
+ projectChannelLocation[directory];
+ If[!StringMatchQ[name,LetterCharacter~~(LetterCharacter|DigitCharacter|"-"|"_")...],projectFail["ContributionNameRequired"]];
+ file=FileNameJoin[{directory,name,"Card.wl"}];
+ If[!FileExistsQ[file],projectFail["ContributionCardNotFound",<|"File"->file|>]];
+ raw=Get[file];
+ If[!AssociationQ[raw]||Lookup[raw,"Contribution",None]=!="Counterterm",
+  projectFail["ChannelSelectionRequiresCountertermContribution"]];
+ projectCheckStateDeclarations[raw];
+ card=projectCheck[projectCompileSourceCounterterm[directory,Join[raw,<|"CardName"->name|>],{outputChannel}],
+  "SelectedCountertermCardRequired"];
+ card["TargetCards"][outputChannel]
+],"ProjectCards"];
 ProjectChannelName[project_Association,channel_Association]:=Catch[Module[{matches},
  matches=Select[Keys[project["Channels"]],project["Channels"][#]===channel&];
  If[Length[matches]=!=1,projectFail["UniqueDeclaredChannelRequired",<|"PhysicalChannel"->channel,"Matches"->matches|>]];First[matches]],"ProjectCards"];
+
+
+PlanCountertermContributionCards[directory_String]:=Catch[Module[
+ {card,ct,target,groups=<||>,append,enumeration,row,name,source,sourceName,leg,definition,role,index,
+  daughter,parent,spin,kernel,finite,nonzero,product,keys,order,request,plan,sourceOrder,names,pattern,terms,uvPower,
+  stage,mode,legs,schemes,sourceTemplates,range,cached,result},
+ card=projectCheck[BuildCountertermProjectCard[directory],"CountertermProjectRequired"];ct=card["Counterterms"];
+ If[AssociationQ[$projectCountertermDefinitionCache],
+  cached=Lookup[$projectCountertermDefinitionCache,Key[card],None];
+  If[ListQ[cached],Return[cached]]];
+ target=card["Channels"][card["Channel"]];order=Switch[card["Order"],"NLO",1,"NNLO",2];
+ range=card["EpsilonRange"];
+ append[n_,channel_,sourceStage_,insertion_]:=Module[{key={n,channel,sourceStage},old},
+  old=Lookup[groups,Key[key],{}];AssociateTo[groups,key->DeleteDuplicates[Append[old,insertion]]]];
+ nonzero[value_]:=AssociationQ[value]&&!TrueQ[value["DeltaCoefficient"]===0&&
+  AllTrue[Values[value["PlusCoefficients"]],#===0&]&&value["RegularCoefficient"]===0];
+ If[order===1,
+  If[card["Assembly"]["CollinearConvolution"]==="InvariantSingleInclusive",
+   enumeration=projectCheck[FeynFacet`EnumerateNLOCollinearChannels[target,<|
+    "Species"->Select[Keys[card["SpeciesMap"]],collinearKernelSpeciesQ],"Polarization"->card["Polarization"],
+    "Schemes"->ct["Schemes"],"SplittingVariable"->ct["SplittingVariable"],"KernelParameters"->ct["KernelParameters"],
+    "FlavorSummation"->Lookup[card,"FlavorSummation",None]|>],"CountertermChannelEnumerationFailed"];
+   Do[
+    name=FeynFacet`ProjectChannelName[card,row["BornChannel"]];
+    If[!StringQ[name],projectFail["CountertermSourceChannelDeclarationRequired",<|"Cause"->name|>]];
+    append["LO",name,"Bare",<|row["Leg"]-><|
+     "Distribution"->If[row["Leg"]==="Observed","FFCounterterm","PDFCounterterm"],
+     "PerturbativeOrder"->1,"Operation"->"Factorization",
+     Sequence@@If[Lookup[row,"FlavorMultiplicity",1]===1,{},{"FlavorMultiplicity"->row["FlavorMultiplicity"]}]|>|>],
+   {row,enumeration["Channels"]}],
+   sourceTemplates=card["BareSourceContributions"]["LO"];
+   Do[
+    source=card["Channels"][sourceName];
+    Do[
+     definition=card["Assembly"]["FactorizationLegs"][leg];role=definition["Role"];
+     If[role==="PDF",
+      index=definition["Index"];
+      If[Length[source["Incoming"]]=!=Length[target["Incoming"]]||
+       Lookup[source,"Observed",None]=!=Lookup[target,"Observed",None]||
+       ReplacePart[source["Incoming"],index->target["Incoming"][[index]]]=!=target["Incoming"],Continue[]];
+      {daughter,parent}={source["Incoming"][[index]],target["Incoming"][[index]]};
+      spin=card["Polarization"]["Incoming"][[index]],
+      If[source["Incoming"]=!=target["Incoming"]||!KeyExistsQ[source,"Observed"],Continue[]];
+      {daughter,parent}={target["Observed"],source["Observed"]};spin=card["Polarization"]["Observed"]];
+     kernel=FeynFacet`LeadingSplittingKernel[daughter,parent,spin,definition["Variable"],ct["KernelParameters"]];
+     finite=FeynFacet`FactorizationSchemeKernel[ct["Schemes"][leg],daughter,parent,spin,definition["Variable"],ct["KernelParameters"]];
+     If[!AssociationQ[kernel]||!AssociationQ[finite],projectFail["CountertermTransitionKernelRequired"]];
+     If[nonzero[kernel]||nonzero[finite],append["LO",sourceName,"Bare",<|leg-><|
+      "Distribution"->If[role==="PDF","PDFCounterterm","FFCounterterm"],
+      "PerturbativeOrder"->1,"Operation"->"Factorization"|>|>]],
+    {leg,Keys[card["Assembly"]["FactorizationLegs"]]}],
+   {sourceName,Keys[sourceTemplates]}]];
+  If[card["BornCouplingPower"]>0&&MemberQ[card["Include"],"UV"]&&
+    KeyExistsQ[Lookup[card["BareSourceContributions"],"LO",<||>],card["Channel"]]&&
+    Lookup[Lookup[card,"MinimumChannelOrders",<||>],card["Channel"],0]===0,
+   append["LO",card["Channel"],"Bare",<|"Coupling"-><|"Distribution"->"CouplingCounterterm",
+    "PerturbativeOrder"->1,"Operation"->"CollinearSubtraction"|>|>]],
+  If[!ContainsAll[Keys[card],{"FlavorClasses","MinimumChannelOrders","BareOperatorSchemes"}],
+   projectFail["NNLOFlavorAndOperatorDeclarationsRequired"]];
+  Do[
+   legs=partonicCardFactorizationLegs[card,mode];
+   request=<|"PerturbativeOrder"->2,"ThroughOrder"->Last[range],"DimensionalRegulator"->Global`Epsilon,
+    "PerturbativeParameter"->ct["Coupling"]/(2Pi),"BornCouplingPower"->card["BornCouplingPower"],
+     "Legs"->legs,"FlavorClasses"->card["FlavorClasses"],"KernelParameters"->ct["KernelParameters"],
+    "CouplingNormalization"->ct["CouplingNormalization"]|>;
+   plan=If[mode==="Raw",FeynFacet`PlanCollinearRenormalization[bareChannelSpecies[target],request],
+    FeynFacet`PlanFiniteFactorizationSchemeChange[bareChannelSpecies[target],request]];
+   plan=projectCheck[plan,"NNLOCountertermPlanFailed"];
+   plan=partonicBindSourceChannels[plan,card];
+   terms=Select[plan["Terms"],#["SourceOrder"]<2&];
+   stage=If[mode==="Raw","Bare","Renormalized"];
+   Do[
+    sourceOrder=row["SourceOrder"];name=row["SourceChannel"];
+    product=Association@Table[
+     leg=legs[[entry["Leg"]]]["Name"];
+     leg-><|"Distribution"->If[legs[[entry["Leg"]]]["Role"]==="PDF","PDFCounterterm","FFCounterterm"],
+      "PerturbativeOrder"->entry["PerturbativeOrder"],
+      "Operation"->If[mode==="Raw","CollinearSubtraction","FiniteSchemeChange"]|>,
+    {entry,row["Kernels"]}];
+    uvPower=2-sourceOrder-Total[Lookup[row["Kernels"],"PerturbativeOrder",{}]];
+    If[uvPower>0,AssociateTo[product,"Coupling"-><|"Distribution"->"CouplingCounterterm",
+      "PerturbativeOrder"->uvPower,"Operation"->"CollinearSubtraction"|>]];
+    If[product===<||>,projectFail["NonemptyCountertermInsertionProductRequired"]];
+    append[{"LO","NLO"}[[sourceOrder+1]],name,stage,product],
+   {row,terms}],
+  {mode,{"Raw","Finite"}}]];
+ (* A channel appearing first at this order can have no lower-order
+    counterterm. An empty plan is a physical zero, not a planning failure. *)
+ result=KeyValueMap[Function[{key,products},<|"Contribution"->"Counterterm","SourceOrder"->key[[1]],
+  "SourceChannel"->key[[2]],"SourceRenormalizationStage"->key[[3]],
+  "EpsilonRange"->If[key[[3]]==="Renormalized",{0,0},range],"OperatorInsertions"->products|>],groups];
+ If[AssociationQ[$projectCountertermDefinitionCache],AssociateTo[$projectCountertermDefinitionCache,card->result]];
+ result
+],"ProjectCards"];
+
+BuildCountertermProjectCard[directory_String]:=Catch[Module[{location,project,n,range,include},
+ location=projectChannelLocation[directory];project=location["ProjectCard"];
+ n=Switch[location["Order"],"NLO",1,"NNLO",2,_,projectFail["CountertermRequiresHigherPerturbativeOrder"]];
+ range=Lookup[Lookup[project,"ResultEpsilonRanges",<||>],location["Order"],{0,0}];
+ include=Lookup[project["Counterterms"],"Include",Join[{"UV"},Keys[project["Counterterms"]["Schemes"]]]];
+ Join[project,KeyDrop[location,"ProjectCard"],projectContributionPaths[FileNameJoin[{location["Directory"],"Counterterm"}]],<|"ProjectDirectory"->project["Directory"],
+  "CardFile"->FileNameJoin[{project["Directory"],"Common-Card.wl"}],"CardName"->"Counterterm",
+  "Contribution"->"Counterterm","ContributionPath"->"Counterterm",
+  "EpsilonRange"->{If[n===1,-1,-4],Last[range]},"Include"->include|>]
+],"ProjectCards"];
+
+projectCountertermDefinitionCheck[card_Association]:=Module[{source,stage,products,legal,order,operations},
+ If[Lookup[card,"Contribution",None]=!="Counterterm"||
+  !MemberQ[{"LO","NLO"},Lookup[card,"SourceOrder",None]]||
+  !StringQ[Lookup[card,"SourceChannel",None]]||
+  !KeyExistsQ[card["Channels"],card["SourceChannel"]]||
+  !MatchQ[Lookup[card,"EpsilonRange",None],{_Integer,_Integer}],
+  projectFail["ExplicitCountertermSourceAndTargetOrdersRequired"]];
+ If[First[card["EpsilonRange"]]>Last[card["EpsilonRange"]],
+  projectFail["OrderedCountertermEpsilonRangeRequired"]];
+ If[card["SourceOrder"]==="LO"&&Lookup[card,"SourceContribution","Born"]=!="Born",
+  projectFail["BornDensityRequiredForLOCountertermSource"]];
+ source=Switch[card["SourceOrder"],"LO",0,"NLO",1];
+ order=Switch[card["Order"],"NLO",1,"NNLO",2,_,projectFail["NLOOrNNLOCountertermRequired"]];
+ stage=Lookup[card,"SourceRenormalizationStage","Bare"];
+ products=Lookup[card,"OperatorInsertions",None];
+ legal=Join[{"Coupling"},Keys[card["Counterterms"]["Schemes"]]];
+ If[source>=order||!MemberQ[{"Bare","Renormalized"},stage]||
+  !MatchQ[products,{_Association..}]||
+  !AllTrue[products,Length[#]>0&&SubsetQ[legal,Keys[#]]&],
+  projectFail["NonemptyPhysicalDistributionOperatorProductsRequired"]];
+ Do[
+  If[!AllTrue[Values[product],AssociationQ[#]&&
+    MemberQ[{"PDFCounterterm","FFCounterterm","CouplingCounterterm"},Lookup[#,"Distribution",None]]&&
+    IntegerQ[Lookup[#,"PerturbativeOrder",None]]&&#["PerturbativeOrder"]>0&&
+    MemberQ[{"CollinearSubtraction","FiniteSchemeChange","Factorization"},Lookup[#,"Operation",None]]&]||
+    Total[Lookup[Values[product],"PerturbativeOrder"]]=!=order-source,
+   projectFail["CountertermOperatorOrderDoesNotMatchContribution"]];
+  If[KeyExistsQ[product,"Coupling"]&&product["Coupling"]["Distribution"]=!="CouplingCounterterm",
+   projectFail["CouplingInsertionRequiresCouplingCounterterm"]];
+  If[AnyTrue[KeyDrop[product,"Coupling"],#["Distribution"]==="CouplingCounterterm"&],
+   projectFail["CouplingCountertermMustActOnCoupling"]];
+  operations=DeleteDuplicates[Lookup[Values[product],"Operation"]];
+  If[order===2&&MemberQ[operations,"Factorization"],
+   projectFail["SeparateRawAndFiniteNNLOCountertermCardsRequired"]];
+  If[(stage==="Renormalized"&&operations=!={"FiniteSchemeChange"})||
+    (stage==="Bare"&&MemberQ[operations,"FiniteSchemeChange"]),
+   projectFail["CountertermSourceRenormalizationStageMismatch"]],
+ {product,products}];
+ True
+];
+CompileCountertermCard[directory_String,definition_Association]:=Catch[
+ projectCompileCountertermCard[projectCheck[BuildCountertermProjectCard[directory],"CountertermProjectRequired"],definition],
+ "ProjectCards"];
+projectCompileCountertermCard[base_Association,definition_Association]:=Catch[Module[{card,name,directory=base["Directory"]},
+ card=projectMerge[base,definition];
+ If[card["Order"]==="NLO",
+  card=Join[<|"SourceOrder"->"LO","SourceContribution"->"Born",
+    "SourceRenormalizationStage"->"Bare"|>,card]];
+ name=Lookup[definition,"CardName","Counterterm"<>card["SourceOrder"]<>
+   StringReplace[card["SourceChannel"],Except[LetterCharacter|DigitCharacter]->""]<>
+   If[Lookup[card,"SourceRenormalizationStage","Bare"]==="Renormalized","Finite","Raw"]];
+ If[!StringMatchQ[name,LetterCharacter~~(LetterCharacter|DigitCharacter|"-"|"_")...],
+  projectFail["AlphanumericCountertermCardNameRequired"]];
+ card=Join[card,<|"CardName"->name,"ContributionPath"->name,"CardFile"->FileNameJoin[{directory,name,"Card.wl"}],
+  "SourceRenormalizationStage"->Lookup[card,"SourceRenormalizationStage","Bare"]|>];
+ projectCountertermDefinitionCheck[card];Join[card,projectContributionPaths[FileNameJoin[{directory,name}]]]
+],"ProjectCards"];
+
+ReadCountertermCards[directory_String]:=projectWithCountertermPlanning[Catch[Module[{location,files,result=<||>,raw,value,name,owner,target},
+ location=projectChannelLocation[directory];target=location["Channel"];
+ files=Sort[FileNames["*/*/Card.wl",DirectoryName[location["Directory"]]]];
+ Do[
+  raw=Get[file];
+  If[AssociationQ[raw]&&Lookup[raw,"Contribution",None]==="Counterterm",
+   projectCheckStateDeclarations[raw];
+   If[KeyExistsQ[raw,"OutputChannels"]&&!MemberQ[raw["OutputChannels"],target],Continue[]];
+   owner=DirectoryName[file,2];name=FileNameTake[DirectoryName[file]];
+   value=projectCompileSourceCounterterm[owner,Join[raw,<|"CardName"->name|>],{target}];
+   If[MatchQ[value,Failure["NonzeroCountertermOutputRequired",_]],Continue[]];
+   value=projectCheck[value,"CountertermCardCompilationFailed"];
+   If[KeyExistsQ[value["TargetCards"],target],
+    AssociateTo[result,FileNameTake[owner]<>"/"<>name->value["TargetCards"][target]]]],
+ {file,files}];
+ If[result===<||>,projectFail["ConcreteCountertermCardsRequired",<|"Directory"->directory|>]];
+ result
+],"ProjectCards"]];
+
+projectCountertermProductSignature[product_Association]:=projectCountertermCoverageCanonical[
+ KeyTake[#,{"Distribution","PerturbativeOrder","Operation"}]&/@product];
+projectCompileSourceCounterterm[directory_String,definition_Association,requestedTargets_:Automatic]:=Catch[Module[
+ {location,project,base,owner,name,sourceOrder,stage,products,targets,selected=<||>,required,matches,
+  terms,term,card,paths,output,actual,sourceContribution,declaredTargets,sourceRequired},
+ location=projectChannelLocation[directory];project=location["ProjectCard"];owner=location["Channel"];
+ base=projectCheck[BuildCountertermProjectCard[directory],"CountertermProjectRequired"];
+ If[KeyExistsQ[definition,"SourceChannel"]&&definition["SourceChannel"]=!=owner,
+  projectFail["CountertermSourceMustBeItsOwningChannel"]];
+ sourceOrder=Lookup[definition,"SourceOrder",If[location["Order"]==="NLO","LO",Missing["SourceOrder"]]];
+ sourceContribution=Lookup[definition,"SourceContribution",If[sourceOrder==="LO","Born","Bare"]];
+ If[sourceOrder==="LO"&&sourceContribution=!="Born",projectFail["BornDensityRequiredForLOCountertermSource"]];
+ stage=Lookup[definition,"SourceRenormalizationStage","Bare"];
+ products=Lookup[definition,"OperatorInsertions",None];name=Lookup[definition,"CardName","Counterterm"];
+ If[!MatchQ[products,{_Association..}],projectFail["CountertermOperatorProductsRequired"]];
+ If[!DuplicateFreeQ[projectCountertermProductSignature/@products],projectFail["DistinctCountertermOperatorProductsRequired"]];
+ declaredTargets=Lookup[definition,"OutputChannels",project["Orders"][location["Order"]]];
+ targets=If[requestedTargets===Automatic,declaredTargets,requestedTargets];
+ If[!ListQ[declaredTargets]||!SubsetQ[declaredTargets,targets],projectFail["CountertermOutputNotDeclared"]];
+ If[!MatchQ[targets,{__String}]||!DuplicateFreeQ[targets]||
+    !SubsetQ[Keys[project["Channels"]],targets],projectFail["DeclaredCountertermOutputChannelsRequired"]];
+ paths=projectContributionPaths[FileNameJoin[{location["Directory"],name}]];
+ Do[
+  required=FeynFacet`PlanCountertermContributionCards[FileNameJoin[{project["Directory"],"Raw",location["Order"],target}]];
+  If[FailureQ[required],projectFail["TargetCountertermDefinitionsRequired",<|"Cause"->required|>]];
+  sourceRequired=Select[required,#["SourceChannel"]===owner&&#["SourceOrder"]===sourceOrder&];
+  required=Select[sourceRequired,#["SourceRenormalizationStage"]===stage&];
+  If[required==={}&&location["Order"]==="NLO"&&sourceOrder==="LO"&&stage==="Renormalized",
+   required=Select[sourceRequired,#["SourceRenormalizationStage"]==="Bare"&]];
+  terms={};
+  Do[
+   matches=Select[Flatten[Lookup[required,"OperatorInsertions",{}],1],
+    projectCountertermCoverageCanonical[KeyTake[#,{"Distribution","PerturbativeOrder"}]&/@#]===
+     projectCountertermCoverageCanonical[KeyTake[#,{"Distribution","PerturbativeOrder"}]&/@actual]&];
+   terms=Join[terms,Map[projectMerge[#,actual]&,matches]],
+  {actual,products}];
+  terms=DeleteDuplicates[terms];
+  If[terms==={},Continue[]];
+  card=projectCheck[projectCompileCountertermCard[
+   projectCheck[BuildCountertermProjectCard[FileNameJoin[{project["Directory"],"Raw",location["Order"],target}]],"TargetCardRequired"],
+   Join[KeyDrop[definition,{"OutputChannels"}],<|"SourceChannel"->owner,"SourceOrder"->sourceOrder,
+    "SourceContribution"->sourceContribution,"SourceRenormalizationStage"->stage,"OperatorInsertions"->terms|>]],
+   "CountertermProjectionCompilationFailed"];
+  output=Join[card,paths,<|"Directory"->location["Directory"],"CardFile"->FileNameJoin[{paths["ContributionDirectory"],"Card.wl"}],
+    "WorkDirectory"->FileNameJoin[{paths["WorkDirectory"],"Channels",target}],
+    "RawCollectionFile"->paths["ResultFile"],"RawOutputChannel"->target|>];
+  AssociateTo[selected,target->output],
+ {target,targets}];
+ If[selected===<||>,projectFail["NonzeroCountertermOutputRequired"]];
+ Join[projectMerge[base,definition],paths,<|"Channel"->owner,"SourceChannel"->owner,
+  "SourceOrder"->sourceOrder,"SourceContribution"->sourceContribution,"SourceRenormalizationStage"->stage,
+  "CardFile"->FileNameJoin[{paths["ContributionDirectory"],"Card.wl"}],"CardName"->name,"TargetCards"->selected|>]
+],"ProjectCards"];
+
+projectCountertermCoverageCanonical[value_Association]:=Association@KeyValueMap[
+ #1->projectCountertermCoverageCanonical[#2]&,KeySortBy[value,ToString[#,InputForm]&]];
+projectCountertermCoverageCanonical[value_List]:=projectCountertermCoverageCanonical/@value;
+projectCountertermCoverageCanonical[value_]:=value;
+projectCountertermCoverageKernel[kernel_Association]:=Join[
+ KeyTake[kernel,{"Variable"}],
+ <|"DeltaCoefficient"->Factor[kernel["DeltaCoefficient"]],
+   "PlusCoefficients"->Map[Factor,kernel["PlusCoefficients"]],
+   "RegularCoefficient"->Factor[kernel["RegularCoefficient"]]|>];
+projectCountertermCoverageRows[card_Association]:=Module[{plan,identity,rows,distribution,factor,products},
+ plan=projectCheck[FeynFacet`PlanCountertermContribution[card],"CountertermCoveragePlanFailed"];
+ identity=<|"Project"->card["Project"],"Order"->card["Order"],
+   "TargetChannel"->card["Channels"][card["Channel"]],"Polarization"->card["Polarization"],
+   "BornCouplingPower"->card["BornCouplingPower"],
+   "CouplingNormalization"->card["Counterterms"]["CouplingNormalization"],
+   "PhysicalConvention"->KeyTake[card["Assembly"],
+     {"Scale","Variables","DensityConvention","DistributionBasis","CurrentNormalization"}],
+   "SourceRenormalizationStage"->card["SourceRenormalizationStage"]|>;
+ rows=If[card["Order"]==="NLO",
+  Table[
+   distribution=row["Distribution"];
+   factor=Factor[row["FlavorMultiplicity"] Lookup[card,"FlavorMultiplicity",1]
+     (card["Counterterms"]["Coupling"]/(2Pi))^distribution["PerturbativeOrder"]];
+   If[factor===0||distribution["LaurentLowerBound"]===Infinity,Nothing,
+    Join[identity,<|"SourceOrder"->0,"SourceChannel"->card["Channels"][row["BornChannelName"]],
+      "Factor"->factor,"OperatorProduct"->{Join[<|"Leg"->row["Leg"],
+        "PerturbativeOrder"->distribution["PerturbativeOrder"]|>,
+       If[row["Leg"]==="Coupling",<|"ScalarCoefficient"->Factor[distribution["ScalarCoefficient"]]|>,
+        <|"Kernel"->projectCountertermCoverageKernel[distribution]|>]]}|>]],
+  {row,plan["CountertermDistributions"]}],
+  Table[
+   factor=Factor[row["Factor"]];
+   products=Map[Join[KeyTake[#,{"Leg","PerturbativeOrder","ConvolutionRequest"}],
+     <|"Kernel"->projectCountertermCoverageKernel[#["Kernel"]]|>]&,row["Kernels"]];
+   If[factor===0,Nothing,Join[identity,KeyTake[row,{"SourceOrder","SourceSpecies","FlavorClasses"}],
+     <|"SourceChannel"->card["Channels"][row["SourceChannel"]],
+       "Factor"->factor,"OperatorProduct"->SortBy[products,#["Leg"]&]|>]],
+  {row,plan["Terms"]}]];
+ projectCountertermCoverageCanonical/@rows
+];
+VerifyCountertermCardCoverage[directory_String,cards_Association]:=Catch[Module[
+ {definitions,expectedCards,expected,actual,duplicates,missing,unexpected,requiredThrough,insufficient,base},
+ If[!AllTrue[Values[cards],AssociationQ],projectFail["CountertermCardAssociationsRequired"]];
+ definitions=FeynFacet`PlanCountertermContributionCards[directory];
+ If[!MatchQ[definitions,{___Association}],projectFail["CompleteCountertermDefinitionsRequired",<|"Cause"->definitions|>]];
+ requiredThrough=If[definitions==={},Missing["NotApplicable"],Max[Last/@Lookup[definitions,"EpsilonRange"]]];
+ insufficient=KeyValueMap[Function[{name,card},If[IntegerQ[requiredThrough]&&Last[card["EpsilonRange"]]<requiredThrough,
+   <|"CardName"->name,"RequiredThroughOrder"->requiredThrough,"DeclaredEpsilonRange"->card["EpsilonRange"]|>,Nothing]],cards];
+ base=projectCheck[BuildCountertermProjectCard[directory],"CountertermProjectRequired"];
+ expectedCards=projectCheck[projectCompileCountertermCard[base,#],"ExpectedCountertermCardCompilationFailed"]&/@definitions;
+ expected=Flatten[projectCountertermCoverageRows/@expectedCards,1];
+ actual=Flatten[projectCountertermCoverageRows/@Values[cards],1];
+ If[!DuplicateFreeQ[expected],projectFail["RequiredCountertermPlanHasDuplicateTerms"]];
+ duplicates=First/@Select[Gather[actual],Length[#]>1&];
+ missing=Complement[expected,actual];unexpected=Complement[actual,expected];
+ <|"Status"->If[duplicates==={}&&missing==={}&&unexpected==={}&&insufficient==={},"Passed","Failed"],
+   "CountertermCards"->Keys[cards],"RequiredTermCount"->Length[expected],"DeclaredTermCount"->Length[actual],
+   "MissingTerms"->missing,"UnexpectedTerms"->unexpected,"DuplicateTerms"->duplicates,
+   "RequiredThroughOrder"->requiredThrough,"InsufficientEpsilonRanges"->insufficient,
+   "Convention"->"Exact weighted operator products resolved from the common project physics; contribution names and grouping are immaterial."|>
+],"ProjectCards"];
+
+projectCountertermLegLabel[base_Association,leg_String]:=Module[{legs,role,peers,index},
+ If[leg==="Coupling",Return["UV"]];
+ legs=base["Assembly"]["FactorizationLegs"];role=legs[leg]["Role"];
+ peers=Keys[Select[legs,#["Role"]===role&]];
+ If[Length[peers]===1,Return[role]];
+ index=First[FirstPosition[peers,leg]];
+ role<>If[index<=26,FromCharacterCode[64+index],ToString[index]]
+];
+projectCountertermCardName[base_Association,definition_Association,product_Association]:=
+ "Counter-"<>If[base["Order"]==="NLO","",
+   If[definition["SourceOrder"]==="LO","Born",Lookup[definition,"SourceContribution",definition["SourceOrder"]]]<>"-"]<>
+ StringRiffle[Map[Function[leg,projectCountertermLegLabel[base,leg]<>
+   If[product[leg]["PerturbativeOrder"]===1,"",ToString[product[leg]["PerturbativeOrder"]]]],Keys[product]],"-"]<>
+ If[Lookup[definition,"SourceRenormalizationStage","Bare"]==="Renormalized","-Finite",""];
+
+WriteCountertermCards[directory_String,definitions_List]:=Catch[Module[
+ {base,expanded,definition,product,source,name,raw,path,existing,compiled,cards=<||>,owner},
+ If[!MatchQ[definitions,{___Association}],projectFail["CountertermDefinitionsRequired"]];
+ base=projectCheck[BuildCountertermProjectCard[directory],"CountertermProjectRequired"];
+ Do[
+  source=definition["SourceChannel"];
+  owner=FileNameJoin[{base["ProjectDirectory"],"Raw",base["Order"],source}];
+  name=Lookup[definition,"CardName",projectCountertermCardName[base,definition,product]];
+  raw=Join[KeyDrop[definition,{"CardName","CardFile","Directory","ProjectDirectory","SourceChannel"}],
+    <|"OperatorInsertions"->{KeyDrop[#,"FlavorMultiplicity"]&/@product}|>];
+  If[base["Order"]==="NLO",raw=KeyDrop[raw,{"SourceOrder","SourceContribution","SourceRenormalizationStage"}]];
+  path=FileNameJoin[{owner,name,"Card.wl"}];
+  If[FileExistsQ[path],
+   existing=Get[path];
+   If[projectCountertermCoverageCanonical[existing]=!=projectCountertermCoverageCanonical[raw],
+    projectFail["ExistingSourceCountertermDefinitionDiffers",<|"File"->path|>]],
+   FeynFacet`WriteProjectCard[raw,path]];
+  compiled=projectCheck[projectCompileSourceCounterterm[owner,Join[raw,<|"CardName"->name|>],{base["Channel"]}],"SourceCountertermCardRequired"];
+  If[!KeyExistsQ[compiled["TargetCards"],base["Channel"]],projectFail["RequiredCountertermProjectionMissing"]];
+  AssociateTo[cards,source<>"/"<>name->compiled["TargetCards"][base["Channel"]]],
+ {definition,definitions},{product,definition["OperatorInsertions"]}];
+ cards
+],"ProjectCards"];
+
 (* One physical-leg polarization controls the projector, distribution and kernel. *)
 projectSpinSetup[setup_Association,project_Association]:=Module[
  {types,helicities,transverse,partons,fractions,selected,heads,available,zeros={},spin,gluon,outgoing},
@@ -85,7 +591,7 @@ ReadProcessCard[card_Association]:=Catch[Module[
  If[KeyExistsQ[card,"Current"],Return[projectCurrentProcessCard[card]]];
  project=card;channel=project["Channels"][card["Channel"]];
  species=project["SpeciesMap"];radiation=Lookup[card,"Radiation",{}];
- unobserved=Lookup[card,"UnobservedPartons",Prepend[radiation,channel["Recoil"]]];
+ unobserved=If[KeyExistsQ[card,"UnobservedPartons"],card["UnobservedPartons"],Prepend[radiation,channel["Recoil"]]];
  If[!ListQ[unobserved]||unobserved==={}||!AllTrue[Join[channel["Incoming"],{channel["Observed"]},unobserved],KeyExistsQ[species,#]&],
   projectFail["CompleteSpeciesMapRequired"]];
  initial=Lookup[species,Key[#]]& /@ channel["Incoming"];
@@ -126,7 +632,7 @@ ReadProcessCard[card_Association]:=Catch[Module[
 (* Current insertions are external sources, not PDF or FF legs. *)
 projectCurrentProcessCard[card_Association]:=Module[
  {channel,species,current,incoming,outgoing,observed,unobserved,initialMomenta,finalMomenta,
-  fields,momenta,setup,orders,loops,legs,spin,leg,field,indices,physical,massless},
+  fields,momenta,setup,orders,loops,legs,spin,leg,field,indices,physical,massless,transverse,observedSpace},
  channel=card["Channels"][card["Channel"]];species=card["SpeciesMap"];current=card["Current"];
  If[!ContainsAll[Keys[current],{"Momentum","Field","Side","Indices","Coupling","MomentumSpace"}]||
   !MemberQ[{"Incoming","Outgoing"},current["Side"]],projectFail["ExternalCurrentDeclarationRequired"]];
@@ -149,18 +655,27 @@ projectCurrentProcessCard[card_Association]:=Module[
   "ForwardAmplitudes"-><|"LoopOrder"->First[orders],"LoopMomenta"->First[loops],"DiagramIndices"->{1}|>,
   "ConjugateAmplitudes"-><|"LoopOrder"->Last[orders],"LoopMomenta"->Last[loops],"DiagramIndices"->{1}|>|>];
  spin=card["Polarization"]["Incoming"];
+ transverse=Lookup[Lookup[card,"SpinParameters",<||>],"Transverse",ConstantArray[None,Length[incoming]+Boole[observed=!=None]]];
+ If[!ListQ[transverse]||Length[transverse]=!=Length[incoming]+Boole[observed=!=None],
+  projectFail["OneTransverseSpinParameterPerFactorizationLegRequired"]];
+ observedSpace=Lookup[card,"ObservedMomentumSpace","IntegratedD"];
+ If[!MemberQ[{"Physical4","IntegratedD"},observedSpace],projectFail["ObservedMomentumSpaceRequired"]];
  If[Length[spin]=!=Length[incoming],projectFail["IncomingCurrentProcessPolarizationsRequired"]];
  legs=Table[
   leg=<|"Role"->"PDF","Species"->incoming[[i]],"Polarization"->spin[[i]],"Momentum"->initialMomenta[[i]],"MomentumSpace"->"Physical4"|>;
+  If[spin[[i]]==="T",AssociateTo[leg,"SpinVector"->transverse[[i]]]];
   If[incoming[[i]]==="g",indices=card["GluonSpinIndices"]["Incoming"][[i]];
    leg=Join[leg,<|"ReferenceMomentum"->Lookup[Lookup[card,"GluonPolarizationReferences",<||>],initialMomenta[[i]],current["Momentum"]],"Indices"->indices|>]];leg,
  {i,Length[incoming]}];
  If[observed=!=None,
   leg=<|"Role"->"FF","Species"->observed,"Polarization"->card["Polarization"]["Observed"],
-   "Momentum"->First[finalMomenta],"MomentumSpace"->"IntegratedD"|>;
+   "Momentum"->First[finalMomenta],"MomentumSpace"->observedSpace|>;
+  If[card["Polarization"]["Observed"]==="T",AssociateTo[leg,"SpinVector"->Last[transverse]]];
   If[observed==="g",leg=Join[leg,<|"ReferenceMomentum"->First[initialMomenta],"Indices"->card["GluonSpinIndices"]["Observed"]|>]];
   AppendTo[legs,leg]];
- physical=Join[initialMomenta,If[current["MomentumSpace"]==="Physical4",{current["Momentum"]},{}]];
+ physical=DeleteDuplicates[Join[initialMomenta,If[current["MomentumSpace"]==="Physical4",{current["Momentum"]},{}],
+  If[observed=!=None&&observedSpace==="Physical4",{First[finalMomenta]},{}],
+  Cases[Lookup[legs,"SpinVector",None],s_Symbol/;s=!=None]]];
  massless=Join[initialMomenta,finalMomenta];
  setup=Join[setup,<|"SpinDensities"->legs,"PhysicalMomenta"->physical,"MasslessMomenta"->massless,
   "SummedGluons"->Pick[finalMomenta,MapIndexed[#1==="g"&&(observed===None||First[#2]>1)&,outgoing]],
@@ -174,18 +689,23 @@ projectCurrentProcessCard[card_Association]:=Module[
  projectCheck[CompleteProcessDiagramSelection[setup],"CurrentDiagramSelectionFailed"]
 ];
 
-(* Locate all levels above Results; preserve order/channel and nested contribution names. *)
-projectResultLocation[resultDirectory_String,workspaceRoot_String]:=Module[{parts,base,positions,index,owner,relative},
- parts=DeleteCases[FileNameSplit[ExpandFileName[resultDirectory]],""];
- base=DeleteCases[FileNameSplit[ExpandFileName[workspaceRoot]],""];
- positions=Flatten[Position[parts,"Results"]];
- If[positions==={},Return[Failure["ResultsAncestorRequired",<|"Directory"->resultDirectory|>]]];
- index=Last[positions];owner=Take[parts,index-1];
- If[Length[owner]<Length[base]||Take[owner,Length[base]]=!=base,
-  Return[Failure["ResultsOutsideWorkspace",<|"Directory"->resultDirectory,"Workspace"->workspaceRoot|>]]];
+(* A reduction belongs to its nearest Work directory. Standalone coefficient
+   artifacts may also use a Results container without a project card. *)
+projectResultLocation[resultDirectory_String,workspaceRoot_String]:=Module[
+ {parts,base,positions,index,owner,relative,run,work},
+ parts=FileNameSplit[projectAbsolutePath[resultDirectory]];
+ base=FileNameSplit[projectAbsolutePath[workspaceRoot]];
+ If[Length[parts]<=Length[base]||Take[parts,Length[base]]=!=base,
+  Return[Failure["ResultOutsideWorkspace",<|"Directory"->resultDirectory|>]]];
+ positions=Select[Flatten[Position[parts,"Work"]],#>Length[base]&];
+ If[positions=!={},
+  index=Last[positions];owner=Take[parts,index];run=Drop[parts,index];work=FileNameJoin[owner],
+  positions=Select[Flatten[Position[parts,"Results"]],#>Length[base]&];
+  If[positions==={},Return[Failure["ContributionWorkDirectoryRequired",<|"Directory"->resultDirectory|>]]];
+  index=Last[positions];owner=Take[parts,index-1];run=Drop[parts,index];work=FileNameJoin[Take[parts,index]]];
  relative=Drop[owner,Length[base]];
- <|"OwnerParts"->relative,"RunParts"->Drop[parts,index],
-   "OwnerDirectory"->FileNameJoin[Join[{ExpandFileName[workspaceRoot]},relative]]|>
+ <|"OwnerParts"->relative,"RunParts"->run,"OwnerDirectory"->FileNameJoin[owner],
+   "WorkDirectory"->work|>
 ];
 
 (* Formatting is structural: short associations and short rules stay together. *)

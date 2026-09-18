@@ -3,7 +3,7 @@
 This records the proposal at the start of the 2026-09-07 run. Its 83 amplitude
 series and 565 coefficients are historical starting demands. All required
 physical boundary values are now determined; see
-[the completed report](PhysicalBoundaryResults_2026-09-07.md). The workflow below
+[the completed report](../Reports/2026-09-07/PhysicalBoundaryResults.md). The workflow below
 remains useful for extending the framework to other integral geometries.
 
 ## Mathematical target

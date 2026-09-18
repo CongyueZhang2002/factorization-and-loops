@@ -4,8 +4,6 @@ FeynFacet`ReadMasterIntegralCoefficients::usage =
  "ReadMasterIntegralCoefficients[fileOrRecord] reads the current final coefficient format, preserving explicit Laurent truncations and exact zero entries.";
 FeynFacet`ExpandMasterIntegralCoefficient::usage =
  "ExpandMasterIntegralCoefficient[entry,epsilon,{low,high}] returns every requested coefficient of the sum of entry Terms, or fails if a stored Laurent truncation is insufficient. The table's global PreFactor remains separate.";
-FeynFacet`MasterIntegralMeasureConversion::usage =
- "MasterIntegralMeasureConversion[definition] returns the factor converting the physical momentum-space master in definition to the normalized GLI measure used by the coefficient tables.";
 
 coefficientAssemblyFail[tag_,data_:<||>] := Throw[Failure[tag,data],"CoefficientAssembly"];
 coefficientExactDataQ[data_]:=exactDataQ[data]&&FreeQ[data,
@@ -111,7 +109,7 @@ FeynFacet`ReadMasterIntegralCoefficients[input_,OptionsPattern[]] := Catch[Modul
  If[StringQ[input],
   source=ExpandFileName[input];
   If[!FileExistsQ[source],coefficientAssemblyFail["CoefficientFileMissing",<|"File"->source|>]];
-  data=If[ToLowerCase[FileExtension[source]]==="wxf",Import[source,"WXF"],Get[source]]];
+  data=If[ToLowerCase[FileExtension[source]]==="wxf",Import[source,"WXF"],FeynFacet`FamilyArtifactRead[source]]];
  If[!AssociationQ[data],coefficientAssemblyFail["CoefficientResultRequired"]];
  format={Lookup[data,"Format",None],Lookup[data,"FormatVersion",None]};
  If[format=!={"FeynFacet-MasterIntegralCoefficients",1},
@@ -211,19 +209,4 @@ FeynFacet`ExpandMasterIntegralCoefficient[entry_Association,e_Symbol,
  {t,entry["Terms"]}];
  <|"DimensionalRegulator"->e,"EpsilonOrderRange"->range,"Coefficients"->result,
    "GlobalPrefactorIncluded"->False|>
- ],"CoefficientAssembly"];
-
-FeynFacet`MasterIntegralMeasureConversion[definition_Association] := Catch[Module[
- {dim=Lookup[definition,"Dimension",None],phase=Lookup[definition,"PhaseSpaceLoopCount",None],
-  prescription=Lookup[definition,"Prescription",None],measure=Lookup[definition,"MeasurePrefactor",None],
-  extra=Lookup[definition,"MasterIntegralPrefactor",1],negative},
- If[!IntegerQ[phase]||phase<0||!ListQ[prescription]||
-   !AllTrue[prescription,MemberQ[{-1,0,1},#]&]||Count[prescription,0]=!=phase||
-   dim===None||measure===None||measure===0||extra===0,
-  coefficientAssemblyFail["MasterMeasureDefinitionIncomplete"]];
- negative=Count[prescription,-1];
- <|"Factor"->1/(I Pi^(dim/2))^Length[prescription]/measure/extra,
-   "FromConvention"->"PhysicalMomentumSpaceMaster",
-   "ToConvention"->"NormalizedGLICoefficientIntegral",
-   "PhaseSpaceLoopCount"->phase,"NegativePrescriptionLoopCount"->negative|>
  ],"CoefficientAssembly"];

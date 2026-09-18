@@ -13,7 +13,7 @@ ClearAll[
   observableTransportBlockLowerQ,
   masterTransportZeroMatQ,
   masterTransportCheckLevel,
-  masterTransportPointZeroQ
+  masterTransportPointZeroQ, differentialDimensionPoint
 ];
 
 $masterTransportRegulatorNames = {"eps", "Eps", "epsilon", "Epsilon", "ep"};
@@ -69,3 +69,30 @@ masterTransportNormalize[expr_, regulator_Symbol, variables_List] :=
     ];
     expr /. rules
   ];
+
+(* Keep dimension/regulator sample values consistent with the declared affine
+   convention. Never substitute into a rule's left-hand side. *)
+differentialDimensionPoint[point_List,system_Association,convention_:"Regulator"]:=Module[
+ {e=Lookup[system,"DimensionalRegulator",None],rule=Lookup[system,"DimensionRule",None],
+  dimension,rhs,constant,slope,values,dv,ev,rest,missing=Missing["NotSpecified"]},
+ If[!MatchQ[point,{(_Rule)...}]||!DuplicateFreeQ[First/@point]||
+   !MemberQ[{"Regulator","Dimension","Both"},convention],
+  Return[Failure["ExplicitConsistentDimensionPointRequired",<|"Point"->point|>]]];
+ If[rule===None,Return[point]];
+ If[!MatchQ[e,_Symbol]||!MatchQ[rule,Rule[_Symbol,_]],
+  Return[Failure["DeclaredAffineDimensionRuleRequired",<||>]]];
+ dimension=First[rule];rhs=masterTransportNormalize[Last[rule],e,{}];
+ If[dimension===e||!FreeQ[rhs,dimension]||!PolynomialQ[rhs,e]||Exponent[rhs,e]=!=1,
+  Return[Failure["DeclaredAffineDimensionRuleRequired",<||>]]];
+ constant=rhs/.e->0;slope=Coefficient[rhs,e];
+ If[slope===0,Return[Failure["InvertibleDimensionRuleRequired",<||>]]];
+ values=Association[masterTransportNormalize[point,e,Lookup[system,"KinematicVariables",{}]]];
+ dv=Lookup[values,dimension,missing];ev=Lookup[values,e,missing];
+ rest=Normal[KeyDrop[values,{dimension,e}]];
+ If[dv=!=missing&&ev=!=missing&&Together[dv-((rhs/.e->ev)/.rest)]=!=0,
+  Return[Failure["InconsistentDimensionAndRegulatorPoint",<|"Point"->point,"DimensionRule"->rule|>]]];
+ If[ev===missing&&dv=!=missing,ev=Together[(dv-(constant/.rest))/(slope/.rest)]];
+ If[dv===missing&&ev=!=missing,dv=(rhs/.e->ev)/.rest];
+ Join[rest,If[convention=!="Dimension"&&ev=!=missing,{e->ev},{}],
+   If[convention=!="Regulator"&&dv=!=missing,{dimension->dv},{}]]
+];

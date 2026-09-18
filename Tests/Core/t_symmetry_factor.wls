@@ -11,9 +11,9 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
-nloCard = FeynFacet`ReadProcessCard[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NLO","qqp-qqp"}],"Real"];
-nnloCard = FeynFacet`ReadProcessCard[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp"}],"DoubleReal.Gluons"];
-ghostCard = FeynFacet`ReadProcessCard[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp"}],"DoubleReal.Ghosts"];
+nloCard = FeynFacet`ReadProcessCard[FileNameJoin[{root,"Projects","ppHX_UU","Raw","NLO","qqp-qqp"}],"Real"];
+nnloCard = FeynFacet`ReadProcessCard[FileNameJoin[{root,"Projects","ppHX_UU","Raw","NNLO","qqp-qqp"}],"DoubleReal.Gluons"];
+ghostCard = FeynFacet`ReadProcessCard[FileNameJoin[{root,"Projects","ppHX_UU","Raw","NNLO","qqp-qqp"}],"DoubleReal.Ghosts"];
 
 FTTest`FTAssert["NLO UU: factor 1",
   FeynFacet`IdenticalParticleSymmetryFactor[nloCard] === 1];

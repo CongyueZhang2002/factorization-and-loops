@@ -55,7 +55,8 @@ PlanPartonicRenormalization[target_List,request_Association]:=Catch[Catch[Module
     record=partonicKernelValuation[kernel,e];
     If[record===Infinity,lower=Infinity;Break[]];
     AppendTo[kernels,<|"Leg"->j,"Variable"->legs[[j]]["Variable"],
-      "PerturbativeOrder"->powers[[j]],"Kernel"->kernel,"LaurentLowerBound"->record|>];
+      "PerturbativeOrder"->powers[[j]],"Kernel"->kernel,"LaurentLowerBound"->record,
+      "ConvolutionRequest"->Lookup[legs[[j]],"ConvolutionRequest",<|"Convolution"->"Mellin"|>]|>];
     lower+=record,{j,positions}];
    If[lower===Infinity,Continue[]];
    Do[
@@ -89,19 +90,25 @@ ApplyPartonicRenormalization[plan_Association,sourceProvider_,metadata_Associati
  {through,e,terms}=Lookup[plan,{"ThroughOrder","DimensionalRegulator","Terms"}];
  sourceStage=Lookup[plan,"SourceRenormalizationStage","Bare"];
  If[!MemberQ[{"Bare","Renormalized"},sourceStage]||
-   (sourceStage==="Renormalized"&&(through=!=0||!FreeQ[terms,e])),
+   (sourceStage==="Renormalized"&&(through=!=0||
+    !FreeQ[Lookup[terms,"Factor",{}],e]||!AllTrue[Flatten[Lookup[terms,"Kernels",{}]],
+     FreeQ[KeyTake[#["Kernel"],{"DeltaCoefficient","PlusCoefficients","RegularCoefficient"}],e]&])),
   partonicRenormalizationFail["ExplicitFiniteSchemePlanRequired"]];
  If[Lookup[metadata,"DimensionalRegulator",e]=!=e,
   partonicRenormalizationFail["RenormalizationRegulatorMismatch"]];
  Do[
   entry=terms[[i]];
-  value=sourceProvider[entry["SourceOrder"],entry["SourceSpecies"],
-    entry["FlavorClasses"],entry["RequiredSourceThroughOrder"]];
+  value=If[KeyExistsQ[entry,"SourceChannel"],
+   sourceProvider[entry["SourceOrder"],entry["SourceSpecies"],entry["FlavorClasses"],
+    entry["RequiredSourceThroughOrder"],entry["SourceChannel"]],
+   sourceProvider[entry["SourceOrder"],entry["SourceSpecies"],
+    entry["FlavorClasses"],entry["RequiredSourceThroughOrder"]]];
   If[value===0,Continue[]];
   If[!AssociationQ[value]||!partonicResultValidQ[value]||
    Lookup[value,"RenormalizationStage",None]=!=sourceStage||
    value["DimensionalRegulator"]=!=e||
-   (sourceStage==="Renormalized"&&value["LaurentLowerBound"]<0)||
+   (sourceStage==="Renormalized"&&(value["LaurentLowerBound"]<0||
+     TrueQ[Lookup[value,"FiniteSchemeConversionApplied",False]]))||
    First[value["EpsilonRange"]]=!=value["LaurentLowerBound"],
    partonicRenormalizationFail["CompleteBarePartonicSourceRequired",<|"Term"->i,"Cause"->value|>]];
   needed=entry["RequiredSourceThroughOrder"];
@@ -115,7 +122,14 @@ ApplyPartonicRenormalization[plan_Association,sourceProvider_,metadata_Associati
    lower=value["LaurentLowerBound"]+kernel["LaurentLowerBound"];
    needed=through-entry["FactorLaurentLowerBound"]-remaining;
    If[lower>needed,value=0;Break[]];
-   value=FeynFacet`ApplyPartonicCollinearKernel[value,kernel["Kernel"],kernel["Variable"],{lower,needed}];
+   value=If[Lookup[kernel["Kernel"],"Format",None]==="FeynFacet-CollinearCountertermDistribution",
+    FeynFacet`ApplyCountertermDistribution[value,kernel["Kernel"],
+     Join[Lookup[kernel,"ConvolutionRequest",<|"Convolution"->"Mellin"|>],
+      <|"PerturbativeParameter"->1,"EpsilonRange"->{lower,needed}|>]],
+    If[Lookup[Lookup[kernel,"ConvolutionRequest",<||>],"Convolution","Mellin"]==="Mellin",
+     FeynFacet`ApplyPartonicCollinearKernel[value,kernel["Kernel"],kernel["Variable"],{lower,needed}],
+     FeynFacet`ConvolvePartonicInvariantKernel[value,kernel["Kernel"],
+      Join[kernel["ConvolutionRequest"],<|"EpsilonRange"->{lower,needed}|>]]]];
    If[!AssociationQ[value],partonicRenormalizationFail["PartonicTransitionApplicationFailed",<|"Term"->i,"Cause"->value|>]],
   {kernel,entry["Kernels"]}];
   If[value===0,Continue[]];
@@ -127,8 +141,11 @@ ApplyPartonicRenormalization[plan_Association,sourceProvider_,metadata_Associati
      Coordinates, density, regulator and measure must still match exactly. *)
   check=KeyTake[metadata,{"Scale","Variables","DimensionalRegulator","DensityConvention",
     "DistributionBasis","DimensionalPrefactor","CurrentNormalization"}];
+  If[KeyExistsQ[check,"DistributionBasis"],
+   AssociateTo[check,"DistributionBasis"->partonicPhysicalDistributionBasis[check["DistributionBasis"]]]];
   If[KeyTake[value,Keys[check]]=!=check,
-   partonicRenormalizationFail["PartonicRenormalizationConventionMismatch",<|"Term"->i|>]];
+   partonicRenormalizationFail["PartonicRenormalizationConventionMismatch",
+    <|"Term"->i,"Expected"->check,"Actual"->KeyTake[value,Keys[check]]|>]];
   name="RenormalizationTerm"<>ToString[i];
   meta=Join[partonicLaurentProductMetadata[value],
    KeyTake[metadata,{"Order","Project","Channel","PhysicalChannel","Polarization",

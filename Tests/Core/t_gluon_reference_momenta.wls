@@ -1,6 +1,6 @@
 $HistoryLength=0;root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-grSetup=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/LO/u-ubar_g-g","Born"];
+grSetup=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU/Raw/LO/u-ub_g-g","Born"];
 grObserved=First[Last[grSetup["PartonMomentum"]]];grReference=First[First[grSetup["PartonMomentum"]]];
 grDeclared=Join[grSetup,<|"GluonPolarizationReferences"->Association[grObserved->grReference]|>];
 grProcess=Catch[FeynFacet`Private`normalizeProcess[FeynFacet`Private`interferencePairSetup[grDeclared,{1,1}]],

@@ -1,73 +1,16 @@
-(* Context-guarded Wolfram records, atomic writes, and length-prefixed
-   binary coefficient records. *)
-
+(* Shared record I/O and length-prefixed binary coefficient records. *)
 Begin["FeynFacet`Private`"];
-
-(* public symbols: Clear, not ClearAll (FeynFacet.m defines their usage
-   messages before this file loads) *)
-Clear[FamilyArtifactRead, FamilyArtifactWrite];
-ClearAll[
-  $familyArtifactReadMessages,
-  coefficientAppendRecord,
-  coefficientWriteRecord,
-  coefficientScanRecords,
-  coefficientReadRecord
-];
-
-(* Parse unqualified symbols in the requested context, independent of
-   optional packages on the caller's context path. Qualified names remain unchanged. New records qualify symbols, including shadowable System names, so that both guarded reads and ordinary Get preserve identities.
-   Syntax errors and aborted reads fail; benign evaluation messages are
-   retained separately and do not discard an otherwise valid record. *)
-$familyArtifactReadMessages = {};
-
-FamilyArtifactRead[file_String] := FamilyArtifactRead[file, "Global`"];
-
-FamilyArtifactRead[file_String, context_String] := Module[{value, messages},
-  If[! StringEndsQ[context, "`"], Return[$Failed]];
-  If[! FileExistsQ[file], Return[$Failed]];
-  {value, messages} = Block[
-    {$Context = context, $ContextPath = {"System`", context},
-     $MessageList = {}},
-    Quiet[{
-      CheckAbort[
-        Check[Get[file], $Failed,
-          {Syntax::sntx, Syntax::sntxi, Syntax::sntxb, Syntax::sntxf,
-           Syntax::sntue, Syntax::sntunc, Syntax::com, Syntax::newl,
-           Syntax::bktmcp, Syntax::bktmop, Syntax::bktwrn, Syntax::bktnps,
-           Syntax::tsntxi, Syntax::snthc, Syntax::stresc}],
-        $Aborted],
-      $MessageList}]];
-  $familyArtifactReadMessages = messages;
-  If[value === $Aborted, $Failed, value]];
-
-(* Atomic artifact writer: Put to a temporary name, then RenameFile. *)
-Options[FamilyArtifactWrite]={"Compression"->False};
-FamilyArtifactWrite[value_, file_String,OptionsPattern[]] := Module[
- {directory,temporary,stream=None,written,closed,renamed,result},
- directory=DirectoryName[ExpandFileName[file]];
- temporary=file<>".partial-"<>ToString[$ProcessID];
- result=CheckAbort[Quiet@Check[
-  If[directory=!=""&&!DirectoryQ[directory],
-   CreateDirectory[directory,CreateIntermediateDirectories->True]];
-  If[TrueQ[OptionValue["Compression"]]||
-    (OptionValue["Compression"]===Automatic&&ByteCount[value]>8*1024^2),
-   stream=OpenWrite[temporary];
-   If[Head[stream]=!=OutputStream,Return[$Failed]];
-   written=Quiet@Check[WriteString[stream,"Uncompress[",
-     ToString[Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Compress[value]],InputForm],"]\n"],$Failed];
-   closed=Close[stream];stream=None;
-   If[written===$Failed||!StringQ[closed],Return[$Failed]],
-   written=Quiet@Check[Block[{$Context="FeynFacetSerialization`",$ContextPath={}},Put[value,temporary]],$Failed];
-   If[written===$Failed,Return[$Failed]]];
-  If[!FileExistsQ[temporary],Return[$Failed]];
-  renamed=RenameFile[temporary,file,OverwriteTarget->True];
-  If[StringQ[renamed]&&FileExistsQ[file],file,$Failed],
- $Failed],
- If[Head[stream]===OutputStream,Quiet[Close[stream]]];Abort[]];
- If[Head[stream]===OutputStream,Quiet[Close[stream]]];
- result
-];
-
+Clear[FamilyArtifactRead,FamilyArtifactWrite,FamilyArtifactMove,FamilyArtifactCopy,FamilyArtifactDelete];
+$familyArtifactReadMessages={};
+FamilyArtifactRead[file_String,context_String:"Global`"]:=Module[{value},
+ value=FeynFacetRecords`ReadRecord[file,context];
+ $familyArtifactReadMessages=FeynFacetRecords`Private`$messages;value];
+Options[FamilyArtifactWrite]={"Compression"->Automatic};
+FamilyArtifactWrite[value_,file_String,OptionsPattern[]]:=
+ FeynFacetRecords`WriteRecord[value,file,"Compression"->OptionValue["Compression"]];
+FamilyArtifactMove[source_String,target_String]:=FeynFacetRecords`MoveRecord[source,target];
+FamilyArtifactCopy[source_String,target_String]:=FeynFacetRecords`CopyRecord[source,target];
+FamilyArtifactDelete[file_String]:=FeynFacetRecords`DeleteRecord[file];
 
 coefficientAppendRecord[file_String, expression_] := Module[
   {stream, bytes, values},

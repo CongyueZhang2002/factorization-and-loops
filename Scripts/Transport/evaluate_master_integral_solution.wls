@@ -6,7 +6,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{root,"FeynFacet", "Solution.m"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]!=3,Print["Expected SOLUTION_DIRECTORY REQUEST.wl OUTPUT.wxf"];Exit[2]];
-read[path_] := If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_] := If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 If[!DirectoryQ[DirectoryName[ExpandFileName[args[[3]]]]],
  CreateDirectory[DirectoryName[ExpandFileName[args[[3]]]],CreateIntermediateDirectories->True]];
 request=read[args[[2]]];data=FeynFacetSolution`ReadMasterIntegralSolution[args[[1]]];

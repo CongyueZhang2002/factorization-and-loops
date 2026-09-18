@@ -341,7 +341,7 @@ If[! MissingQ[nonsplitPoint],
    the exact characteristic-zero Inhomogeneity oracle, QuotientGrade independently
    supplies the remaining coefficient fields, and SplitBranch is the route
    being promoted. *)
-cf300Directory = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
+cf300Directory = FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "FrozenTestFixtures_2026-08-25"}];
 cf300Paths = <|
@@ -374,7 +374,7 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
     cfPointCount = 18},
 
    FeynFacet`LoadFamilyRootData[FileNameJoin[{root,
-     "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical",
+     "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical",
      "TransportFamilyCharts.wl"}]];
    cfChart = FeynFacet`FamilyRootData["CF300"];
    cfRecord = FeynFacet`FamilyArtifactRead[cf300Paths["OffDiagonalBlockEquation"], "Global`"];

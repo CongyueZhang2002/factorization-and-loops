@@ -25,29 +25,16 @@ Do[
     <|"ProcessDefinition"->sourceDefinitions[#1]|>,#2]===True&,setups]||
   Lookup[output,"AssemblyCard",None]=!=card,
   Print["Solved endpoint inputs do not match the current contribution card ",directory];Exit[1]];
- labels=output["SourceRowLabels"];
- indices=Map[Function[label,First@FirstPosition[profiles["CoefficientRowLabels"],label]],labels];
- oneBulk=FeynFacet`SelectLaurentCoefficientVector[bulk,indices];
- groups=Map[Function[group,<|"Powers"->group["Powers"],"FaceSeries"->
-  Map[FeynFacet`SelectLaurentCoefficientVector[#,indices]&,group["FaceSeries"]]|>],profiles["ProfileGroups"]];
- oneProfiles=Join[profiles,<|"CoefficientRowLabels"->project["StructureFunctions"],"ProfileGroups"->groups|>];
- If[Length[labels]=!=Length[project["StructureFunctions"]],Print["Structure-function row count mismatch"];Exit[1]];
- request=FeynFacet`ProjectAssemblyRequest[card];
- axes=request["DistributionBasis"]["Axes"];
- request["DistributionBasis"]=<|"Axes"->MapThread[Append[#1,"NormalVariable"->#2]&,{axes,profiles["NormalVariables"]}]|>;
- meta=Join[KeyDrop[request,{"CurrentProjectors","KinematicRules","BornSupportKinematicRules","BornMomentumRules",
- "BornConstraints","TwoParticleMeasurement","BareCouplingRules"}],
- FeynFacet`ProjectResultIdentity[card,setups],
- <|"Order"->order,"Contribution"->contribution,"CouplingPower"->project["BornCouplingPower"]+Switch[order,"LO",0,"NLO",1,"NNLO",2],
- "EpsilonRange"->card["EpsilonRange"],"TestFunctionSupport"->request["EndpointExpansion"]["TestFunctionSupport"],
- "AssemblyPlan"->planFile,"SourceRowLabels"->labels|>];
- {sec,result}=AbsoluteTiming[FeynFacet`WithEpsilonRemainderChecks[
-  FeynFacet`CreatePartonicResultFromProfileCoefficients[oneBulk,oneProfiles,meta,proof]]];
- path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
- FeynFacet`FamilyArtifactWrite[result,path<>"/EndpointAssemblyAudit.wl",Compression->Automatic];
- If[!AssociationQ[result["Result"]]||result["EpsilonRemainderAudit"]["Status"]=!="Passed",
-  Print["ASSEMBLY FAILED ",channel," ",StringTake[ToString[result,InputForm],UpTo[3000]]];Exit[1]];
- FeynFacet`FamilyArtifactWrite[result["Result"],path<>"/Result.wl",Compression->Automatic];
+ input=FeynFacet`CreateEndpointIntegrationInput[output["AssemblyCard"],sourceDefinitions,bulk,profiles,proof,
+  <|"SourceRowLabels"->output["SourceRowLabels"],"BulkCoordinates"->"Endpoint","BulkToEndpointRules"->{}|>];
+ If[!AssociationQ[input],Print["INPUT BINDING FAILED ",input];Exit[1]];
+ inputFile=card["WorkDirectory"]<>"/IntegrationInput.wxf";FeynFacet`FamilyArtifactWrite[input,inputFile];
+ integrationPlan=FeynFacet`CreateContributionIntegrationPlan[card,output["AssemblyCard"],sourceDefinitions,
+  <|"Method"->"EndpointProfiles","IntegrationInputFile"->inputFile|>];
+ If[!AssociationQ[integrationPlan],Print["CURRENT INPUT BINDING FAILED ",integrationPlan];Exit[1]];
+ FeynFacet`FamilyArtifactWrite[integrationPlan,card["WorkDirectory"]<>"/IntegrationPlan.wl"];
+ {sec,result}=AbsoluteTiming[FeynFacet`RunRawContribution[card,"all"]];
+ If[!AssociationQ[result],Print["ASSEMBLY FAILED ",result];Exit[1]];
  AssociateTo[report,directory-><|"Seconds"->sec,"Status"->"Passed"|>];
  FeynFacet`FamilyArtifactWrite[report,resolve[plan["ReportFile"]]];
  Print["COMPLETED ENDPOINT RESULT ",project["Project"],"/",order,"/",channel," ",sec," s"],

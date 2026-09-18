@@ -1,0 +1,160 @@
+(* Resolved two-variable endpoint subtraction from the same physical DE.
+   Monomial charts and overlap checks are derived from the supplied density. *)
+BeginPackage["FeynFacet`"];
+PrepareResolvedEndpointProfiles::usage="PrepareResolvedEndpointProfiles[orderedBoundary,coefficientRows,request] constructs ordinary faces and the common product corner on a Newton monomial cover. It verifies physical boundary transport, uniform scalar germs and open collars, and removes apparent poles on chart interfaces before admitting endpoint subtraction.";
+Begin["`Private`"];
+PrepareResolvedEndpointProfiles[data_Association,rows_Association,request_Association]:=
+ Catch[Module[{rho,z,sigma,e,basis,variables,rules,conditions,parameters,support,source,g,gi,original,
+ connections,profileRows,field,restore,polys,cover,atlas,charts,scalar=<||>,uniform=<||>,
+ collars=<||>,interior=<||>,jets=<||>,records={},product,constants,bounds,corners=<||>,seams=<||>,
+ cancel,check,report,progress,save,artifact,chart,entry,int,match,ep,values,j,axis,matrix,q,
+ normalVars,faceIndex,faceJets,corner,exponents,powers,commonRamification,physicalCorner,
+ seamR,seamW,seamRules,seamJac,seamEp,seamInt,seamValues,seamMatch,seamOther,seamOtherInt,
+ seamOtherMatch,seamBoundary,seamScalar,seamScaled,seamUniform,removable,seamJets,
+ seamUnit,seamPower,expected,radialPower,normalSystem,pulled,vars,proof},
+ check[value_,stage_]:=If[!AssociationQ[value],
+  Throw[Failure["ResolvedEndpointPreparationFailed",<|"Stage"->stage,"Cause"->value|>],"ResolvedProfiles"],value];
+ progress=Lookup[request,"ProgressFunction",None];report[label_]:=If[progress=!=None,progress[label]];
+ artifact=Lookup[request,"ArtifactFunction",None];save[value_,name_]:=If[artifact=!=None,artifact[value,name]];
+ cancel[m_]:=Module[{v=FeynFacet`CancelRationalCoefficients[Flatten[Normal[m]]]},
+  If[!ListQ[v],Throw[v,"ResolvedProfiles"]];Partition[v,Last[Dimensions[m]]]];
+ If[Lookup[data,"Status",None]=!="OrderedPhysicalBoundaryValuesDetermined",
+  Throw[Failure["CompleteOrderedPhysicalBoundaryRequired",<||>],"ResolvedProfiles"]];
+ {rho,z,sigma,e,basis}=Lookup[data,{"RecoilVariable","MeasurementVariable","MeasurementEndpointVariable",
+  "DimensionalRegulator","MasterIntegralBasis"}];variables={rho,sigma};
+ rules=Lookup[request,"KinematicRules",None];support=Lookup[request,"TestFunctionSupport",<||>];
+ If[!MatchQ[rules,{___Rule}]||!AllTrue[Values[rows],AssociationQ[#]&&ContainsAll[basis,Keys[#]]&]||
+  !ContainsAll[Lookup[support,"ExcludedFaces",{}],Thread[variables->1]],
+  Throw[Failure["CompleteScalarRowsAndOppositeEndpointSupportRequired",<||>],"ResolvedProfiles"]];
+ conditions=Lookup[request,"Assumptions",True];
+ If[!FreeQ[conditions,e],Throw[Failure["RegulatorIndependentEndpointSupportRequired",<||>],"ResolvedProfiles"]];
+ parameters=And@@Select[If[Head[conditions]===And,List@@conditions,{conditions}],FreeQ[#,rho|sigma]&];
+ If[!TrueQ[FullSimplify[conditions,parameters&&0<rho<1&&0<sigma<1]],
+  Throw[Failure["RectangularEndpointSupportRequired",<||>],"ResolvedProfiles"]];
+ profileRows=Map[Map[#/.rules&],rows];
+ source=data["NormalEndpointSystem"];g=source["NormalGaugeMatrix"];gi=source["InverseNormalGaugeMatrix"];
+ connections={cancel[(D[g,rho]+g.source["NormalizedNormalConnectionMatrix"]).gi],
+  -cancel[(D[g,z]+g.source["NormalizedTangentialConnectionMatrix"]).gi]}/.z->1-sigma;
+ original=<|"KinematicVariables"->variables,"DimensionalRegulator"->e,
+  "MasterIntegralBasis"->basis,"ConnectionMatrices"->connections|>;
+ {field,restore}=coefficientRationalFieldReduce[{connections,Values/@Values[profileRows]}];
+ polys=Select[endpointDenominatorFactors[field],!FreeQ[#,rho|sigma]&];
+ cover=check[FeynFacet`ConstructNewtonEndpointCharts[variables,polys,
+  <|"Ramification"->Lookup[request,"Ramification",2]|>],"MonomialCover"];save[cover,"ResolvedCover"];
+ atlas=check[FeynFacet`PrepareMonomialEndpointBoundaryAtlas[data,cover,
+  <|"ProgressFunction"->progress|>],"PhysicalAtlas"];save[atlas,"ResolvedAtlas"];
+ charts=cover["Charts"];
+ commonRamification=Apply[GCD,Flatten[Lookup[charts,"ExponentMatrix"]]];
+ If[commonRamification<1||!AllTrue[charts,MatrixQ[#["ExponentMatrix"]/commonRamification,IntegerQ]&]||
+  charts[[1,"ExponentMatrix",2,2]]=!=commonRamification||
+  charts[[-1,"ExponentMatrix",1,1]]=!=commonRamification,
+  Throw[Failure["CommonRamificationAndOrdinaryFacePowersRequired",<||>],"ResolvedProfiles"]];
+ Do[
+  report[{"ScalarChart",j}];chart=charts[[j]];entry=atlas["Charts"][j];
+  int=entry["Intersection"];match=entry["PhysicalMatching"];vars=chart["Variables"];
+  constants=match["InitialConstantValues"];
+  bounds=FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&/@constants;
+  AssociateTo[scalar,j->check[FeynFacet`AnalyzeNormalCrossingScalarCoefficients[int,profileRows,
+   <|"KinematicRules"->chart["SourceVariableSubstitution"],
+    "NormalizationFactor"->Times@@vars chart["AbsoluteJacobian"]|>],{"ScalarGerm",j}]];
+  AssociateTo[uniform,j->check[FeynFacet`VerifyUniformNormalCrossingPhysicalGerm[int,match,scalar[j],bounds,
+   <|"Assumptions"->parameters|>],{"JointUniformity",j}]];
+  AssociateTo[collars,j->check[FeynFacet`VerifyNormalCrossingDivisorCollars[int,match,scalar[j],uniform[j],
+   <|"Assumptions"->parameters|>],{"OpenDivisorCollars",j}]];
+  AssociateTo[interior,j->check[endpointInteriorRegularity[int,scalar[j],parameters],{"ChartInterior",j}]];
+  corner=cancel[(scalar[j]["ScalarGaugeCoefficientMatrix"]/.Thread[vars->0]).
+    match["OrderedConstantToCornerVectorMatrix"]]/Abs[Det[chart["ExponentMatrix"]]];
+  AssociateTo[corners,j->corner];
+  Do[
+   ep=entry["EndpointSystems"][axis];values=entry["ExceptionalBoundaryValues"][axis];
+   faceJets=check[FeynFacet`ConstructPhysicalEndpointCoefficientJets[ep,values,profileRows,
+    <|"KinematicRules"->chart["SourceVariableSubstitution"],"DensityJacobian"->chart["AbsoluteJacobian"],
+     "IntegerOrderThrough"->-1|>],{"ExceptionalJets",j,axis}];
+   AppendTo[records,<|"ChartIndex"->j,"CoefficientJets"->faceJets|>],
+  {axis,Keys[entry["ExceptionalBoundaryValues"]]}];
+  Do[
+   ep=entry["EndpointSystems"][axis];values=entry["OrdinaryBoundarySystems"][axis];
+   faceJets=check[FeynFacet`ConstructPhysicalEndpointCoefficientJets[ep,values,profileRows,
+    <|"KinematicRules"->chart["SourceVariableSubstitution"],"DensityJacobian"->chart["AbsoluteJacobian"],
+     "IntegerOrderThrough"->-1|>],{"OrdinaryJets",j,axis}];
+   faceJets=check[FeynFacet`MapEndpointFaceCoefficientJets[chart,faceJets],{"OriginalFaceJets",j,axis}];
+   faceIndex=First@FirstPosition[variables,faceJets["NormalVariable"]];
+   AssociateTo[jets,faceIndex->faceJets],
+  {axis,Keys[entry["OrdinaryBoundarySystems"]]}];
+  save[<|"UniformCorner"->uniform[j],"OpenCollars"->collars[j],"Interior"->interior[j]|>,
+   "ResolvedChart"<>ToString[j]];report[{"ScalarChartComplete",j}],
+ {j,Length[charts]}];
+ product=check[FeynFacet`IdentifyProductCornerTerm[cover,records],"ProductCorner"];save[product,"ProductCorner"];
+ powers=product["Powers"];exponents=1+powers;
+ If[Sort[Keys[jets]]=!={1,2}||!AllTrue[powers,PolynomialQ[#,e]&&Exponent[#,e]===1&&(#/.e->0)===-1&]||
+  AnyTrue[Values[jets],AnyTrue[Keys[#["CoefficientMatrices"]],#< -1&]&],
+  Throw[Failure["CompleteSimpleRegulatedOriginalFacesRequired",<||>],"ResolvedProfiles"]];
+ If[!AllTrue[Values[corners],AllTrue[Flatten[cancel[#-product["CoefficientMatrix"]]],#===0&]&],
+  Throw[Failure["OrdinaryFaceCornerValuesMustMatchProduct",<||>],"ResolvedProfiles"]];
+ normalSystem[coordinates_,substitution_]:=Module[{pull},
+  pull=check[FeynFacet`PullBackRationalDifferentialSystem[original,coordinates,substitution],"SeamPullback"];
+  check[FeynFacet`ConstructTangentialEndpointSystem[
+   <|"NormalVariable"->coordinates[[1]],"TangentialVariable"->coordinates[[2]],"DimensionalRegulator"->e,
+    "OriginalMasterIntegralBasis"->basis,"NormalConnectionMatrix"->pull["ConnectionMatrices"][[1]],
+    "TangentialConnectionMatrix"->pull["ConnectionMatrices"][[2]]|>,
+   <|"MaximumNormalOrder"->0,"AnalyticDomain"->"Across the internal chart interface on positive radial compacts.",
+    "BranchPrescription"->"Continuation of the same complete physical boundary."|>],"SeamNormalSystem"]];
+ (* Each internal fan ray is the first coordinate = 1 in its preceding chart.
+    The translated chart covers both sides, including the endpoint of the ray. *)
+ Do[
+  report[{"ChartInterface",j}];chart=charts[[j]];entry=atlas["Charts"][j];vars=chart["Variables"];
+  seamR=Unique["interfaceRadius"];seamW=Unique["interfaceDistance"];
+  seamRules=chart["SourceVariableSubstitution"]/.{vars[[1]]->1+seamW,vars[[2]]->seamR};
+  seamJac=chart["AbsoluteJacobian"]/.{vars[[1]]->1+seamW,vars[[2]]->seamR};
+  seamEp=normalSystem[{seamR,seamW},seamRules];
+  seamInt=check[FeynFacet`NormalizeEndpointIntersection[seamEp],{"SeamIntersection",j}];
+  seamValues=check[FeynFacet`PullBackEndpointBoundaryValues[entry["EndpointSystems"][2],seamEp,
+   entry["ExceptionalBoundaryValues"][2],<|"TangentialImage"->1+seamW|>],{"SeamPhysicalValues",j}];
+  seamMatch=check[FeynFacet`MatchEndpointBoundaryAtIntersection[seamEp,seamInt,seamValues],{"SeamMatching",j}];
+  seamOther=normalSystem[{seamW,seamR},seamRules];
+  seamOtherInt=check[FeynFacet`NormalizeEndpointIntersection[seamOther],{"TransverseSeamIntersection",j}];
+  seamOtherMatch=check[FeynFacet`TransferJointBoundaryConstants[seamInt,seamOtherInt,seamMatch],
+   {"TransverseSeamMatching",j}];
+  seamBoundary=check[FeynFacet`ConstructPhysicalEndpointBoundarySystem[seamOther,seamOtherInt,seamOtherMatch],
+   {"TransverseSeamBoundary",j}];
+  removable=check[FeynFacet`VerifyRemovableEndpointDivisor[seamOther,seamBoundary,profileRows,
+   <|"KinematicRules"->seamRules,"DensityJacobian"->seamJac,
+    "TangentialConditions"->(parameters&&0<seamR<1)|>],{"RemovableInterface",j}];
+  seamScalar=check[FeynFacet`AnalyzeNormalCrossingScalarCoefficients[seamInt,profileRows,
+   <|"KinematicRules"->seamRules,"NormalizationFactor"->seamR seamJac|>],{"SeamScalar",j}];
+  seamScaled=check[FeynFacet`ScaleNormalCrossingScalarCoefficients[seamScalar,
+   {0,removable["ScalarPoleOrderCleared"]}],{"ClearedSeamScalar",j}];
+  bounds=FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&/@seamMatch["InitialConstantValues"];
+  seamUniform=check[FeynFacet`VerifyUniformNormalCrossingPhysicalGerm[seamInt,seamMatch,seamScaled,bounds,
+   <|"Assumptions"->parameters|>],{"UniformClearedSeam",j}];
+  seamJets=check[FeynFacet`ConstructPhysicalEndpointCoefficientJets[seamEp,seamValues,profileRows,
+   <|"KinematicRules"->seamRules,"DensityJacobian"->seamJac,"IntegerOrderThrough"->-1|>],{"RadialSeamJets",j}];
+  matrix=chart["ExponentMatrix"];seamPower=matrix[[All,1]].exponents;
+  radialPower=matrix[[All,2]].exponents;seamUnit=Lookup[seamJets,"TangentialAnalyticFactor",1];
+  expected=Abs[Det[matrix]]product["CoefficientMatrix"]/(1+seamW);
+  If[Sort[Keys[seamJets["CoefficientMatrices"]]]=!={-1}||
+   Cancel[Together[seamJets["NormalExponent"]-radialPower]]=!=0||
+   Cancel[Together[seamJets["TangentialRegulatorExponent"]]]=!=0||
+   !TrueQ[(seamUnit/.seamW->0)===1]||
+   Cancel[Together[D[seamUnit,seamW]-seamPower seamUnit/(1+seamW)]]=!=0||
+   !AllTrue[Flatten[cancel[seamJets["CoefficientMatrices"][-1]-expected]],#===0&],
+   Throw[Failure["CompleteRadialProductProfileRequiredAcrossInterface",<|"Interface"->j|>],"ResolvedProfiles"]];
+  AssociateTo[seams,j-><|"RemovableDivisor"->removable,"UniformClearedCorner"->seamUniform,
+   "FullRadialProductProfileVerified"->True,"AnalyticFactor"->seamUnit,
+   "Argument"->"The fixed finite scalar pole is cleared by a jointly meromorphic analytic numerator. Exact vanishing of every negative normal jet on the full open interface extends to the corner and gives analytic divisibility, with no additional epsilon pole. The complete radial profile, including its analytic unit, equals the same product corner on both sides."|>];
+  save[seams[j],"ResolvedInterface"<>ToString[j]];report[{"ChartInterfaceComplete",j}],
+ {j,Length[charts]-1}];
+ proof=<|"JointlyIntegrableSubtractedStrata"->True,"UniformMeromorphicContinuation"->True,
+  "CompleteNonintegrableDivisorTerms"->True,"TestFunctionSupport"->support,"Justification"-><|
+   "Method"->"Resolved monomial cover with exact ordinary faces, common product corner and removable interfaces",
+   "Cover"->cover,"UniformCornerGerms"->uniform,"OpenDivisorCollars"->collars,"ChartInteriors"->interior,
+   "ChartInterfaces"->seams,"CommonRamification"->commonRamification,"OrdinaryFaceCornerValuesVerified"->True,
+   "SubtractionIdentity"->"After the physical monomial powers and finite epsilon poles are removed, the chart scalar germ is analytic. The pulled-back complete ordinary faces have the same corner C, and all exceptional restrictions equal the product C. Inclusion-exclusion vanishes on both chart axes, hence is divisible by their product. The remaining edge tails gain at least the positive reciprocal ramification power. The complete interfaces have analytic removable quotients and the identical radial product. These local statements cover the support, giving locally integrable Laurent coefficients.",
+   "InteriorRegularityEstablished"->True,"Assumptions"->conditions|>|>;
+ <|"DataType"->"OrderedEndpointProfilePreparation","Status"->"ResolvedEndpointProfilesPrepared",
+  "DimensionalRegulator"->e,"NormalVariables"->variables,"CoefficientRowLabels"->Keys[rows],
+  "Powers"->powers,"CoefficientJets"->jets,"CornerCoefficientMatrix"->product["CoefficientMatrix"],
+  "InitialConstantValues"->product["InitialConstantValues"],"ProjectionConditions"->proof,
+  "KinematicRules"->rules|>
+],"ResolvedProfiles"];
+End[];EndPackage[];

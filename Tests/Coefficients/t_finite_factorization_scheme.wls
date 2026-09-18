@@ -47,4 +47,7 @@ FTTest`FTAssert["a four-dimensional finite scheme does not invent positive epsil
 FTTest`FTAssert["spacelike helicity kernels cannot stand in for an undeclared timelike transformation",
  FailureQ[FeynFacet`InverseFactorizationSchemeKernel["HelicityMSbar",fsQ,fsQ,"L",xx,fsParameters,2,
  <|"Evolution"->"TimeLike","ScaleLog"->ld|>]]];
+fsAlreadyConverted[r_,sp_,classes_,hi_]:=Join[fsSource[r,sp,classes,hi],<|"FiniteSchemeConversionApplied"->True|>];
+FTTest`FTAssert["a finite operator conversion cannot be applied twice to the same lower-order source",
+ FailureQ[FeynFacet`ApplyPartonicRenormalization[fsPlan,fsAlreadyConverted,fsMeta]]];
 FTTest`FTReport[];

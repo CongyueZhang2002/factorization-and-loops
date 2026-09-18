@@ -39,7 +39,7 @@ FTTest`FTAssert["the generated current satisfies the off-shell Ward identity",
  gcContract[gcU FeynCalc`FVD[gcq,gcm]]===0];
 gcAntiSetup=Join[gcSetup,<|"Partons"->({-FeynArts`F[3,{1}],FeynArts`V[1]}->{-FeynArts`F[3,{1}]})|>];
 gcAnti=FeynFacet`GenerateCurrentAmplitudes[gcAntiSetup];
-gcAntiL=gcTensor[gcAnti,{"qbar","u"},"L"];
+gcAntiL=gcTensor[gcAnti,{"qb","u"},"L"];
 FTTest`FTAssert["generated antiquark reversal and antiquark density give the same g1 sign",
  gcContract[gcAntiL gcProjectors["2g1"]/(2gcQ2)]===4/9];
 gcDownSetup=Join[gcSetup,<|"Partons"->({FeynArts`F[4,{1}],FeynArts`V[1]}->{FeynArts`F[4,{1}]})|>];

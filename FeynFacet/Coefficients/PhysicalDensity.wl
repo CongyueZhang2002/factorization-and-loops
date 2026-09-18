@@ -16,7 +16,7 @@ FeynFacet`ConstructPhysicalMasterCoefficientDensity[input_,definitions_Associati
   transformed,change,flux,jacobian,remainders,record,sourcePhase},
  inputSource=If[StringQ[input],ExpandFileName[input],Lookup[request,"SourceCoefficientFile",None]];
  If[StringQ[raw],If[!FileExistsQ[raw],coefficientAssemblyFail["CoefficientFileMissing",<|"File"->raw|>]];
-  raw=If[ToLowerCase[FileExtension[raw]]==="wxf",Import[raw,"WXF"],Get[raw]]];
+  raw=If[ToLowerCase[FileExtension[raw]]==="wxf",Import[raw,"WXF"],FeynFacet`FamilyArtifactRead[raw]]];
  If[!AssociationQ[raw],coefficientAssemblyFail["CoefficientResultRequired"]];
  If[TrueQ[Lookup[raw,"PhysicalMasterNormalizationApplied",False]],
   coefficientAssemblyFail["PhysicalMasterNormalizationAlreadyApplied"]];

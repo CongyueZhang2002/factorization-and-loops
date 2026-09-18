@@ -319,7 +319,7 @@ If[longTestsQ,
 (* G11-G13: the screen and the discovery on the real block CF300 (12,9) *)
 (* ------------------------------------------------------------------ *)
 
-FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`FamilyRootData["CF300"];
 (* FROZEN INPUTS (2026-08-25).  These three files used to be read from
    the LIVE campaign directory triple_root_2026-08-24_fable/CF300/,
@@ -330,7 +330,7 @@ chart = FeynFacet`FamilyRootData["CF300"];
    provenance in that directory's README.  The sector state is frozen as
    its OffDiagonalBlockSolutions PROJECTION -- the only field this suite uses -- which
    also removes a 33 MB read from every run. *)
-base = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
+base = FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal",
    "UU_08_10_canonical", "FamilyEpsFormsSolving",
    "FrozenTestFixtures_2026-08-25"}];
 stripFile = FileNameJoin[{base, "cf300_frozen_strip_12_9_input.wl"}];
@@ -339,8 +339,7 @@ stripFile = FileNameJoin[{base, "cf300_frozen_strip_12_9_input.wl"}];
    ~10^3 s preparation stage the screen exists to run in front of. *)
 channelFile = FileNameJoin[{base, "cf300_frozen_channel_inhomogeneity.wl"}];
 stateFile = FileNameJoin[{base, "cf300_frozen_stripsolvers.wl"}];
-check["the CF300 (12,9) fixture and its channel census are frozen in the \
-repository",
+check["the CF300 (12,9) fixture and its channel census are frozen in the repository",
   FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
     FileExistsQ[stateFile] && AssociationQ[chart]];
 
@@ -544,8 +543,7 @@ report["S3 two-image verdict", KeyTake[exceptionalConfirmed,
 (* A consistent image invalidates the all-negative sampling criterion.
    Generic solvability of this fixture follows from the explicit residues
    above, not merely from observing one consistent specialization. *)
-check["S3 the confirmation image is run and the FALSE obstruction is not \
-propagated: the verdict is consistent, unconfirmed as an obstruction",
+check["S3 the confirmation image is run and the FALSE obstruction is not propagated: the verdict is consistent, unconfirmed as an obstruction",
   Lookup[exceptionalConfirmed, "Status", None] ===
       "AlphabetIntegrabilityConsistent" &&
     Lookup[exceptionalConfirmed, "Confirmed", True] === False &&
@@ -564,8 +562,7 @@ report["S4 genuine obstruction", KeyTake[genuine,
    two configured images plus the default fresh count, every one
    carrying a defect, with the evidence record satisfied *)
 s4Fresh = mq["$multiquadraticOffDiagonalBlockDefaultFreshImageCount"];
-check["S4 a genuine obstruction is confirmed at the configured AND the \
-fresh random images",
+check["S4 a genuine obstruction is confirmed at the configured AND the fresh random images",
   Lookup[genuine, "Status", None] === "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage" &&
     TrueQ[Lookup[genuine, "Confirmed", False]] &&
     Lookup[genuine, "ImageCount", 0] === 2 + s4Fresh &&
@@ -617,8 +614,7 @@ check["S6 the returned conclusion is scoped to the fixed sampled problem",
 report["S6 top-level verdict on the genuine obstruction",
   KeyTake[s6Driven, {"Status", "Confirmed", "ImageCount", "Defects",
     "ValidationMethod"}]];
-check["S6 the top level's verdict carries the configured-plus-fresh \
-evidence, which only the confirming screen produces",
+check["S6 the top level's verdict carries the configured-plus-fresh evidence, which only the confirming screen produces",
   Lookup[s6Driven, "Status", None] === "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage" &&
     Lookup[s6Driven, "ImageCount", 0] === 2 + s4Fresh &&
     MatchQ[Lookup[s6Driven, "Images", None], {{_Integer, _} ..}] &&
@@ -632,8 +628,7 @@ evidence, which only the confirming screen produces",
 (* and the SINGLE-image screen on the exceptional fixture would have
    produced a FALSE obstruction, which is what makes the choice of
    screen a behavioural fact and not a formatting one *)
-check["S6 the single-image screen would have called the exceptional \
-regulator an obstruction, so the two-image evidence is not decorative",
+check["S6 the single-image screen would have called the exceptional regulator an obstruction, so the two-image evidence is not decorative",
   Lookup[exceptionalOne, "Status", None] ===
       "AlphabetDLogAnsatzInconsistentAtFiniteFieldImage" &&
     Lookup[exceptionalConfirmed, "Status", None] ===
@@ -657,8 +652,7 @@ check["S7 the size estimate counts rows, columns and packed bytes",
 (* the unknown-count ceiling, on the residue-only screen *)
 overUnknowns = integrabilityScreen[exceptionalRecord, {}, exceptionalLetters,
   "PointCount" -> 12, "MaximumUnknowns" -> 1];
-check["S8 an over-ceiling unknown count is a typed not-applicable, \
-BEFORE any allocation",
+check["S8 an over-ceiling unknown count is a typed not-applicable, BEFORE any allocation",
   Lookup[overUnknowns, "Status", None] === "IntegrabilityScreenNotApplicable" &&
     Lookup[overUnknowns, "Reason", None] === "UnknownCountCeilingExceeded" &&
     AssociationQ[Lookup[overUnknowns, "SizeEstimate", None]] &&
@@ -696,8 +690,7 @@ check["S9 an expired deadline stops the gauge screen, typed and resumable",
     StringQ[Lookup[expireoffDiagonalBasisTransformationBlock, "Stage", None]] &&
     StringStartsQ[expireoffDiagonalBasisTransformationBlock["Stage"], "OffDiagonalBasisTransformationBlockScreen:"] &&
     TrueQ[expireoffDiagonalBasisTransformationBlock["Resumable"]]];
-check["S9 a budget stop is NOT reported as OffDiagonalBasisTransformationBlockScreenNotApplicable \
-by the two-image driver",
+check["S9 a budget stop is NOT reported as OffDiagonalBasisTransformationBlockScreenNotApplicable by the two-image driver",
   Lookup[basisTransformationBlockScreenImages[fullAnsatz,
     "Deadline" -> AbsoluteTime[] - 1], "Status", None] === "BudgetExhausted"];
 check["S9 an unbounded deadline is the default and changes nothing",
@@ -708,8 +701,7 @@ check["S9 an unbounded deadline is the default and changes nothing",
 timedScreen = basisTransformationBlockScreen[fullAnsatz, "LeftNullSpace" -> True];
 report["S10 gauge-screen phase timings",
   Lookup[timedScreen, "PhaseTimings", None]];
-check["S10 the gauge screen reports Compile / PointAssembly / Rank / \
-LeftNullSpace seconds",
+check["S10 the gauge screen reports Compile / PointAssembly / Rank / LeftNullSpace seconds",
   AssociationQ[Lookup[timedScreen, "PhaseTimings", None]] &&
     Sort[Keys[timedScreen["PhaseTimings"]]] ===
       Sort[{"Compile", "PointAssembly", "Rank", "LeftNullSpace"}] &&
@@ -732,8 +724,7 @@ secondCompile = basisTransformationBlockScreen[fullAnsatz, "Prime" -> 2147483423
 report["S11 compile cache, first then second call",
   {Lookup[firstCompile, "CompileCache", None],
    Lookup[secondCompile, "CompileCache", None]}];
-check["S11 the first screen of an image compiles and the second reuses \
-every compiled scalar form",
+check["S11 the first screen of an image compiles and the second reuses every compiled scalar form",
   AssociationQ[Lookup[firstCompile, "CompileCache", None]] &&
     firstCompile["CompileCache"]["Misses"] > 0 &&
     secondCompile["CompileCache"]["Misses"] === 0 &&

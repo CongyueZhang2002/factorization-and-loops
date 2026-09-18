@@ -34,7 +34,7 @@ therefore does not establish dlog form or epsilon form.
 A sampled inconsistency rules out the tested ansatz under the stated
 conditions. It is not a general theorem that epsilon form is impossible.
 A statement about nonexistence must specify the coefficient field and allowed
-basis transformations. [The criteria audit](Stage1CostsAndEpsilonFormCriteria_2026-09-06.md)
+basis transformations. [The criteria audit](Stage1CostsAndEpsilonFormCriteria.md)
 distinguishes these conclusions.
 
 ## Square roots and rationalizing parametrizations

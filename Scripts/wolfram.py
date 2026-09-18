@@ -8,7 +8,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY_MARKER = "FEYNFACET DRIVER ENTERED"
-ERROR_MARKERS = ("::sntx", "Syntax::", "Get::noopen", "$Aborted")
+ERROR_MARKERS = ("::sntx", "Syntax::", "Get::noopen", "$Aborted", "Set::write", "SetDelayed::write")
 
 
 def atomic_json(path, value):
@@ -93,7 +93,9 @@ def run_wolfram(script, arguments, *, logfile, completion, cpus=None,
             offset = log.tell()
             process = subprocess.Popen(command, cwd=ROOT, stdout=log,
                 stderr=subprocess.STDOUT, start_new_session=True,
-                env={**os.environ, "FACET_CPU_COUNT": str(len(cpus))})
+                env={**os.environ, "FACET_CPU_COUNT": str(len(cpus)),
+                     "FACET_KERNEL_COUNT": str(len(cpus)),
+                     "FACET_CPU_LIST": ",".join(map(str, cpus))})
             try:
                 if on_start is not None:
                     on_start(process)

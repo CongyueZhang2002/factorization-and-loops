@@ -1,3 +1,6 @@
+(* Test fixtures must never populate the production master library.
+   Library tests select their own temporary directory and mode explicitly. *)
+SetEnvironment["FEYNFACET_MASTER_LIBRARY_MODE"->"Disabled"];
 (* Minimal assertion kit: every test declares its acceptance criterion
    machine-checkably and exits nonzero on failure. *)
 

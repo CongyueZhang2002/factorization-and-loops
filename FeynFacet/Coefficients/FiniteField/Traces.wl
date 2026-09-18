@@ -69,13 +69,13 @@ finiteFieldTraceInputs[
       remainderModule, outputOrder, traceVariables, signatureRegistry,
       descendStatistics = <||>, scalePowers, monomialExcluded,
       registerContribution,
-      workerCount, workerData, jobs, chunks, chunkSize,
+      workerCount, workerData, jobs, chunks,
       normalizedChunks, normalizedBatch, failedResult, processingResult,
       existingKernels, launchedKernels = {}, loadFile, initialized,
       closeWorkers, progressTotal
     },
 
-    manifest = Get[coefficientStoreManifestFile[store]];
+    manifest = FeynFacet`FamilyArtifactRead[coefficientStoreManifestFile[store]];
     shardCount = manifest["ShardCount"];
     expectedByShard = GroupBy[
       metadata["Targets"],
@@ -439,11 +439,9 @@ finiteFieldTraceInputs[
           ] /@ selectedTargets;
           normalizedBatch = If[workerCount === 1,
             finiteFieldNormalizeTraceTarget[#, workerData] & /@ jobs,
-            chunkSize = Max[
-              1,
-              Ceiling[Length[jobs]/(4 workerCount)]
-            ];
-            chunks = Partition[jobs, UpTo[chunkSize]];
+            (* Target sizes vary widely; independent jobs avoid serializing
+               expensive neighbours inside the same worker batch. *)
+            chunks = List /@ jobs;
             normalizedChunks = ParallelMap[
               FeynFacet`Private`finiteFieldNormalizeTraceBatch,
               chunks,
@@ -665,7 +663,7 @@ finiteFieldTraceManifestFile[directory_String] :=
 
 finiteFieldWriteTraceManifest[
     directory_String, traceData_Association,
-    inputFingerprint_String, kiraHash_String
+    inputFingerprint_String, kiraHash_String, normalizationDefinition_Association
   ] := coefficientWriteRecord[
   finiteFieldTraceManifestFile[directory],
   <|
@@ -673,6 +671,7 @@ finiteFieldWriteTraceManifest[
     "FormatVersion" -> $finiteFieldTraceCheckpointVersion,
     "InputFileFingerprint" -> inputFingerprint,
     "KiraFileHash" -> kiraHash,
+    "NormalizationDefinition" -> normalizationDefinition,
     "TraceData" -> traceData
   |>
 ];
@@ -682,7 +681,7 @@ finiteFieldWriteTraceManifest[
    traceData are restored from disk, so the ratracer/FireFly forks
    happen from a low-RSS kernel. *)
 finiteFieldRestoreTraceCheckpoint[
-    directory_String, inputFingerprint_String, kiraHash_String
+    directory_String, inputFingerprint_String, kiraHash_String, normalizationDefinition_Association
   ] := Module[{file, record, traceData, reason},
   file = finiteFieldTraceManifestFile[directory];
   If[! FileExistsQ[file], Return[$Failed]];
@@ -702,6 +701,8 @@ finiteFieldRestoreTraceCheckpoint[
         inputFingerprint <> ")",
     record["KiraFileHash"] =!= kiraHash,
       "the Kira artifact hash changed",
+    Lookup[record,"NormalizationDefinition",None] =!= normalizationDefinition,
+      "the normalization definition or requested target coverage changed",
     ! AssociationQ[record["TraceData"]],
       "the stored trace data is not an Association",
     ! AllTrue[
@@ -934,4 +935,3 @@ finiteFieldReconstructTrace[
     "ResultBytes" -> FileByteCount[resultFile]
   |>
 ];
-

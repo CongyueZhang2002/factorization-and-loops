@@ -22,7 +22,7 @@ coefficients at orders -2, -1 and 0. The order calculation took about
 0.032 seconds in the recorded run, excluding package loading.
 
 [Input](../Examples/Transport/master_integral_expansion_orders.wl) and
-[saved finite result](../ppHX_NNLO_DoubleReal/Results/Examples/MasterIntegralExpansionOrders/result.wl).
+[saved finite result](../Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Examples/MasterIntegralExpansionOrders/result.wl).
 
 ## Inputs
 

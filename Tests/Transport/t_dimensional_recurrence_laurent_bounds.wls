@@ -73,7 +73,7 @@ FTAssert["unknown cut-bound methods are rejected",
 
 (* The saved complete CF269 recurrence was produced by the general constructor.
    No master-value evaluations enter this check. *)
-path=FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal","EpsilonOrderDetermination",
+path=FileNameJoin[{root,"Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal","EpsilonOrderDetermination",
  "CF269","DimensionalRecurrence.wxf"}];
 If[!FileExistsQ[path],Print["Required saved recurrence missing: ",path];Exit[2]];
 actual=Import[path,"WXF"];

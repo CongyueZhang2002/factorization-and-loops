@@ -2,11 +2,11 @@
 BeginPackage["FeynFacet`"];
 EnumerateNLORealChannels::usage="EnumerateNLORealChannels[channel,request] enumerates the two unobserved partons for a single-inclusive massless QCD NLO channel. Species supplies explicit flavor representatives; FlavorCount supplies the total active massless flavors. Unmentioned flavors are summed using flavor symmetry. Ghost completion accompanies a pair of unobserved gluons.";
 Begin["`Private`"];
-qcdFlavorLabels[parts_]:=DeleteDuplicates[Cases[parts,{"q"|"qbar",flavor_}:>flavor,Infinity],SameQ];
+qcdFlavorLabels[parts_]:=DeleteDuplicates[Cases[parts,{"q"|"qb",flavor_}:>flavor,Infinity],SameQ];
 qcdFixedFlavors[channel_]:=qcdFlavorLabels[Join[channel["Incoming"],{channel["Observed"]}]];
 qcdRequireConjugateSpecies[species_List]:=If[
  !MemberQ[species,"g"]||!AllTrue[qcdFlavorLabels[species],
-  MemberQ[species,{"q",#}]&&MemberQ[species,{"qbar",#}]&],
+  MemberQ[species,{"q",#}]&&MemberQ[species,{"qb",#}]&],
  collinearKernelFail["GluonAndConjugateFlavorSpeciesRequired"]];
 qcdFlavorSummedRows[rows_List,channel_,flavorCount_,rowKey_]:=Module[
  {fixed=qcdFixedFlavors[channel],other,representative,result={},free,multiplicity},
@@ -20,7 +20,7 @@ qcdFlavorSummedRows[rows_List,channel_,flavorCount_,rowKey_]:=Module[
   If[free=!={}&&free=!={representative},Continue[]];
   multiplicity=If[free==={},1,flavorCount-Length[fixed]];
   If[TrueQ[multiplicity===0],Continue[]];
-  AppendTo[result,Join[row,<|"FlavorMultiplicity"->multiplicity|>]],
+  AppendTo[result,Join[row,<|"FlavorMultiplicity"->multiplicity,"FlavorSum"->free|>]],
  {row,rows}];
  result
 ];
@@ -46,7 +46,7 @@ EnumerateNLORealChannels[channel_Association,request_Association]:=Catch[Module[
  rows=(<|"UnobservedPartons"->#|>& /@ pairs);
  rows=qcdFlavorSummedRows[rows,channel,nf,"UnobservedPartons"];
  components=Association@MapIndexed[Function[{row,index},
-  weight=1/Times@@(Factorial[Last[#]]& /@ Tally[row["UnobservedPartons"],SameQ]);
+  weight=FeynFacet`FinalStateSymmetryFactor[row["UnobservedPartons"]];
   "State"<>IntegerString[First[index],10,2]->Join[row,<|"AssemblyWeight"->weight|>]],rows];
  If[MemberQ[pairs,{"g","g"}],AssociateTo[components,"Ghosts"-><|
   "UnobservedPartons"->{"ghost","antighost"},"FlavorMultiplicity"->1,"AssemblyWeight"->-1|>]];

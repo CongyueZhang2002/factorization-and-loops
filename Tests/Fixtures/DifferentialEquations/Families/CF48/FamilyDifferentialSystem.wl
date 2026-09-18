@@ -2579,16 +2579,15 @@
     {ffecfp2 -> v, ffecfp3 -> w}, "DimensionRule" -> d -> 4 - 2*eps|>,
  "CutIndices" -> {1, 2, 8}, "MathematicalInputReferences" ->
   <|"CanonicalRegistry" -> <|"RelativePath" ->
-      "Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/UU_08_10_canonical/CanonicalRegistry.wxf"\
-, "DataType" -> "FeynFacetCanonicalFamilyRegistryRecord",
+      "Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/UU_08_10_canonical/CanonicalRegistry.wxf", "DataType" -> "FeynFacetCanonicalFamilyRegistryRecord",
      "SchemaVersion" -> 1, "Family" -> "CF48"|>,
    "MasterIntegralList" -> <|"RelativePath" ->
-      "Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/UU_08_10_canonical/KiraStream/Manifest.wl", "DataType" -> "FeynFacet-KiraStream", "SchemaVersion" -> 1,
+      "Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/UU_08_10_canonical/KiraStream/Manifest.wl", "DataType" -> "FeynFacet-KiraStream", "SchemaVersion" -> 1,
      "Family" -> "CF48"|>, "IntegralFamiliesConfiguration" ->
-    <|"RelativePath" -> "Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Kira/DoubleReal/UU_08_12_derivatives/kira_1/config/integralfamilies.yaml", "DataType" ->
+    <|"RelativePath" -> "Projects/ppHX_UU/NNLO/qqp-qqp/Kira/DoubleReal/UU_08_12_derivatives/kira_1/config/integralfamilies.yaml", "DataType" ->
       "KiraIntegralFamiliesConfiguration", "SchemaVersion" -> 1,
      "Family" -> "CF48"|>, "KinematicsConfiguration" ->
-    <|"RelativePath" -> "Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Kira/DoubleReal/UU_08_12_derivatives/kira_1/config/kinematics.yaml", "DataType" -> "KiraKinematicsConfiguration",
+    <|"RelativePath" -> "Projects/ppHX_UU/NNLO/qqp-qqp/Kira/DoubleReal/UU_08_12_derivatives/kira_1/config/kinematics.yaml", "DataType" -> "KiraKinematicsConfiguration",
      "SchemaVersion" -> 1, "Family" -> "CF48"|>|>,
  "Validation" -> <|"ConnectionFlatness" ->
     <|"Status" -> "ConnectionFlatnessValidated", "Accepted" -> True,

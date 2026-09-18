@@ -52,7 +52,7 @@ Do[
   FTTest`FTAssert[species<>" joint current-density identity for an ordered word of length "<>ToString[Length[word]],
    AssociationQ[laRawAverage]&&AssociationQ[laDirect]&&Factor[laRawAverage["Value"]-laDirect["Value"]]===0],
  {word,laWords}],
- {species,{"q","qbar"}}];
+ {species,{"q","qb"}}];
 laGluonLeg=<|"Role"->"PDF","Species"->"g","Polarization"->"L","Momentum"->laP,
  "MomentumSpace"->"Physical4","ReferenceMomentum"->laN,"Indices"->{laG1,laG2}|>;
 laGluonDensity=FeynFacet`AveragedDISHelicityDensity[laGluonLeg,laP,laN,{laMu,laNu},laRequest];

@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Get[DirectoryName[ExpandFileName[$InputFileName],3]<>"/FeynFacet/Core/RecordFormat.wl"];
 (* One main kernel owns at most eight subkernels. Each task executes the
    same process-independent single-system constructor and preserves failure
    records. Resume requires identical mathematical source and common data. *)
@@ -6,7 +7,7 @@ $HistoryLength=0;
 campaignRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 campaignArgs=Rest[$ScriptCommandLine];
 If[Length[campaignArgs]=!=2,Print["Expected CAMPAIGN_INPUT.wl OUTPUT_DIRECTORY"];Exit[2]];
-campaignRead[path_String]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]];
+campaignRead[path_String]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 campaignRead[data_]:=data;
 campaignSave[data_,path_]:=Module[{temporary=path<>".partial",stream},
  If[!DirectoryQ[DirectoryName[path]],CreateDirectory[DirectoryName[path],CreateIntermediateDirectories->True]];

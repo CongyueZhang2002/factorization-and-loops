@@ -1,0 +1,111 @@
+(* Fixed measured external momentum: generated currents, scalar integration,
+   and the common raw Laurent result. No process-specific coefficient enters. *)
+Begin["FeynFacet`Private`"];
+projectCurrentProjectionMatches[source_Association,setup_Association,request_Association]:=
+ FeynFacet`RequireMatchingProcessDefinition[source,setup]===True&&
+ Lookup[source,"CurrentProjectors",None]===request["CurrentProjectors"]&&
+ Lookup[source,"SpinCorrelations",None]===Lookup[request,"SpinCorrelations",None]&&
+ Lookup[source,"InputKinematicRules",None]===Lookup[request,"KinematicRules",{}]&&
+ Lookup[source,"InputColorRules",None]===Lookup[request,"ColorRules",{}];
+projectFixedObservedCurrent[card_,setup_,request_,mode_]:=Module[
+ {path=card["WorkDirectory"],source=$Failed,scalar=$Failed,reduced=$Failed,value,
+  geometry,kinematics,external,loops,point,seconds,timings=<||>,file,kind=card["Contribution"],saved},
+ geometry=Lookup[card["Assembly"],"ScalarIntegration",None];
+ If[!AssociationQ[geometry],projectFail["DeclaredScalarIntegrationGeometryRequired"]];
+ If[mode==="assemble",projectFail["FixedObservedRawAssemblyRequiresCompletedResult"]];
+ file=path<>"/Integrands.wl";
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&projectCurrentProjectionMatches[saved,setup,request],source=saved]];
+ If[!AssociationQ[source],
+  {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
+    <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
+  source=projectCheck[source,"FixedObservedCurrentGenerationFailed"];
+  AssociateTo[timings,card["CardName"]<>"Amplitudes"->seconds];projectWrite[source,file]];
+ file=path<>"/ScalarIntegrands.wl";
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&projectCurrentProjectionMatches[saved,setup,request]&&
+    TrueQ[Lookup[saved,"FullDimensionScalarProducts",False]]&&Lookup[saved,"ScalarIntegration",None]===geometry,scalar=saved]];
+ If[!AssociationQ[scalar],
+  {seconds,scalar}=facetElapsedTiming[FeynFacet`SimplifyCurrentScalarIntegrands[source,geometry,If[kind==="Real",Lookup[card["Assembly"],"RealPhaseSpace",None],None],<|"CheckpointDirectory"->path<>"/NumeratorProjection"|>]];
+  scalar=projectCheck[scalar,"FixedObservedScalarProjectionFailed"];
+  AssociateTo[timings,card["CardName"]<>"ScalarProjection"->seconds];projectWrite[scalar,file]];
+ Switch[kind,
+  "Virtual",
+   file=path<>"/TensorReducedIntegrands.wl";
+   If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+    If[AssociationQ[saved]&&projectCurrentProjectionMatches[saved,setup,request]&&
+      Lookup[saved,"ScalarIntegration",None]===geometry,reduced=saved]];
+   If[!AssociationQ[reduced],
+    point=Lookup[geometry,"KinematicPoint",{}];
+    external=DeleteCases[geometry["PhysicalMomenta"],Lookup[geometry,"NormalMomentum",None]];
+    kinematics=<|"ExternalMomenta"->external,"KinematicRules"->Select[geometry["KinematicRules"],
+      FreeQ[#,Lookup[geometry,"NormalMomentum",None]]&],"Assumptions"->geometry["Assumptions"],
+      "DimensionalRegulator"->request["DimensionalRegulator"]|>/.point;
+    loops=Join[setup["ForwardAmplitudes"]["LoopMomenta"],setup["ConjugateAmplitudes"]["LoopMomenta"]];
+    If[Length[loops]=!=1,projectFail["SingleVirtualLoopRequired"]];
+    {seconds,reduced}=facetElapsedTiming[FeynFacet`ReduceOneLoopIntegrands[scalar["Values"],kinematics,
+     <|"LoopMomentum"->First[loops],"PrintTimings"->True,"FactorInput"->False,"TimeLimit"->600|>]];
+    reduced=projectCheck[reduced,"FixedObservedOneLoopReductionFailed"];
+    reduced=Join[reduced,KeyTake[source,{"ProcessDefinition","CurrentProjectors","SpinCorrelations","InputKinematicRules","InputColorRules"}],
+     <|"ScalarIntegration"->geometry|>];
+    AssociateTo[timings,card["CardName"]<>"TensorReduction"->seconds];projectWrite[reduced,file]];
+   {seconds,value}=facetElapsedTiming[FeynFacet`ConstructFixedObservedVirtualContribution[reduced,Join[request,<|"Order"->card["Order"]|>]]];
+   AssociateTo[timings,card["CardName"]<>"LaurentExpansion"->seconds],
+  "Real",
+   value=projectFixedObservedReal[card,setup,request,source,scalar,mode];
+   timings=Join[timings,value["StageSeconds"]];value=value["Result"],
+  _,projectFail["RealOrVirtualFixedObservedCurrentRequired"]];
+ <|"Result"->projectCheck[value,"FixedObservedLaurentResultRequired"],"StageSeconds"->timings|>
+];
+
+projectFixedObservedReal[card_,setup_,request_,source_,scalar_,mode_]:=Module[
+ {path=card["WorkDirectory"],geometry=card["Assembly"]["RealPhaseSpace"],definition,prepared=<||>,outputs=<||>,
+  decomposition=None,angular=None,file,saved,one,seconds,timings=<||>,cpuText,workers,name,value,meta},
+ cpuText=Environment["FACET_CPU_COUNT"];
+ workers=If[StringQ[cpuText]&&StringMatchQ[cpuText,DigitCharacter..],Min[4,FromDigits[cpuText]],1];
+ file=path<>"/IntegralDecomposition.wl";
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&projectCurrentProjectionMatches[saved,setup,request]&&
+   Lookup[saved,"RealPhaseSpace",None]===geometry,decomposition=saved]];
+ If[!AssociationQ[decomposition],
+  definition=projectCheck[FeynFacet`CreateMasslessPhaseSpaceDefinition[Join[geometry,<|"Name"->fixedObservedRecoil|>]],"FixedObservedPhaseSpaceRequired"];
+  Do[
+   Print["PREPARING ",name];
+   {seconds,one}=facetElapsedTiming[FeynFacet`PrepareCutIntegrand[scalar["Values"][name],definition,
+     <|"ExternalKinematicConditions"->geometry["Assumptions"],"CancelDenominators"->False|>]];
+   one=projectCheck[one,"FixedObservedCutPreparationFailed"];
+   projectWrite[one,path<>"/Prepared-"<>name<>".wl"];AssociateTo[prepared,name->one];
+   AssociateTo[timings,name<>"CutPreparation"->seconds];
+   {seconds,one}=facetElapsedTiming[FeynFacet`DecomposeMeasuredCutIntegrand[one,<|
+     "ExternalKinematicConditions"->geometry["Assumptions"],"Assumptions"->geometry["Assumptions"],
+     "AuxiliaryScalarProducts"->Lookup[geometry,"AuxiliaryScalarProducts",{}],
+     "FamilyNamePrefix"->name,"CoefficientWorkers"->workers,"PrintTimings"->True|>]];
+   one=projectCheck[one,"FixedObservedIntegralDecompositionFailed"];
+   AssociateTo[timings,name<>"IntegralDecomposition"->seconds];AssociateTo[outputs,name->one],
+  {name,Keys[scalar["Values"]]}];
+  decomposition=projectCheck[FeynFacet`MergeCutIntegralDecompositions[outputs],"FixedObservedDecompositionsRequired"];
+  decomposition=Join[decomposition,KeyTake[source,{"ProcessDefinition","CurrentProjectors","SpinCorrelations","InputKinematicRules","InputColorRules"}],
+    <|"ScalarIntegration"->scalar["ScalarIntegration"],"RealPhaseSpace"->geometry|>];
+  projectWrite[decomposition,file],
+  prepared=Association@Table[name->FeynFacet`FamilyArtifactRead[path<>"/Prepared-"<>name<>".wl"],{name,Keys[scalar["Values"]]}]];
+ If[!AllTrue[Values[prepared],AssociationQ],projectFail["OriginalPreparedProductsRequired"]];
+ file=path<>"/AngularDensity.wl";
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&projectCurrentProjectionMatches[saved,setup,request]&&
+    Lookup[saved,"RealPhaseSpace",None]===geometry&&
+    Lookup[saved,"SymmetryFactor",1]===Lookup[request,"SymmetryFactor",1]&&
+    Lookup[saved,"FlavorMultiplicity",1]===Lookup[request,"FlavorMultiplicity",1],angular=saved]];
+ If[!AssociationQ[angular],
+  {seconds,angular}=facetElapsedTiming[FeynFacet`EvaluateTwoBodyIntegralCombination[decomposition,
+    Join[request,<|"PrintTimings"->True,"IntegralEvaluationFile"->path<>"/AngularIntegrals.wl"|>]]];
+  angular=projectCheck[angular,"FixedObservedAngularIntegrationFailed"];
+  angular=Join[angular,KeyTake[decomposition,{"ProcessDefinition","CurrentProjectors","SpinCorrelations","InputKinematicRules","InputColorRules","ScalarIntegration","RealPhaseSpace"}],
+   <|"SymmetryFactor"->Lookup[request,"SymmetryFactor",1],"FlavorMultiplicity"->Lookup[request,"FlavorMultiplicity",1]|>];
+  AssociateTo[timings,"AngularIntegration"->seconds];projectWrite[angular,file]];
+ {seconds,value}=facetElapsedTiming[FeynFacet`ConstructFixedObservedRealContribution[angular,prepared,
+   Join[request,KeyTake[card["Assembly"],{"RealPhaseSpace","ScalarIntegration"}],<|"Order"->card["Order"],"WorkDirectory"->path|>]]];
+ value=projectCheck[value,"FixedObservedRealEndpointExpansionFailed"];
+ AssociateTo[timings,"EndpointExpansion"->seconds];
+ <|"Result"->value,"StageSeconds"->timings|>
+];
+End[];

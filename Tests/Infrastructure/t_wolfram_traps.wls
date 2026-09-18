@@ -51,7 +51,7 @@ Get[FileNameJoin[{root, "FeynFacet", "EpsilonForm.m"}]];
    direct write to the stdout stream of the subkernel is lost. *)
 log[a___] := Print["[t] ", StringJoin[ToString /@ {a}]];
 
-ftClassForms = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
+ftClassForms = FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal",
   "UU_08_10_canonical", "ClassForms"}];
 (* class115 is the fixture because it is small AND written with BARE
    eps and a bare variable u -- exactly the shape the trap acts on. *)
@@ -123,9 +123,7 @@ log["C1 context-blocked control read, contexts for eps: ", controlEps,
   ";  CANONICA already loaded in this kernel at file start: ",
   canonicaAlreadyLoaded];
 
-FTAssert["C1 control: the context-blocked read of the fixture yields \
-Global`eps and Global`u, so the comparison below is against a reference \
-that does not depend on what is already loaded",
+FTAssert["C1 control: the context-blocked read of the fixture yields Global`eps and Global`u, so the comparison below is against a reference that does not depend on what is already loaded",
   controlEps === {{"eps", "Global`"}} &&
     MemberQ[controlSymbols, {"u", "Global`"}]];
 
@@ -155,18 +153,15 @@ normalizedSymbols = symbolContexts[normalizedRead];
 log["C4 contexts after the normalizing reader: ",
   Select[normalizedSymbols, MemberQ[{"eps", "u", "v", "w", "x", "y"}, #[[1]]] &]];
 
-FTAssert["C4 the SymbolName-normalizing reader yields Global`eps (and \
-Global`u) after CANONICA has been loaded",
+FTAssert["C4 the SymbolName-normalizing reader yields Global`eps (and Global`u) after CANONICA has been loaded",
   MemberQ[normalizedSymbols, {"eps", "Global`"}] &&
     MemberQ[normalizedSymbols, {"u", "Global`"}] &&
     ! MemberQ[normalizedSymbols[[All, 2]], "CANONICA`"]];
 
-FTAssert["C4' the normalizer changes only the CONTEXT: the normalized \
-read is identical to the context-blocked reference read",
+FTAssert["C4' the normalizer changes only the CONTEXT: the normalized read is identical to the context-blocked reference read",
   TrueQ[normalizedRead === controlRead]];
 
-FTAssert["C3' with CANONICA` deliberately on $ContextPath, the bare Get \
-misreads: it does NOT give the reference expression",
+FTAssert["C3' with CANONICA` deliberately on $ContextPath, the bare Get misreads: it does NOT give the reference expression",
   ! TrueQ[afterRead === controlRead] &&
     MemberQ[afterSymbols, {"eps", "CANONICA`"}]];
 $ContextPath = DeleteCases[$ContextPath, "CANONICA`"];
@@ -189,8 +184,7 @@ log["L1 masterTransportLoadLibra -> ", loaded,
 FTAssert["L1 Libra loads through the module's own load site",
   loaded === True && Length[DownValues[Libra`PexpExpansion]] > 0];
 
-FTAssert["L2 the module's LOAD SITE leaves OptionValue::optnf switched \
-off, so no caller has to know about the Projector trap",
+FTAssert["L2 the module's LOAD SITE leaves OptionValue::optnf switched off, so no caller has to know about the Projector trap",
   messageOnQ[OptionValue::optnf] === False];
 
 (* OptionValue::nodef cannot be interrogated reliably with the generic
@@ -208,8 +202,7 @@ fuchsifyResult = If[MatrixQ[fuchsifyTransformation], Together[
   $Failed];
 log["L2b FuchsifyBlock transformation: ", fuchsifyTransformation,
   "; transformed system: ", fuchsifyResult];
-FTAssert["L2b FuchsifyBlock removes the double pole exactly through \
-Libra's NewDSystem path",
+FTAssert["L2b FuchsifyBlock removes the double pole exactly through Libra's NewDSystem path",
   MatrixQ[fuchsifyTransformation] &&
     fuchsifyResult === ConstantArray[0, {2, 2}]];
 
@@ -217,8 +210,7 @@ expected97 = {{1, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 projector = Libra`Projector[{{1, 0, 0, 0}}, {{1, 1, 0, 0}}];
 log["L3 Projector[{{1,0,0,0}},{{1,1,0,0}}] = ", projector];
 
-FTAssert["L3 Projector returns the correct rank-1 projector: the exact \
-matrix u^T (v.u^T)^-1 v, idempotent, rank 1, trace 1",
+FTAssert["L3 Projector returns the correct rank-1 projector: the exact matrix u^T (v.u^T)^-1 v, idempotent, rank 1, trace 1",
   MatrixQ[projector] && Dimensions[projector] === {4, 4} &&
     Expand[projector - expected97] === ConstantArray[0, {4, 4}] &&
     Expand[projector . projector - projector] === ConstantArray[0, {4, 4}] &&
@@ -239,8 +231,7 @@ log["L4 the guard is therefore ", If[Union[Flatten[withMessageOn]] === {0},
   "LOAD-BEARING on this Wolfram/Libra version",
   "not reproducing the 2026-08 symptom on this version -- record and re-check"]];
 
-FTAssert["L5 the guard is restored after the probe, so nothing this file \
-does leaves the trap armed for a later test in the same kernel",
+FTAssert["L5 the guard is restored after the probe, so nothing this file does leaves the trap armed for a later test in the same kernel",
   messageOnQ[OptionValue::optnf] === False];
 
 FTReport[];

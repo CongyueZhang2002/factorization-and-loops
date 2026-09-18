@@ -5,10 +5,10 @@ Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 arguments=Rest[$ScriptCommandLine];
 If[Length[arguments]=!=4,Print["Usage: reduce_current_one_loop_integrands.wls PROJECT ORDER CHANNEL CONTRIBUTION"];Exit[2]];
 {projectName,orderName,channelName,contribution}=arguments;
-directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
+directory=root<>"/Projects/"<>projectName<>"/Raw/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contribution];
 If[!AssociationQ[card],Print[card];Exit[1]];
-path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
+path=card["WorkDirectory"];
 source=FeynFacet`FamilyArtifactRead[path<>"/Integrands.wl"];
 If[!AssociationQ[source],Print["Generated current integrands required"];Exit[1]];
 If[FeynFacet`RequireMatchingProcessDefinition[source,FeynFacet`ReadProcessCard[card]]=!=True,
@@ -22,6 +22,6 @@ If[!AssociationQ[geometry],Print[geometry];Exit[1]];
 result=FeynFacet`ReduceMeasuredOneLoopIntegrands[source["Values"],geometry,
  <|"LoopMomentum"->First[setup["ForwardAmplitudes"]["LoopMomenta"]],"PrintTimings"->True|>];
 If[!AssociationQ[result],Print[result];Exit[1]];
-FeynFacet`FamilyArtifactWrite[Join[result,<|"ProcessDefinition"->setup|>],
+FeynFacet`FamilyArtifactWrite[Join[result,<|"ProcessDefinition"->setup,"IntegrationDefinition"->FeynFacet`ContributionIntegrationDefinition[card]|>],
  path<>"/TensorReducedIntegrands.wl",Compression->Automatic];
 Print["COMPLETED ",path<>"/TensorReducedIntegrands.wl"];

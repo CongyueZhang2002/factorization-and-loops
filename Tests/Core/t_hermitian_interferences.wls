@@ -1,7 +1,8 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-hermCard=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/NLO/qqp-qqp","Real"];
+hermCard=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU/Raw/NLO/qqp-qqp","Real"];
 hermPlan=FeynFacet`DiagramInterferencePlan[hermCard];
 FTTest`FTAssert["five diagrams require fifteen direct contractions",Length[hermPlan["Pairs"]]===15&&hermPlan["FullPairCount"]===25];
 FTTest`FTAssert["full-grid diagnostic remains available",Length[FeynFacet`DiagramInterferencePlan[hermCard,"HermitianReduction"->False]["Pairs"]]===25];
@@ -9,7 +10,7 @@ hermLarge=Join[hermCard,Association@Table[key->Append[hermCard[key],"DiagramIndi
 FTTest`FTAssert["36 diagrams require 666 direct contractions",Length[FeynFacet`DiagramInterferencePlan[hermLarge]["Pairs"]]===666];
 hermRect=Append[hermCard,"ConjugateAmplitudes"->Append[hermCard["ConjugateAmplitudes"],"DiagramIndices"->{1}]];
 FTTest`FTAssert["unequal sets retain their rectangle",FeynFacet`DiagramInterferencePlan[hermRect]["HermitianReduction"]===False&&Length[FeynFacet`DiagramInterferencePlan[hermRect]["Pairs"]]===5];
-hermVirtual=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/NLO/qqp-qqp","Virtual"];
+hermVirtual=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU/Raw/NLO/qqp-qqp","Virtual"];
 FTTest`FTAssert["virtual-tree interference is not doubled by the pair driver",FeynFacet`DiagramInterferencePlan[hermVirtual]["HermitianReduction"]===False];
 hermSynthetic=<|"ForwardAmplitudes"-><|"LoopMomenta"->{hermL}|>,"ConjugateAmplitudes"-><|"LoopMomenta"->{hermR}|>,"ComplexParameters"->{hermCoupling}|>;
 hermSeed=<|"Numerator"->(1+I)hermCoupling hermL+Conjugate[hermCoupling]hermR,"OrdinaryPropagators"->FeynCalc`SFAD[hermL] FeynCalc`FeynAmpDenominator[FeynCalc`StandardPropagatorDenominator[FeynCalc`Momentum[hermR,D],0,0,{2,-1}]],"ExternalPropagators"->1|>;
@@ -26,7 +27,7 @@ hermComplexMass=FeynFacet`Private`conjugatePhysicalAmplitude[
 FTTest`FTAssert["declared complex mass fields are conjugated with the prescription",
  !FreeQ[hermComplexMass,FeynCalc`StandardPropagatorDenominator[_,0,Conjugate[hermCoupling],{1,-1}]]];
 Do[
- hermCard=FeynFacet`ReadProcessCard[root<>If[pol==="UU","/Projects/ppHX_UU_NNLO","/Projects/ppHX_"<>pol<>"_NLO"]<>"/NLO/qqp-qqp","Real"];
+ hermCard=FeynFacet`ReadProcessCard[root<>If[pol==="UU","/Projects/ppHX_UU","/Projects/ppHX_"<>pol]<>"/Raw/NLO/qqp-qqp","Real"];
  hermSelected=FeynFacet`Private`interferencePairSetup[hermCard,{1,5}];
  hermPrepared=FeynFacet`PrepareProcessDiagrams[hermSelected];
  {hermSeconds,hermRows}=AbsoluteTiming[FeynFacet`CollinearFactorizeInterferencesPreIBP[hermSelected,"PreparedDiagrams"->hermPrepared]];

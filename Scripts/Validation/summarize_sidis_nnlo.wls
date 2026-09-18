@@ -1,12 +1,13 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];Get[root<>"/FeynFacet/Solution.m"];$PrePrint=.;
 summary=<||>;
 Do[
  project=FeynFacet`ReadProjectCard[root<>"/Projects/"<>name];
- reports=Table[FeynFacet`FamilyArtifactRead[project["Directory"]<>"/NNLO/q-q/Results/Validation/NNLOComparisonPoint"<>ToString[j]<>".wl"],{j,5}];
+ reports=Table[FeynFacet`FamilyArtifactRead[project["Directory"]<>"/Results/NNLO/q-q/Validation/NNLOComparisonPoint"<>ToString[j]<>".wl"],{j,5}];
  If[!AllTrue[reports,AssociationQ[#]&&#["Status"]==="Passed"&],Print["INCOMPLETE INDEPENDENT VALIDATION ",name];Exit[1]];
- files=Table[project["Directory"]<>"/NNLO/"<>channel<>"/Results/Result.wl",{channel,project["Orders"]["NNLO"]}];
+ files=Table[project["Directory"]<>"/Results/NNLO/"<>channel<>"/Results.wl",{channel,project["Orders"]["NNLO"]}];
  data=FeynFacet`ReadPartonicResult/@files;
  If[!AllTrue[data,AssociationQ[#]&&#["EpsilonRange"]==={0,0}&&TrueQ[#["PoleCancellationVerified"]]&&
   #["UnresolvedIntegrals"]===False&],Print["INVALID FINAL RESULT ",name];Exit[1]];
@@ -26,13 +27,13 @@ Do[
  "WorkingPrecision"->50,"RelativeComparisonTolerance"->10^-30,
  "ObservedAgreement"->"Approximately 40 decimal digits at the retained five exact parameter points.",
  "ValidationMethod"->"Numerical checks of every distribution coefficient; not a proof of global symbolic identity.",
- "ReferenceSources"->{If[name==="SIDIS_UU_NNLO","https://arxiv.org/abs/2401.16281v2","https://arxiv.org/abs/2404.08597v3"],
+ "ReferenceSources"->{If[name==="SIDIS_UU","https://arxiv.org/abs/2401.16281v2","https://arxiv.org/abs/2404.08597v3"],
    "https://arxiv.org/abs/2505.18109v2"},
- "ResultFiles"->files,"TotalBytes"->Total[FileByteCount/@files],
+ "ResultFiles"->files,"TotalBytes"->Total[FileByteCount/@Flatten[({#,#<>".meta.wxf"}&/@files)]],
  "FunctionConvention"->"GPL G[{a1,...,an},z] has integration kernels dt/(t-ai). Results contain explicit functions, no unevaluated integrations or master-solution generators.",
  "EndpointProofReview"->"External/ChatGPT/Records/2026-09-10/36_completed_endpoint_projection.md"|>;
- FeynFacet`FamilyArtifactWrite[report,project["Directory"]<>"/NNLO/q-q/Results/Validation/CompletionReport.wl"];
+ FeynFacet`FamilyArtifactWrite[report,project["Directory"]<>"/Results/NNLO/q-q/Validation/CompletionReport.wl"];
  AssociateTo[summary,name->report];
  Print["VERIFIED COMPLETE ",name," CHANNELS ",Length[files]," COMPARISONS ",report["FiniteCoefficientComparisons"]," POLES ",report["PoleCoefficientChecks"]," BYTES ",report["TotalBytes"]],
-{name,{"SIDIS_UU_NNLO","SIDIS_LL_NNLO"}}];
+{name,{"SIDIS_UU","SIDIS_LL"}}];
 Print["COMPLETED SIDIS NNLO OUTPUT AUDIT"];

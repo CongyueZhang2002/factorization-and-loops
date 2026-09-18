@@ -26,4 +26,4 @@ coefficients are accepted with their supplied precision. Increasing working
 precision and checking the assembled result provides empirical convergence
 evidence, not a rigorous error enclosure.
 
-See [the general interface and measured scope](../../../Design/GPLImplementation_2026-09-06.md).
+See [the general interface and measured scope](../../../Design/GPLImplementation.md).

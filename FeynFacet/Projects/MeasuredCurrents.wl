@@ -1,0 +1,377 @@
+(* Card-driven current amplitudes with native polynomial measurements.
+   These are explicit upstream stages. A generic-angle DE is never labelled
+   as a complete endpoint-inclusive partonic result. *)
+BeginPackage["FeynFacet`"];
+PrepareMeasuredCurrentContribution::usage="PrepareMeasuredCurrentContribution[compiledCard,mode] generates the current integrand, instantiates the card's FinalStateMeasurement on its PhaseSpace, and decomposes noncontact terms into native polynomial-cut families. All files belong to the raw contribution Work directory. mode is all or resume.";
+ConstructMeasuredContributionDifferentialSystems::usage="ConstructMeasuredContributionDifferentialSystems[compiledCard,prepared] reduces the noncontact families and constructs their shared Kira differential systems. Explicit contact sectors remain separate from rational generic-variable reduction.";
+CheckMeasuredContributionInterior::usage="CheckMeasuredContributionInterior[compiledCard,prepared] directly integrates supported native three-particle polynomial cuts in four dimensions and evaluates inclusive contact moments. It writes an explicit interior check, not Results.wl or an endpoint-complete hard function.";
+ConstructMeasuredContributionMasterValues::usage="ConstructMeasuredContributionMasterValues[card,prepared,system] evaluates supported unit-cut three-particle masters as explicit beta/Gauss functions with exact regulator dependence. It retains physical normalization and separate contact sectors. Unsupported geometry fails rather than inserting boundary constants.";
+AssembleMeasuredContributionInterior::usage="AssembleMeasuredContributionInterior[card,system,values] reconstructs the declared scalar structures from explicit physical masters and expands through the requested epsilon range with sufficient orders for every spurious reduction pole. It stores only the interior result; it never infers endpoint contacts.";
+IntegrateMeasuredCurrentVirtual::usage="IntegrateMeasuredCurrentVirtual[card,mode] generates a one-loop interference, reduces its loop before phase space, and integrates constant measurement sectors. It retains exact dimensional dependence and the causal timelike continuation. The current implementation requires a massless two-body final state and no incoming partons.";
+RunMeasuredRawContribution::usage="RunMeasuredRawContribution[card,mode] computes independent full unit-interval Laurent distributions from card-declared polynomial measurements, including explicit contacts and radiative endpoint continuation. Native master reduction and physical solutions are used for the nonconstant spectrum.";
+RunMeasuredProjectResult::usage="RunMeasuredProjectResult[resultCard,mode] evaluates the selected raw measured-current contributions, sums their common partonic results, checks pole cancellation, and applies the declared generated Born normalization. No reference coefficient is used in production.";
+Begin["`Private`"];
+PrepareMeasuredCurrentContribution[card_Association,mode_String:"resume"]:=Catch[Module[
+ {setup,request,geometry,specification,definition,path,file,saved,source,values,rows,decompositions=<||>,
+  contacts=<||>,terms,one,seconds,timings=<||>,name,label,index,output},
+ If[!MemberQ[{"all","resume"},mode],projectFail["MeasuredPreparationModeRequired"]];
+ If[Lookup[card["Assembly"],"IntegrationMethod",None]=!="PolynomialMeasurement"||
+   !ContainsAll[Keys[card["Assembly"]],{"PhaseSpace","FinalStateMeasurement"}],
+  projectFail["DeclaredPolynomialMeasurementAndPhaseSpaceRequired"]];
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"MeasuredCurrentProcessRequired"];
+ If[setup["ForwardAmplitudes"]["LoopOrder"]+setup["ConjugateAmplitudes"]["LoopOrder"]>0,
+  projectFail["PolynomialMeasuredVirtualIntegrationNotImplemented"]];
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"MeasuredCurrentAssemblyRequired"];
+ path=card["WorkDirectory"];geometry=Join[card["Assembly"]["PhaseSpace"],<|
+  "Name"->measuredCurrentPhaseSpace,"FinalMomenta"->Take[card["FinalMomenta"],Length[card["UnobservedPartons"]]]|>];
+ If[Lookup[card["Channels"][card["Channel"]],"Observed",None]=!=None,
+  projectFail["AllFinalMomentaIntegratedForTupleMeasurementRequired"]];
+ specification=card["Assembly"]["FinalStateMeasurement"];
+ definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
+   "FinalStateMeasurement"->specification,"SymmetryFactor"->Lookup[card,"SymmetryFactor",1],
+   "FlavorMultiplicity"->Lookup[card,"FlavorMultiplicity",1]|>;
+ file=path<>"/MeasuredIntegrands.wl";
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition,
+   Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
+ {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
+   <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
+ source=projectCheck[source,"MeasuredCurrentGenerationFailed"];
+ AssociateTo[timings,"AmplitudeGenerationAndContraction"->seconds];projectWrite[source,path<>"/Integrands.wl"];
+ If[!TrueQ[Lookup[source,"FullDimensionScalarProducts",False]],
+  projectFail["FullDimensionalMeasurementNumeratorRequired"]];
+  values=Map[FeynFacet`SubstituteScalarPowers[# request["CurrentNormalization"] Lookup[card,"SymmetryFactor",1]Lookup[card,"FlavorMultiplicity",1],
+   request["BareCouplingRules"]]&,source["Values"]];
+ Do[
+  {seconds,rows}=facetElapsedTiming[FeynFacet`PrepareFinalStateMeasurementIntegrands[values[name],geometry,specification]];
+  If[!ListQ[rows],projectFail["MeasuredCurrentPreparationFailed",<|"Cause"->rows|>]];
+  AssociateTo[timings,name<>"MeasurementPreparation"->seconds];
+  index=0;
+  Do[index++;label=name<>ToString[index];
+   If[row["ContactMeasurements"]=!={},AssociateTo[contacts,label->row],
+    {seconds,one}=facetElapsedTiming[FeynFacet`DecomposeMeasuredCutIntegrand[row["PreparedIntegrand"],<|
+      "FamilyNamePrefix"->label,"Assumptions"->geometry["Assumptions"],
+      "ExternalKinematicConditions"->geometry["Assumptions"],
+      "CoefficientWorkers"->Lookup[card["Execution"],"ReconstructionThreads",1]|>]];
+    one=projectCheck[one,"PolynomialMeasurementDecompositionFailed"];
+    AssociateTo[timings,label<>"IntegralDecomposition"->seconds];
+    AssociateTo[decompositions,label->Join[row,<|"Decomposition"->one|>]]],{row,rows}],
+ {name,Keys[values]}];
+ output=<|"Format"->"FeynFacet-PolynomialMeasuredContribution","CalculationDefinition"->definition,
+  "NoncontactTerms"->decompositions,"ContactTerms"->contacts,"StageSeconds"->timings,
+  "Reused"->False,"EndpointDistributionsSolved"->False|>;
+ projectWrite[output,file];output
+],"ProjectCards"];
+ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Association]:=Catch[Module[
+ {terms,merged,variables,system,seconds,path,execution,output},
+ If[Lookup[prepared,"Format",None]=!="FeynFacet-PolynomialMeasuredContribution",
+  projectFail["PreparedPolynomialMeasuredContributionRequired"]];
+ terms=Map[#["Decomposition"]&,prepared["NoncontactTerms"]];
+ If[terms===<||>,Return[<|"DifferentialSystems"-><||>,"ContactTerms"->prepared["ContactTerms"]|>,Module]];
+ merged=projectCheck[FeynFacet`MergeCutIntegralDecompositions[terms],"PolynomialMeasurementFamiliesRequired"];
+ path=card["WorkDirectory"];execution=card["Execution"];
+ variables=card["Assembly"]["Variables"];
+ projectWrite[merged,path<>"/IntegralDecomposition.wl"];
+ {seconds,system}=facetElapsedTiming[FeynFacet`ConstructCutDifferentialSystem[merged["Families"],merged["Targets"],variables,
+   Join[<|"WorkingDirectory"->path<>"/DifferentialEquations","Threads"->execution["KiraThreads"],
+    "SeedExtension"->{2,2},"NewWorkspaceForChangedInputs"->True|>,Lookup[card["Assembly"],"Reduction",<||>]]]];
+ system=projectCheck[system,"PolynomialMeasurementDifferentialSystemFailed"];
+ output=<|"DifferentialSystem"->system,"IntegralDecomposition"->merged,
+  "ContactTerms"->prepared["ContactTerms"],"CalculationDefinition"->prepared["CalculationDefinition"],
+  "StageSeconds"-><|"ReductionAndDifferentialClosure"->seconds|>,
+  "Scope"->"Generic measured variables; physical boundary constants and endpoint contacts are separate inputs."|>;
+ projectWrite[output,path<>"/DifferentialSystem.wl"];output
+],"ProjectCards"];
+ConstructMeasuredContributionMasterValues[card_Association,prepared_Association,record_Association]:=Catch[Module[
+ {system=record["DifferentialSystem"],family,row,order,slots,ordinary,pure,integrand,one,direct,
+  e=Global`Epsilon,values={},seconds,timings=<||>,definition,output,definitions,library,
+  libraryRecords={},masterValue,conditions},
+ conditions=card["Assembly"]["PhaseSpace"]["Assumptions"]&&And@@(0<#<1&/@card["Assembly"]["Variables"]);
+ definitions=projectCheck[FeynFacet`ConstructMasterIntegralDefinitions[Join[system,<|"KinematicConditions"->conditions|>]],
+   "PolynomialMasterPhysicalDefinitionsRequired"]["MasterIntegralDefinitions"];
+ If[Length[definitions]=!=Length[system["MasterIntegralBasis"]],projectFail["CompletePolynomialMasterDefinitionsRequired"]];
+ library=Join[Lookup[card["Assembly"],"MasterLibrary",<||>],<|"Provenance"-><|
+   "Project"->card["Project"],"Card"->card["CardFile"],"Producer"->"NativePolynomialCutEulerIntegral"|>|>];
+ Do[
+  family=SelectFirst[system["Families"],#["Topology"][[1]]===master[[1]]&];
+  row=SelectFirst[Values[prepared["NoncontactTerms"]],MemberQ[
+    First[#["Topology"]]&/@#["Decomposition"]["Families"],master[[1]]]&];
+  If[!AssociationQ[row],projectFail["MeasuredMasterOriginalTupleRequired"]];
+  order=DeleteDuplicates[Flatten[row["ParticleTuples"][[1]]]];
+  order=Join[order,Complement[Range[3],order]];
+  slots=family["CutIndices"];ordinary=Complement[Range[Length[master[[2]]]],slots];
+  If[!AllTrue[master[[2,slots]],#===1&],projectFail["UnitCutMasterIntegrationRequired"]];
+  pure=projectCheck[FeynFacet`CreateCutIntegralDefinition[Join[family,<|
+    "Topology"->ReplacePart[family["Topology"],2->family["Topology"][[2,slots]]],
+    "MeasurementNumerator"->1|>]],"MasterPhaseSpaceDefinitionRequired"];
+  integrand=Times@@(family["InversePropagators"][[#]]^-master[[2,#]]&/@ordinary);
+  {seconds,masterValue}=facetElapsedTiming[FeynFacet`EvaluateWithMasterIntegralLibrary[
+   definitions[Length[values]+1],Automatic,Function[Null,
+    one=projectCheck[FeynFacet`PrepareCutIntegrand[integrand,pure,<|
+      "ExternalKinematicConditions"->card["Assembly"]["PhaseSpace"]["Assumptions"]|>],"MasterNativeCutPreparationFailed"];
+    direct=projectCheck[FeynFacet`EvaluateThreeParticleMeasurementInterior[one,<|"ParticleOrder"->order,
+      "DimensionalRegulator"->e,"Assumptions"->conditions|>],"ExactNativeCutMasterIntegrationFailed"];
+    <|"ExactValue"->direct["Value"],"EvaluationMethod"->"NativePolynomialCutEulerIntegral"|>],library]];
+  masterValue=projectCheck[masterValue,"PhysicalPolynomialMasterValueRequired"];
+  AppendTo[values,masterValue["ExactValue"]];
+  AppendTo[libraryRecords,KeyTake[masterValue,{"LibraryReuse","LibraryStorage"}]];
+  AssociateTo[timings,ToString[Length[values]]->seconds],
+ {master,system["MasterIntegralBasis"]}];
+ output=<|"MasterIntegralBasis"->system["MasterIntegralBasis"],"Values"->values,
+  "DimensionalRegulator"->e,"KinematicVariables"->system["KinematicVariables"],
+  "KinematicConditions"->card["Assembly"]["Assumptions"]&&And@@(0<#<1&/@card["Assembly"]["Variables"]),
+  "ExactInRegulator"->True,"PhysicalBoundaryConstantsFixed"->True,
+  "Method"->"Native measurement cut integrated with the normalized positive-branch Euler measure",
+  "MasterLibrary"->libraryRecords,"MasterIntegralDefinitions"->definitions,
+  "StageSeconds"->timings,"EndpointDistributionsSolved"->False,
+  "CalculationDefinition"->prepared["CalculationDefinition"]|>;
+ projectWrite[output,card["WorkDirectory"]<>"/MasterValues.wl"];output
+],"ProjectCards"];
+
+AssembleMeasuredContributionInterior[card_Association,record_Association,solution_Association]:=Catch[Module[
+ {system=record["DifferentialSystem"],decomposition=record["IntegralDecomposition"],values,
+  e=Global`Epsilon,byTerm,byStructure=<||>,labels,structure,expression,expanded,seconds,result},
+ If[solution["MasterIntegralBasis"]=!=system["MasterIntegralBasis"]||
+   solution["CalculationDefinition"]=!=record["CalculationDefinition"]||!TrueQ[solution["ExactInRegulator"]],
+  projectFail["MatchingExactPhysicalMasterValuesRequired"]];
+ values=solution["Values"];
+ byTerm=Map[Total[KeyValueMap[#2 #1&,#]]&,decomposition["Coefficients"]];
+ byTerm=Map[(#/.Dispatch[system["Reduction"]["Rules"]]/.
+   Thread[system["MasterIntegralBasis"]->values]/.D->4-2e)&,byTerm];
+ Do[
+  labels=Select[Keys[byTerm],StringMatchQ[#,structure~~DigitCharacter..]&];
+  AssociateTo[byStructure,structure->Total[Lookup[byTerm,labels]]],{structure,card["StructureFunctions"]}];
+ If[Total[Function[label,Length[Select[Keys[byTerm],StringMatchQ[#,label~~DigitCharacter..]&]]]/@
+   card["StructureFunctions"]]=!=Length[byTerm],projectFail["DistinctMeasuredStructureLabelsRequired"]];
+ {seconds,expanded}=facetElapsedTiming[FeynFacet`ExpandGaussHypergeometricCombinations[byStructure,e,card["EpsilonRange"]]];
+ expanded=projectCheck[expanded,"MeasuredInteriorLaurentExpansionFailed"];
+ result=Join[expanded,<|"Expression"->Association@Table[structure->Sum[
+   expanded["Coefficients"][[Key[{First@FirstPosition[Keys[byStructure],structure],n}]]]e^n,
+   {n,First[card["EpsilonRange"]],Last[card["EpsilonRange"]]}],{structure,Keys[byStructure]}],
+  "KinematicConditions"->solution["KinematicConditions"],"EndpointDistributionsSolved"->False,
+  "Scope"->"Interior of the measured domain. Explicit contact sectors and radiative endpoint continuation are not assembled here.",
+  "CalculationDefinition"->record["CalculationDefinition"],
+  "StageSeconds"-><|"InteriorCoefficientAssembly"->seconds|>|>];
+ projectWrite[result,card["WorkDirectory"]<>"/Interior.wl"];result
+],"ProjectCards"];
+
+CheckMeasuredContributionInterior[card_Association,prepared_Association]:=Catch[Module[
+ {bulk=<||>,contacts=<||>,one,order,seconds,timings=<||>,e=Global`Epsilon,output},
+ If[Lookup[prepared,"Format",None]=!="FeynFacet-PolynomialMeasuredContribution",
+  projectFail["PreparedPolynomialMeasuredContributionRequired"]];
+ KeyValueMap[Function[{name,row},
+  order=DeleteDuplicates[Flatten[row["ParticleTuples"][[1]]]];
+  order=Join[order,Complement[Range[3],order]];
+  {seconds,one}=facetElapsedTiming[FeynFacet`EvaluateThreeParticleMeasurementInterior[row["PreparedIntegrand"],
+    <|"ParticleOrder"->order,"Assumptions"->card["Assembly"]["Assumptions"]&&
+      And@@(0<#<1&/@card["Assembly"]["Variables"])|>]];
+  one=projectCheck[one,"DirectPolynomialMeasurementCheckFailed"];
+  AssociateTo[bulk,name->Join[one,<|"Value"->(one["Value"]/.e->0)|>]];
+  AssociateTo[timings,name<>"DirectInteriorIntegral"->seconds]],prepared["NoncontactTerms"]];
+ KeyValueMap[Function[{name,row},
+  {seconds,one}=facetElapsedTiming[FeynFacet`IntegrateMasslessInvariantMoments[row["PreparedIntegrand"],e]];
+  one=projectCheck[one,"InclusiveContactMomentFailed"];
+  AssociateTo[contacts,name->Join[one,<|"ContactMeasurements"->row["ContactMeasurements"]|>]];
+  AssociateTo[timings,name<>"ContactMoments"->seconds]],prepared["ContactTerms"]];
+ output=<|"InteriorExpression"->Total[If[bulk===<||>,{},Lookup[Values[bulk],"Value"]]],
+  "ContactExpressions"->Map[#["Value"]Times@@Map[DiracDelta[#["Variable"]-#["Observable"]]&,
+    #["ContactMeasurements"]]&,contacts],
+  "DimensionalRegulator"->e,"InteriorEpsilonOrder"->0,"EndpointDistributionComplete"->(bulk===<||>),
+  "InteriorIntegrals"->bulk,"ContactIntegrals"->contacts,"StageSeconds"->timings,
+  "CalculationDefinition"->prepared["CalculationDefinition"],
+  "Scope"->"Direct interior check and separately integrated contact sectors; no full radiative endpoint completion is inferred."|>;
+ projectWrite[output,card["WorkDirectory"]<>"/DirectIntegration.wl"];output
+],"ProjectCards"];
+
+IntegrateMeasuredCurrentVirtual[card_Association,mode_String:"resume"]:=Catch[Module[
+ {setup,request,path,file,definition,saved,source,reduced,values,geometry,momenta,q,s,e=Global`Epsilon,
+  kinematics,rows,contacts=<||>,timings=<||>,seconds,one,index,output,loop},
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"MeasuredVirtualProcessRequired"];
+ If[setup["ForwardAmplitudes"]["LoopOrder"]=!=1||setup["ConjugateAmplitudes"]["LoopOrder"]=!=0||
+  Length[card["UnobservedPartons"]]=!=2||Lookup[card["Channels"][card["Channel"]],"Incoming",{}]=!={},
+  projectFail["OneLoopTwoBodyDecayInterferenceRequired"]];
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"MeasuredVirtualAssemblyRequired"];
+ path=card["WorkDirectory"];file=path<>"/VirtualIntegration.wl";
+ geometry=Join[card["Assembly"]["PhaseSpace"],<|"Name"->measuredVirtualPhaseSpace,
+  "FinalMomenta"->Take[card["FinalMomenta"],2]|>];
+ definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
+  "FinalStateMeasurement"->card["Assembly"]["FinalStateMeasurement"]|>;
+ If[mode==="resume"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition,
+   Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
+ {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
+  <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
+ source=projectCheck[source,"MeasuredVirtualGenerationFailed"];
+ AssociateTo[timings,"AmplitudeGenerationAndContraction"->seconds];projectWrite[source,path<>"/Integrands.wl"];
+ momenta=geometry["FinalMomenta"];q=geometry["TotalMomentum"];
+ s=FeynCalc`FCI[FeynCalc`SPD[q]]/.FeynCalc`FCI[geometry["KinematicRules"]];
+ loop=First[setup["ForwardAmplitudes"]["LoopMomenta"]];
+ kinematics=<|"ExternalMomenta"->momenta,"MomentumRules"->{q->Total[momenta]},
+  "KinematicRules"->{FeynCalc`SPD[momenta[[1]]]->0,FeynCalc`SPD[momenta[[2]]]->0,
+   FeynCalc`SPD@@momenta->s/2},"Assumptions"->request["Assumptions"],"DimensionalRegulator"->e|>;
+ {seconds,reduced}=facetElapsedTiming[FeynFacet`ReduceOneLoopIntegrands[source["Values"],kinematics,
+  <|"LoopMomentum"->loop,"PrintTimings"->True|>]];
+ reduced=projectCheck[reduced,"MeasuredVirtualReductionFailed"];
+ AssociateTo[timings,"OneLoopTensorReduction"->seconds];projectWrite[reduced,path<>"/ScalarLoopIntegrals.wl"];
+ {seconds,values}=facetElapsedTiming[Map[Function[value,Module[{integrated},
+  integrated=FeynFacet`EvaluateOneLoopScalarFunctions[value/.D->4-2e,e,request["Assumptions"]];
+  If[FailureQ[integrated],projectFail["MeasuredVirtualScalarFunctionsFailed",<|"Cause"->integrated|>]];
+  integrated=FeynFacet`SubstituteScalarPowers[integrated request["CurrentNormalization"] Lookup[card,"SymmetryFactor",1]*
+    Lookup[card,"FlavorMultiplicity",1],request["BareCouplingRules"]];
+  FullSimplify[ComplexExpand[integrated+Conjugate[integrated]],
+   Assumptions->request["Assumptions"]&&Element[e,Reals]]]],reduced["InteriorValues"]]];
+ If[!FreeQ[values,_Conjugate|_Re|_Im|_FeynCalc`B0|_FeynCalc`C0|_FeynCalc`SMP|_Failure],
+  projectFail["ExplicitRealVirtualValuesRequired",<|"Values"->values|>]];
+ AssociateTo[timings,"ScalarLoopEvaluation"->seconds];
+ Do[
+  rows=FeynFacet`PrepareFinalStateMeasurementIntegrands[values[name],geometry,card["Assembly"]["FinalStateMeasurement"]];
+  If[!ListQ[rows]||!AllTrue[rows,#["ContactMeasurements"]=!={}&],projectFail["ConstantTwoBodyMeasurementsRequired"]];
+  index=0;Do[index++;
+   one=projectCheck[FeynFacet`IntegrateMasslessInvariantMoments[row["PreparedIntegrand"],e],"VirtualContactIntegralFailed"];
+   AssociateTo[contacts,name<>ToString[index]->Join[one,<|"ContactMeasurements"->row["ContactMeasurements"]|>]],{row,rows}],
+ {name,Keys[values]}];
+ output=<|"ContactIntegrals"->contacts,"ScalarValues"->values,"DimensionalRegulator"->e,
+  "ExactInRegulator"->True,"ConjugateInterferenceAdded"->True,
+  "LoopNormalization"->"Generated d^D ell/(2 pi)^D; FeynCalc PaVe converted by the shared scalar provider",
+  "CalculationDefinition"->definition,"StageSeconds"->timings,"Reused"->False|>;
+ projectWrite[output,file];output
+],"ProjectCards"];
+
+measuredCurrentPartonicMetadata[card_,range_]:=<|"Project"->card["Project"],"Channel"->card["Channel"],
+ "Order"->card["Order"],"Contribution"->card["Contribution"],"StructureFunctions"->card["StructureFunctions"],
+ "Scale"->card["Assembly"]["Scale"],"Variables"->card["Assembly"]["Variables"],
+ "DimensionalRegulator"->Global`Epsilon,"LaurentLowerBound"->First[range],
+ "DensityConvention"->card["Assembly"]["DensityConvention"],"CurrentNormalization"->1,
+ "DistributionBasis"-><|"Representation"->"UnitInterval","Variable"->First[card["Assembly"]["Variables"]],
+  "Interval"->{0,1},"Endpoints"->{0,1}|>|>;
+measuredCurrentExactInterior[card_,record_,solution_]:=Module[{sys=record["DifferentialSystem"],byTerm},
+ byTerm=Map[Total[KeyValueMap[#2 #1&,#]]&,record["IntegralDecomposition"]["Coefficients"]];
+ byTerm=Map[(#/.Dispatch[sys["Reduction"]["Rules"]]/.
+   Thread[sys["MasterIntegralBasis"]->solution["Values"]]/.D->4-2Global`Epsilon)&,byTerm];
+ Association@Table[label->Total[Lookup[byTerm,Select[Keys[byTerm],StringMatchQ[#,label~~DigitCharacter..]&]]],
+  {label,card["StructureFunctions"]}]
+];
+RunMeasuredRawContribution[card_Association,mode_String:"resume"]:=Catch[Module[{saved,audit,result,definition},
+ If[!MemberQ[{"all","resume","assemble"},mode],projectFail["MeasuredRawModeRequired"]];
+ definition=projectRawDefinition[card];
+ If[MemberQ[{"resume","assemble"},mode]&&FileExistsQ[card["ResultFile"]],
+  saved=FeynFacet`ReadPartonicResult[card["ResultFile"],<|"RawDefinition"->definition,"EpsilonRange"->card["EpsilonRange"]|>];
+  If[AssociationQ[saved],Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
+ If[mode==="assemble",projectFail["MatchingComputedMeasuredContributionRequired",<|"Card"->card["CardFile"]|>]];
+ Print["MEASURED RAW STARTED ",card["CardName"]];
+ audit=FeynFacet`WithEpsilonRemainderChecks[runMeasuredRawContribution[card,mode]];
+ If[!AssociationQ[audit]||!AssociationQ[audit["Result"]]||
+   !MemberQ[{"Passed","NoChecksExecuted"},audit["EpsilonRemainderAudit"]["Status"]],
+  projectFail["MeasuredRawOrderAuditFailed",<|"Cause"->audit|>]];
+ result=Join[audit["Result"],<|"RawDefinition"->definition,"RawCard"->card["CardFile"],
+   "EpsilonRemainderAudit"->audit["EpsilonRemainderAudit"]|>];
+ projectWrite[result,card["ResultFile"]];
+ Print["MEASURED RAW COMPLETED ",card["CardName"]," STAGE SECONDS ",InputForm[result["StageSeconds"]]];
+ result
+],"ProjectCards"];
+runMeasuredRawContribution[card_Association,mode_String]:=Catch[Module[
+ {prepared,record,solution,exact,interior,contacts=<||>,endpointData=<||>,range,e=Global`Epsilon,z,
+  lo=0,hi=Last[card["EpsilonRange"]],rows,partonic,results={},timings=<||>,one,seconds,file,source,
+  label,structure,index,selected,contactValues,endpointValues,completed,geometry,order,definition,ignored},
+ If[Length[card["Assembly"]["Variables"]]=!=1||Lookup[card["Assembly"],"MeasurementInterval",None]=!={0,1},
+  projectFail["OneDeclaredUnitMeasurementIntervalRequired"]];
+ z=First[card["Assembly"]["Variables"]];
+ If[card["Contribution"]==="Virtual",
+  source=projectCheck[FeynFacet`IntegrateMeasuredCurrentVirtual[card,mode],"MeasuredVirtualIntegrationRequired"];
+  contacts=source["ContactIntegrals"];exact=AssociationThread[card["StructureFunctions"],0&/@card["StructureFunctions"]];
+  timings=source["StageSeconds"],
+  prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentContribution[card,mode],"MeasuredSourcePreparationRequired"];
+  timings=prepared["StageSeconds"];
+  KeyValueMap[Function[{name,row},one=projectCheck[FeynFacet`IntegrateMasslessInvariantMoments[row["PreparedIntegrand"],e],
+   "MeasuredContactIntegralRequired"];
+   AssociateTo[contacts,name->Join[one,<|"ContactMeasurements"->row["ContactMeasurements"]|>]]],prepared["ContactTerms"]];
+  If[prepared["NoncontactTerms"]===<||>,exact=AssociationThread[card["StructureFunctions"],0&/@card["StructureFunctions"]],
+   file=card["WorkDirectory"]<>"/DifferentialSystem.wl";
+   record=If[mode==="resume"&&FileExistsQ[file],FeynFacet`FamilyArtifactRead[file],None];
+   If[!AssociationQ[record]||Lookup[record,"CalculationDefinition",None]=!=prepared["CalculationDefinition"],
+    record=projectCheck[FeynFacet`ConstructMeasuredContributionDifferentialSystems[card,prepared],"MeasuredDERequired"];
+    timings=Join[timings,record["StageSeconds"]]];
+   file=card["WorkDirectory"]<>"/MasterValues.wl";
+   solution=If[mode==="resume"&&FileExistsQ[file],FeynFacet`FamilyArtifactRead[file],None];
+   If[!AssociationQ[solution]||Lookup[solution,"CalculationDefinition",None]=!=prepared["CalculationDefinition"],
+    solution=projectCheck[FeynFacet`ConstructMeasuredContributionMasterValues[card,prepared,record],"MeasuredMastersRequired"];
+    AssociateTo[timings,"PhysicalMasterEvaluation"->Total[Values[solution["StageSeconds"]]]]];
+   exact=measuredCurrentExactInterior[card,record,solution]]];
+ {seconds,ignored}=facetElapsedTiming[Do[
+   endpointValues=Table[projectCheck[FeynFacet`GaussEndpointSingularTerms[exact[structure],{z,point},e,
+     card["Assembly"]["Assumptions"]],"MeasuredEndpointExpansionRequired"],{point,{0,1}}];
+   AssociateTo[endpointData,structure->endpointValues],{structure,card["StructureFunctions"]}]];
+ AssociateTo[timings,"RegulatorExactEndpointExpansion"->seconds];
+ contactValues=If[contacts===<||>,{},Lookup[Values[contacts],"Value"]];
+ lo=Min[0,Sequence@@(FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&/@contactValues),
+  Sequence@@Flatten[Map[Function[data,Map[Function[term,
+    FeynFacet`DetermineMeromorphicLaurentLowerBound[term["Coefficient"],e]-term["LogPower"]-1],data["Terms"]]],
+   Flatten[Values[endpointData]],{1}]]];
+ If[!IntegerQ[lo],projectFail["MeasuredLaurentLowerBoundRequired"]];range={lo,hi};
+ {seconds,interior}=facetElapsedTiming[FeynFacet`ExpandGaussHypergeometricCombinations[exact,e,range]];
+ interior=projectCheck[interior,"MeasuredInteriorExpansionRequired"];
+ AssociateTo[timings,"InteriorLaurentExpansion"->seconds];
+ {seconds,ignored}=facetElapsedTiming[Do[
+  structure=card["StructureFunctions"][[index]];
+  selected=Lookup[contacts,Select[Keys[contacts],StringMatchQ[#,structure~~DigitCharacter..]&]];
+  contactValues=Association@Table[point->Total[Map[#["Value"]&,
+    Select[selected,First[#["ContactMeasurements"]]["Observable"]===point&]]],{point,{0,1}}];
+  completed=projectCheck[FeynFacet`ExpandUnitIntervalDistribution[
+   Association@Table[n->interior["Coefficients"][{index,n}],{n,lo,hi}],endpointData[structure],contactValues,
+   {z,e},range,card["Assembly"]["Assumptions"]],"FullMeasuredDistributionRequired"];
+  AppendTo[results,completed],{index,Length[card["StructureFunctions"]]}]];
+ AssociateTo[timings,"EndpointDistributionAssembly"->seconds];
+ rows=If[Length[results]===1,First[results]["Coefficients"],partonicDistributionVector[Lookup[results,"Coefficients"]]];
+ partonic=projectCheck[FeynFacet`CreatePartonicResult[rows,Join[measuredCurrentPartonicMetadata[card,range],
+  <|"EndpointDistributionsSolved"->True,"EndpointOrderRequirements"->Lookup[results,"EndpointOrderRequirements"],
+   "StageSeconds"->timings,"CalculationCard"->card["CardFile"]|>]],"MeasuredCommonResultRequired"];
+ projectWrite[<|"EndpointSeries"->endpointData,"ContactIntegrals"->contacts,"ExactInterior"->exact,
+  "CalculationCard"->card["CardFile"]|>,card["WorkDirectory"]<>"/EndpointExpansion.wl"];
+ partonic
+],"ProjectCards"];
+RunMeasuredProjectResult[file_String,mode_String:"resume"]:=Catch[Module[
+ {selection,raw=<||>,cards=<||>,card,value,name,bornCard,born,norm,bornExpression,z,e=Global`Epsilon,
+  combined,rows,failures,range,output,seconds,timing=<||>,normalization,metadata},
+ If[!MemberQ[{"all","resume","assemble"},mode],projectFail["MeasuredResultModeRequired"]];
+ selection=projectCheck[FeynFacet`ReadResultCard[file],"MeasuredResultCardRequired"];
+ If[Lookup[selection["ProjectCard"]["Assembly"],"IntegrationMethod",None]=!="PolynomialMeasurement",
+  projectFail["PolynomialMeasurementResultRequired"]];
+ Do[
+  name=FileNameTake[input["Directory"]];
+  card=projectCheck[FeynFacet`ReadContributionCard[DirectoryName[input["Directory"]],name],"MeasuredRawCardRequired"];
+  {seconds,value}=facetElapsedTiming[FeynFacet`RunMeasuredRawContribution[card,mode]];
+  value=projectCheck[value,"MeasuredRawCalculationFailed"];
+  value=Join[value,<|"Coefficients"->Map[partonicMap[input["Weight"]#&,#]&,value["Coefficients"]]|>];
+  AssociateTo[raw,name->value];AssociateTo[cards,name->card];AssociateTo[timing,name->seconds],
+ {input,selection["ResolvedInputs"]}];
+ normalization=Lookup[selection,"Normalization",None];
+ If[!AssociationQ[normalization]||Lookup[normalization,"Method",None]=!="GeneratedBornIntegral"||
+   !StringQ[Lookup[normalization,"Card",None]],projectFail["DeclaredGeneratedBornNormalizationRequired"]];
+ bornCard=projectAbsolutePath[FileNameJoin[{selection["Directory"],normalization["Card"]}]];
+ bornCard=projectCheck[FeynFacet`ReadContributionCard[DirectoryName[bornCard,2],FileNameTake[DirectoryName[bornCard]]],"NormalizationBornCardRequired"];
+ {seconds,born}=facetElapsedTiming[FeynFacet`RunMeasuredRawContribution[bornCard,mode]];
+ born=projectCheck[born,"GeneratedBornNormalizationFailed"];AssociateTo[timing,"BornNormalization"->seconds];
+ If[Length[born["StructureFunctions"]]=!=1,projectFail["SingleScalarBornNormalizationRequired"]];
+ z=First[born["Variables"]];
+ norm=FeynFacet`UnitIntervalDistributionMoment[born["Coefficients"][0],z,0,bornCard["Assembly"]["Assumptions"]];
+ If[!FreeQ[norm,_Integrate|_Failure]||!TrueQ[FullSimplify[norm!=0,Assumptions->bornCard["Assembly"]["Assumptions"]]],
+  projectFail["ExplicitNonzeroGeneratedBornIntegralRequired",<|"Integral"->norm|>]];
+ {seconds,combined}=facetElapsedTiming[
+  combined=projectCheck[FeynFacet`CombinePartonicResults[raw,<|"Contribution"->"Sum"|>],"MeasuredContributionSumFailed"];
+  rows=Map[partonicMap[FullSimplify[#/norm,Assumptions->bornCard["Assembly"]["Assumptions"]]&,#]&,combined["Coefficients"]];
+  failures=Select[KeySelect[rows,#<0&],!partonicZeroTreeQ[#]&];
+  If[TrueQ[selection["RequireFinite"]]&&failures=!=<||>,projectFail["MeasuredPolesDidNotCancel",<|"Residuals"->failures|>]];
+  range=selection["EpsilonRange"];rows=KeySelect[rows,First[range]<=#<=Last[range]&];
+  metadata=Join[KeyDrop[combined,{"Coefficients","Format","FormatVersion","EpsilonRange","LaurentLowerBound"}],
+   <|"LaurentLowerBound"->First[range],"CurrentNormalization"->1/norm,"Normalization"->"Generated Born total rate in four dimensions",
+    "PoleCancellationResiduals"->failures,"EndpointDistributionsSolved"->True|>];
+  combined=projectCheck[FeynFacet`CreatePartonicResult[rows,metadata],"NormalizedMeasuredResultRequired"]];
+ AssociateTo[timing,"ResultAssembly"->seconds];
+ bornExpression=Factor[FeynFacet`UnitIntervalDistributionExpression[born["Coefficients"][0],z]/norm];
+ output=Join[<|"Expression"->FeynFacet`UnitIntervalDistributionExpression[combined["Coefficients"][0],z],
+   "BornExpression"->bornExpression,
+   "ExpressionThroughSelectedOrder"->(bornExpression+FeynFacet`UnitIntervalDistributionExpression[combined["Coefficients"][0],z])|>,combined,
+  <|"StageSeconds"->timing,"GeneratedBornNormalization"->norm,"ResultCard"->selection["CardFile"]|>];
+ projectWrite[output,selection["Directory"]<>"/Results.wl"];output
+],"ProjectCards"];
+End[];EndPackage[];

@@ -4,7 +4,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=3,Print["Expected REQUEST.wl ENDPOINT_CATALOG.wl OUTPUT_DIRECTORY"];Exit[2]];
-request=Get[ExpandFileName[args[[1]]]];
+request=FeynFacetRecords`ReadRecord[ExpandFileName[args[[1]]]];
 table=FeynFacet`ReadMasterIntegralCoefficients[request["CoefficientFile"]];
 catalog=FeynFacet`FamilyArtifactRead[ExpandFileName[args[[2]]]];
 If[!AssociationQ[table]||!AssociationQ[catalog],Print["COEFFICIENT INPUTS FAILED"];Exit[1]];

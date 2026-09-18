@@ -7,12 +7,12 @@ finiteFieldCoefficientSimplificationCore[
     {
       executable, threads, normalizationKernels, timeLimit,
       maximumTargets, keepFiles,
-      store, storeManifest, metadata, data, sortedPairs,
+      store, storeManifest, metadata, data,
       coefficientSetup, resultSetup, processSetup, process,
       currentContext, resultData,
       workDirectory, targetDirectory, context, physicalFactor,
       traceDirectory, nativeDirectory, traceData, trace, reconstruction, result,
-      manifestFile
+      manifestFile, inputFingerprint, normalizationDefinition
     },
     coefficientProgressStart["Preparing coefficient inputs", 1];
     executable = finiteFieldResolveExecutable[
@@ -42,27 +42,19 @@ finiteFieldCoefficientSimplificationCore[
     If[store === $Failed,
       finiteFieldFail["Kira store", kiraFile]
     ];
-    storeManifest = Get[coefficientStoreManifestFile[store]];
+    storeManifest = FeynFacet`FamilyArtifactRead[coefficientStoreManifestFile[store]];
     metadata = coefficientReadRecord[coefficientStoreMetadataFile[store]];
     If[
       ! AssociationQ[metadata] ||
         ! coefficientKiraReductionQ[Append[metadata, "KiraRules" -> {}]],
       finiteFieldFail["Kira store", "the indexed metadata is invalid"]
     ];
-    data = coefficientInputData[inputs, store];
-    sortedPairs[list_List] := SortBy[
-      list,
-      {Lookup[#1, "Forward"], Lookup[#1, "Conjugate"]} &
-    ];
-    If[
-      data["CardName"] =!= metadata["CardName"] ||
-        ! coefficientSameInputsQ[data, metadata] ||
-        sortedPairs[data["Pairs"]] =!= sortedPairs[metadata["Pairs"]],
-      finiteFieldFail[
-        "input validation",
-        "the Kira artifact belongs to another diagram set"
-      ]
-    ];
+    workDirectory = coefficientWorkDirectory[kiraFile];
+    targetDirectory = FileNameJoin[{workDirectory, "TargetRecords"}];
+    data = coefficientPrepareInputRecords[inputs,metadata,store,targetDirectory,storeManifest["ShardCount"]];
+    If[!AssociationQ[data],finiteFieldFail["target collection","pair definitions and coefficients could not be collected"]];
+    If[!coefficientInputMatchesReductionQ[data,metadata],
+      finiteFieldFail["input validation","the Kira artifact belongs to another diagram set"]];
     coefficientSetup = Lookup[options, "CoefficientSetup", Automatic];
     resultSetup = If[
       AssociationQ[coefficientSetup],
@@ -119,41 +111,14 @@ finiteFieldCoefficientSimplificationCore[
       ]
     ];
 
-    workDirectory = coefficientWorkDirectory[kiraFile];
-    targetDirectory = FileNameJoin[{workDirectory, "TargetRecords"}];
-    If[
-      ! coefficientTargetStoreValidQ[
-        data,
-        metadata,
-        targetDirectory,
-        storeManifest["ShardCount"]
-      ],
-      coefficientProgressStart[
-        "Collecting diagram-pair coefficients",
-        Length[data["Sources"]]
-      ];
-      If[
-        Block[
-          {analyticContextQ = coefficientAnalyticContextQ},
-          coefficientCollectTargetRecords[
-            data,
-            metadata,
-            targetDirectory,
-            storeManifest["ShardCount"]
-          ]
-        ] === $Failed,
-        finiteFieldFail[
-          "target collection",
-          "the diagram-pair coefficients could not be indexed"
-        ]
-      ]
-    ];
-
+    normalizationDefinition=<|"Context"->context,"PhysicalFactor"->physicalFactor,
+      "InputCompanions"->coefficientInputCompanions[data["Sources"]],
+      "MaximumTargets"->Min[maximumTargets,Length[metadata["Targets"]]]|>;
     traceDirectory = FileNameJoin[{workDirectory, "FiniteField"}];
     traceData = finiteFieldRestoreTraceCheckpoint[
       traceDirectory,
       coefficientInputFileFingerprint[data["Sources"]],
-      coefficientFileHash[kiraFile]
+      coefficientFileHash[kiraFile],normalizationDefinition
     ];
     If[AssociationQ[traceData],
       coefficientProgressStage["Restored the trace checkpoint"];
@@ -181,7 +146,7 @@ finiteFieldCoefficientSimplificationCore[
           traceDirectory,
           traceData,
           coefficientInputFileFingerprint[data["Sources"]],
-          coefficientFileHash[kiraFile]
+          coefficientFileHash[kiraFile],normalizationDefinition
         ] === $Failed,
         finiteFieldFail["trace checkpoint", "could not write the manifest"]
       ]
@@ -261,7 +226,10 @@ finiteFieldCoefficientSimplificationCore[
       Frame -> All
     ];
     coefficientProgressFinish[];
-    coefficientResultFromReconstruction[result]
+    inputFingerprint=coefficientInputFileFingerprint[Sort[ExpandFileName/@data["Sources"]]];
+    If[!StringQ[inputFingerprint],finiteFieldFail["coefficient input identity","explicit pair files are required"]];
+    coefficientResultFromReconstruction[Join[result,<|"InputFileFingerprint"->inputFingerprint,
+      "InputCompanions"->coefficientInputCompanions[Sort[ExpandFileName/@data["Sources"]]]|>]]
   ],
   $finiteFieldFailure
 ];

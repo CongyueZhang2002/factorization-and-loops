@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];
 Get[root<>"/FeynFacet/Solution.m"];
@@ -99,4 +100,35 @@ badSchema=converted;badSchema["GPLRepresentation"]=Join[converted["GPLRepresenta
 FTAssert["GPL schema is validated before reuse",
  MatchQ[FeynFacetSolution`EvaluateMasterIntegralSolution[badSchema,{1/2},"NumericalBackend"->"GiNaC"],
  Failure["GPLSourceDefinitionsChanged",_]]];
+duplicate=Join[data,<|"IntegralDefinitions"->{
+ <|"IntegrationVariable"->t,"LowerLimit"->0,"Integrand"->k[1,t]|>,
+ <|"IntegrationVariable"->u,"LowerLimit"->0,"Integrand"->k[1,u]|>},
+ "MasterIntegralCoefficients"-><||>|>];
+beforeMemo=DownValues[FeynFacetSolution`Private`gplIntegrateWord];
+duplicate=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[duplicate];
+FTAssert["identical integrands with different dummy variables are integrated once",
+ duplicate["GPLRepresentation"]["DistinctIntegrandsAttempted"]===1&&
+ duplicate["GPLRepresentation"]["RepeatedIntegrandsReused"]===1&&
+ SameQ@@Values[duplicate["GPLRepresentation"]["IntegralExpressions"]]];
+FTAssert["conversion memoization leaves no persistent recurrence definitions",
+ DownValues[FeynFacetSolution`Private`gplIntegrateWord]===beforeMemo];
+partialAgain=converted;
+partialAgain["GPLRepresentation"]["IntegralExpressions"]=KeyTake[
+ converted["GPLRepresentation"]["IntegralExpressions"],{1}];
+partialAgain=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[partialAgain];
+FTAssert["partial GPL conversion resumes with exact sources",
+ partialAgain["GPLRepresentation"]["ReusedIntegralExpressions"]===1&&
+ partialAgain["GPLRepresentation"]["IntegralExpressions"]===converted["GPLRepresentation"]["IntegralExpressions"]];
+otherAssumptions=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[converted,"Assumptions"->x>0];
+FTAssert["unconditional expressions remain valid on a restricted parameter domain",
+ otherAssumptions["GPLRepresentation"]["ReusedIntegralExpressions"]===2&&
+ otherAssumptions["GPLRepresentation"]["Assumptions"]===(x>0)];
+incompatibleAssumptions=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[
+ otherAssumptions,"Assumptions"->x<0];
+FTAssert["a changed restricted domain does not reuse assumption-dependent expressions",
+ incompatibleAssumptions["GPLRepresentation"]["ReusedIntegralExpressions"]===0];
+strongerAssumptions=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[
+ otherAssumptions,"Assumptions"->x>0&&y>0];
+FTAssert["reuse on a stronger domain requires an established implication",
+ strongerAssumptions["GPLRepresentation"]["ReusedIntegralExpressions"]===2];
 FTReport[];

@@ -5,7 +5,7 @@ $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 args=Rest[$ScriptCommandLine];If[Length[args]=!=2,Print["Expected TRACE_DIRECTORY REQUEST.wl"];Exit[2]];
-directory=ExpandFileName[args[[1]]];request=Get[ExpandFileName[args[[2]]]];
+directory=ExpandFileName[args[[1]]];request=FeynFacetRecords`ReadRecord[ExpandFileName[args[[2]]]];
 checkpoint=FeynFacet`Private`reconstructionTraceRecord[directory];
 If[!AssociationQ[checkpoint]||!TrueQ[checkpoint["TraceData"]["CompleteTargetSet"]],
  Print["COMPLETE NORMALIZED SOURCE REQUIRED"];Exit[1]];

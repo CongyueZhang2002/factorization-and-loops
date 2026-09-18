@@ -18,26 +18,36 @@ gplDefinitionClosure[data_]:=Module[{aa=Lookup[data,"AlgebraicDefinitions",{}],
  out={Lookup[data,"Coefficients",<||>],Lookup[data,"MasterIntegralCoefficients",<||>]};
  visit[out];<|"AlgebraicIndices"->Sort[neededA],"IntegralIndices"->Sort[neededF]|>
 ];
+gplAssumptionsImpliedQ[prior_,current_]:=prior===True||prior===current||
+ TrueQ[Refine[prior,current]];
 Options[FeynFacetSolution`ConvertMasterIntegralSolutionToGPL]=Join[
  Options[FeynFacetSolution`IntegrateGPL],{"FunctionTimeLimit"->15,"Verbose"->False}];
-FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPattern[]]:=Module[
+FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPattern[]]:=
+ Module[
  {started=AbsoluteTime[],limits,fnSeconds=OptionValue["FunctionTimeLimit"],verbose=OptionValue["Verbose"],
   kd=Lookup[data,"KernelDefinitions",{}],fd=Lookup[data,"IntegralDefinitions",{}],
-  converted=<||>,reused=0,failures={},closure,needed,parameter=Unique["gplParameter"],
-  upper=FeynFacetSolution`s,expandKernel,body,dependencies,value,options,result},
+  converted=<||>,reused=0,repeated=0,integrated=0,failures={},closure,needed,parameter=Unique["gplParameter"],
+  upper=FeynFacetSolution`s,expandKernel,integrateBody,body,dependencies,value,options,result,
+  assumptions=OptionValue["Assumptions"],memoSettings,functionStarted},
  limits=OptionValue["TimeLimit"];
- options=FilterRules[{ "MaxExpressionLeaves"->OptionValue["MaxExpressionLeaves"],
+ options=FilterRules[{"Assumptions"->assumptions,"MaxExpressionLeaves"->OptionValue["MaxExpressionLeaves"],
   "MaxTerms"->OptionValue["MaxTerms"],"MaxWeight"->OptionValue["MaxWeight"],
   "MaxPoleDegree"->OptionValue["MaxPoleDegree"],
   "MaxEndpointExpansionOrder"->OptionValue["MaxEndpointExpansionOrder"]},Options[FeynFacetSolution`IntegrateGPL]];
- result=Catch[
+ memoSettings={assumptions,OptionValue["MaxExpressionLeaves"],OptionValue["MaxTerms"],
+  OptionValue["MaxWeight"],OptionValue["MaxPoleDegree"],OptionValue["MaxEndpointExpansionOrder"]};
+ integrateBody[z_]:=Module[{v},integrated++;
+  v=FeynFacetSolution`IntegrateGPL[z,{parameter,0,upper},"TimeLimit"->fnSeconds,Sequence@@options];
+  If[!FailureQ[v],With[{answer=v},integrateBody[z]:=(repeated++;answer)]];v];
+ result=gplWithMemoization[memoSettings,Catch[
   If[!NumericQ[limits]||limits<=0||!NumericQ[fnSeconds]||fnSeconds<=0||
     !MemberQ[{True,False},verbose]||!ListQ[kd]||!ListQ[fd]||
     !ListQ[Lookup[data,"AlgebraicDefinitions",None]]||
     !AssociationQ[Lookup[data,"Coefficients",None]],
    numericalFailure["InvalidGPLConversionInputOrOptions"]];
   validateFiniteDependencies[data];closure=gplDefinitionClosure[data];needed=closure["IntegralIndices"];
-  If[gplRepresentationCurrentQ[data],
+  If[gplRepresentationCurrentQ[data]&&
+    gplAssumptionsImpliedQ[Lookup[data["GPLRepresentation"],"Assumptions",True],assumptions],
    converted=KeyTake[data["GPLRepresentation"]["IntegralExpressions"],needed];
    reused=Length[converted]];
   expandKernel[i_Integer]:=expandKernel[i]=Module[{z},
@@ -50,30 +60,33 @@ FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPat
    If[!AllTrue[dependencies,KeyExistsQ[converted,#]&],
     AppendTo[failures,<|"Index"->i,"Reason"->"EarlierIntegralNotConverted","Dependencies"->dependencies|>];Continue[]];
    If[TrueQ[verbose],Print["GPL integral ",i," of ",Length[fd]]];
+   functionStarted=AbsoluteTime[];
    value=TimeConstrained[
     body=fd[[i,"Integrand"]]/.fd[[i,"IntegrationVariable"]]->parameter;
     body=body/.{FeynFacetSolution`K[j_Integer,_]:>expandKernel[j],
       FeynFacetSolution`F[j_Integer,_]:>(converted[j]/.upper->parameter)};
-    FeynFacetSolution`IntegrateGPL[body,{parameter,0,upper},
-      "TimeLimit"->fnSeconds,Sequence@@options],
+    integrateBody[body],
     Min[fnSeconds,Max[0.01,limits-(AbsoluteTime[]-started)]],Failure["GPLIntegrationTimeLimit",<||>]];
+   If[TrueQ[verbose],Print["GPL integral ",i,": ",AbsoluteTime[]-functionStarted," s; ",
+    If[FailureQ[value],value[[1]],ToString[LeafCount[value]]<>" leaves"]]];
    If[FailureQ[value],AppendTo[failures,<|"Index"->i,"Reason"->value[[1]],"Details"->value[[2]]|>],
     AssociateTo[converted,i->value]],
   {i,needed}];
   Join[KeyDrop[data,{"NumericalPreparation","GPLRepresentation"}],<|"GPLRepresentation"-><|
    "DataType"->"FiniteGPLRepresentation","SchemaVersion"->1,
    "Status"->If[failures==={},"RequiredIntegralsConvertedToGPL","PartiallyConvertedToGPL"],
-   "SourceDefinitions"->gplSource[data],"Parameter"->upper,
+   "SourceDefinitions"->gplSource[data],"Parameter"->upper,"Assumptions"->assumptions,
    "RequiredIntegralIndices"->needed,"IntegralExpressions"->converted,
    "UnconvertedIntegrals"->failures,
    "FunctionConvention"->"G[{a1,...,an},z] with kernels dt/(t-ai); letters are constant in t.",
    "BranchConvention"->"Continuous branches along the stored ordinary-point path, fixed by the lower-end logarithms. No independent deformation of auxiliary integrals.",
    "CoefficientPrefactors"->"Original explicit prefactors are retained; GPL integrals alone do not classify those prefactors.",
    "ConversionSeconds"->AbsoluteTime[]-started,"ReusedIntegralExpressions"->reused,
+   "RepeatedIntegrandsReused"->repeated,"DistinctIntegrandsAttempted"->integrated,
    "GPLCount"->Length[DeleteDuplicates[Cases[Values[converted],_FeynFacetSolution`G,Infinity]]],
    "MaximumGPLWeight"->Max[Append[Cases[Values[converted],FeynFacetSolution`G[w_List,_]:>Length[w],Infinity],0]]
-  |>|>],"NumericalSolution"];
- Clear[expandKernel];result
+  |>|>],"NumericalSolution"]];
+ Clear[expandKernel,integrateBody];result
 ];
 gplRepresentationCurrentQ[data_]:=Module[{rep=Lookup[data,"GPLRepresentation",None]},
  AssociationQ[rep]&&Lookup[rep,"DataType",None]==="FiniteGPLRepresentation"&&

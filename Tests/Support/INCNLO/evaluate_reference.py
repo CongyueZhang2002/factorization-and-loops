@@ -31,7 +31,7 @@ def main():
     values=[[float(x) for x in line.split()] for line in result.stdout.splitlines() if line.strip()]
     if len(values)!=len(points) or any(len(row)!=4 for row in values):raise RuntimeError("Reference output coverage incomplete")
     record={"Source":"INCNLO 1.4, unmodified hadlib.f and cdel.f","SourceURL":"https://lapth.cnrs.fr/PHOX_FAMILY/readme_inc.html",
-      "ChannelIndex":args.channel,"Channel":{1:"q_j q_k -> observed q_j, distinct flavors",5:"q qbar -> observed different-flavor qprime",13:"q g -> observed q",14:"q g -> observed g"}.get(args.channel,"INCNLO channel "+str(args.channel)),"Scheme":"JMAR=0, AL=1, CQ=0: original MSbar conversion included",
+      "ChannelIndex":args.channel,"Channel":{1:"q_j q_k -> observed q_j, distinct flavors",5:"q qb -> observed different-flavor qprime",13:"q g -> observed q",14:"q g -> observed g"}.get(args.channel,"INCNLO channel "+str(args.channel)),"Scheme":"JMAR=0, AL=1, CQ=0: original MSbar conversion included",
       "InputVariables":["v","w","s","muF2","muD2","muR2","nf"],"OutputCoefficients":["Delta","Plus0","Plus1","Regular"],
       "PhysicalMultiplier":"alpha_s^3/(8 CC pi s^2)",
       "IncomingColorDimensionProduct":"(CA^2-1)^2" if args.channel in (15,16) else "CA (CA^2-1)" if args.channel in (8,9,10,13,14) else "CA^2",

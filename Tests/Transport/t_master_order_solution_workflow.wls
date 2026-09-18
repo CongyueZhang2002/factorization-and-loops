@@ -64,7 +64,7 @@ FTAssert["singular normalization is not silently relabelled as ordinary initial 
  "BoundaryNormalization"-><|"Type"->"Frobenius","NormalVariable"->xx,"SingularPoint"->0|>|>]]]];
 
 form=Get[FileNameJoin[{root,"Tests", "Fixtures", "DifferentialEquations", "Families","CF269","FamilyDLogEpsilonForm.wl"}]];
-recurrence=Import[FileNameJoin[{root,"Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal","EpsilonOrderDetermination",
+recurrence=Import[FileNameJoin[{root,"Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal","EpsilonOrderDetermination",
  "CF269","DimensionalRecurrence.wxf"}],"WXF"];
 actualRequest=<|"BasePoint"->{1/4,1/3},"DimensionalRecurrence"->recurrence,
  "RequestedMasterIntegralOrderRanges"->AssociationThread[Range[23],ConstantArray[{-3,0},23]]|>;

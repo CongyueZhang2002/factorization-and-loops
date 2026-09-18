@@ -10,6 +10,37 @@ facetLaunchKernels[count_Integer?NonNegative]:=Module[{opened={},batch,left=coun
  opened
 ];
 
+(* Evaluate independent exact tasks on allocated symbolic workers.
+   The owner closes only its own pool on success, failure or abort. Unknown
+   caller-owned pools and subkernel calls keep the serial path. *)
+SetAttributes[facetWithSymbolicWorkers,HoldFirst];
+facetWithSymbolicWorkers[body_,requested_Integer]:=Module[{opened={},ready,loader},
+ If[requested<=1||$KernelID>0||Kernels[]=!={},Return[Block[{$facetSymbolicWorkers={}},body]]];
+ loader=$feynFacetLoader;
+ Internal`WithLocalSettings[
+  opened=facetLaunchKernels[requested],
+  If[Length[opened]=!=requested,
+   Message[facetWithSymbolicWorkers::init];$Failed,
+   ready=With[{file=loader},And@@ParallelEvaluate[
+    Block[{$Output={},$Messages={}},
+     $HistoryLength=0;$MaxExtraPrecision=50;
+     SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+     Get[file];
+     Length[DownValues[FeynFacet`FamilyArtifactRead]]>0&&
+     Length[DownValues[FeynFacet`Private`validPreIBPResultQ]]>0],opened]];
+   If[!TrueQ[ready],Message[facetWithSymbolicWorkers::init];$Failed,
+    Block[{$facetSymbolicWorkers=opened},body]]],
+  If[opened=!={},CloseKernels[opened]]
+ ]
+];
+facetWithSymbolicWorkers::init="The requested symbolic workers could not be initialized.";
+facetSymbolicMap[function_,items_List]:=If[
+ ListQ[$facetSymbolicWorkers]&&Length[$facetSymbolicWorkers]>1,
+ If[Sort[Kernels[]]=!=Sort[$facetSymbolicWorkers],Message[facetWithSymbolicWorkers::init];$Failed,
+  ParallelMap[function,items,Method->"FinestGrained",DistributedContexts->None]],
+ function/@items
+];
+
 (* Task broker: farm the parallelizable pieces of a mission to the FREE
    subkernels of the same KernelPool through its file queue.
 
@@ -115,7 +146,7 @@ taskBrokerResourceAllocation[] := Module[
   If[directory === None, Return[<||>]];
   file = FileNameJoin[{directory, "resource_allocations.wl"}];
   If[! FileExistsQ[file], Return[<||>]];
-  allocation = Quiet[Check[Get[file], $Failed]];
+  allocation = Quiet[Check[FeynFacet`FamilyArtifactRead[file], $Failed]];
   If[! AssociationQ[allocation] ||
       Lookup[allocation, "Schema", None] =!=
         "KernelPoolResourceAllocationV1", Return[<||>]];
@@ -173,9 +204,7 @@ taskBrokerNativeCommand[command_List, requested_Integer] := Module[
 ];
 taskBrokerNativeCommand[command_, _] := command;
 
-taskBrokerPutAtomic[expr_, file_String] := (
-  Put[expr, file <> ".tmp"];
-  RenameFile[file <> ".tmp", file, OverwriteTarget -> True]; file);
+taskBrokerPutAtomic[expr_,file_String]:=FeynFacet`FamilyArtifactWrite[expr,file];
 
 (* shared data written once per key (the strip record, the options) *)
 taskBrokerDataFile[key_String, expr_] := Module[{dir, file},
@@ -430,7 +459,7 @@ taskBrokerCollect[handle_Association] := CheckAbort[Module[
   If[pending =!= {}, taskBrokerCancel[handle]];
   results = MapThread[Function[{name, resultFile},
     Module[{r = If[FileExistsQ[resultFile], FamilyArtifactRead[resultFile], $Failed]},
-      Quiet[DeleteFile[resultFile]];
+      Quiet[FeynFacet`FamilyArtifactDelete[resultFile]];
       Quiet[DeleteFile[FileNameJoin[{dir, "done", name <> ".status"}]]];
       Quiet[DeleteFile[FileNameJoin[{dir, "done", name <> ".wl"}]]];
       Quiet[DeleteFile[FileNameJoin[{dir, "failed", name <> ".status"}]]];

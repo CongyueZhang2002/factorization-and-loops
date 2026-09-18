@@ -960,7 +960,7 @@ IdenticalParticleSymmetryFactor::setup =
    excluded; incoming legs never contribute a phase-space symmetry
    factor. Distinct species (for example a ghost-antighost pair) give 1. *)
 IdenticalParticleSymmetryFactor[setup_Association] := Module[
-  {partons, hadrons, outgoingPartons, outgoingHadrons, untagged},
+   {partons, hadrons, outgoingPartons, outgoingHadrons, tagged, counting},
 
   partons = Lookup[setup, "Partons", Missing["NotFound"]];
   hadrons = Lookup[setup, "HadronMomentum", Missing["NotFound"]];
@@ -973,11 +973,10 @@ IdenticalParticleSymmetryFactor[setup_Association] := Module[
   ];
   outgoingPartons = Last[partons];
   outgoingHadrons = Last[hadrons];
-  untagged = Pick[
-    outgoingPartons,
-    (MissingQ[#] || # === NA) & /@ outgoingHadrons
-  ];
-  1/(Times @@ (Factorial[Last[#]] & /@ Tally[untagged, SameQ]))
+  tagged=Flatten[Position[(!MissingQ[#]&&#=!=NA)&/@outgoingHadrons,True]];
+  counting=FeynFacet`FinalStateMeasurementNormalization[outgoingPartons,
+    <|"Representation"->"OneTuplePerOrbit","Tuple"->tagged,"Ordered"->True|>];
+  If[AssociationQ[counting],counting["Factor"],counting]
 ];
 
 IdenticalParticleSymmetryFactor[setup_] := (

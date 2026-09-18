@@ -699,7 +699,7 @@ solutionWrite[r_, directory_String,format_:"WolframText"] := Module[{files, path
     Close[stream];RenameFile[tmp,path,OverwriteTarget->True]
   ];
   Do[path = FileNameJoin[{directory,name}];
-    tmp = path <> ".tmp"; Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Put[files[name],tmp]]; RenameFile[tmp,path,OverwriteTarget->True],
+    FeynFacetRecords`WriteRecord[files[name],path],
     {name,Keys[files]}];
   directory
 ];

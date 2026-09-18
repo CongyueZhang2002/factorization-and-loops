@@ -52,17 +52,21 @@ contractPreparedPartonicSpinDensities[interference_,legs_List,densities_List,req
  If[FailureQ[result],fail["UnobservedGluonStates",result,"Use physical projectors, with at most one covariant sum unless ghost states are included."]];
  If[!FreeQ[result,_FeynCalc`Polarization],fail["UncontractedPolarizations",result,"All external gluon states must be declared."]];
  physical=DeleteDuplicates[Join[Lookup[Select[legs,#["MomentumSpace"]==="Physical4"&],"Momentum",{}],
+  Cases[Lookup[densities,"SpinVector",None],s_Symbol/;s=!=None],
   Lookup[request,"PhysicalMomenta",{}]]];
  massless=Lookup[request,"MasslessMomenta",{}];assumptions=Lookup[request,"Assumptions",True];
  If[!MatchQ[physical,{_Symbol...}]||!MatchQ[massless,{_Symbol...}],
   fail["PartonicKinematics",request,"Physical and massless momenta must be explicit symbol lists."]];
  result=result/.Thread[(FeynCalc`Momentum[#,D]&/@physical)->(FeynCalc`Momentum/@physical)];
  result=setMassZero[result,massless];
- color=Times@@Lookup[densities,"ColorAverage"];
+ If[TrueQ[Lookup[request,"ContractLorentzIndices",False]],
+  result=FeynCalc`Contract[result];
+  partonicContractionProgress[printTimings,"Lorentz contractions before the Dirac trace",started,result]];
+ color=If[densities==={},1,Times@@Lookup[densities,"ColorAverage"]];
  partonicContractionProgress[printTimings,"Spin-density insertions",started,result];
  backend=Lookup[request,"DiracAlgebraBackend","Automatic"];
  If[!MemberQ[{"Automatic","FORM","FeynCalc"},backend],fail["DiracAlgebraBackend",backend,"Select Automatic, FORM or FeynCalc."]];
- allMomenta=Lookup[request,"Momenta",DeleteDuplicates[Join[massless,physical]]];
+ allMomenta=DeleteDuplicates[Join[Lookup[request,"Momenta",massless],physical]];
  formScheme=If[!FreeQ[result,FeynCalc`DiracGamma[5|6|7]|_FeynCalc`Eps]&&
   FeynCalc`FCGetDiracGammaScheme[]==="BMHV","BMHV","Nonchiral"];
  If[backend==="FORM"||(backend==="Automatic"&&
@@ -544,7 +548,7 @@ factorizePair[config_Association, conjugateSeed_:Automatic] := Catch[
       process["SetDistributionZero"]
     ];
     result = applyKinematicZeros[result, process];
-    result = collinearContractAmplitude[result, process["Assumptions"]],
+    result = collinearContractAmplitude[result, process],
     {result,externalPropagators,ordinaryPropagators} =
       Lookup[conjugateSeed,{"Numerator","ExternalPropagators","OrdinaryPropagators"}]
     ];
@@ -673,6 +677,33 @@ contractColorFactors[expression_]:=Module[{head,isolated,objects},
  objects=DeleteDuplicates[Cases[isolated,object_head:>object,{0,Infinity}]];
  isolated/.((#->FeynCalc`SUNSimplify[First[#],Explicit->False])&/@objects)
 ];
+
+(* The process supplies the physical four-dimensional span explicitly. FORM
+   keeps phase-space and virtual momenta in D dimensions, including their
+   evanescent components; it never changes a propagator prescription. *)
+collinearContractAmplitude[expression_, process_Association] := Module[
+ {momenta,physical,request,result,scheme},
+ If[expression===0,Return[0]];
+ If[!FileExistsQ[FileNameJoin[{$feynFacetAddonRoot,"Addon","Other_Addon","FORM","bin","form"}]],
+  Return[collinearContractAmplitude[expression,process["Assumptions"]]]];
+ momenta=DeleteDuplicates@Join[process["SetEvanescentZero"],
+   process["PhaseSpaceMomenta"],process["VirtualLoopMomenta"]];
+ momenta=Select[momenta,!FreeQ[expression,#]&];
+ If[momenta==={},Return[collinearContractAmplitude[expression,process["Assumptions"]]]];
+ physical=Intersection[momenta,process["SetEvanescentZero"]];
+ scheme=If[FeynCalc`FCGetDiracGammaScheme[]==="BMHV","BMHV","Nonchiral"];
+ If[scheme==="Nonchiral"&&!FreeQ[expression,FeynCalc`DiracGamma[5|6|7]|_FeynCalc`Eps],
+  Return[collinearContractAmplitude[expression,process["Assumptions"]]]];
+ request=<|"Momenta"->momenta,"PhysicalMomenta"->physical,
+   "MasslessMomenta"->Intersection[momenta,process["SetMassZero"]],"Gamma5Scheme"->scheme|>;
+ result=FeynFacet`EvaluateFORMDiracExpression[expression,request];
+ If[AssociationQ[result],Return[result["Value"]]];
+ If[FailureQ[result]&&MemberQ[{"FORMMomentumOutsideDeclaredSpan","FORMGammaArgumentUnsupported",
+   "FORMIndexDimensionUnsupported","UnrestrictedPhysicalProjectorRequiresBMHVBackend"},First[result]],
+  Return[collinearContractAmplitude[expression,process["Assumptions"]]]];
+ fail["FORMDiracAlgebra",result,"The declared Dirac and Lorentz contraction did not complete."]
+];
+
 collinearContractAmplitude[expression_, assumptions_] := Module[{prepared, traces},
   (* Early chiral traces create large Levi-Civita products in BMHV.
      Contract these chains in Calc's original order before expanding traces. *)
@@ -845,6 +876,10 @@ factorizedToPreIBP[config_Association,factorized_Association] := Catch[Module[
       factorized["LoopMomenta"]
     ];
     If[shiftedIntegrand === $Failed, preIBPFail["DimensionalShift"]];
+    (* Tensor reduction introduces external Gram products again. Apply the
+       already declared on-shell and physical-space identities before writing
+       hundreds of pair coefficients or reconstructing their rational sums. *)
+    shiftedIntegrand = applyKinematicZeros[shiftedIntegrand,factorized["Process"]];
     shiftedIntegrand = ToFeynFacetForm[shiftedIntegrand];
     If[shiftedIntegrand === $Failed,
       preIBPFail["compact expression conversion"]

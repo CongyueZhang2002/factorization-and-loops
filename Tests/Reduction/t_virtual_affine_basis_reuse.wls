@@ -1,8 +1,8 @@
-
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-dir=root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Results/DoubleVirtual/OneLoopSquared";
+dir=root<>"/Projects/SIDIS_UU/NNLO/q-q/Results/DoubleVirtual/OneLoopSquared";
 source=FeynFacet`FamilyArtifactRead[dir<>"/IntegralFamilies.wl"];
 reduction=FeynFacet`FamilyArtifactRead[dir<>"/Reduction.wl"];
 family=First[source["Families"]];top=family["Topology"];
@@ -26,7 +26,9 @@ FTTest`FTAssert["uncovered target is not called a master",
  FailureQ[FeynFacet`ReuseIntegralReduction[{renamed},Append[targets,FeynCalc`GLI[testFamily,ConstantArray[7,Length[top[[2]]]]]],reduction]]];
 (* Check the generated one-loop square independently against the all-D
    bare form factor, hep-ph/0507061 equation (8). *)
-born=FeynFacet`FamilyArtifactRead[root<>"/Projects/SIDIS_UU_NNLO/LO/q-q/Results/Result.wl"];
+bornCard=FeynFacet`ReadContributionCard[root<>"/Projects/SIDIS_UU/Raw/LO/q-q","Born"];
+bornRun=FeynFacet`EvaluateBareContribution[bornCard,"all"];
+If[!AssociationQ[bornRun],Print[bornRun];Exit[1]];born=bornRun["Result"];
 square=FeynFacet`FamilyArtifactRead[dir<>"/IntegratedScalarCoefficients.wl"];
 e=Global`Epsilon;n=FeynCalc`CA;dd=4-2e;
 f1=(n^2-1)/n (dd^2-7dd+16)/(2(dd-4));

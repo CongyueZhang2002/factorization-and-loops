@@ -9,7 +9,7 @@ CancelRationalCoefficients::usage =
 Begin["`Private`"];
 $rationalFunctionBackend=FileNameJoin[{DirectoryName[ExpandFileName[$InputFileName],2],
  "Backends","flint","bin","rational_functions"}];
-rationalFunctionRun[expressions_List,variables_List,arguments_List]:=Module[
+rationalFunctionRunChunk[expressions_List,variables_List,arguments_List]:=Module[
  {directory,input,output,stream,process,result,context,rules},
  If[expressions==={},Return[{}]];
  If[variables==={}||!VectorQ[variables,MatchQ[#,_Symbol]&]||!DuplicateFreeQ[variables],
@@ -32,6 +32,26 @@ rationalFunctionRun[expressions_List,variables_List,arguments_List]:=Module[
   ],$Aborted];
  DeleteDirectory[directory,DeleteContents->True];
  If[result===$Aborted,Abort[],result]
+];
+(* Matrix work contains many repeated zeros and coefficients. Reduce each
+   exact expression once, then restore order. Bound native input batches by
+   its declared expression-count limit instead of rejecting large matrices. *)
+$rationalFunctionBatchSize=100000;
+rationalFunctionRun[expressions_List,variables_List,arguments_List]:=Module[
+ {unique,index,positions,chunks,values={},result},
+ If[expressions==={},Return[{}]];
+ unique=DeleteDuplicates[expressions];
+ index=AssociationThread[unique,Range[Length[unique]]];
+ positions=Lookup[index,Key[#]]&/@expressions;
+ If[!IntegerQ[$rationalFunctionBatchSize]||!Between[$rationalFunctionBatchSize,{1,100000}],
+  Return[Failure["RationalFunctionBatchSizeInvalid",<||>]]];
+ chunks=Partition[unique,UpTo[$rationalFunctionBatchSize]];
+ Do[
+  result=rationalFunctionRunChunk[chunk,variables,arguments];
+  If[FailureQ[result],Return[result,Module]];
+  values=Join[values,result],
+ {chunk,chunks}];
+ values[[positions]]
 ];
 CancelRationalExpressions[expressions_List,variables_List]:=rationalFunctionRun[expressions,variables,{}];
 RationalLaurentCoefficients[expressions_List,variables_List,variable_Symbol,{low_Integer,high_Integer}]:=Module[{index,result},

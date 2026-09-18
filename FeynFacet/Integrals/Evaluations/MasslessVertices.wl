@@ -44,6 +44,25 @@ MasslessVertexMasterDefinition[name_String,{k_Symbol,l_Symbol},{p1_,p2_},scale_,
   "Source"->"https://arxiv.org/pdf/hep-ph/0507061","SourceEquations"->"(2)-(6), scalar masters only"|>
 ],"MasslessVertex"];
 EvaluateMasslessVertexMaster[name_String,scale_,e_Symbol,range:{_Integer,_Integer}]:=
+ If[FeynFacet`$MasterIntegralLibraryMode==="Disabled",
+  evaluateMasslessVertex[name,scale,e,range],
+  Module[{record,definition,k=FeynFacetLibrary`loop1,l=FeynFacetLibrary`loop2,
+   p=FeynFacetLibrary`external1,q=FeynFacetLibrary`external2,eta,pres},
+   record=MasslessVertexMasterDefinition[name,{k,l},{p,q},scale,e];
+   If[!AssociationQ[record],Return[record]];
+   eta=If[ListQ[record["CausalPrescription"]],record["CausalPrescription"],
+    ConstantArray[record["CausalPrescription"],Length[record["Powers"]]]];
+   pres=If[name==="A2ConjugateProduct",{1,-1},ConstantArray[1,Length[record["LoopMomenta"]]]];
+   definition=masterLibraryProviderDefinition[record["PropagatorMomenta"],record["LoopMomenta"],{p,q},
+    {FeynCalc`SPD[p]->0,FeynCalc`SPD[q]->0,FeynCalc`SPD[p,q]->-scale/2},
+    e,pres,eta,scale>0,(I Pi^(2-e))^-Length[pres]];
+   masterLibraryEvaluateVector[definition,range,
+    Function[{},evaluateMasslessVertex[name,scale,e,{Min[First[range],record["LaurentLowerBound"]],Last[range]}]],
+    <|"Name"->name,"ScaleSquared"->scale,"CausalPrescription"->record["CausalPrescription"],
+     "Normalization"->record["Normalization"],"MasterSource"->"hep-ph/0507061 section 2",
+     "EvaluationMethod"->"MasslessVertexScalarProvider","FormFactorCoefficientsUsed"->False|>]
+  ]];
+evaluateMasslessVertex[name_String,scale_,e_Symbol,range:{_Integer,_Integer}]:=
  Catch[Module[{value,poly,record,through=Last[range]},
  If[First[range]>through||!FreeQ[scale,e|_Real],masslessVertexFail["ExactVertexScaleAndFiniteOrdersRequired"]];
  value=masslessVertexExact[name,scale,e];
@@ -56,7 +75,8 @@ EvaluateMasslessVertexMaster[name_String,scale_,e_Symbol,range:{_Integer,_Intege
   value=scale^(-2-2e)poly/Gamma[1-e]^2];
  record=FeynFacet`ExpandLaurentCoefficientVector[{value},e,{range}];
  If[!AssociationQ[record],Throw[record,"MasslessVertex"]];
- Join[record,<|"Name"->name,"ScaleSquared"->scale,"CausalPrescription"->1,
+ Join[record,If[name==="A6",<||>,<|"ExactValue"->value|>],
+ <|"Name"->name,"ScaleSquared"->scale,"CausalPrescription"->If[name==="A2ConjugateProduct",{1,1,-1,-1},1],
   "Normalization"->"Product d^D k/(i pi^(D/2))",
   "MasterSource"->"hep-ph/0507061 section 2","FormFactorCoefficientsUsed"->False|>]
 ],"MasslessVertex"];

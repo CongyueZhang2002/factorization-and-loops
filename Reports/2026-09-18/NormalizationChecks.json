@@ -1,0 +1,167 @@
+{
+  "Scope": "Normalization derivations, migrated cards, fresh contribution/source checks and existing EEC reference comparison; not a full project regeneration",
+  "Suites": 16,
+  "Assertions": 211,
+  "Passed": true,
+  "Checks": [
+    {
+      "Name": "final_state",
+      "Assertions": 29,
+      "Passed": true,
+      "WallSeconds": 1.1655432680126978,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/final_state.log"
+    },
+    {
+      "Name": "final_cards",
+      "Assertions": 14,
+      "Passed": true,
+      "WallSeconds": 25.380734809004935,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/final_cards.log"
+    },
+    {
+      "Name": "final_measurement",
+      "Assertions": 12,
+      "Passed": true,
+      "WallSeconds": 17.892717718990752,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/final_measurement.log"
+    },
+    {
+      "Name": "final_observable",
+      "Assertions": 10,
+      "Passed": true,
+      "WallSeconds": 18.078143188991817,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/final_observable.log"
+    },
+    {
+      "Name": "final_eec",
+      "Assertions": 14,
+      "Passed": true,
+      "WallSeconds": 19.41300496099575,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/final_eec.log"
+    },
+    {
+      "Name": "endpoint_conditions",
+      "Assertions": 8,
+      "Passed": true,
+      "WallSeconds": 18.2764486669912,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/endpoint_conditions.log"
+    },
+    {
+      "Name": "integrated_t_derived_collinear_normalization",
+      "Assertions": 9,
+      "Passed": true,
+      "WallSeconds": 17.81605676599429,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/integrated_t_derived_collinear_normalization.log"
+    },
+    {
+      "Name": "production_t_mapped_collinear_convolution",
+      "Assertions": 8,
+      "Passed": true,
+      "WallSeconds": 21.497028872996452,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/production_t_mapped_collinear_convolution.log"
+    },
+    {
+      "Name": "verified_t_invariant_counterterm_convolution",
+      "Assertions": 30,
+      "Passed": true,
+      "WallSeconds": 24.331488257987075,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/verified_t_invariant_counterterm_convolution.log"
+    },
+    {
+      "Name": "regression_current_project_cards",
+      "Assertions": 12,
+      "Passed": true,
+      "WallSeconds": 21.52694984599657,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/regression_current_project_cards.log"
+    },
+    {
+      "Name": "regression_generated_current_contributions",
+      "Assertions": 6,
+      "Passed": true,
+      "WallSeconds": 39.70401444500021,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/regression_generated_current_contributions.log"
+    },
+    {
+      "Name": "regression_counterterm_operator_ordering",
+      "Assertions": 8,
+      "Passed": true,
+      "WallSeconds": 16.843660707003437,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/regression_counterterm_operator_ordering.log"
+    },
+    {
+      "Name": "regression_counterterm_source_dispatch",
+      "Assertions": 14,
+      "Passed": true,
+      "WallSeconds": 17.465785451000556,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/regression_counterterm_source_dispatch.log"
+    },
+    {
+      "Name": "regression_born_kinematic_normalization",
+      "Assertions": 8,
+      "Passed": true,
+      "WallSeconds": 21.38134936100687,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/regression_born_kinematic_normalization.log"
+    },
+    {
+      "Name": "regression_symmetry_factor",
+      "Assertions": 7,
+      "Passed": true,
+      "WallSeconds": 15.812150976998964,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/regression_symmetry_factor.log"
+    },
+    {
+      "Name": "regression_final_coefficient_results",
+      "Assertions": 22,
+      "Passed": true,
+      "WallSeconds": 0.7646646349894581,
+      "StartupRetries": 0,
+      "CPUs": 1,
+      "Log": "Archive/Runs/2026-09-18-DerivedNormalizations/regression_final_coefficient_results.log"
+    }
+  ],
+  "PackageLayout": {
+    "profiles": {
+      "Public": 3,
+      "Symbolic": 227,
+      "EpsilonForm": 27,
+      "Solution": 14,
+      "SolutionData": 8
+    },
+    "manifest_sources": 279,
+    "standalone_workers": 1,
+    "literal_source_references_checked": 150,
+    "errors": []
+  },
+  "GitDiffCheckPassed": true,
+  "AcceptedCoefficientFilesOverwritten": false
+}

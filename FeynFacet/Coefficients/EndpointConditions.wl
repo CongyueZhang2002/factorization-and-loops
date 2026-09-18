@@ -1,0 +1,69 @@
+(* Derive normal powers and analytic-domain conditions from an actual density. *)
+BeginPackage["FeynFacet`"];
+ConstructNormalCrossingEndpointData::usage="ConstructNormalCrossingEndpointData[expression,request] derives affine normal powers and checks the remaining factors on the declared endpoint chart. It does not accept smoothness assertions as evidence. Unsupported analytic factors or unresolved zeros return Failure.";
+Begin["`Private`"];
+normalEndpointFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"DerivedEndpointConditions"];
+normalEndpointProve[condition_,domain_]:=TrueQ[FullSimplify[condition,Assumptions->domain]];
+normalEndpointAnalyticFactor[expression_,variables_,e_,domain_]:=Module[{base,power,leading,order,parameters},
+ If[FreeQ[expression,Alternatives@@variables],Return[True]];
+ Which[
+  MemberQ[{Plus,Times},Head[expression]],
+   Scan[normalEndpointAnalyticFactor[#,variables,e,domain]&,List@@expression],
+  MemberQ[variables,expression],Null,
+  Head[expression]===Power,
+   {base,power}=List@@expression;
+   If[!FreeQ[power,Alternatives@@variables],normalEndpointFail["NormalDependentExponentUnsupported"]];
+   normalEndpointAnalyticFactor[base,variables,e,domain];
+   If[!IntegerQ[power]||power<0,
+    order=FeynFacet`DetermineMeromorphicLaurentLowerBound[base,e];
+    If[!IntegerQ[order],normalEndpointFail["MeromorphicPowerBaseRequired",<|"Base"->base|>]];
+    leading=Cancel[SeriesCoefficient[base,{e,0,order}]];
+    If[!normalEndpointProve[If[IntegerQ[power],leading!=0,leading>0],domain],
+     normalEndpointFail["EndpointAnalyticDomainNotEstablished",<|"Factor"->expression,"LeadingBase"->leading,"Domain"->domain|>]]],
+  Head[expression]===Log,
+   base=First[expression];normalEndpointAnalyticFactor[base,variables,e,domain];
+   If[!normalEndpointProve[(base/.e->0)>0,domain],normalEndpointFail["PositiveLogarithmArgumentRequired",<|"Argument"->base|>]],
+  Head[expression]===Hypergeometric2F1,
+   parameters=Take[List@@expression,3];base=expression[[4]];
+   If[!FreeQ[parameters,Alternatives@@variables]||!normalEndpointProve[(Last[parameters]/.e->0)>0,domain]||
+     !normalEndpointProve[0<=(base/.e->0)<1,domain],
+    normalEndpointFail["AnalyticGaussDomainNotEstablished",<|"Factor"->expression|>]];
+   normalEndpointAnalyticFactor[base,variables,e,domain],
+  True,normalEndpointFail["UnsupportedNormalDependentAnalyticFactor",<|"Factor"->expression|>]
+ ];True
+];
+ConstructNormalCrossingEndpointData[expression_,request_Association]:=Catch[Module[
+ {e,xs,intervals,assumptions,excluded,domain,interior,powers,smooth,terms,normalized},
+ If[!ContainsAll[Keys[request],{"DimensionalRegulator","NormalVariables","Intervals"}],
+  normalEndpointFail["EndpointChartRequired"]];
+ {e,xs,intervals}=Lookup[request,{"DimensionalRegulator","NormalVariables","Intervals"}];
+ assumptions=Lookup[request,"Assumptions",True];
+ If[!MatchQ[e,_Symbol]||!MatchQ[xs,{__Symbol}]||!DuplicateFreeQ[Append[xs,e]]||
+   Length[intervals]=!=Length[xs]||!AllTrue[intervals,MatchQ[#,{0,_}]&]||
+   !FreeQ[{assumptions,intervals},Alternatives@@Append[xs,e]],
+  normalEndpointFail["IndependentRectangularEndpointCoordinatesRequired"]];
+ excluded=Lookup[Lookup[request,"TestFunctionSupport",<||>],"ExcludedFaces",{}];
+ If[!MatchQ[excluded,{(_Rule)...}]||!AllTrue[excluded,MemberQ[Thread[xs->(Last/@intervals)],#]&],
+  normalEndpointFail["DeclaredOppositeEndpointFacesRequired"]];
+ domain=assumptions&&And@@MapThread[0<=#1&&If[MemberQ[excluded,#1->Last[#2]],#1<Last[#2],#1<=Last[#2]]&,{xs,intervals}];
+ interior=assumptions&&And@@MapThread[0<#1<Last[#2]&,{xs,intervals}];
+ If[!FreeQ[expression,_Failure|_Missing|Indeterminate|_DirectedInfinity|_Real],normalEndpointFail["ExactEndpointExpressionRequired"]];
+ If[expression===0,powers=ConstantArray[0,Length[xs]];smooth=0,
+  normalized=Factor[expression];
+  (* Each valuation is taken with the other normal coordinates in the interior;
+     the subsequent joint-domain check detects unresolved intersections. *)
+  powers=Table[With[{germ=Catch[analyticEndpointLeading[normalized,e,x,interior],"AnalyticEndpoint"]},
+    If[!MatchQ[germ,{_,_}],normalEndpointFail["EndpointValuationFailed",<|"Cause"->germ|>]];First[germ]],{x,xs}];
+  If[!AllTrue[powers,PolynomialQ[#,e]&&Exponent[#,e]<=1&&IntegerQ[#/.e->0]&&(#/.e->0)>=-1&],
+   normalEndpointFail["SimpleAffineNormalPowersRequired",<|"Powers"->powers|>]];
+  smooth=FullSimplify[normalized/(Times@@MapThread[Power,{xs,powers}]),Assumptions->interior&&Element[e,Reals]];
+  normalEndpointAnalyticFactor[smooth,xs,e,domain]
+ ];
+ terms={<|"Powers"->powers,"SmoothFactor"->smooth|>};
+ Join[KeyDrop[request,{"EndpointPowers","EndpointConditions"}],<|"EndpointGeometry"->"NormalCrossings","Terms"->terms,
+  "EndpointConditions"-><|"JointlySmoothFactors"->True,"UniformEpsilonExpansion"->True,"NoOtherSingularities"->True|>,
+  "EndpointConditionDerivation"-><|"Method"->"NormalValuationsAndAnalyticFactors","Domain"->domain,
+    "ExpansionScope"->"Uniform on compact subsets of the declared domain after factoring meromorphic regulator-only coefficients."|>|>]
+],"DerivedEndpointConditions"];
+ConstructNormalCrossingEndpointData[___]:=Failure["EndpointExpressionAndChartRequired",<||>];
+End[];EndPackage[];

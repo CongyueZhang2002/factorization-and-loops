@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 (* Independent reference-only comparison; this driver never enters production. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];args=Rest[$ScriptCommandLine];
@@ -7,7 +8,7 @@ Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 project=FeynFacet`ReadProjectCard[root<>"/Projects/"<>First[args]];
 polarized=First[project["Polarization"]["Incoming"]]==="L";
 referenceSource=root<>"/External/References/SIDIS/"<>If[polarized,"ancillary_LL_2404.08597v3.inc","ancillary_UU_2401.16281v2.inc"];
-referenceFile=project["Directory"]<>"/NLO/q-q/Results/Validation/ReferenceNLOCoefficients.wl";
+referenceFile=project["Directory"]<>"/Results/NLO/q-q/Validation/ReferenceNLOCoefficients.wl";
 conversion=RunProcess[{"python3",root<>"/Tests/Support/sidis_form_reference.py",referenceSource,referenceFile}];
 If[conversion["ExitCode"]=!=0,Print[conversion["StandardError"]];Exit[1]];
 reference=FeynFacet`FamilyArtifactRead[referenceFile];
@@ -16,13 +17,17 @@ refExpression[row_Association,axes_List,component_]:=With[{axis=First[axes],rema
  refExpression[row["DeltaCoefficient"],remaining,component] Dd[1-axis]+
  Total[KeyValueMap[refExpression[#2,remaining,component] Dn[#1,1-axis]&,row["PlusCoefficients"]]]+
  refExpression[row["RegularCoefficient"],remaining,component]];
+bornCard=FeynFacet`ReadContributionCard[project["Directory"]<>"/Raw/LO/q-q","Born"];
+bornRun=FeynFacet`EvaluateBareContribution[bornCard,"all"];
+If[!AssociationQ[bornRun],Print[bornRun];Exit[1]];
+born=bornRun["Result"];
 report=<||>;count=0;failures=0;
 Do[
- directory=project["Directory"]<>"/NLO/"<>channel;result=FeynFacet`ReadPartonicResult[directory<>"/Results/Result.wl"];
+ directory=project["Directory"]<>"/Results/NLO/"<>channel;result=FeynFacet`ReadPartonicResult[directory<>"/Results.wl"];
  If[!AssociationQ[result],Print["MISSING_RESULT ",channel];failures++;Continue[]];
  species=project["Channels"][channel];
  flavorType=Which[First[species["Incoming"]]==="g","G2Q",species["Observed"]==="g","Q2G",True,"Q2Q"];
- born=FeynFacet`ReadPartonicResult[project["Directory"]<>"/LO/q-q/Results/Result.wl"];
+
  charge=First[born["Coefficients"][0]["DeltaCoefficient"]["DeltaCoefficient"]];
  normalization=charge result["Coupling"]/(2Pi);
  axisVariables=result["Variables"];conditions=0<axisVariables[[1]]<1&&0<axisVariables[[2]]<1&&
@@ -43,7 +48,7 @@ Do[
   Print[If[exact,"PASS ","FAIL "],channel," ",project["StructureFunctions"][[component]]],
  {component,Length[project["StructureFunctions"]]}],
  {channel,project["Orders"]["NLO"]}];
-output=project["Directory"]<>"/NLO/q-q/Results/Validation/LiteratureComparison.wl";
+output=project["Directory"]<>"/Results/NLO/q-q/Validation/LiteratureComparison.wl";
 FeynFacet`FamilyArtifactWrite[<|"ReferenceFile"->referenceSource,"Checks"->count,"Failures"->failures,
  "Normalization"->"Published coefficient times the generated Born flavor charge squared and alpha_s/(2 pi)",
  "Results"->report|>,output];

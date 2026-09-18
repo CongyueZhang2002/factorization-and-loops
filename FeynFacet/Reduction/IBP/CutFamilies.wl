@@ -6,7 +6,7 @@ GenerateCutIBPEquations::usage="GenerateCutIBPEquations[family,seeds] constructs
 Begin["`Private`"];
 cutIBPOperators[family_Association]:=Module[
  {top=family["Topology"],loops,external,basis,coordinates,variables,polynomials,kin,
-  scalarVelocity,changes,coefficients},
+  scalarVelocity,changes},
  loops=top[[3]];external=top[[4]];
  basis=family["LoopScalarProducts"];variables=family["DenominatorVariables"];
  coordinates=Table[Unique["ibpScalar$"],{Length[basis]}];kin=FeynCalc`FCI[top[[5]]];
@@ -16,41 +16,47 @@ cutIBPOperators[family_Association]:=Module[
    (If[a===ell,FeynCalc`FCI[FeynCalc`SPD[vector,b]],0]+
     If[b===ell,FeynCalc`FCI[FeynCalc`SPD[vector,a]],0])/.kin]],basis];
   changes=Expand[(Table[
-    Sum[Coefficient[poly,coordinates[[j]]]scalarVelocity[[j]],{j,Length[basis]}],
-    {poly,polynomials}])/.family["ScalarProductRules"]];
-  coefficients=Table[Prepend[Table[Coefficient[change,var],{var,variables}],
-    change/.Thread[variables->0]],{change,changes}];
+    Sum[D[poly,coordinates[[j]]]scalarVelocity[[j]],{j,Length[basis]}],
+    {poly,polynomials}])/.Thread[coordinates->basis]/.family["ScalarProductRules"]];
   <|"LoopMomentum"->ell,"Vector"->vector,"Divergence"->If[ell===vector,D,0],
-    "DenominatorDerivatives"->Map[Factor,coefficients,{2}]|>,
+    "DenominatorDerivativeMonomials"->(CoefficientRules[#,variables]&/@changes)|>,
  {ell,loops},{vector,Join[loops,external]}],1]
 ];
+cutIBPShiftRows[family_,operators_,indices_List]:=Module[
+ {count=Length[indices],zero,raw,rows,variables=family["DenominatorVariables"],relations},
+ zero=ConstantArray[0,count];
+ rows=Table[
+  raw={zero->operator["Divergence"]};
+  Do[Scan[Function[term,AppendTo[raw,
+    (UnitVector[count,i]-First[term])->(-indices[[i]]Last[term])]],
+    operator["DenominatorDerivativeMonomials"][[i]]],{i,count}];
+  Normal[Select[Map[Factor,Merge[raw,Total]],#=!=0&]],{operator,operators}];
+ relations=Values[Lookup[family,"DependentDenominatorRelations",<||>]];
+ Join[rows,Map[Function[relation,(-First[#]->Last[#])&/@CoefficientRules[relation,variables]],relations]]
+];
 
-GenerateCutIBPEquations[family_Association,seeds:{__FeynCalc`GLI}]:=Catch[Module[
- {top,loops,external,basis,coordinates,variables,polynomials,kin,cuts,operators,scalarVelocity,
-  changes,coefficients,rows={},terms,indices,raised,add,row,rowTag=Unique["ibpEquation$"]},
- If[!MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-LoopIntegralFamily"},Lookup[family,"Format",None]],cutFamilyFail["IntegralFamilyRequired"]];
- top=family["Topology"];loops=top[[3]];external=top[[4]];cuts=family["CutIndices"];
+GenerateCutIBPEquations[family_Association,seeds:{__FeynCalc`GLI}]:=
+ cutGenerateIBPEquations[family,seeds,Automatic];
+cutGenerateIBPEquations[family_Association,seeds:{__FeynCalc`GLI},operatorData_]:=Catch[Module[
+ {top,cuts,operators,rows,indices,shiftRows,symbols,terms,row,rowTag=Unique["ibpEquation$"]},
+ If[!MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-LoopIntegralFamily"},Lookup[family,"Format",None]],
+   cutFamilyFail["IntegralFamilyRequired"]];
+ top=family["Topology"];cuts=family["CutIndices"];
  If[!AllTrue[seeds,#[[1]]===top[[1]]&&Length[#[[2]]]===Length[top[[2]]]&&
    VectorQ[#[[2]],IntegerQ]&&AllTrue[#[[2,cuts]],#>0&]&],cutFamilyFail["ValidUnpinchedIBPSeedsRequired"]];
- operators=cutIBPOperators[family];
- add[powers_,coefficient_]:=If[coefficient=!=0&&AllTrue[powers[[cuts]],#>0&],
-  AppendTo[terms,FeynCalc`GLI[top[[1]],powers]->coefficient]];
+ operators=If[operatorData===Automatic,cutIBPOperators[family],operatorData];
+ symbols=Table[Unique["integralPower$"],{Length[top[[2]]]}];
+ shiftRows=cutIBPShiftRows[family,operators,symbols];
  rows=Flatten[Last[Reap[Do[
   indices=seed[[2]];
-  Do[terms={};add[indices,operator["Divergence"]];
-   Do[If[indices[[i]]===0,Continue[]];
-    raised=ReplacePart[indices,i->indices[[i]]+1];
-    add[raised,-indices[[i]]operator["DenominatorDerivatives"][[i,1]]];
-    Do[add[ReplacePart[raised,j->raised[[j]]-1],
-      -indices[[i]]operator["DenominatorDerivatives"][[i,j+1]]],{j,Length[indices]}],
-   {i,Length[indices]}];
-   If[terms=!={},
-    row=Select[Map[Factor,GroupBy[terms,First->Last,Total]],#=!=0&];
-    If[row=!=<||>,Sow[row,rowTag]]],
-  {operator,operators}],
- {seed,seeds}],rowTag]],1];
+  Do[terms=Map[Function[term,With[{powers=indices+First[term],coefficient=Last[term]/.Thread[symbols->indices]},
+    If[coefficient===0||!AllTrue[powers[[cuts]],#>0&],Nothing,FeynCalc`GLI[top[[1]],powers]->coefficient]]],shifts];
+   If[terms=!={},row=Select[Map[Factor,GroupBy[terms,First->Last,Total]],#=!=0&];
+    If[row=!=<||>,Sow[row,rowTag]]],{shifts,shiftRows}],{seed,seeds}],rowTag]],1];
  <|"Format"->"FeynFacet-IBPEquations","Rows"->DeleteDuplicates[rows],
-  "Seeds"->seeds,"OperatorCount"->Length[operators],"EquationSource"->"IntegrationByParts",
+  "Seeds"->seeds,"OperatorCount"->Length[operators],
+  "AlgebraicRelationCount"->Length[Lookup[family,"DependentDenominatorRelations",<||>]],
+  "EquationSource"->"IntegrationByPartsAndDenominatorRelations",
   "NativeSymmetriesUsed"->False,"NativeZeroSectorsUsed"->False|>
 ],"CutFamily"];
 
@@ -106,6 +112,11 @@ cutKiraWorkspaceDefinition[directory_,rawDefinition_]:=Module[{file,old,definiti
 (* Kira can leave nonselected pivots on an exported right-hand side.
    Add them to the solved selection; never relabel them as physical masters.
    The equation system is reused without regenerating or enlarging its seeds. *)
+cutKiraIdentityTargets[project_Association,rules_List,targets_List]:=Module[{images},
+ images=targets/.Dispatch[rules];
+ If[AllTrue[MapThread[(#1===#2||#1===0)&,{images,targets}],TrueQ],
+  ibpEncodeProjectIntegrals[project,DeleteCases[images,0]],Automatic]
+];
 cutKiraCloseSelectedReduction[project_,initialRules_,targets_,initialDeclared_,records_,request_]:=Module[
  {rules=initialRules,declared=initialDeclared,closed,frontier,selected=targets,diagnostics={},
   iteration=0,limit=Lookup[request,"MaximumSelectionClosureIterations",12],directory,
@@ -138,7 +149,7 @@ cutKiraCloseSelectedReduction[project_,initialRules_,targets_,initialDeclared_,r
    ibpRunKira[currentProject,Lookup[request,"Threads",1]];
    ibpImportRuleTable[project["IdentifierHead"],FileNameJoin[{directory,"results","FeynFacetIBP","kira_selected_integrals.m"}]]];
   rules=ibpDecodeProjectIntegrals[project,imported];
-  declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[currentProject]];
+  declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[currentProject,cutKiraIdentityTargets[project,rules,selected]]];
   closed=ibpCloseReductionRules[rules,targets];
   AppendTo[diagnostics,<|"Iteration"->iteration,"AddedDependencies"->frontier,
    "SelectedIntegralCount"->Length[selected],"Seconds"->seconds,"Workspace"->directory|>];
@@ -147,11 +158,40 @@ cutKiraCloseSelectedReduction[project_,initialRules_,targets_,initialDeclared_,r
  Join[closed,<|"SelectionClosure"-><|"Status"->If[diagnostics==={},"AlreadyClosed","ClosedByExtendedSelection"],
   "Iterations"->diagnostics|>,"SolutionWorkspace"->currentProject["Directory"]|>]
 ];
+(* Family equations are independent; preserve family and equation ordering
+   while the managed pool schedules the actual symbolic work. *)
+cutGenerateIBPJob[job_Association]:=Catch[Module[
+ {family=job["Family"],plan=job["Plan"],seconds,record},
+ If[!AssociationQ[plan]||!ListQ[Lookup[plan,"Seeds",None]],
+  cutFamilyFail["TypedIBPSeedSelectionFailed"]];
+ {seconds,record}=If[plan["Seeds"]==={},{0,<|"Rows"->{},"Seeds"->{}|>},
+  AbsoluteTiming[cutGenerateIBPEquations[family,plan["Seeds"],job["Operators"]]]];
+ If[!AssociationQ[record],cutFamilyFail["TypedIBPEquationGenerationFailed",<|"Cause"->record|>]];
+ If[TrueQ[Lookup[job,"PrintTimings",False]],
+  Print["IBP_GENERATED ",family["Topology"][[1]]," SEEDS ",Length[plan["Seeds"]],
+   " ROWS ",Length[record["Rows"]]," SECONDS ",seconds]];
+ Join[record,KeyDrop[plan,"Seeds"],<|"GenerationSeconds"->seconds,"GenerationKernel"->$KernelID|>]
+],"CutFamily"];
+cutGenerateIBPBatch[jobs_List,workers_Integer]:=Module[{answer,preparedJobs},
+ If[!Between[workers,{1,8}],Return[Failure["OneThroughEightIBPGenerationKernelsRequired",<||>]]];
+ (* Capture FeynCalc-dependent operator construction once on the caller.
+    Workers receive explicit tables and perform only exact row generation. *)
+ preparedJobs=Catch[Map[Function[job,
+  If[!AssociationQ[job]||!AssociationQ[Lookup[job,"Family",None]]||
+    !AssociationQ[Lookup[job,"Plan",None]],cutFamilyFail["TypedIBPGenerationJobRequired"]];
+  Join[job,<|"Operators"->cutIBPOperators[job["Family"]]|>]],jobs],"CutFamily"];
+ If[!ListQ[preparedJobs],Return[preparedJobs]];
+ answer=facetWithSymbolicWorkers[
+  facetSymbolicMap[FeynFacet`Private`cutGenerateIBPJob,preparedJobs],Min[workers,Max[1,Length[jobs]]]];
+ If[!ListQ[answer]||Length[answer]=!=Length[jobs]||!AllTrue[answer,AssociationQ],
+  Return[Failure["TypedIBPEquationGenerationFailed",<|"Cause"->answer|>]]];
+ answer
+];
 KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Association]:=Catch[
  Catch[Module[
  {records,directory,extension,generated,seeds,equationRecord,equations,unknowns,names,familyOrder,idMap,idRules,
   variables,variableNames,variableRules,reverseVariables,coefficientText,coefficientValues,rows,text,project,
-  imported,declared,closed,seconds,generationSeconds,definition,cachedIdentifiers,cachedResult,finish,head=Global`FeynFacetIBP,aliases},
+  imported,declared,closed,seconds,generationSeconds,generationWorkers,jobs,totalEquationCount,familySeedCounts,generationWorkerSeconds=Missing["NotRetained"],generationKernelCount=Missing["NotRetained"],definition,cachedIdentifiers,cachedResult,finish,head=Global`FeynFacetIBP,aliases},
  If[Lookup[request,"EquationSource","TypedIBP"]==="NativeDiagnostic",
   Return[kiraNativeCutFamilyReduction[families,targets,request]]];
  If[Lookup[request,"EquationSource","TypedIBP"]=!="TypedIBP",cutFamilyFail["TypedIBPEquationSourceRequired"]];
@@ -164,7 +204,7 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
  directory=ExpandFileName[request["WorkingDirectory"]];
  extension=Lookup[request,"SeedExtension",{1,1}];
  If[!MatchQ[extension,{_Integer?NonNegative,_Integer?NonNegative}],cutFamilyFail["NonnegativeIBPSeedExtensionRequired"]];
- definition=<|"Format"->"FeynFacet-KiraCutFamilyInput","EquationSource"->"TypedIBP","EquationVersion"->2,
+ definition=<|"Format"->"FeynFacet-KiraCutFamilyInput","EquationSource"->"TypedIBP","EquationVersion"->3,
   "Families"->(KeyTake[# ,{"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"}]&/@records),
   "Targets"->Sort[DeleteDuplicates[targets]],"SeedExtension"->extension|>;
  definition=Join[definition,KeyTake[request,{"SeedIntegrals","SeedPolicy","PreferredMasterIntegrals","ExtraEquations"}]];
@@ -176,8 +216,11 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
    "Rules"->closed["Rules"],"Masters"->closed["Masters"],"SelectionClosure"->closed["SelectionClosure"],
    "Workspace"->closed["SolutionWorkspace"],"InputWorkspace"->directory,"Seconds"->solveSeconds,
    "EquationSource"->"TypedIBP","NativeSymmetriesUsed"->False,"NativeZeroSectorsUsed"->False,
-   "EquationGenerationSeconds"->generationTime,"EquationCount"->equationCount,"SeedCounts"->seedCounts,
-   "IndexedIntegrals"->unknowns,"OrdinaryPrescriptionLimitEstablished"->False,
+   "EquationGenerationSeconds"->generationTime,
+   "EquationGenerationWorkerSeconds"->generationWorkerSeconds,
+   "EquationGenerationKernels"->generationKernelCount,
+   "EquationCount"->equationCount,"SeedCounts"->seedCounts,
+   "IndexedIntegralCount"->Length[unknowns],"OrdinaryPrescriptionLimitEstablished"->False,
    "MasterMinimality"->"Not asserted beyond the supplied IBP seed closure"|>;
   FamilyArtifactWrite[result,FileNameJoin[{directory,"Reduction.wl"}],Compression->Automatic];
   result];
@@ -186,9 +229,9 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
   If[AssociationQ[cachedResult]&&Lookup[cachedResult,"Format",None]==="FeynFacet-CutFamilyReduction",
    Return[Join[cachedResult,<|"ReusedSolvedReduction"->True|>]]]];
  If[TrueQ[Lookup[request,"ReuseSavedReduction",True]]&&
-   AllTrue[{"IntegralIdentifiers.wl","equations.kira","results/FeynFacetIBP/kira_targets.m"},
+   AllTrue[{"IntegralIdentifiers.wxf","equations.kira","results/FeynFacetIBP/kira_targets.m"},
     FileExistsQ[FileNameJoin[{directory,#}]]&],
-  cachedIdentifiers=FamilyArtifactRead[FileNameJoin[{directory,"IntegralIdentifiers.wl"}]];
+  cachedIdentifiers=FamilyArtifactRead[FileNameJoin[{directory,"IntegralIdentifiers.wxf"}]];
   If[AssociationQ[cachedIdentifiers]&&ContainsAll[Keys[cachedIdentifiers],
     {"IndexedIntegrals","IdentifierHead","CoefficientDecodeRules"}],
    unknowns=cachedIdentifiers["IndexedIntegrals"];head=cachedIdentifiers["IdentifierHead"];
@@ -198,11 +241,11 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
     "InputFingerprint"->reductionFingerprint[definition],"IntegralIndex"->idMap|>];
    {seconds,imported}=AbsoluteTiming[ibpDecodeProjectIntegrals[project,
      ibpImportRuleTable[head,FileNameJoin[{directory,"results","FeynFacetIBP","kira_targets.m"}]]]];
-   declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project]];
+   declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project,cutKiraIdentityTargets[project,imported,targets]]];
    Print["Reusing the existing typed IBP equations and initial reduction"];
    Return[finish[imported,declared,seconds,Missing["RetainedEquationFile"],
     Missing["RetainedEquationFile"],0]]]];
- generated=Table[
+ jobs=Table[
   seeds=Which[
    KeyExistsQ[request,"SeedIntegrals"],
     If[!ListQ[request["SeedIntegrals"]]||validateCutGLIs[request["SeedIntegrals"],records]=!=True,
@@ -218,31 +261,36 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
 
   If[TrueQ[Lookup[request,"PrintTimings",False]],Print["Generating typed IBPs for ",
    family["Topology"][[1]],": ",Length[seeds["Seeds"]]," seeds"]];
-  {generationSeconds,equationRecord}=If[seeds["Seeds"]==={},{0,<|"Rows"->{},"Seeds"->{}|>},
-    AbsoluteTiming[FeynFacet`GenerateCutIBPEquations[family,seeds["Seeds"]]]];
-  If[TrueQ[Lookup[request,"PrintTimings",False]],Print["IBP generation seconds: ",generationSeconds]];
-  If[!AssociationQ[equationRecord],cutFamilyFail["TypedIBPEquationGenerationFailed",<|"Cause"->equationRecord|>]];
-  Join[equationRecord,KeyDrop[seeds,"Seeds"],<|"GenerationSeconds"->generationSeconds|>],
+  <|"Family"->family,"Plan"->seeds,"PrintTimings"->Lookup[request,"PrintTimings",False]|>,
  {family,records}];
- If[!AllTrue[generated,AssociationQ],cutFamilyFail["TypedIBPEquationGenerationFailed"]];
+ generationWorkers=Lookup[request,"GenerationKernels",1];
+ If[!IntegerQ[generationWorkers]||!Between[generationWorkers,{1,8}],
+  cutFamilyFail["OneThroughEightIBPGenerationKernelsRequired"]];
+ {generationSeconds,generated}=AbsoluteTiming[cutGenerateIBPBatch[jobs,generationWorkers]];
+ If[!ListQ[generated]||!AllTrue[generated,AssociationQ],cutFamilyFail["TypedIBPEquationGenerationFailed",<|"Cause"->generated|>]];
  If[!ListQ[Lookup[request,"ExtraEquations",{}]]||
    !AllTrue[Lookup[request,"ExtraEquations",{}],AssociationQ],
   cutFamilyFail["ExplicitAdditionalIntegralEquationsRequired"]];
  equations=Join[Flatten[Lookup[generated,"Rows"],1],Lookup[request,"ExtraEquations",{}]];
  If[equations==={},cutFamilyFail["NonemptyIBPSystemRequired"]];
+ totalEquationCount=Length[equations];familySeedCounts=Length[#["Seeds"]]&/@generated;
+ generationWorkerSeconds=Total[Lookup[generated,"GenerationSeconds"]];
+ generationKernelCount=Length[DeleteDuplicates[Lookup[generated,"GenerationKernel"]]];
+ Clear[generated,jobs,seeds,equationRecord];
  project=cutKiraPrepareEquationSystem[records,targets,equations,directory,
    Lookup[request,"PreferredMasterIntegrals",{}]];
+ Clear[equations];
  project=Join[project,<|"InputFingerprint"->reductionFingerprint[definition]|>];
  unknowns=project["IndexedIntegrals"];head=project["IdentifierHead"];
  Export[FileNameJoin[{directory,"jobs.yaml"}],cutKiraEquationJob["Exact"],"String"];
- Print["Typed IBP system: ",Length[equations]," equations, ",Length[unknowns]," integral identifiers"];
+ Print["Typed IBP system: ",totalEquationCount," equations, ",Length[unknowns]," integral identifiers"];
  {seconds,imported}=AbsoluteTiming[
   ibpRunKira[project,Lookup[request,"Threads",1]];
   ibpImportRuleTable[head,FileNameJoin[{directory,"results","FeynFacetIBP","kira_targets.m"}]]];
  imported=ibpDecodeProjectIntegrals[project,imported];
- declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project]];
+ declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project,cutKiraIdentityTargets[project,imported,targets]]];
  If[!FreeQ[{imported,declared},FeynCalc`GLI[head,_]],cutFamilyFail["UnmappedKiraIntegralIdentifier"]];
- finish[imported,declared,seconds,Length[equations],Length[#["Seeds"]]&/@generated,
-  Total[Lookup[generated,"GenerationSeconds"]]]
+ finish[imported,declared,seconds,totalEquationCount,familySeedCounts,
+  generationSeconds]
  ],"CutFamily"],$ibpFailure];
 End[];EndPackage[];

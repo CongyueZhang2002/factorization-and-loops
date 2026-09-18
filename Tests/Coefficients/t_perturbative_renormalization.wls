@@ -11,7 +11,7 @@ prMeta=<|"Order"->"NNLO","Contribution"->"Total","Channel"->"test","Scale"->qs,
  <|"Variable"->xx,"Endpoint"->1,"Interval"->{0,1},"Distance"->1-xx|>,
  <|"Variable"->zz,"Endpoint"->1,"Interval"->{0,1},"Distance"->1-zz|>}|>|>;
 prClasses=<|"Quarks"-><|"Members"->{"u","d"},"Multiplicity"->2|>|>;
-prSpecies={"g",{"q","u"},{"qbar","u"},{"q","d"},{"qbar","d"}};
+prSpecies={"g",{"q","u"},{"qb","u"},{"q","d"},{"qb","d"}};
 prIndex[sp_]:=If[sp==="g",1,If[First[sp]==="q",2,3]+If[Last[sp]==="u",0,2]];
 prBorn[sp_List]:=If[sp[[1]]===sp[[2]]&&sp[[1]]=!="g",prIndex[sp[[1]]],0];
 prValue[0,sp_]:=prBorn[sp];
@@ -76,4 +76,25 @@ FTTest`FTAssert["PDF and FF transition orientations follow their physical roles"
 prFiniteSource[r_,sp_,cl_,hi_]:=Join[prSource[r,sp,cl,hi],<|"RenormalizationStage"->"Renormalized"|>];
 FTTest`FTAssert["a finite renormalized hard coefficient cannot replace a bare source",
  FailureQ[FeynFacet`ApplyPartonicRenormalization[prPlan,prFiniteSource,prMeta]]];
+(* Three physical legs distinguish each order-two insertion from each product
+   of two different order-one insertions; no symmetry factor is appropriate. *)
+prTree3[d_]:=<|"DeltaCoefficient"->prTree[d],"PlusCoefficients"-><||>,"RegularCoefficient"->prTree[0]|>;
+prThreeMeta=Join[prMeta,<|"Variables"->{xx,zz,yy},"CouplingPower"->2,
+ "DistributionBasis"-><|"Axes"->(<|"Variable"->#,"Endpoint"->1,"Interval"->{0,1},"Distance"->1-#|>&/@{xx,zz,yy})|>|>];
+prThreeKernel[j_,src_,dst_,n_]:=Join[prRow[If[src===dst,
+ If[n===1,{lambdaA,lambdaB,lambdaF}[[j]]/ee,{muA,muB,muF}[[j]]/ee^2],0]],
+ <|"Variable"->{xx,zz,yy}[[j]]|>];
+prThreeRequest=Join[prRequest,<|"BornCouplingPower"->0,
+ "Legs"->{<|"Variable"->xx|>,<|"Variable"->zz|>,<|"Variable"->yy|>},
+ "TransitionKernel"->prThreeKernel,"CouplingRenormalization"-><|1->0,2->0|>|>];
+prThreePlan=FeynFacet`PlanPartonicRenormalization[ConstantArray[{"q","u"},3],prThreeRequest];
+prThreeSource[r_,sp_,cl_,hi_]:=If[r=!=0,0,FeynFacet`CreatePartonicResult[
+ Association@Table[k->prTree3[{born0,born1,born2}[[k+1]]],{k,0,hi}],
+ Join[prThreeMeta,<|"Order"->"LO","CouplingPower"->0,"RenormalizationStage"->"Bare"|>]]];
+prThreeResult=FeynFacet`ApplyPartonicRenormalization[prThreePlan,prThreeSource,prThreeMeta];
+prThreeExpected=aa^2(muA+muB+muF+lambdaA lambdaB+lambdaA lambdaF+lambdaB lambdaF);
+FTTest`FTAssert["each distinct pair of three factorization legs appears exactly once at order two",
+ AssociationQ[prThreeResult]&&And@@Table[
+ Expand[prThreeResult["Coefficients"][k]["DeltaCoefficient"]["DeltaCoefficient"]["DeltaCoefficient"]-
+ prThreeExpected {born0,born1,born2}[[k+3]]]===0,{k,-2,0}]];
 FTTest`FTReport[];

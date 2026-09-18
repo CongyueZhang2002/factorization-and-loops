@@ -5,7 +5,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/FeynFacet/Solution.m"];
 If[Length[$ScriptCommandLine]<2,Print["Usage: evaluate_boundary_values.wls input.wl"];Exit[1]];
 inputFile=ExpandFileName[Last[$ScriptCommandLine]];base=DirectoryName[inputFile];
-read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 resolve[path_]:=ExpandFileName[If[StringStartsQ[path,"/"],path,FileNameJoin[{base,path}]]];
 spec=read[inputFile];
 If[!AssociationQ[spec],Print["Input association required"];Exit[1]];

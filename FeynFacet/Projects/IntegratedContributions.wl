@@ -1,0 +1,256 @@
+(* Assembly of solved integral coefficients is independent of the observable and number of measured variables. *)
+BeginPackage["FeynFacet`"];
+ContributionIntegrationDefinition::usage="ContributionIntegrationDefinition[card] retains the amplitude definitions, integration conventions and component multiplicities needed to reuse solved integral inputs. Directory names and execution settings are excluded.";
+EvaluatePreparedContribution::usage="EvaluatePreparedContribution[card] evaluates the contribution's Work/IntegrationPlan.wl from explicitly solved bulk/endpoint coefficients or reduced virtual integrals. It checks the current mathematical definition before calculation.";
+CreateContributionIntegrationPlan::usage="CreateContributionIntegrationPlan[card,sourceCard,sourceDefinitions,inputs] binds solved integration inputs to a contribution only after checking the original amplitude, normalization, geometry and component multiplicities.";
+EvaluateReducedVirtualContribution::usage="EvaluateReducedVirtualContribution[card,source,reduction] evaluates reduced virtual integrals in the declared scalar library, including the generated measure and conjugate interference.";
+CreateEndpointIntegrationInput::usage="CreateEndpointIntegrationInput[sourceCard,sourceDefinitions,bulk,profiles,projection,selection] selects independently labelled bulk/profile rows and stores solved coefficients together with their original physical definition and coordinate convention. Call this when producing integration inputs; selection declares SourceRowLabels, BulkCoordinates and BulkToEndpointRules.";
+Begin["`Private`"];
+
+projectIntegrationRequest[card_Association]:=Module[{request,physical,species=card["SpeciesMap"]},
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"IntegrationAssemblyRequestRequired"];
+ physical=request["PhysicalChannel"];
+ physical=Association@KeyValueMap[#1->Which[#1==="Incoming",(species[#]&/@#2),MemberQ[{"Observed","Recoil"},#1],species[#2],True,#2]&,physical];
+ request["PhysicalChannel"]=physical;
+ projectIdentityValue[coefficientRegulatorNormalize[KeyDrop[request,
+  {"Project","Channel","Kernels","IntegrationMethod","CollinearConvolution"}],$feynFacetEpsilon]]
+];
+projectIntegrationComponents[card_Association]:=Module[{components=Lookup[card,"Components",<||>]},
+  If[components===<||>,<|card["Contribution"]->projectCompileStateFactors[card]|>,
+   Map[projectCompileStateFactors[projectMerge[KeyDrop[card,"Components"],#]]&,components]]];
+projectIntegrationFactors[card_Association]:=Map[
+ <|"SymmetryFactor"->Lookup[#,"SymmetryFactor",1],"FlavorMultiplicity"->Lookup[#,"FlavorMultiplicity",1]|>&,
+ projectIntegrationComponents[card]];
+
+(* Species spellings are labels. Their model fields, together with all momentum,
+   spin and amplitude data, determine the actual process. *)
+projectIntegratedProcessIdentity[process_Association,species_Association]:=Module[{value=process,map},
+ map[label_]:=If[KeyExistsQ[species,label],species[label],
+  projectFail["DeclaredModelFieldForSourceSpeciesRequired",<|"Species"->label|>]];
+ If[KeyExistsQ[value,"UnobservedPartons"],value["UnobservedPartons"]=map/@value["UnobservedPartons"]];
+ If[KeyExistsQ[value,"SpinDensities"],value["SpinDensities"]=Map[
+  If[KeyExistsQ[#,"Species"],Join[#,<|"Species"->map[#["Species"]]|>],#]&,value["SpinDensities"]]];
+ projectIdentityValue[value]
+];
+
+ContributionIntegrationDefinition[card_Association]:=Catch[Module[{parts,setups},
+ parts=projectIntegrationComponents[card];
+ setups=Map[projectCheck[FeynFacet`ReadProcessCard[#],"IntegrationProcessDefinitionRequired"]&,parts];
+ <|"Processes"->setups,"AssemblyRequest"->projectIntegrationRequest[card],
+   "ComponentFactors"->projectIntegrationFactors[card],"Order"->card["Order"],
+   "Contribution"->card["Contribution"]|>
+],"ProjectCards"];
+
+
+projectRecordedIntegrationDefinition[card_Association,processes_Association]:=
+ <|"Processes"->Map[projectIntegratedProcessIdentity[#,card["SpeciesMap"]]&,processes],
+   "AssemblyRequest"->projectIntegrationRequest[card],"ComponentFactors"->projectIntegrationFactors[card],
+   "Order"->card["Order"],"Contribution"->card["Contribution"]|>;
+projectIntegrationRowIndices[data_Association,labels_List,kind_String]:=Module[{stored},
+ stored=Lookup[data,"CoefficientRowLabels",Lookup[data,"StructureFunctions",None]];
+ If[!ListQ[stored]||!DuplicateFreeQ[stored]||!ContainsAll[stored,labels]||
+   (KeyExistsQ[data,"Dimension"]&&Length[stored]=!=data["Dimension"]),
+  projectFail["IndependentlyLabelledIntegrationRowsRequired",<|"Input"->kind|>]];
+ First@FirstPosition[stored,#]&/@labels
+];
+projectCheckUnitEndpointAxes[axes_List]:=If[!AllTrue[axes,
+ Lookup[#,"Interval",None]==={0,1}&&MemberQ[{0,1},Lookup[#,"Endpoint",None]]&&
+  Cancel[#["Distance"]-If[#["Endpoint"]===1,1-#["Variable"],#["Variable"]]]===0&],
+ projectFail["IndependentAffineUnitEndpointCoordinatesRequired"]];
+CreateEndpointIntegrationInput[sourceCard_Association,sourceDefinitions_Association,
+ bulk_Association,profiles_Association,proof_Association,selection_Association]:=Catch[Module[
+ {labels,bi,pi,b,p,groups,definition,coordinates,rules,axes,normals},
+ labels=Lookup[selection,"SourceRowLabels",None];
+ If[!ListQ[labels]||!DuplicateFreeQ[labels]||Length[labels]=!=Length[sourceCard["StructureFunctions"]],
+  projectFail["DistinctStructureFunctionRowsRequired"]];
+ bi=projectIntegrationRowIndices[bulk,labels,"Bulk"];
+ pi=projectIntegrationRowIndices[profiles,labels,"Profiles"];
+ b=projectCheck[FeynFacet`SelectLaurentCoefficientVector[bulk,bi],"SelectedBulkRowsRequired"];
+ groups=Map[Function[group,Join[group,<|"FaceSeries"->Map[
+   Function[row,If[row["Dimension"]=!=Length[profiles["CoefficientRowLabels"]],
+    projectFail["EndpointFaceRowDimensionMismatch"]];
+    projectCheck[FeynFacet`SelectLaurentCoefficientVector[row,pi],"SelectedEndpointRowsRequired"]],
+   group["FaceSeries"]]|>]],profiles["ProfileGroups"]];
+ b=Join[b,<|"CoefficientRowLabels"->sourceCard["StructureFunctions"]|>];
+ p=Join[profiles,<|"CoefficientRowLabels"->sourceCard["StructureFunctions"],"ProfileGroups"->groups|>];
+ definition=projectRecordedIntegrationDefinition[sourceCard,sourceDefinitions];
+ axes=definition["AssemblyRequest"]["DistributionBasis"]["Axes"];normals=p["NormalVariables"];
+ projectCheckUnitEndpointAxes[axes];
+ coordinates=Lookup[selection,"BulkCoordinates",None];rules=Lookup[selection,"BulkToEndpointRules",None];
+ If[Length[axes]=!=Length[normals]||!DuplicateFreeQ[normals]||
+  !MemberQ[{"Endpoint","Physical"},coordinates]||!MatchQ[rules,{___Rule}],
+  projectFail["ExplicitIntegrationCoordinateConventionRequired"]];
+ If[coordinates==="Endpoint",
+  If[rules=!={},projectFail["EndpointBulkNeedsNoCoordinateTransformation"]],
+  If[Length[rules]=!=Length[axes]||First/@rules=!=Lookup[axes,"Variable"]||
+    !AllTrue[MapThread[Cancel[(#1["Distance"]/.rules)-#2]&,{axes,normals}],#===0&],
+   projectFail["BulkToEndpointCoordinateMapMismatch"]]];
+ <|"DataType"->"SolvedEndpointIntegrationInput","IntegrationDefinition"->definition,
+   "OriginalAssemblyCard"->sourceCard,"OriginalSourceProcessDefinitions"->sourceDefinitions,
+   "SourceRowLabels"->labels,"BulkRowIndices"->bi,"ProfileRowIndices"->pi,
+   "StructureFunctions"->sourceCard["StructureFunctions"],"BulkCoordinates"->coordinates,
+   "BulkToEndpointRules"->rules,"Bulk"->b,"EndpointProfiles"->p,"ProjectionConditions"->proof|>
+],"ProjectCards"];
+
+projectCheckEndpointIntegrationInput[input_,card_Association]:=Module[{definition,rows,b,p,axes,rules,coordinates},
+ If[!AssociationQ[input]||Lookup[input,"DataType",None]=!="SolvedEndpointIntegrationInput",
+  projectFail["ProducerBoundEndpointIntegrationInputRequired"]];
+ definition=projectCheck[ContributionIntegrationDefinition[card],"IntegrationDefinitionRequired"];
+ definition=projectRecordedIntegrationDefinition[card,definition["Processes"]];
+ If[projectIdentityValue[input["IntegrationDefinition"]]=!=projectIdentityValue[definition],
+  projectFail["SolvedEndpointInputDefinitionMismatch"]];
+ rows=card["StructureFunctions"];b=input["Bulk"];p=input["EndpointProfiles"];
+ If[input["StructureFunctions"]=!=rows||b["CoefficientRowLabels"]=!=rows||
+    p["CoefficientRowLabels"]=!=rows||b["Dimension"]=!=Length[rows],
+  projectFail["BoundEndpointInputRowsMismatch"]];
+ axes=definition["AssemblyRequest"]["DistributionBasis"]["Axes"];projectCheckUnitEndpointAxes[axes];
+ rules=input["BulkToEndpointRules"];coordinates=input["BulkCoordinates"];
+ If[!MatchQ[rules,{___Rule}]||Length[axes]=!=Length[p["NormalVariables"]]||
+  !MemberQ[{"Endpoint","Physical"},coordinates],
+  projectFail["ExplicitIntegrationCoordinateConventionRequired"]];
+ If[coordinates==="Endpoint",
+  If[rules=!={},projectFail["EndpointBulkNeedsNoCoordinateTransformation"]],
+  If[First/@rules=!=Lookup[axes,"Variable"]||
+   !AllTrue[MapThread[Cancel[(#1["Distance"]/.rules)-#2]&,{axes,p["NormalVariables"]}],#===0&],
+   projectFail["BulkToEndpointCoordinateMapMismatch"]]];
+ input
+];
+
+CreateContributionIntegrationPlan[card_Association,sourceCard_Association,sourceDefinitions_Association,inputs_Association]:=
+ Catch[Module[{definition,source,fields,boundInputs=inputs,file},
+ definition=projectCheck[ContributionIntegrationDefinition[card],"IntegrationDefinitionRequired"];
+ source=<|"Processes"->sourceDefinitions,"AssemblyRequest"->projectIntegrationRequest[sourceCard],
+  "ComponentFactors"->projectIntegrationFactors[sourceCard],"Order"->sourceCard["Order"],
+  "Contribution"->sourceCard["Contribution"]|>;
+ fields=Select[Union[Keys[source],Keys[definition]],If[#==="Processes",
+  Map[projectIntegratedProcessIdentity[#,sourceCard["SpeciesMap"]]&,source["Processes"]]=!=
+   Map[projectIntegratedProcessIdentity[#,card["SpeciesMap"]]&,definition["Processes"]],
+  projectIdentityValue[source[#]]=!=projectIdentityValue[definition[#]]]&];
+ If[fields=!={},projectFail["SolvedContributionDefinitionMismatch",<|"ChangedFields"->fields|>]];
+ Switch[Lookup[inputs,"Method",None],
+  "EndpointProfiles",
+   If[!StringQ[Lookup[inputs,"IntegrationInputFile",None]],projectFail["ProducerBoundEndpointIntegrationInputRequired"]];
+   file=inputs["IntegrationInputFile"];
+   file=projectAbsolutePath[If[StringStartsQ[file,$PathnameSeparator],file,
+    FileNameJoin[{card["WorkDirectory"],file}]]];
+   projectCheckEndpointIntegrationInput[FeynFacet`FamilyArtifactRead[file],card];
+   AssociateTo[boundInputs,"IntegrationInputFile"->file],
+  "VirtualMasterLibrary",
+   If[!AssociationQ[Lookup[inputs,"Components",None]],projectFail["ExplicitReducedVirtualComponentsRequired"]],
+  _,projectFail["SupportedPreparedIntegrationMethodRequired"]];
+ Join[boundInputs,<|"IntegrationDefinition"->definition,
+  "OriginalAssemblyCard"->sourceCard,"OriginalSourceProcessDefinitions"->sourceDefinitions|>]
+ ],"ProjectCards"];
+
+projectEvaluateEndpointContribution[card_Association,plan_Association,resolve_]:=Module[
+ {input,bulk,profiles,proof,request,axes,meta,result,seconds},
+ input=projectCheckEndpointIntegrationInput[
+  FeynFacet`FamilyArtifactRead[resolve[plan["IntegrationInputFile"]]],card];
+ bulk=input["Bulk"];profiles=input["EndpointProfiles"];proof=input["ProjectionConditions"];
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"EndpointAssemblyRequestRequired"];
+ axes=request["DistributionBasis"]["Axes"];
+ bulk["Coefficients"]=bulk["Coefficients"]/.input["BulkToEndpointRules"];
+ meta=Join[KeyDrop[request,{"CurrentProjectors","KinematicRules","BornSupportKinematicRules",
+  "BornMomentumRules","BornConstraints","TwoParticleMeasurement","BareCouplingRules"}],
+  FeynFacet`ProjectResultIdentity[card,plan["IntegrationDefinition"]["Processes"]],
+  <|"Order"->card["Order"],"Contribution"->card["Contribution"],
+    "EpsilonRange"->card["EpsilonRange"],"RenormalizationStage"->"Bare",
+    "TestFunctionSupport"->request["EndpointExpansion"]["TestFunctionSupport"],
+    "CouplingNormalization"->card["Counterterms"]["CouplingNormalization"],
+    "DistributionBasis"-><|"Axes"->MapThread[Append[#1,"NormalVariable"->#2]&,{axes,profiles["NormalVariables"]}]|>|>];
+ Print["ASSEMBLING_ENDPOINT_DISTRIBUTIONS ",card["Contribution"]];
+ {seconds,result}=AbsoluteTiming[projectCheck[
+  FeynFacet`CreatePartonicResultFromProfileCoefficients[bulk,profiles,meta,proof],"SolvedEndpointContributionFailed"]];
+ Print["ENDPOINT_DISTRIBUTIONS_COMPLETED SECONDS ",seconds];
+ projectValidateBareCouplingPower[result,request["Coupling"],request["CouplingPower"]]
+];
+
+EvaluatePreparedContribution[card_Association]:=Catch[Module[
+ {file,plan,definition,resolve,seconds,result,output},
+ file=FileNameJoin[{card["WorkDirectory"],"IntegrationPlan.wl"}];
+ plan=projectCheck[FeynFacet`FamilyArtifactRead[file],"PreparedIntegrationPlanRequired"];
+ definition=projectCheck[ContributionIntegrationDefinition[card],"IntegrationDefinitionRequired"];
+ If[projectIdentityValue[Lookup[plan,"IntegrationDefinition",None]]=!=projectIdentityValue[definition],
+  projectFail["CurrentIntegrationDefinitionRequired"]];
+ resolve[path_String]:=projectAbsolutePath[If[StringStartsQ[path,$PathnameSeparator],path,
+   FileNameJoin[{DirectoryName[file],path}]]];
+ {seconds,result}=AbsoluteTiming[Switch[Lookup[plan,"Method",None],
+  "EndpointProfiles",projectEvaluateEndpointContribution[card,plan,resolve],
+  "VirtualMasterLibrary",projectEvaluateVirtualContribution[card,plan,resolve],
+  _,projectFail["SupportedPreparedIntegrationMethodRequired"]]];
+ result=projectCheck[result,"PreparedContributionEvaluationFailed"];
+ output=Join[result,<|"IntegrationDefinition"->definition,"IntegrationPlan"->file|>];
+ <|"Result"->output,"StageSeconds"-><|"IntegratedCoefficients"->seconds|>,"File"->card["ResultFile"]|>
+],"ProjectCards"];
+
+EvaluateReducedVirtualContribution[card_Association,source_Association,reduction_Association]:=Catch[Module[
+ {setup,request,definition,e,range,loops,external,kin,pnull,scale,invariants,library,matching,
+  support,prefactor,scalar,addConjugate,conditions,rows,vector,meta,result,path},
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"VirtualProcessRequired"];
+ If[!KeyExistsQ[source,"SpeciesMap"]&&projectIdentityValue[source["ProcessDefinition"]]=!=projectIdentityValue[setup],
+  projectFail["OriginalVirtualSourceSpeciesMapRequired"]];
+ If[projectIntegratedProcessIdentity[source["ProcessDefinition"],Lookup[source,"SpeciesMap",card["SpeciesMap"]]]=!=
+   projectIntegratedProcessIdentity[setup,card["SpeciesMap"]],
+  projectFail["CurrentVirtualIntegralDefinitionRequired"]];
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"VirtualAssemblyRequestRequired"];
+ definition=Lookup[card["Assembly"],"ScalarIntegralLibrary",None];
+ If[!AssociationQ[definition]||Lookup[definition,"Name",None]=!="MasslessTwoLoopVertex",
+  projectFail["DeclaredVirtualScalarLibraryRequired"]];
+ e=request["DimensionalRegulator"];range=card["EpsilonRange"];
+ loops=source["LoopMomenta"];external=source["ExternalMomenta"];kin=source["KinematicRules"];
+ If[Length[loops]=!=2,projectFail["TwoLoopVertexLibraryMomentaRequired"]];
+ pnull=definition["NullMomenta"];scale=definition["ScaleSquared"];path=card["WorkDirectory"];
+ invariants=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[{
+  FeynCalc`SPD[pnull[[1]]],FeynCalc`SPD[pnull[[2]]],FeynCalc`SPD[Total[pnull]]}+{0,0,scale}]]/.FeynCalc`FCI[kin];
+ If[!AllTrue[Factor/@invariants,#===0&],projectFail["VirtualLibraryExternalInvariantsMismatch"]];
+ library=FeynFacet`MasslessVertexMasterLibrary[loops,pnull,external,kin,scale,e];
+ matching=projectCheck[FeynFacet`MatchVirtualMastersToLibrary[reduction["Masters"],reduction["Families"],library],
+  "VirtualLibraryMatchingRequired"];
+ If[matching["Status"]=!="AllMastersMatched",projectFail["CompleteVirtualLibraryMatchingRequired"]];
+ projectWrite[matching,path<>"/VerifiedMasterLibraryMatching.wl"];
+ support=projectCheck[Catch[currentBornSupport[request],"PartonicResults"],"VirtualBornSupportRequired"];
+ prefactor=(source["IntegrationMeasureConversion"]support["Measure"]Lookup[card,"SymmetryFactor",1])/.support["Point"];
+ scalar=projectCheck[FeynFacet`ExpandMatchedVirtualIntegralCombination[source,reduction,matching,e,range,
+  Function[{name,orders},FeynFacet`EvaluateMasslessVertexMaster[name,scale,e,orders]],
+  <|"Prefactor"->prefactor,"ScalarCoefficientRules"->Join[request["BareCouplingRules"],
+    Lookup[request,"ColorRules",{}],support["Point"]]|>],"ExplicitVirtualLaurentCoefficientsRequired"];
+ projectWrite[scalar,path<>"/IntegratedScalarCoefficients.wl"];
+ addConjugate=card["AmplitudeLoops"]==={2,0};conditions=request["Assumptions"]&&scale>0;
+ rows=Association@Table[n->partonicCornerDistribution[
+  vector=Table[Lookup[scalar["Coefficients"],Key[{i,n}],0],{i,Length[scalar["StructureFunctions"]]}];
+  If[addConjugate,vector=vector+Conjugate[vector]];
+  FullSimplify[ComplexExpand[vector,Lookup[setup,"ComplexParameters",{}]],Assumptions->conditions],
+  Length[support["Axes"]]],{n,First[range],Last[range]}];
+ meta=Join[KeyDrop[request,{"CurrentProjectors","KinematicRules","BornSupportKinematicRules",
+  "BornMomentumRules","BornConstraints","TwoParticleMeasurement","BareCouplingRules"}],
+  FeynFacet`ProjectResultIdentity[card,setup],
+  <|"Order"->card["Order"],"Contribution"->card["Contribution"],"RenormalizationStage"->"Bare",
+    "StructureFunctions"->scalar["StructureFunctions"],"ConjugateInterferenceAdded"->addConjugate,
+    "CouplingNormalization"->card["Counterterms"]["CouplingNormalization"],
+    "BornSupportJacobian"->support["JacobianDeterminant"],"ScalarMasterUpperOrders"->scalar["ScalarMasterUpperOrders"],
+    "LoopNormalization"->"Generated d^D ell/(2 pi)^D; verified normalized scalar master library"|>];
+ result=projectCheck[FeynFacet`CreatePartonicResult[rows,meta],"ExplicitVirtualResultRequired"];
+ If[!partonicExplicitCoefficientsQ[result["Coefficients"]],projectFail["UnresolvedVirtualIntegralCoefficients"]];
+ projectWeightedPartonicResult[result,Lookup[card,"FlavorMultiplicity",1]]
+],"ProjectCards"];
+
+projectEvaluateVirtualContribution[card_Association,plan_Association,resolve_]:=Module[
+ {cards,parts=<||>,files,source,reduction,component,value},
+ cards=projectContributionComponents[card];files=plan["Components"];
+ If[Sort[Keys[cards]]=!=Sort[Keys[files]],projectFail["MatchingVirtualIntegrationComponentsRequired"]];
+ KeyValueMap[Function[{name,definition},
+  source=projectCheck[FeynFacet`FamilyArtifactRead[resolve[files[name]["IntegralFamiliesFile"]]],"VirtualIntegralFamiliesRequired"];
+  reduction=projectCheck[FeynFacet`FamilyArtifactRead[resolve[files[name]["ReductionFile"]]],"VirtualReductionRequired"];
+  If[!KeyExistsQ[source,"SpeciesMap"],
+   component=Last[StringSplit[name,"."]];
+   If[projectIdentityValue[source["ProcessDefinition"]]=!=
+     projectIdentityValue[Lookup[plan["OriginalSourceProcessDefinitions"],component,None]],
+    projectFail["MatchingOriginalVirtualComponentDefinitionRequired"]];
+   source=Join[source,<|"SpeciesMap"->plan["OriginalAssemblyCard"]["SpeciesMap"]|>]];
+  value=projectCheck[FeynFacet`EvaluateReducedVirtualContribution[definition,source,reduction],"VirtualComponentFailed"];
+  projectWrite[value,definition["ResultFile"]];
+  AssociateTo[parts,name->value]],cards];
+ projectCheck[FeynFacet`CombinePartonicResults[parts,<|"Contribution"->card["Contribution"],
+  "RenormalizationStage"->"Bare","Components"->Keys[parts]|>],"VirtualComponentCombinationFailed"]
+];
+End[];EndPackage[];

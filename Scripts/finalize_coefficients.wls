@@ -8,7 +8,7 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 fail[text_] := (Print["FINALIZATION FAILED: ", text]; Exit[1]);
 arguments = Rest[$ScriptCommandLine];
 If[Length[arguments] =!= 1, fail["expected one request file"]];
-request = Get[First[arguments]];
+request = FeynFacetRecords`ReadRecord[First[arguments]];
 traceDirectory = request["TraceDirectory"];
 record = FeynFacet`Private`reconstructionTraceRecord[traceDirectory];
 If[! AssociationQ[record], fail["unreadable trace manifest"]];
@@ -74,5 +74,5 @@ summary = <|"File" -> output, "Masters" -> Length[result["Masters"]],
   "ExactOutputs" -> Count[Values[columns], a_Association /; a["Representation"] === "Exact"],
   "SeriesOutputs" -> Count[Values[columns], a_Association /; a["Representation"] === "LaurentSeries"],
   "Bytes" -> FileByteCount[output], "ExactSerializationReadBack" -> True|>;
-Put[summary, output <> ".summary.wl"];
+FeynFacetRecords`WriteRecord[summary, output <> ".summary.wl"];
 Print["FINAL RESULT ", InputForm[summary]];

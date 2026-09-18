@@ -7,13 +7,13 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Addon/Load/LoadFACET.wl"];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=1,Print["Expected ASSEMBLY_REQUEST.wl"];Exit[2]];
-request=Get[ExpandFileName[First[args]]];
+request=FeynFacetRecords`ReadRecord[ExpandFileName[First[args]]];
 If[!AssociationQ[request]||!ContainsAll[Keys[request],{"CoefficientFiles","OutputFile"}]||
  !ListQ[request["CoefficientFiles"]]||!StringQ[request["OutputFile"]],
  Print["CoefficientFiles and OutputFile required"];Exit[2]];
 file=ExpandFileName[request["OutputFile"]];
 If[ToLowerCase[FileExtension[file]]=!="wxf",Print["OutputFile must have .wxf extension"];Exit[2]];
-read[path_]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 rules=If[KeyExistsQ[request,"MasterIntegralRulesFile"],read[request["MasterIntegralRulesFile"]],
  Lookup[request,"MasterIntegralRules",{}]];
 perRules=If[KeyExistsQ[request,"MasterIntegralRulesFiles"],

@@ -31,7 +31,7 @@ mpDQ=FeynFacet`DifferentiateCutIntegral[mpFamily,mpUnit,mpQ];
 mpDW=FeynFacet`DifferentiateCutIntegral[mpFamily,mpWeighted,mpX,mpSparse];
 mpTargets=Union[{mpUnit,mpWeighted},Cases[{mpDX,mpDXSymmetric,mpDZ,mpDQ,mpDW},_FeynCalc`GLI,Infinity]];
 Print["THREE_PARTICLE_TARGETS ",Length[mpTargets]];
-mpWork=root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Kira/TypedMeasuredThreeParticleRegression";
+mpWork=root<>"/Projects/SIDIS_UU/NNLO/q-q/Kira/TypedMeasuredThreeParticleRegression";
 mpReduction=FeynFacet`KiraReduction[{mpFamily},mpTargets,
  <|"WorkingDirectory"->mpWork,"MassDimensions"->{mpQ->2,mpX->0,mpZ->0},"Threads"->1|>];
 FTTest`FTAssert["all three-particle volume and first-derivative targets reduce to one master",
@@ -53,9 +53,9 @@ FTTest`FTAssert["differentiation also acts on an ordinary numerator represented 
 FTTest`FTAssert["the reduced two-variable scalar equations have commuting mixed partials",
  Factor[D[mpRatio[mpDZ],mpX]-D[mpRatio[mpDX],mpZ]]===0];
 FeynFacet`FamilyArtifactWrite[mpReduction,
- root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Results/Validation/MeasuredThreeParticleReduction.wl"];
+ root<>"/Projects/SIDIS_UU/NNLO/q-q/Results/Validation/MeasuredThreeParticleReduction.wl"];
 mpSystem=FeynFacet`ConstructCutDifferentialSystem[{mpFamily},{mpUnit,mpWeighted},{mpX,mpZ},
- <|"WorkingDirectory"->root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Kira/TypedDifferentialClosureRegression",
+ <|"WorkingDirectory"->root<>"/Projects/SIDIS_UU/NNLO/q-q/Kira/TypedDifferentialClosureRegression",
   "Threads"->1,"MomentumDerivatives"-><|mpX->mpSparse["MomentumDerivatives"]|>|>];
 FTTest`FTAssert["the general constructor automatically closes the requested measured integrals",
  AssociationQ[mpSystem]&&mpSystem["MasterIntegralBasis"]==={mpUnit}&&
@@ -65,5 +65,5 @@ If[AssociationQ[mpSystem],
   Factor[Normal[mpSystem["ConnectionMatrices"]]-{{{-(D-3)/(mpX(1-mpX))}},
    {{(D-4)/(2mpZ)-(D-3)/(1-mpZ)}}}]===ConstantArray[0,{2,1,1}]];
  FeynFacet`FamilyArtifactWrite[mpSystem,
-  root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Results/Validation/TypedDifferentialClosure.wl"]];
+  root<>"/Projects/SIDIS_UU/NNLO/q-q/Results/Validation/TypedDifferentialClosure.wl"]];
 FTTest`FTReport[];

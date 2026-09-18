@@ -159,7 +159,21 @@ canonicalMarkCutSlots[_, _] := $Failed;
 (* The default Function option of FCLoopToPakForm discards the Pak ordering
    sigma. Restoring it gives the propagator permutation exactly, instead of
    matching the reordered propagators back onto the topology by hand. *)
-canonicalPakForm[topology_FeynCalc`FCTopology, cutIndices_List] := Module[
+
+(* The integral label does not enter the Pak polynomial or ordering. Reuse
+   exactly repeated propagator definitions within one registry construction,
+   including the opposite orientation of a Hermitian pair. Physical mapping
+   and cut-direction checks still run independently for every source record. *)
+canonicalPakForm[topology_FeynCalc`FCTopology,cutIndices_List] := Module[{key,value},
+ key=With[{definition=Rest[topology],cuts=cutIndices},HoldComplete[definition,cuts]];
+ If[AssociationQ[$canonicalPakCache]&&KeyExistsQ[$canonicalPakCache,key],
+  Return[$canonicalPakCache[key]]];
+ value=canonicalPakFormUncached[topology,cutIndices];
+ If[AssociationQ[$canonicalPakCache]&&AssociationQ[value],AssociateTo[$canonicalPakCache,key->value]];
+ value
+];
+canonicalPakFormUncached[topology_FeynCalc`FCTopology, cutIndices_List] := Module[
+
   {marked, raw, polynomial, order, count},
 
   count = Length[topology[[2]]];
@@ -597,7 +611,7 @@ CanonicalizeTopologyRecord[arguments___] := (
 );
 
 
-canonicalizeRecordList[records_List, initialRegistry_Association] := Catch[
+canonicalizeRecordList[records_List, initialRegistry_Association] := Block[{$canonicalPakCache=<||>},Catch[
   Module[
     {registry = initialRegistry, rules = {}, mappings = {}, result, classes},
 
@@ -639,7 +653,7 @@ canonicalizeRecordList[records_List, initialRegistry_Association] := Catch[
     |>
   ],
   $canonicalFamilyFailure
-];
+]];
 
 
 CanonicalizeTopologyRecords[records_List, context_Association] := Module[
@@ -710,7 +724,7 @@ CanonicalizeTopologyRecords[arguments___] := (
 (* ------------------------------------------------------------------ *)
 
 CanonicalizePairArtifacts::input =
-  "CanonicalizePairArtifacts expects a nonempty list of saved pre-IBP pair artifact files and an output directory, but received `1`.";
+  "CanonicalizePairArtifacts expects a nonempty list of pre-IBP pair records or their files and an output directory, but received `1`.";
 
 CanonicalizePairArtifacts::artifact =
   "`1` is missing or is not a valid saved pre-IBP pair artifact.";
@@ -814,7 +828,12 @@ canonicalizeOnePairArtifact[
   {pair, context, parts, mapped, integrand, used, imageFamilies, records},
 
   pair = artifact["Pair"];
-  context = artifact["AnalyticContext"];
+  (* This is a newly produced canonical artifact. Record the producer of
+     this stage, and preserve the original input context separately. Physical
+     conventions are copied verbatim; Kira still requires their exact match. *)
+  context = Join[KeyDrop[artifact["AnalyticContext"],"Fingerprint"],
+    <|"FeynFacetSourceHash"->$feynFacetSourceHash|>];
+  context = Append[context,"Fingerprint"->reductionFingerprint[context]];
   parts = linearIntegralSum[artifact["Integrand"]];
   If[! linearIntegralSumQ[parts],
     Return[{$Failed, "the integrand is not a linear combination of GLIs"}]
@@ -849,6 +868,8 @@ canonicalizeOnePairArtifact[
       <|
         "Created" -> DateString[{"ISODate", "T", "Time"}],
         "ResultDirectory" -> output,
+        "OriginalAnalyticContext" -> Lookup[artifact,"OriginalAnalyticContext",artifact["AnalyticContext"]],
+        "AnalyticContext" -> context,
         "Integrand" -> integrand,
         "Topologies" -> records,
         "CanonicalRegistryFingerprint" -> fingerprint
@@ -869,23 +890,19 @@ canonicalPutArtifact[result_Association, file_String] := Module[
       FileExistsQ[temporary] && FileByteCount[temporary] > 0,
       False
     ] =!= True,
-    Quiet @ Check[DeleteFile[temporary], Null];
+    Quiet @ Check[FeynFacet`FamilyArtifactDelete[temporary], Null];
     Return[$Failed]
   ];
-  saved = Quiet @ Check[Get[temporary], $Failed];
+  saved = Quiet @ Check[FeynFacet`FamilyArtifactRead[temporary], $Failed];
   valid = validPreIBPResultQ[saved] && SameQ[saved, result];
   Clear[saved];
   If[! TrueQ[valid],
-    Quiet @ Check[DeleteFile[temporary], Null];
+    Quiet @ Check[FeynFacet`FamilyArtifactDelete[temporary], Null];
     Return[$Failed]
   ];
   If[
-    Quiet @ Check[
-      RenameFile[temporary, file, OverwriteTarget -> True];
-      True,
-      False
-    ] =!= True,
-    Quiet @ Check[DeleteFile[temporary], Null];
+    FeynFacet`FamilyArtifactMove[temporary,file] =!= file,
+    Quiet @ Check[FeynFacet`FamilyArtifactDelete[temporary], Null];
     Return[$Failed]
   ];
   file
@@ -893,6 +910,8 @@ canonicalPutArtifact[result_Association, file_String] := Module[
 
 
 Options[CanonicalizePairArtifacts] = {
+  "Kernels" -> Automatic,
+  "ReturnRecords" -> False,
   "AllowCollisions" -> True,
   "SeedRegistry" -> None
 };
@@ -942,10 +961,15 @@ canonicalRegistrySeed[path_String] := Module[{file, record, registry},
 
 canonicalRegistrySeed[_] := $Failed;
 
-CanonicalizePairArtifacts[
+CanonicalizePairArtifacts[pairFiles_List,outputDirectory_String,options:OptionsPattern[]]:=
+ facetWithSymbolicWorkers[
+  canonicalizePairArtifactsCore[pairFiles,outputDirectory,options],
+  If[Length[pairFiles]>=32,facetKernelCount[OptionValue["Kernels"],Length[pairFiles]],1]
+ ];
+canonicalizePairArtifactsCore[
     pairFiles_List,
     outputDirectory_String,
-    options : OptionsPattern[]
+    options : OptionsPattern[CanonicalizePairArtifacts]
   ] := Catch[
   Module[
     {
@@ -954,11 +978,11 @@ CanonicalizePairArtifacts[
       slotsByName, entryByName, fingerprint, output, pairDirectory,
       rulesByPair, namesByPair, canonicalized, written, registryFile,
       manifestFile, registryRecord, manifest, verification,
-      seed, seededFamilyCount
+      seed, seededFamilyCount, fileInputs, pairOrder, expectedWrites
     },
 
     If[
-      pairFiles === {} || ! AllTrue[pairFiles, StringQ] ||
+      pairFiles === {} || !(AllTrue[pairFiles, StringQ] || AllTrue[pairFiles, AssociationQ]) ||
         StringLength[StringTrim[outputDirectory]] === 0,
       Message[
         CanonicalizePairArtifacts::input,
@@ -967,21 +991,34 @@ CanonicalizePairArtifacts[
       Throw[$Failed, $canonicalFamilyFailure]
     ];
 
-    files = Sort[ExpandFileName /@ pairFiles];
-    Do[
-      If[! FileExistsQ[file],
-        Message[CanonicalizePairArtifacts::artifact, file];
-        Throw[$Failed, $canonicalFamilyFailure]
-      ],
-      {file, files}
+    fileInputs = AllTrue[pairFiles, StringQ];
+    If[fileInputs,
+      files = Sort[ExpandFileName /@ pairFiles];
+      Do[
+        If[! FileExistsQ[file],
+          Message[CanonicalizePairArtifacts::artifact, file];
+          Throw[$Failed, $canonicalFamilyFailure]],
+        {file, files}];
+      artifacts = facetSymbolicMap[FeynFacet`FamilyArtifactRead, files];
+      If[!ListQ[artifacts]||Length[artifacts]=!=Length[files],
+        Throw[$Failed,$canonicalFamilyFailure]],
+      artifacts = pairFiles;
+      files = ConstantArray["in-memory pair record", Length[artifacts]]
     ];
-    artifacts = (Quiet @ Check[Get[#], $Failed]) & /@ files;
     Do[
       If[! validPreIBPResultQ[artifacts[[position]]],
         Message[CanonicalizePairArtifacts::artifact, files[[position]]];
         Throw[$Failed, $canonicalFamilyFailure]
       ],
       {position, Length[files]}
+    ];
+    If[!DuplicateFreeQ[({#["Pair"]["Forward"], #["Pair"]["Conjugate"]}& /@ artifacts)],
+      Message[CanonicalizePairArtifacts::artifact, "duplicate diagram-pair identities"];
+      Throw[$Failed, $canonicalFamilyFailure]];
+    If[!fileInputs,
+      files = ("F"<>ToString[#["Pair"]["Forward"]]<>"_C"<>
+        ToString[#["Pair"]["Conjugate"]]<>".wl"& /@ artifacts);
+      pairOrder = Ordering[files]; files = files[[pairOrder]]; artifacts = artifacts[[pairOrder]]
     ];
 
     output = FileNameJoin @ FileNameSplit @ ExpandFileName[outputDirectory];
@@ -1114,24 +1151,17 @@ CanonicalizePairArtifacts[
       {position, Length[files]}
     ];
 
-    written = Table[
-      canonicalPutArtifact[
-        First[canonicalized[[position]]],
-        FileNameJoin[{pairDirectory, FileNameTake[files[[position]]]}]
-      ],
-      {position, Length[files]}
+    expectedWrites=FileNameJoin[{pairDirectory,FileNameTake[#]}]& /@ files;
+    If[!DuplicateFreeQ[expectedWrites],
+      Message[CanonicalizePairArtifacts::write,"distinct pairs require distinct output filenames"];
+      Throw[$Failed,$canonicalFamilyFailure]];
+    written = facetSymbolicMap[
+      Function[job,FeynFacet`Private`canonicalPutArtifact[First[job],Last[job]]],
+      Transpose[{First /@ canonicalized,expectedWrites}]
     ];
-    Do[
-      If[written[[position]] === $Failed,
-        Message[
-          CanonicalizePairArtifacts::write,
-          FileNameJoin[{pairDirectory, FileNameTake[files[[position]]]}]
-        ];
-        Throw[$Failed, $canonicalFamilyFailure]
-      ],
-      {position, Length[files]}
-    ];
-
+    If[!ListQ[written]||written=!=expectedWrites,
+      Message[CanonicalizePairArtifacts::write,"incomplete worker write results"];
+      Throw[$Failed,$canonicalFamilyFailure]];
     registryFile = FileNameJoin[{output, "CanonicalRegistry.wxf"}];
     manifestFile = FileNameJoin[{output, "CanonicalRegistry.wl"}];
     registryRecord = <|
@@ -1208,8 +1238,8 @@ CanonicalizePairArtifacts[
       "Rejected" -> run["Rejected"],
       "PairFiles" -> FileNameTake /@ files
     |>;
-    Put[manifest, manifestFile];
-    If[! FileExistsQ[manifestFile] || Get[manifestFile] =!= manifest,
+    FeynFacet`FamilyArtifactWrite[manifest, manifestFile];
+    If[! FileExistsQ[manifestFile] || FeynFacet`FamilyArtifactRead[manifestFile] =!= manifest,
       Message[CanonicalizePairArtifacts::write, manifestFile];
       Throw[$Failed, $canonicalFamilyFailure]
     ];
@@ -1227,11 +1257,11 @@ CanonicalizePairArtifacts[
       Frame -> All
     ];
 
-    <|
+    Join[<|
       "OutputDirectory" -> output,
       "PairDirectory" -> pairDirectory,
       "Files" -> written,
-      "SourceFiles" -> files,
+      "SourceFiles" -> If[fileInputs, files, {}],
       "RegistryFile" -> registryFile,
       "ManifestFile" -> manifestFile,
       "Registry" -> registry,
@@ -1248,7 +1278,8 @@ CanonicalizePairArtifacts[
       "Statuses" -> statuses,
       "Collisions" -> collisions,
       "Manifest" -> manifest
-    |>
+    |>, If[TrueQ[OptionValue["ReturnRecords"]],
+      <|"Records" -> (First /@ canonicalized)|>, <||>]]
   ],
   $canonicalFamilyFailure
 ];

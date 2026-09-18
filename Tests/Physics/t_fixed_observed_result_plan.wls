@@ -1,0 +1,11 @@
+Print["FEYNFACET DRIVER ENTERED"];
+$HistoryLength=0;$MaxExtraPrecision=50;root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+projectDirectory=root<>"/Projects/SIDIS_HighPT_TT_SpinTransfer";
+plans=FeynFacet`PlanProjectResult[projectDirectory<>"/Results/NLO/"<>#<>"/Result_Card.wl"]&/@{"q-q","q-qb"};
+FTTest`FTAssert["generated fixed-current cards can be planned without precomputed integral plans",AllTrue[plans,AssociationQ]];
+emptyAllowed=FeynFacet`VerifyCountertermCardCoverage[projectDirectory<>"/Raw/NLO/q-qb",<||>];
+emptyMissing=FeynFacet`VerifyCountertermCardCoverage[projectDirectory<>"/Raw/NLO/q-q",<||>];
+FTTest`FTAssert["empty counterterm inventory is accepted when the operator enumeration is empty",AssociationQ[emptyAllowed]&&emptyAllowed["Status"]==="Passed"&&emptyAllowed["RequiredTermCount"]===0];
+FTTest`FTAssert["empty inventory still fails for a channel with required counterterms",AssociationQ[emptyMissing]&&emptyMissing["Status"]==="Failed"&&emptyMissing["RequiredTermCount"]>0];
+Print["FIXED OBSERVED RESULT PLAN TEST COMPLETE"];FTTest`FTReport[];

@@ -187,7 +187,7 @@ The prepared evolution must reach epsilon^4. The general planner derives the
 entrywise orders and their basis-conversion contributions. It does not set
 every boundary component to the same order.
 
-The [saved records](../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/EpsilonOrderDetermination/CF269/README.md)
+The [saved records](../Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/EpsilonOrderDetermination/CF269/README.md)
 contain the actual matrices, bounds, proof inputs and order tables.
 These are sufficient orders for declared master targets. A final NNLO demand
 still needs the full observable, endpoint integration, renormalization and

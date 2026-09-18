@@ -1,7 +1,8 @@
 (* Standalone worker: vendor System definitions are isolated in this kernel. *)
 $HistoryLength=0;$MaxExtraPrecision=50;$RecursionLimit=4096;$PrePrint=.;
 args=Rest[$ScriptCommandLine];If[Length[args]=!=4,Exit[2]];
-input=Get[args[[1]]];out=args[[2]];$HPLPath=args[[3]];$HypExpPath=args[[4]];
+Get[DirectoryName[ExpandFileName[$InputFileName],2]<>"/Core/RecordFormat.wl"];
+input=FeynFacetRecords`ReadRecord[args[[1]]];out=args[[2]];$HPLPath=args[[3]];$HypExpPath=args[[4]];
 If[!AssociationQ[input],Exit[2]];
 $Path=Join[{$HPLPath,$HypExpPath},$Path];
 Block[{Print},Get[$HPLPath<>"/HPL.m"];Get[$HypExpPath<>"/HypExp.m"]];
@@ -37,5 +38,5 @@ result=<|"Status"->"ExplicitHypergeometricSeries","DimensionalRegulator"->e,
  "LaurentLowerBound"->lower,"KnownThroughOrder"->upper,"Polynomial"->polynomial,
  "HypergeometricFunctionUpperOrders"->functionUpper,
  "Method"->"HypExp2.0 nested sums and critical unit-argument continuation in an isolated Wolfram kernel."|>;
-Block[{$ContextPath={},$Context="FeynFacetArtifact`"},Put[result,out]];
+FeynFacetRecords`WriteRecord[result,out];
 Print["COMPLETED HYPERGEOMETRIC SERIES"];

@@ -4,7 +4,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{root,"FeynFacet", "Solution.m"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]!=3,Print["Expected SOLUTION_DIRECTORY REQUEST.wl OUTPUT.wxf"];Exit[2]];
-request=Get[args[[2]]];data=FeynFacetSolution`ReadMasterIntegralSolution[args[[1]]];
+request=FeynFacetRecords`ReadRecord[args[[2]]];data=FeynFacetSolution`ReadMasterIntegralSolution[args[[1]]];
 result=Catch[Module[{options=Lookup[request,"Options",{}],boundary,normalize,ag,pg},
  If[KeyExistsQ[request,"BoundaryDataFile"],
   boundary=FeynFacetSolution`Private`readNumericalFile[request["BoundaryDataFile"]];

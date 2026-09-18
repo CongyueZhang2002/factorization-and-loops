@@ -1,7 +1,7 @@
 # Coefficient and distribution assembly
 
 Use [WORKFLOW.md](../../WORKFLOW.md) for the overall sequence and CPU limits,
-and the [ppHX NNLO channel guide](../../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/README.md)
+and the [ppHX NNLO channel guide](../../Projects/ppHX_UU/NNLO/qqp-qqp/README.md)
 for current input paths and replay commands. The drivers below take explicit
 mathematical data. Family assignments, physical weights and domains remain
 project inputs.

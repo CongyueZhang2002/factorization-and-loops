@@ -372,8 +372,8 @@ solutionPrepareConnection[a_,vars_,e_,seconds_,options_:<||>] := Module[
     recordPath=FileNameJoin[{options["IntermediateOutputDirectory"],
       "block_"<>StringRiffle[ToString/@block,"_"]<>".m"}];
     tmp=recordPath<>".tmp";
-    Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Put[record,tmp]];
-    RenameFile[tmp,recordPath,OverwriteTarget->True]];
+    FeynFacetRecords`WriteRecord[record,tmp];
+    FeynFacetRecords`MoveRecord[tmp,recordPath]];
   Do[h[[block[[i]],block[[j]]]]=hb[[i,j]],{i,Length[block]},{j,Length[block]}];
   AppendTo[reports,<|"Rows"->block,"BasisTransformationMatrix"->hb,
     "AllCoordinateReductionIdentitiesVerified"->True|>],

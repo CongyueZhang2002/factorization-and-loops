@@ -6,6 +6,7 @@ Get[FileNameJoin[{coefficientResultTestRoot,"FeynFacet","Solutions","Orders","La
 Begin["FeynFacet`Private`"];
 Get[FileNameJoin[{Global`coefficientResultTestRoot,"FeynFacet","Coefficients","FinalResults.wl"}]];
 End[];
+Get[FileNameJoin[{coefficientResultTestRoot,"FeynFacet","Normalization","MasterIntegrals.wl"}]];
 Clear[coefficientResultTestEpsilon,coefficientResultTestRho];
 coefficientResultTestExact[x_,pref_:1] := <|"PreFactor"->pref,"Representation"->"Exact","Coefficient"->x|>;
 coefficientResultTestFinite[values_List,lower_,pref_:1,variable_:coefficientResultTestEpsilon] := <|

@@ -3,7 +3,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];
 If[Length[$ScriptCommandLine]<2,Print["Usage: determine_boundary_amplitudes.wls input.wxf"];Exit[1]];
 file=ExpandFileName[Last[$ScriptCommandLine]];base=DirectoryName[file];
-read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 resolve[path_]:=ExpandFileName[If[StringStartsQ[path,"/"],path,FileNameJoin[{base,path}]]];
 materialize[path_String]:=read[resolve[path]];materialize[value_]:=value;
 spec=read[file];problem=materialize[spec["Problem"]];

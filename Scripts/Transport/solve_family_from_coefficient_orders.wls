@@ -7,7 +7,7 @@ Block[{Print},Get[repository<>"/Addon/Load/LoadFACET.wl"]];
 arguments=Rest[$ScriptCommandLine];
 If[Length[arguments]=!=2,Print["Expected SPECIFICATION.wl OUTPUT_DIRECTORY"];Exit[64]];
 specificationFile=ExpandFileName[arguments[[1]]];directory=ExpandFileName[arguments[[2]]];
-spec=Get[specificationFile];
+spec=FeynFacetRecords`ReadRecord[specificationFile];
 If[!AssociationQ[spec],Print["Specification must be an association"];Exit[64]];
 resolve[path_]:=ExpandFileName[If[StringStartsQ[path,"/"],path,
  FileNameJoin[{DirectoryName[specificationFile],path}]]];

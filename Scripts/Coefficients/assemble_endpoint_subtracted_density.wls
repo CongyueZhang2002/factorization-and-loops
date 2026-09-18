@@ -6,7 +6,7 @@ subtractionRoot=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[subtractionRoot<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 subtractionArgs=Rest[$ScriptCommandLine];
 If[Length[subtractionArgs]=!=2,Print["Expected INPUT_REQUEST.wl OUTPUT.wxf"];Exit[2]];
-subtractionRead[x_]:=If[StringQ[x],If[ToLowerCase[FileExtension[x]]==="wxf",Import[x,"WXF"],Get[x]],x];
+subtractionRead[x_]:=If[StringQ[x],If[ToLowerCase[FileExtension[x]]==="wxf",Import[x,"WXF"],FeynFacetRecords`ReadRecord[x]],x];
 subtractionInput=subtractionRead[First[subtractionArgs]];
 If[!AssociationQ[subtractionInput]||!AssociationQ[Lookup[subtractionInput,"EndpointSolutions",None]],
  Print["EndpointSubtractionRequestRequired"];Exit[2]];

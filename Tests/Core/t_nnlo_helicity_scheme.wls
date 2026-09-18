@@ -2,13 +2,13 @@ $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 hsParameters=<|"CA"->hsCA,"CF"->hsCF,"TR"->hsTR,"FlavorCount"->hsNF|>;
-hsSpecies={{"q","u"},{"qbar","u"},{"q","d"},{"qbar","d"},"g"};
+hsSpecies={{"q","u"},{"qb","u"},{"q","d"},{"qb","d"},"g"};
 hsKernel[a_,b_,n_]:=FeynFacet`FactorizationSchemeKernel["HelicityMSbar",a,b,"L",hsX,hsParameters,n];
 hsValue[a_,b_,n_]:=hsKernel[a,b,n]["RegularCoefficient"];
 hsH=hsValue[{"q","u"},{"q","u"},1];
 hsSea=hsValue[{"q","d"},{"q","u"},2];
 hsV=hsValue[{"q","u"},{"q","u"},2]-hsSea;
-hsVbar=hsValue[{"qbar","u"},{"q","u"},2]-hsSea;
+hsVbar=hsValue[{"qb","u"},{"q","u"},2]-hsSea;
 FTTest`FTAssert["order-zero matrix includes the gluon identity",
  And@@Flatten[Table[hsKernel[a,b,0]["DeltaCoefficient"]===If[a===b,1,0],{a,hsSpecies},{b,hsSpecies}]]];
 FTTest`FTAssert["the first finite kernel has the conserved nonsinglet moment",
@@ -17,8 +17,8 @@ FTTest`FTAssert["the sea is per flavor and independent of the number of flavors"
  FreeQ[hsSea,hsNF]&&FullSimplify[Integrate[hsSea,{hsX,0,1}]-3hsCF hsTR/8]===0];
 FTTest`FTAssert["quark-antiquark conjugation and flavor-exchange symmetry",
  And@@Flatten[Table[hsValue[a,b,2]===hsValue[b,a,2],{a,hsSpecies},{b,hsSpecies}]]&&
- hsValue[{"qbar","d"},{"q","u"},2]===hsSea&&
- hsValue[{"qbar","d"},{"qbar","d"},2]===hsV+hsSea];
+ hsValue[{"qb","d"},{"q","u"},2]===hsSea&&
+ hsValue[{"qb","d"},{"qb","d"},2]===hsV+hsSea];
 FTTest`FTAssert["gluon finite mixing is zero through second order",
  And@@Flatten[Table[hsValue["g",a,n]===0&&hsValue[a,"g",n]===0,{a,hsSpecies},{n,1,2}]]];
 (* Independent 1409.5131 A.2 in its HPL form, divided by four to

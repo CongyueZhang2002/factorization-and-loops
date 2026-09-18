@@ -4,7 +4,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/FeynFacet/Solution.m"];
 If[Length[$ScriptCommandLine]<2,Print["Usage: apply_amplitude_relations.wls input.wxf"];Exit[1]];
 file=ExpandFileName[Last[$ScriptCommandLine]];base=DirectoryName[file];
-read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_]:=If[FileExtension[path]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 resolve[path_]:=ExpandFileName[If[StringStartsQ[path,"/"],path,FileNameJoin[{base,path}]]];
 relative[from_,to_]:=Module[{left=FileNameSplit[from],right=FileNameSplit[to],k=0},
  While[k<Min[Length[left],Length[right]]&&left[[k+1]]===right[[k+1]],k++];

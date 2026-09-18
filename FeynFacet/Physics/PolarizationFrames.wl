@@ -1,0 +1,43 @@
+(* Covariant physical spin frames from scalar products, with no process formula. *)
+BeginPackage["FeynFacet`"];
+ScatteringPlaneSpinFrame::usage="ScatteringPlaneSpinFrame[request] constructs unit transverse spin axes for massless BeamMomentum and ObservedMomentum in the rest frame of a declared unit TimelikeVector. Three independent ExternalMomenta and their KinematicRules determine the in-plane axes; SpinVectors names the incoming in-plane, outgoing in-plane and common normal vectors. All scalar products and linear momentum rules are derived from the Gram matrix.";
+Begin["`Private`"];
+ScatteringPlaneSpinFrame[request_Association]:=Catch[Module[
+ {momenta,kin,assumptions,time,beam,observed,names,gram,coordinates,dot,u,b,n,ep,ek,c,sine,x,xp,
+  vectors,labels,rules,normal,normalRules,physicalRules},
+ {momenta,kin,assumptions,time,beam,observed,names}=Lookup[request,
+  {"ExternalMomenta","KinematicRules","Assumptions","TimelikeVector","BeamMomentum","ObservedMomentum","SpinVectors"},None];
+ If[!MatchQ[momenta,{_Symbol,_Symbol,_Symbol}]||!DuplicateFreeQ[momenta]||
+   !MatchQ[names,{_Symbol,_Symbol,_Symbol}]||!DuplicateFreeQ[Join[momenta,names]]||
+   !MemberQ[momenta,beam]||!MemberQ[momenta,observed]||beam===observed||!ListQ[kin],
+  Throw[Failure["PhysicalScatteringPlaneRequestRequired",<||>],"SpinFrame"]];
+ gram=FullSimplify[FeynCalc`FCI[Outer[FeynCalc`SPD,momenta,momenta]]/.FeynCalc`FCI[kin],assumptions];
+ If[!FreeQ[gram,_FeynCalc`Pair]||!TrueQ[FullSimplify[Det[gram]!=0,assumptions]],
+  Throw[Failure["NondegenerateScatteringPlaneGramRequired",<||>],"SpinFrame"]];
+ coordinates[v_]:=Coefficient[Expand[v],#]&/@momenta;
+ u=coordinates[time];
+ If[!TrueQ[Expand[time-u.momenta]===0],Throw[Failure["TimelikeVectorInExternalSpanRequired",<||>],"SpinFrame"]];
+ dot[a_,b_]:=FullSimplify[a.gram.b,assumptions];
+ ep=dot[coordinates[beam],u];ek=dot[coordinates[observed],u];
+ If[!TrueQ[FullSimplify[dot[u,u]==1&&dot[coordinates[beam],coordinates[beam]]==0&&
+   dot[coordinates[observed],coordinates[observed]]==0&&ep>0&&ek>0,assumptions]],
+  Throw[Failure["UnitTimeAndFutureNullScatteringMomentaRequired",<||>],"SpinFrame"]];
+ b=Factor/@(coordinates[beam]/ep-u);n=Factor/@(coordinates[observed]/ek-u);
+ c=-dot[b,n];sine=FullSimplify[Sqrt[1-c^2],assumptions];
+ If[!TrueQ[FullSimplify[sine>0,assumptions]],Throw[Failure["NoncollinearPhysicalSpinDirectionsRequired",<||>],"SpinFrame"]];
+ x=FullSimplify[(n-c b)/sine,assumptions];xp=FullSimplify[c x-sine b,assumptions];
+ vectors=Join[IdentityMatrix[3],{x,xp}];labels=Join[momenta,Take[names,2]];normal=Last[names];
+ rules=Flatten[Table[FeynCalc`SPD[labels[[i]],labels[[j]]]->dot[vectors[[i]],vectors[[j]]],
+  {i,Length[labels]},{j,i,Length[labels]}]];
+ normalRules=Join[(FeynCalc`SPD[normal,#]->0)&/@labels,{FeynCalc`SPD[normal]->-1}];
+ physicalRules=Join[kin,(FeynCalc`SPD[normal,#]->0)&/@momenta,{FeynCalc`SPD[normal]->-1}];
+ FeynFacet`DeclareScalar[Join[u,b,x,xp]];
+ <|"Basis"-><|"Time"->time,"Beam"->b.momenta,"IncomingInPlane"->x.momenta,
+   "ObservedInPlane"->xp.momenta,"Normal"->normal|>,
+  "BeamEnergy"->ep,"ObservedEnergy"->ek,"Cosine"->c,"Sine"->sine,
+  "MomentumRules"->{names[[1]]->x.momenta,names[[2]]->xp.momenta},
+  "KinematicRules"->Join[rules,normalRules],"PhysicalMomenta"->Append[momenta,normal],
+  "PhysicalKinematicRules"->physicalRules,"ExternalGramMatrix"->gram,
+  "Assumptions"->assumptions|>
+],"SpinFrame"];
+End[];EndPackage[];

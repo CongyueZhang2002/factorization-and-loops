@@ -57,7 +57,7 @@
   },
   {
     "From": "Stale/DifferentialEquationData/2026-09-03_pre_v2/UU_08_10_canonical/BenchmarkStripBackends/fixtures/fixture_CF254_9_6.wl",
-    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldBenchmark/fixtures/fixture_CF254_9_6.wl",
+    "To": "Tests/Fixtures/DifferentialEquations/FiniteFieldRaw/CF254_9_6_input.wl",
     "Bytes": 1570005,
     "Kind": "RegressionFixture",
     "CurrentBytes": 1570005

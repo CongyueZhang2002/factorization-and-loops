@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Independent entry points and an actual data-only catalog extension. *)
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{root,"Tests","TestKit.wl"}]];

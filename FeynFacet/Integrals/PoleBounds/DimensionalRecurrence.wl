@@ -5,10 +5,8 @@ Clear[cutDrrDefinitions,cutDrrGeometry,cutDrrInsertions,cutDrrWriteProject,
  cutDrrImport,cutDrrAssemble,cutDrrConstruct,cutDrrCriticalDimensions,cutDrrBounds,
  cutDrrIntegralText,cutDrrSave,cutDrrKiraPropagator];
 
-cutDrrSave[value_,path_] := Module[{temporary=path<>".tmp-"<>ToString[$ProcessID]},
- Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Put[value,temporary]];
- RenameFile[temporary,path,OverwriteTarget->True];path
-];
+cutDrrSave[value_,path_]:=FeynFacet`FamilyArtifactWrite[value,path];
+
 cutDrrDefinitions[reps_] := Table[Association[Table[key->miRepFC[rep[key]],
  {key,Keys[KeyTake[rep,{"MasterIntegral","LoopMomenta","ExternalMomenta","InversePropagators",
   "CutIndices","OrientedCutMomenta","Prescription","KinematicRules","TimeDirection"}]]}]],{rep,reps}];
@@ -181,10 +179,10 @@ cutDrrConstruct[data_,directoryOption_,kiraOption_,fermatOption_,threads_,second
  cache=FileNameJoin[{directory,"DimensionalRecurrence.wl"}];
  inputFile=FileNameJoin[{directory,"IntegralDefinitions.wl"}];
  If[FileExistsQ[inputFile],
-  existing=Get[inputFile];
+  existing=FeynFacet`FamilyArtifactRead[inputFile];
   If[cutDrrDefinitions[existing]=!=definitions,epsOrderFail["DimensionalRecurrenceDirectoryInputMismatch",
     <|"WorkingDirectory"->directory|>]];
-  If[FileExistsQ[cache],loaded=Get[cache];
+  If[FileExistsQ[cache],loaded=FeynFacet`FamilyArtifactRead[cache];
    If[AssociationQ[loaded] && Lookup[loaded,"Status",None]==="DimensionalRecurrenceConstructed",
      Return[Join[loaded,<|"IntegralRepresentations"->reps,
        "OriginalMasterIntegralBasis"->Lookup[reps,"MasterIntegral"]|>]]]],

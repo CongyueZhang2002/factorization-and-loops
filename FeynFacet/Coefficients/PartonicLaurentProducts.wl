@@ -4,6 +4,7 @@
 BeginPackage["FeynFacet`"];
 MultiplyPartonicLaurentFactor::usage="MultiplyPartonicLaurentFactor[result,factor,range] multiplies a common result by a meromorphic epsilon factor independent of its distribution variables. It determines sufficient source orders and rejects unavailable coefficients.";
 ApplyPartonicCollinearKernel::usage="ApplyPartonicCollinearKernel[result,kernel,axis,range] applies an explicit meromorphic collinear kernel to a common PartonicResult, retaining the epsilon orders needed for every convolution. The kernel may contain poles and exact factorization-scale exponentials.";
+ApplyCountertermDistribution::usage = "ApplyCountertermDistribution[source,distribution,request] inserts a counterterm PDF or FF operator into a common partonic source. Request declares Mellin or InvariantSingleInclusive convolution, the perturbative parameter and requested EpsilonRange. Source orders follow the kernel Laurent bound; normalization and the dimensional FF measure are preserved.";
 Begin["`Private`"];
 partonicLaurentProductMetadata[source_]:=KeyDrop[source,{"Coefficients","EpsilonRange","Coverage","LaurentLowerBound"}];
 partonicLaurentScalarCoefficients[expr_,e_,low_,high_]:=Module[{series},
@@ -82,4 +83,54 @@ ApplyPartonicCollinearKernel[source_Association,kernel_Association,axis_Symbol,
   {n,First[range],Last[range]}];
  CreatePartonicResult[rows,partonicLaurentProductMetadata[source]]
 ],"CollinearCounterterms"];
+ApplyCountertermDistribution[source_Association,distribution_Association,request_Association] :=
+ Catch[Module[{e,n,a,range,geometry,stage,lower,needed,result,mapped,values,series,
+   rows,meta,leg},
+ If[Lookup[distribution,"Format",None]=!="FeynFacet-CollinearCountertermDistribution",
+  collinearKernelFail["CountertermDistributionRequired"]];
+ {e,n,stage,lower}=Lookup[distribution,
+  {"DimensionalRegulator","PerturbativeOrder","SourceRenormalizationStage","LaurentLowerBound"}];
+ {a,range,geometry}=Lookup[request,{"PerturbativeParameter","EpsilonRange","Convolution"},None];
+ If[!MatchQ[range,{_Integer,_Integer}]||First[range]>Last[range]||
+  MemberQ[{None,0},a]||!FreeQ[a,e]||Lookup[source,"DimensionalRegulator",None]=!=e||
+  Lookup[source,"RenormalizationStage",None]=!=stage||
+  (stage==="Renormalized"&&(range=!={0,0}||source["LaurentLowerBound"]<0||
+    TrueQ[Lookup[source,"FiniteSchemeConversionApplied",False]]))||
+  (distribution["Operation"]==="Factorization"&&
+    (source["Order"]=!="LO"||source["LaurentLowerBound"]<0))||
+  !MemberQ[{"Mellin","InvariantSingleInclusive","MomentumRescaling"},geometry],
+  collinearKernelFail["CountertermSourceConventionMismatch"]];
+ If[Last[range]>Lookup[distribution,"MaximumDefinedEpsilonOrder",Infinity],
+  collinearKernelFail["FiniteSchemeDefinesOnlyEpsilonZero"]];
+ If[FailureQ[RequirePartonicEpsilonRange[source,source["EpsilonRange"]]],
+  collinearKernelFail["CompleteCountertermSourceRequired"]];
+ needed=If[lower===Infinity,source["LaurentLowerBound"],Last[range]-lower];
+ If[needed>=source["LaurentLowerBound"]&&
+  FailureQ[RequirePartonicEpsilonRange[source,{source["LaurentLowerBound"],needed}]],
+  collinearKernelFail["CountertermSourceEpsilonOrdersInsufficient",
+   <|"RequiredThroughOrder"->needed,"Available"->source["EpsilonRange"]|>]];
+ If[lower===Infinity,result=FeynFacet`MultiplyPartonicLaurentFactor[source,0,range],
+  Switch[geometry,
+   "Mellin",
+    result=FeynFacet`ApplyPartonicCollinearKernel[source,distribution,distribution["Variable"],range],
+   "InvariantSingleInclusive",
+    leg=Lookup[request,"Leg",None];
+    If[(distribution["Role"]==="FF"&&leg=!="Observed")||
+      (distribution["Role"]==="PDF"&&!MemberQ[{"IncomingA","IncomingB"},leg]),
+     collinearKernelFail["InvariantCountertermPhysicalLegRequired"]];
+    result=FeynFacet`ConvolvePartonicInvariantKernel[source,distribution,request],
+   "MomentumRescaling",
+    result=FeynFacet`ConvolvePartonicMappedKernel[source,distribution,request]
+  ];
+  If[!AssociationQ[result],collinearKernelFail["CountertermConvolutionFailed",<|"Cause"->result|>]];
+  result=FeynFacet`MultiplyPartonicLaurentFactor[result,a^n,range]
+ ];
+ If[!AssociationQ[result],collinearKernelFail["CountertermCouplingInsertionFailed",<|"Cause"->result|>]];
+ meta=Join[partonicLaurentProductMetadata[result],
+  KeyTake[request,{"Project","Channel","PhysicalChannel","Polarization","Order"}],
+  <|"Contribution"->distribution["Role"]<>"Counterterm",
+    "CountertermDistribution"->distribution,"SourceEpsilonThroughOrder"->needed|>];
+ FeynFacet`CreatePartonicResult[Map[partonicMap[partonicCollect,#]&,result["Coefficients"]],meta]
+],"CollinearCounterterms"];
+
 End[];EndPackage[];

@@ -1,7 +1,7 @@
 Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-rfSetup=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/NLO/u-g_g-u","Real.State01"];
+rfSetup=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU/Raw/NLO/u-g_g-u","Real.State01"];
 rfContext=FeynFacet`BuildSimplificationContext[rfSetup];
 rfModules=FeynFacet`Private`finiteFieldNormalizeTarget[#,1,1,rfContext,5]&/@{rfa+xa,rfb+xa,-xa};
 FTTest`FTAssert["unreduced coefficients retain declared rational fraction variables",
@@ -48,7 +48,7 @@ FTTest`FTAssert["a differentiated external cut cannot be reduced to its value on
 FTTest`FTAssert["another cut does not authorize the Born equality",
  FeynFacet`Private`finiteFieldReduceCoordinateEqualities[rfX+rfY,
  Join[rfSupport,<|"ExternalDistribution"->FeynFacet`Cut[rfX,1]|>]]===$Failed];
-rfVirtual=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/NLO/u-g_g-u","Virtual"];
+rfVirtual=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU/Raw/NLO/u-g_g-u","Virtual"];
 rfVirtualContext=Join[FeynFacet`BuildSimplificationContext[rfVirtual],
  <|"ExternalDistribution"->FeynFacet`Cut[FeynCalc`SPD[ka+kb-kc],1]|>];
 FTTest`FTAssert["the generated one-particle recoil cut authorizes its Born coordinate equality",

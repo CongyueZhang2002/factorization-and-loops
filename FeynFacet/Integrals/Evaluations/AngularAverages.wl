@@ -3,6 +3,7 @@
    the caller must leave only rotation-invariant factors outside this average. *)
 BeginPackage["FeynFacet`"];
 AverageEvanescentScalarProducts::usage="AverageEvanescentScalarProducts[polynomial,kappaMatrix,transverseGram,epsilon,physicalRank] averages the complete polynomial in signed evanescent scalar products of any number of vectors. The full transverse Gram matrix is held fixed, with ambient dimension 4-physicalRank-2 epsilon and projected dimension -2 epsilon. This is an angular integral identity, not a pointwise replacement. All remaining integration weights and constraints must be invariant under simultaneous transverse rotations. The two-argument form AverageEvanescentScalarProducts[expression,request] constructs the transverse Gram matrix from declared physical and integrated momenta, validates a timelike physical span, and preserves ordinary full-D propagators.";
+AverageSingleNormalNumerator::usage="AverageSingleNormalNumerator[expression,request] integrates polynomial dependence on one physical spacelike unit normal to the external momentum span by rotational tensor identities. There must be one IntegratedMomentum, a NormalMomentum orthogonal to PhysicalMomenta, full-D scalar products, and propagators independent of the normal. Even moments use Pochhammer[1/2,n]/Pochhammer[(D-rank)/2,n]; odd moments vanish.";
 Begin["`Private`"];
 angularAverageFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"AngularAverage"];
 orthogonalPairings[{}]:={{}};
@@ -29,7 +30,7 @@ orthogonalProjectionMomentData[degree_Integer?Positive]:=
 ];
 (* Only the evanescent variables are expanded. Maximal coefficient-field
    subexpressions stay opaque until coefficient extraction has finished. *)
-angularCompactPolynomial[value_]:=If[ByteCount[value]<1024^2,Factor[value],value];
+angularCompactPolynomial[value_]:=FactorTerms[value];
 AverageEvanescentScalarProducts[expression_,kappa_List,gram_List,e_Symbol,physicalRank_Integer:2]:=
  Catch[Module[{size,positions,variables,rational,numerator,denominator,terms,ambient,projected,moment,average},
  size=Length[kappa];
@@ -66,7 +67,7 @@ angularFullDimensionPropagatorQ[denominator_,momenta_List]:=Module[{objects},
 AverageEvanescentScalarProducts[expression_,request_Association]:=Catch[Module[
  {physical,integrated,all,e,assumptions,kinematics,momentumRules,witness,physicalGram,determinant,
   witnessCoefficients,size,kappa,indices,hat,rules,expanded,denominators,denominatorSymbols,
-  scalar,projections,transverseGram,regulator,averaged,degree,variables,polynomialCoefficients},
+  scalar,projections,transverseGram,regulator,averaged,degree,variables,polynomialCoefficients,scalarProducts,images,unitRules},
  If[!ContainsAll[Keys[request],{"PhysicalMomenta","IntegratedMomenta","KinematicRules",
   "TimelikeMomentum","DimensionalRegulator","Assumptions"}],angularAverageFail["JointAngularGeometryRequired"]];
  {physical,integrated,e,assumptions,witness}=Lookup[request,
@@ -77,6 +78,10 @@ AverageEvanescentScalarProducts[expression_,request_Association]:=Catch[Module[
   MemberQ[all,e]||!angularLinearMomentumQ[witness,physical],
   angularAverageFail["IndependentPhysicalAndIntegratedMomentaRequired"]];
  momentumRules=Lookup[request,"MomentumRules",{}];kinematics=FeynCalc`FCI[request["KinematicRules"]];
+ unitRules=Lookup[request,"UnitCutScalarProductRules",{}];
+ If[!AllTrue[momentumRules,MatchQ[#,_Rule]&&angularLinearMomentumQ[Last[#],all]&],
+  angularAverageFail["LinearMomentumRulesInDeclaredSpanRequired"]];
+ FeynFacet`DeclareScalar[Flatten[Table[Coefficient[Expand[Last[rule]],v],{rule,momentumRules},{v,all}]]];
  If[!MatchQ[kinematics,{(_Rule)...}]||!AllTrue[kinematics,
   MatchQ[First[#],_FeynCalc`Pair]&&
   AllTrue[Cases[First[#],FeynCalc`Momentum[m_,___]:>m,Infinity],MemberQ[physical,#]&]&],
@@ -98,21 +103,32 @@ AverageEvanescentScalarProducts[expression_,request_Association]:=Catch[Module[
    FeynCalc`Pair[FeynCalc`Momentum[a,D],FeynCalc`Momentum[b,D]]-hat[a,b],
   FeynCalc`Pair[FeynCalc`Momentum[a,D-4],FeynCalc`Momentum[b,D-4]]->hat[a,b]},
  {a,all},{b,all}],2];
- expanded=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[expression]/.momentumRules];
+ expanded=FeynCalc`FCI[expression];
  denominators=DeleteDuplicates[Cases[expanded,_FeynCalc`FeynAmpDenominator,{0,Infinity}]];
+ denominatorSymbols=Unique["fullDimensionalPropagator$"]&/@denominators;
+ scalar=expanded/.Thread[denominators->denominatorSymbols];
+ denominators=denominators/.momentumRules;
  If[!AllTrue[denominators,angularFullDimensionPropagatorQ[#,all]&],
   angularAverageFail["JointRotationInvariantPropagatorsRequired"]];
- denominatorSymbols=Unique["fullDimensionalPropagator$"]&/@denominators;
- scalar=(expanded/.Thread[denominators->denominatorSymbols])/.rules/.kinematics;
+ (* Expand each distinct scalar product once. Expanding the complete amplitude
+    first repeats the same linear spin-frame substitution in every trace term. *)
+ scalarProducts=DeleteDuplicates[Cases[scalar,_FeynCalc`Pair,{0,Infinity}]];
+ images=Factor[(FeynCalc`ExpandScalarProduct[#/.momentumRules]/.rules/.kinematics)/.unitRules]&/@scalarProducts;
+ scalar=scalar/.Dispatch[Thread[scalarProducts->images]];
  If[!FreeQ[scalar,_FeynCalc`Eps|_FeynCalc`LorentzIndex|_FeynCalc`DiracTrace|_FeynCalc`DiracGamma|
    _FeynCalc`DOT|_FeynCalc`Spinor|_FeynCalc`Polarization|_FeynCalc`SUNIndex|_FeynCalc`SUNFIndex]||
   !AllTrue[Cases[scalar,_FeynCalc`Momentum,Infinity],
    MatchQ[#,FeynCalc`Momentum[_,D]]&&MemberQ[all,First[#]]&],
-  angularAverageFail["FullyContractedDeclaredJointAngularScalarRequired"]];
+  angularAverageFail["FullyContractedDeclaredJointAngularScalarRequired",<|
+   "UndeclaredMomenta"->DeleteDuplicates[Select[Cases[scalar,_FeynCalc`Momentum,Infinity],
+    !(MatchQ[#,FeynCalc`Momentum[_,D]]&&MemberQ[all,First[#]])&]],
+   "ResidualTensorHeads"->DeleteDuplicates[Head/@Cases[scalar,
+    _FeynCalc`Eps|_FeynCalc`LorentzIndex|_FeynCalc`DiracTrace|_FeynCalc`DiracGamma|
+    _FeynCalc`DOT|_FeynCalc`Spinor|_FeynCalc`Polarization|_FeynCalc`SUNIndex|_FeynCalc`SUNFIndex,Infinity]]|>]];
  projections=FeynCalc`FCI[Outer[FeynCalc`SPD,integrated,physical]]/.kinematics;
  transverseGram=FeynCalc`FCI[Outer[FeynCalc`SPD,integrated,integrated]]-
   projections.Inverse[physicalGram].Transpose[projections];
- transverseGram=Map[Factor,transverseGram,{2}];
+ transverseGram=Map[Factor,transverseGram/.unitRules,{2}];
  variables=DeleteDuplicates[Flatten[kappa]];
  If[FreeQ[scalar,Alternatives@@variables],
   Return[<|"Value"->(scalar/.Thread[denominatorSymbols->denominators]),
@@ -134,4 +150,39 @@ AverageEvanescentScalarProducts[expression_,request_Association]:=Catch[Module[
   "DimensionalRegulator"->e,"DimensionRule"->(D->4-2e),"PreservedPropagators"->denominators,
   "Scope"->"Combined integral under simultaneous transverse rotations at fixed full-D scalar products; causal prescriptions are retained."|>
 ],"AngularAverage"];
+AverageSingleNormalNumerator[expression_,request_Association]:=Catch[Module[
+ {base,loop,normal,kin,conditions,gram,projections,transverse,y=Unique["normalComponent$"],
+  value,terms,denominators,moment,rank,sp},
+ {base,loop,normal,kin,conditions}=Lookup[request,
+  {"PhysicalMomenta","IntegratedMomentum","NormalMomentum","KinematicRules","Assumptions"},None];
+ If[!MatchQ[base,{__Symbol}]||!MemberQ[Range[1,3],Length[base]]||
+   !MatchQ[{loop,normal},{_Symbol,_Symbol}]||!DuplicateFreeQ[Join[base,{loop,normal}]],
+  angularAverageFail["IndependentPhysicalSpanAndOneNormalRequired"]];
+ rank=Length[base];kin=FeynCalc`FCI[kin];
+ sp[a_,b_]:=FeynCalc`FCI[FeynCalc`SPD[a,b]];
+ gram=FullSimplify[Outer[sp,base,base]/.kin,conditions];
+ If[!FreeQ[gram,_FeynCalc`Pair]||!TrueQ[FullSimplify[Det[gram]!=0&&
+   (sp[normal,normal]/.kin)==-1&&And@@((#==0&)/@(sp[normal,#]&/@base/.kin)),conditions]],
+  angularAverageFail["NormalizedOrthogonalPhysicalNormalRequired"]];
+ value=FeynCalc`FCI[expression];
+ If[!AllTrue[Cases[value,_FeynCalc`Momentum,Infinity],MatchQ[#,FeynCalc`Momentum[_,D]]&],
+  angularAverageFail["FullDimensionScalarProductsBeforeNormalAverageRequired"]];
+ denominators=DeleteDuplicates[Cases[value,_FeynCalc`FeynAmpDenominator,{0,Infinity}]];
+ If[!AllTrue[denominators,angularFullDimensionPropagatorQ[#,Append[base,loop]]&],
+  angularAverageFail["PropagatorsIndependentOfPhysicalNormalRequired"]];
+ projections=sp[loop,#]&/@base;
+ transverse=Factor[(sp[loop,loop]-projections.Inverse[gram].projections)/.Lookup[request,"UnitCutScalarProductRules",{}]];
+ value=value/.sp[loop,normal]->y;
+ If[!FreeQ[value,normal],angularAverageFail["OnlyIntegratedMomentumMayContractNormal"]];
+ terms=FeynFacet`PolynomialCoefficientRules[value,{y}];
+ If[FailureQ[terms],angularAverageFail["PolynomialNormalNumeratorRequired"]];
+ moment[n_Integer?OddQ]=0;
+ moment[n_Integer?EvenQ]:=(-transverse)^(n/2)Pochhammer[1/2,n/2]/Pochhammer[(D-rank)/2,n/2];
+ <|"Value"->Total[(Last[#]moment[First[First[#]]])&/@terms],"ExternalRank"->rank,
+  "TransverseDimension"->D-rank,"TransverseSquare"->transverse,
+  "NormalMomentum"->normal,"IntegratedMomentum"->loop,
+  "MomentFormula"->"< (ell.n)^(2j) > = (-ell_perp^2)^j (1/2)_j / ((D-rank)/2)_j; odd moments vanish",
+  "Scope"->"Rotational tensor identity at fixed full-D scalar products and fixed external span; propagators retain their prescriptions."|>
+],"AngularAverage"];
+
 End[];EndPackage[];

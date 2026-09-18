@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
@@ -105,4 +106,4 @@ FTTest`FTAssert["an unfinished coefficient checkpoint cannot enter reduction",
 FTTest`FTAssert["changed generated-process charges require regeneration",
  FeynFacet`RequireMatchingProcessDefinition[<|"ProcessDefinition"-><|"Charges"->{qu,qd}|>|>,<|"Charges"->{qu,qd}|>]===True&&
  FailureQ[FeynFacet`RequireMatchingProcessDefinition[<|"ProcessDefinition"-><|"Charges"->{2/3,-1/3}|>|>,<|"Charges"->{qu,qd}|>]]];
-FTTest`FTReport[];
+Print["AFFINE REGRESSION COMPLETE"];FTTest`FTReport[];

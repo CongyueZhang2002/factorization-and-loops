@@ -43,8 +43,7 @@ If[certified["Status"] === "FamilyDLogEpsilonFormValidated",
   If[! DirectoryQ[outputDirectory],
     CreateDirectory[outputDirectory, CreateIntermediateDirectories -> True]];
   temporary = outputFile <> ".partial-" <> ToString[$ProcessID];
-  Put[certified, temporary];
-  RenameFile[temporary, outputFile, OverwriteTarget -> True];
+  FeynFacetRecords`WriteRecord[certified,outputFile];
   Print["VALIDATE family=", certified["Family"],
     " validated=True method=", Lookup[
       Lookup[certified, "Validation", <||>], "Method", "Unknown"],

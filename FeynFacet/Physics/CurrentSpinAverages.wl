@@ -46,7 +46,7 @@ AveragedDISHelicityDensity[leg_Association,p_Symbol,q_Symbol,{mu_Symbol,nu_Symbo
   average=AverageLongitudinalEpsilonProduct[indices,{mu,nu},p,q,request];
   If[FailureQ[average],Throw[average,"CurrentSpinAverage"]];
   spin=-average["Value"]/(2pq^2),
-  If[!MatchQ[species,{"q"|"qbar",_}],currentSpinAverageFail["QuarkAntiquarkOrGluonRequired"]];
+  If[!MatchQ[species,{"q"|"qb",_}],currentSpinAverageFail["QuarkAntiquarkOrGluonRequired"]];
   a=Unique["helicityIndex$"];b=Unique["helicityIndex$"];
   average=AverageLongitudinalEpsilonProduct[{a,b},{mu,nu},p,q,request];
   If[FailureQ[average],Throw[average,"CurrentSpinAverage"]];

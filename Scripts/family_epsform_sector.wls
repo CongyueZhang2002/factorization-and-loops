@@ -180,7 +180,7 @@ If[kernelCount > 1 && Length[Kernels[]] < kernelCount,
     LaunchKernels[kernelCount - Length[Kernels[]]]]];
 If[Length[Kernels[]] < kernelCount,
   log["available worker kernels ", Length[Kernels[]]]];
-putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"}, Put[expr, tmp]; RenameFile[tmp, file, OverwriteTarget -> True]];
+putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"}, FeynFacetRecords`WriteRecord[expr,file]];
 vv = Symbol["Global`v"]; ww = Symbol["Global`w"]; ee = Symbol["Global`eps"];
 xx = Symbol["Global`x"]; yy = Symbol["Global`y"];
 (* Every live input is a V2 artifact.  Parse it through the package's
@@ -333,7 +333,7 @@ stateFile = FileNameJoin[{outdir,
    Global` chart/regulator symbols.  Get already recreates unqualified symbols
    in Global`; walking an 80--210 MB cached connection a second time through
    normalizeSymbols made resume startup take minutes and changed nothing. *)
-cachedState = If[FileExistsQ[stateFile], Get[stateFile],
+cachedState = If[FileExistsQ[stateFile], FeynFacetRecords`ReadRecord[stateFile],
   Missing["NotFound"]];
 If[AssociationQ[cachedState] &&
     (Lookup[cachedState, "DataType", None] =!=

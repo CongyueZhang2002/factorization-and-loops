@@ -7,6 +7,46 @@ EvaluateFORMDiracExpression::usage="EvaluateFORMDiracExpression[expression,reque
 
 Begin["`Private`"];
 formAlgebraFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"FORMAlgebra"];
+(* Native threads use the process CPU allocation. Unmanaged Wolfram workers
+   stay serial; managed amplitude workers share one exclusive native allocation
+   so a long final trace can use all available cores without multiplying pools. *)
+formAlgebraExecution[request_Association] := Module[
+ {binary,parallel,threads,automatic,budgetText,budget,worker,shared},
+ binary=Lookup[request,"Executable",FileNameJoin[{$feynFacetAddonRoot,"Addon","Other_Addon","FORM","bin","form"}]];
+ If[!StringQ[binary]||!FileExistsQ[binary],
+  formAlgebraFail["FORMExecutableMissing",<|"Installer"->"Scripts/Setup/install_form.py"|>]];
+ worker=TrueQ[$KernelID>0];
+ shared=If[worker&&AssociationQ[$formParallelExecution],$formParallelExecution,None];
+ budgetText=Environment["FACET_CPU_COUNT"];
+ budget=If[StringQ[budgetText]&&StringMatchQ[budgetText,DigitCharacter..],
+   Min[8,Max[1,FromDigits[budgetText]]],1];
+ If[worker,If[AssociationQ[shared],
+   If[!IntegerQ[Lookup[shared,"Threads",None]]||!TrueQ[1<=shared["Threads"]<=budget]||
+      !StringQ[Lookup[shared,"LockFile",None]],formAlgebraFail["ManagedFORMAllocationRequired"]];
+   budget=shared["Threads"],budget=1]];
+ threads=Lookup[request,"Threads",Automatic];automatic=threads===Automatic;
+ If[automatic,threads=If[KeyExistsQ[request,"Executable"],1,budget]];
+ If[!IntegerQ[threads]||!TrueQ[1<=threads<=budget],
+  formAlgebraFail["FORMThreadsExceedAllocatedBudget",<|"Requested"->threads,"Available"->budget|>]];
+ If[threads>1,
+  parallel=FileNameJoin[{DirectoryName[binary],"tform"}];
+  If[!FileExistsQ[parallel],
+   If[automatic,threads=1,formAlgebraFail["ParallelFORMExecutableMissing"]],
+   binary=parallel]];
+ <|"Executable"->binary,"Threads"->threads,
+  "LockFile"->If[AssociationQ[shared],shared["LockFile"],None],
+  "Arguments"->Join[{binary},If[FileNameTake[binary]==="tform",{"-w"<>ToString[threads-1]},{}],{"-q","job.frm"}]|>
+];
+formAlgebraRun[execution_Association,directory_String] := Module[{locker=None,lock=execution["LockFile"]},
+ Internal`WithLocalSettings[
+  If[StringQ[lock],
+   locker=StartProcess[{"python3",FileNameJoin[{$feynFacetWorkspaceRoot,"Scripts","raw_result_lock.py"}],lock}];
+   If[!MatchQ[locker,_ProcessObject],formAlgebraFail["FORMAllocationLockProcessRequired"]]],
+  If[locker=!=None&&ReadLine[locker]=!="LOCKED",formAlgebraFail["FORMAllocationLockFailed"]];
+  RunProcess[execution["Arguments"],All,ProcessDirectory->directory,
+   ProcessEnvironment-><|"OMP_NUM_THREADS"->"1"|>],
+  If[MatchQ[locker,_ProcessObject],Quiet[KillProcess[locker]]]]
+];
 (* Index-set restrictions matter: an index wildcard can also match a vector.
    A repeated vector argument is not an Einstein index contraction. *)
 formPhysicalTensorStatements[indexNames_,vectorNames_,barNames_,genericEpsilon_:True]:=Module[
@@ -64,11 +104,11 @@ formGammaPairStatements[]:=Module[{args,word,rules,pattern,rhs,terms},
 EvaluateFORMDiracExpression[expression_,request_Association]:=Catch[Module[
  {momenta,physical,internal,indices,traces,scalarObjects={},scalarIndex=<||>,vectorNames,indexNames,
   traceNames,scalarName,number,vector,index,gamma,serialize,component,scalarProduct,sum,definitions,resultText,
-  scalarNames,program,binary,temporary,process,output,parsed,parseContext,vectorSymbols,indexSymbols,
+  scalarNames,program,binary,execution,temporary,process,output,parsed,parseContext,vectorSymbols,indexSymbols,
   scalarSymbols,metricSymbol,dimensionSymbol,allowed,symbols,converted,seconds,atoms,conversionRules,
   massless,kinematics,kinematicStatements,bmhv,barNames,barVectorSymbols,freshIndex,
   epsilonTensor,epsilonArgument,physicalStatements,projectorSymbol,epsilonSymbol,
-  tensorStatements,allVectorNames,slotNames,traceMethod,chiralTraces,chiralValues,traceSeconds=0,traceSerialize,words,wordProduct,gradeTrace,gammaArgumentTerms,linearStatements,linearVectors,registerVector,postTraceStatements,sharedPhysicalStatements,gradeStatements,tracePolynomial,traceVariables,inlineTraces,traceStatements},
+  tensorStatements,allVectorNames,slotNames,traceMethod,chiralTraces,chiralValues,traceSeconds=0,traceSerialize,words,wordProduct,gradeTrace,gammaArgumentTerms,linearStatements,linearVectors,registerVector,postTraceStatements,sharedPhysicalStatements,gradeStatements,tracePolynomial,traceVariables,inlineTraces,traceStatements,conjugateGamma,reduceGammaPairs,physicalGammaQ,gammaPairCost},
  momenta=Lookup[request,"Momenta",{}];physical=Lookup[request,"PhysicalMomenta",{}];
  If[!MatchQ[momenta,{_Symbol..}]||!DuplicateFreeQ[momenta]||
   !MatchQ[physical,{_Symbol...}]||!ContainsAll[momenta,physical],
@@ -229,8 +269,37 @@ EvaluateFORMDiracExpression[expression_,request_Association]:=Catch[Module[
   argumentTuples=Tuples[gammaArgumentTerms/@ordinary];
   serialize[coefficient]<>"*"<>sum[(
    StringRiffle[#[[All,1]],"*"]<>"*fT5("<>StringRiffle[#[[All,2]],","]<>")")&/@argumentTuples]];
+ (* In BMHV, gamma5 conjugation reverses the physical Clifford generators
+    and preserves the evanescent ones: gamma5 gamma_D gamma5 =
+    gamma_D - 2 gamma_4. Pair insertions can therefore be removed exactly
+    before traces, without anticommuting gamma5 with a full-D generator. *)
+ (* Avoid two cancelling copies when a D-labelled slash is physical. *)
+ physicalGammaQ[g:FeynCalc`DiracGamma[arg_,dim_:4]]:=physicalGammaQ[g]=
+  dim===4||(dim===D&&MatchQ[arg,_FeynCalc`Momentum]&&
+   (MemberQ[physical,First[arg]]||TrueQ[Expand[First[arg]-
+     (Coefficient[Expand[First[arg]],#]&/@physical).physical]===0]));
+ gammaPairCost[segment_List]:={Count[segment,
+  g_FeynCalc`DiracGamma/;Length[g]===2&&Last[g]===D&&!physicalGammaQ[g]],Length[segment]};
+ conjugateGamma[g:FeynCalc`DiracGamma[arg_,dim_:4]]:=Which[
+  physicalGammaQ[g],{{-1,{g}}},
+  dim===D-4,{{1,{g}}},
+  dim===D,{{1,{g}},{-2,{FeynCalc`DiracGamma[arg/.{
+    FeynCalc`Momentum[m_,___]:>FeynCalc`Momentum[m],
+    FeynCalc`LorentzIndex[i_,___]:>FeynCalc`LorentzIndex[i]}]}}},
+  True,formAlgebraFail["FORMGammaDimensionUnsupported"]];
+ reduceGammaPairs[entry_]:=Module[{coefficient=entry[[1]],matrices=entry[[2]],
+  positions,pair,rotated,distance,segment,remaining,expanded},
+  positions=Flatten[Position[matrices,FeynCalc`DiracGamma[5],{1}]];
+  If[Length[positions]<2||!FreeQ[matrices,FeynCalc`DiracGamma[6|7]],Return[{entry}]];
+  pair=First@SortBy[Partition[Append[positions,First[positions]+Length[matrices]],2,1],
+   gammaPairCost[Take[Drop[RotateLeft[matrices,First[#]-1],1],Last[#]-First[#]-1]]&];
+  rotated=RotateLeft[matrices,First[pair]-1];distance=Last[pair]-First[pair]-1;
+  segment=Take[Drop[rotated,1],distance];remaining=Drop[rotated,distance+2];
+  expanded=Fold[wordProduct,{{coefficient,{}}},conjugateGamma/@segment];
+  Flatten[reduceGammaPairs[{#[[1]],Join[#[[2]],remaining]}]&/@expanded,1]];
  traceSerialize[value_]:=If[bmhv&&traceMethod==="GradeFour",
-  sum[gradeTrace/@words[value]],serialize[value]];
+  sum[gradeTrace/@If[TrueQ[Lookup[request,"ReduceGamma5Pairs",True]],
+    Flatten[reduceGammaPairs/@words[value],1],words[value]]],serialize[value]];
  definitions=Map["Local "<>traceNames[#]<>"=gi_(1)*("<>traceSerialize[First[#]]<>");"&,traces];
  resultText=serialize[internal];
  massless=Lookup[request,"MasslessMomenta",{}];
@@ -259,7 +328,7 @@ EvaluateFORMDiracExpression[expression_,request_Association]:=Catch[Module[
  tensorStatements=If[bmhv,{"Tensors fP4(symmetric),fE4(antisymmetric);","Tensors fT5,fPick4,fRest;",
   "Indices fA1,fA2,fA3,fA4,fB1i,fB2i,fB3i,fB4i,fC1,fC2,fC3,fC4,fC5,fC6,fC7,fC8,fC9,fC10;",
   "Set fIndices:"<>StringRiffle[If[indexNames===<||>,{"fA1"},Values[indexNames]],","]<>";"},{}];
- postTraceStatements=Join[physicalStatements,{".sort"},linearStatements,physicalStatements,kinematicStatements];
+ postTraceStatements=Join[physicalStatements,kinematicStatements,{".sort"},linearStatements,physicalStatements,kinematicStatements];
  sharedPhysicalStatements=If[bmhv,formPhysicalTensorStatements[indexNames,vectorNames,barNames,False],{}];
  gradeStatements=If[bmhv&&traceMethod==="GradeFour",Join[
   {"id fT5(?v)=-i_*distrib_(-1,4,fPick4,fRest,?v);",
@@ -275,8 +344,7 @@ EvaluateFORMDiracExpression[expression_,request_Association]:=Catch[Module[
    formGammaPairStatements[],{".sort"},gradeStatements,{"tracen,1;"},postTraceStatements],
   Join[If[traces==={},{},Join[gradeStatements,{"tracen,1;"},physicalStatements,{".sort","Hide;"}]],
    {"Local result="<>resultText<>";"},postTraceStatements]];
- binary=Lookup[request,"Executable",FileNameJoin[{$feynFacetAddonRoot,"Addon","Other_Addon","FORM","bin","form"}]];
- If[!StringQ[binary]||!FileExistsQ[binary],formAlgebraFail["FORMExecutableMissing",<|"Installer"->"Scripts/Setup/install_form.py"|>]];
+ execution=formAlgebraExecution[request];binary=execution["Executable"];
  program=StringRiffle[Join[
   {"Off Statistics;","Symbols "<>StringRiffle[Prepend[scalarNames,"fD"],","]<>";",
    "Dimension fD;","UnitTrace 4;","Vectors "<>StringRiffle[allVectorNames,","]<>";"},
@@ -287,8 +355,7 @@ EvaluateFORMDiracExpression[expression_,request_Association]:=Catch[Module[
  temporary=CreateDirectory[FileNameJoin[{$TemporaryDirectory,"FeynFacetFORM-"<>CreateUUID[]}]];
  Internal`WithLocalSettings[Null,
   Export[FileNameJoin[{temporary,"job.frm"}],program,"String"];
-  {seconds,process}=AbsoluteTiming[RunProcess[{binary,"-q","job.frm"},All,ProcessDirectory->temporary,
-    ProcessEnvironment-><|"OMP_NUM_THREADS"->"1"|>]];
+  {seconds,process}=AbsoluteTiming[formAlgebraRun[execution,temporary]];
   If[process["ExitCode"]=!=0||!FileExistsQ[FileNameJoin[{temporary,"result.txt"}]],
    formAlgebraFail["FORMEvaluationFailed",<|"Log"->StringTake[
     process["StandardOutput"]<>process["StandardError"],UpTo[5000]]|>]];
@@ -345,7 +412,9 @@ EvaluateFORMDiracExpression[expression_,request_Association]:=Catch[Module[
  converted=converted/.Normal[scalarSymbols]/.dimensionSymbol->D;
  If[!FreeQ[converted,s_Symbol/;Context[s]===parseContext],formAlgebraFail["UnconvertedFORMTensor"]];
  converted=ReleaseHold[converted];
- <|"Value"->converted,"Backend"->"FORM","TraceCount"->Length[traces],"Gamma5TraceMethod"->traceMethod,"ChiralTraceSeconds"->traceSeconds,"TensorContractionBeforeTrace"->inlineTraces,
+ <|"Value"->converted,"Backend"->"FORM","TraceCount"->Length[traces],"Gamma5TraceMethod"->traceMethod,
+  "Gamma5PairReduction"->(bmhv&&traceMethod==="GradeFour"&&TrueQ[Lookup[request,"ReduceGamma5Pairs",True]]),"ChiralTraceSeconds"->traceSeconds,"TensorContractionBeforeTrace"->inlineTraces,
+   "Program"->FileNameTake[binary],"Threads"->execution["Threads"],
   "PreservedScalarFactorCount"->Length[scalarObjects],"Seconds"->seconds,
   "DiracAlgebra"->If[bmhv,"BMHV, explicit physical projector and gamma5 definition, Tr(1)=4","D-dimensional, nonchiral, Tr(1)=4"],"PrescriptionsChanged"->False|>
 ],"FORMAlgebra"];

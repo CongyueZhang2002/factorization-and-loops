@@ -1,16 +1,45 @@
 #!/usr/bin/env wolframscript
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 transferRoot=FileNameJoin[FileNameSplit[DirectoryName[ExpandFileName[$InputFileName],3]]];
 Block[{Print},Get[transferRoot<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+Get[transferRoot<>"/Tests/Support/BornCollinearReference.wl"];
 transferRows={};transferFailures=0;
 transferCheck[name_,value_]:=(AppendTo[transferRows,<|"Check"->name,"Passed"->TrueQ[value]|>];If[!TrueQ[value],transferFailures++];Print[If[TrueQ[value],"PASS ","FAIL "],name]);
-transferRead[project_,order_,channel_:"qqp-qqp"]:=Module[{z=FeynFacet`ReadPartonicResult[transferRoot<>"/Projects/"<>project<>"/"<>order<>"/"<>channel<>"/Results/Result.wl"]},
+transferRead[project_,order_,channel_:"qqp-qqp"]:=Module[{z=FeynFacet`ReadPartonicResult[transferRoot<>"/Projects/"<>project<>"/Results/"<>order<>"/"<>channel<>"/Results.wl"]},
  If[FailureQ[z],Print[z];Exit[1]];z];
+transferValidationRoot=transferRoot<>"/Projects/ppHX_UU/Results/NLO/qqp-qqp/Validation/NLOSpinTransfer";
+If[!DirectoryQ[transferValidationRoot],CreateDirectory[transferValidationRoot,CreateIntermediateDirectories->True]];
+transferProjects={"ppHX_UU","ppHX_LL","ppHX_TT","ppHX_LL_SpinTransfer","ppHX_TT_SpinTransfer"};
+transferPlans=<||>;transferBornSources=<||>;transferSourceEvidence=<||>;
+Do[
+ transferPlan=FeynFacet`PlanNLOCounterterms[transferRoot<>"/Projects/"<>transferProject<>"/Raw/NLO/qqp-qqp"];
+ If[FailureQ[transferPlan],Print[transferPlan];Exit[1]];
+ AssociateTo[transferPlans,transferProject->transferPlan];
+ transferSourceNames=Union[Keys[transferPlan["BornSourceOrders"]],
+  If[MemberQ[{"ppHX_UU","ppHX_LL_SpinTransfer","ppHX_TT_SpinTransfer"},transferProject],
+   {"qqp-qqp","qg-qg"},{}]];
+ transferSourceConsumer=First[Values[transferPlan["CountertermCards"]]];
+ transferSourceConsumer=Join[transferSourceConsumer,<|
+  "WorkDirectory"->transferValidationRoot<>"/BornSources/"<>transferProject,
+  "Execution"->Map[1&,transferSourceConsumer["Execution"]]|>];
+ {transferSourceSeconds,transferCatalog}=AbsoluteTiming[FeynFacet`GenerateBornPartonicSources[
+  transferSourceConsumer,AssociationThread[transferSourceNames,ConstantArray[0,Length[transferSourceNames]]]]];
+ If[FailureQ[transferCatalog],Print[transferCatalog];Exit[1]];
+ AssociateTo[transferBornSources,transferProject->transferCatalog["Results"]];
+ AssociateTo[transferSourceEvidence,transferProject-><|"ConsumerDirectory"->transferSourceConsumer["WorkDirectory"],
+  "Channels"->transferSourceNames,"EpsilonRange"->{0,0},"Seconds"->transferSourceSeconds,
+  "StageSeconds"->transferCatalog["StageSeconds"]|>];
+ transferCheck[transferProject<>"/generated Born sources at epsilon zero",
+  AllTrue[Values[transferCatalog["Results"]],#["EpsilonRange"]==={0,0}&&#["RenormalizationStage"]==="Bare"&]],
+ {transferProject,transferProjects}];
+transferReadBornSource[project_,channel_]:=Module[{z=Lookup[transferBornSources[project],channel,Missing["GeneratedBornSourceRequired"]]},
+ If[!AssociationQ[z],Print[z];Exit[1]];z];
 transferColor={FeynCalc`CF->(FeynCalc`CA^2-1)/(2FeynCalc`CA)};
 transferZero[expr_]:=TrueQ[Factor[TrigExpand[expr]/.transferColor]===0];
-transferUU=transferRead["ppHX_UU_NNLO","NLO"];
-transferLL=transferRead["ppHX_LL_SpinTransfer_NLO","NLO"];
-transferTT=transferRead["ppHX_TT_SpinTransfer_NLO","NLO"];
+transferUU=transferRead["ppHX_UU","NLO"];
+transferLL=transferRead["ppHX_LL_SpinTransfer","NLO"];
+transferTT=transferRead["ppHX_TT_SpinTransfer","NLO"];
 transferCompare[one_,two_,label_]:=Module[{r1=one["Coefficients"][0],r2=two["Coefficients"][0]},
  transferCheck[label<>"/delta",transferZero[r1["DeltaCoefficient"]-r2["DeltaCoefficient"]]];
  Do[transferCheck[label<>"/plus"<>ToString[k],transferZero[Lookup[r1["PlusCoefficients"],k,0]-Lookup[r2["PlusCoefficients"],k,0]]],
@@ -18,15 +47,15 @@ transferCompare[one_,two_,label_]:=Module[{r1=one["Coefficients"][0],r2=two["Coe
  transferCheck[label<>"/regular",transferZero[r1["RegularCoefficient"]-r2["RegularCoefficient"]]]];
 transferCompare[transferLL,transferUU,"NLO helicity conservation"];
 Do[
- transferUB=transferRead["ppHX_UU_NNLO","LO",transferChannel];
- transferLB=transferRead["ppHX_LL_SpinTransfer_NLO","LO",transferChannel];
- transferTB=transferRead["ppHX_TT_SpinTransfer_NLO","LO",transferChannel];
+ transferUB=transferReadBornSource["ppHX_UU",transferChannel];
+ transferLB=transferReadBornSource["ppHX_LL_SpinTransfer",transferChannel];
+ transferTB=transferReadBornSource["ppHX_TT_SpinTransfer",transferChannel];
  transferCompare[transferLB,transferUB,"LO helicity conservation "<>transferChannel];
  {transferV,transferW}=transferUB["Variables"];
  transferExpected=2transferV/(1+transferV^2) STa STh Cos[phiA-\[Phi]h] transferUB["Coefficients"][0]["DeltaCoefficient"];
  transferCheck["TT Born transfer ratio "<>transferChannel,transferZero[transferTB["Coefficients"][0]["DeltaCoefficient"]-transferExpected]],
  {transferChannel,{"qqp-qqp","qg-qg"}}];
-transferTB=transferRead["ppHX_TT_SpinTransfer_NLO","LO"];
+transferTB=transferReadBornSource["ppHX_TT_SpinTransfer","qqp-qqp"];
 transferCheck["TT leading soft logarithm",transferZero[transferTT["Coefficients"][0]["PlusCoefficients"][1]-
  transferTT["Coupling"]/Pi*5FeynCalc`CF*transferTB["Coefficients"][0]["DeltaCoefficient"]]];
 transferCheck["TT finite transfer is nonzero",transferTT["Coefficients"][0]["DeltaCoefficient"]=!=0];
@@ -42,12 +71,14 @@ Do[
  transferValue=transferRead[transferProject,"NLO"];
  transferCheck[transferProject<>"/integral free",FreeQ[transferValue["Coefficients"],_Integrate|_NIntegrate|_FeynCalc`GLI|_FeynFacetSolution`F|_Inactive|_SeriesData|_SeriesCoefficient|_Failure|_Missing]];
  transferCheck[transferProject<>"/incoming and observed identity",transferValue["Polarization"]===FeynFacet`ReadProjectCard[transferRoot<>"/Projects/"<>transferProject]["Polarization"]];
- transferCheck[transferProject<>"/exact pole cancellation",transferValue["PoleCancellation"]==="Exact symbolic zero in every delta, plus and regular coefficient"],
- {transferProject,{"ppHX_UU_NNLO","ppHX_LL_NLO","ppHX_TT_NLO","ppHX_LL_SpinTransfer_NLO","ppHX_TT_SpinTransfer_NLO"}}];
+ transferCheck[transferProject<>"/exact pole cancellation",TrueQ[transferValue["PoleCancellationVerified"]]&&
+  transferValue["PoleCancellationVerificationMethod"]==="ExactSymbolicZero"&&
+  TrueQ[transferValue["PoleCancellationCheck"]["AlgebraicIdentityProof"]]],
+ {transferProject,{"ppHX_UU","ppHX_LL","ppHX_TT","ppHX_LL_SpinTransfer","ppHX_TT_SpinTransfer"}}];
 
 (* A finite factorization-scale derivative is fixed by the LO splitting
    convolution. This also checks that every required mixing channel contributes. *)
-transferScaleZero[expr_]:=transferZero[FeynFacetSolution`ExpandPositiveLogarithms[expr,transferValue["Domain"]]];
+transferScaleZero[expr_]:=transferZero[FeynFacetSolution`ExpandPositiveLogarithms[expr,transferScaleAssumptions]];
 transferCompareDistributions[one_,two_,label_]:=Module[{orders},
  transferCheck[label<>"/delta",transferScaleZero[one["DeltaCoefficient"]-two["DeltaCoefficient"]]];
  orders=Union[Keys[one["PlusCoefficients"]],Keys[two["PlusCoefficients"]]];
@@ -56,21 +87,25 @@ transferCompareDistributions[one_,two_,label_]:=Module[{orders},
 transferMap[fn_,distribution_]:=<|"DeltaCoefficient"->fn[distribution["DeltaCoefficient"]],
  "PlusCoefficients"->(fn /@ distribution["PlusCoefficients"]),"RegularCoefficient"->fn[distribution["RegularCoefficient"]]|>;
 Do[
- transferPlan=FeynFacet`PlanNLOProject[transferRoot<>"/Projects/"<>transferProject<>"/NLO/qqp-qqp"];
+ transferPlan=transferPlans[transferProject];
  If[FailureQ[transferPlan],Print[transferPlan];Exit[1]];
  transferValue=transferRead[transferProject,"NLO"];
- transferSettings=transferPlan["CountertermCard"]["Counterterms"];
+ transferSettings=First[Values[transferPlan["CountertermCards"]]]["Counterterms"];
+ transferScaleAssumptions=Lookup[transferValue,"Domain",True]&&Lookup[transferValue,"Assumptions",True]&&
+  Lookup[FeynFacet`ReadProjectCard[transferRoot<>"/Projects/"<>transferProject],"FinalAssumptions",True];
  Do[
   transferScale=transferSettings["FactorizationScalesSquared"][transferLeg];
   transferConvolutions=Table[
-   transferBorn=transferRead[transferProject,"LO",transferRow["BornChannelName"]];
-   transferConv=FeynFacet`ConvolveBornCollinearKernel[transferBorn,
+   transferBorn=transferReadBornSource[transferProject,transferRow["BornChannelName"]];
+   transferSourceCard=transferPlan["CountertermCards"][transferRow["CardName"]];
+   transferConv=FTBornCollinearReference`ConvolveBornCollinearKernel[transferBorn,
     FeynFacet`LeadingSplittingKernel[transferRow["Daughter"],transferRow["Parent"],transferRow["Spin"],
      transferSettings["SplittingVariable"],transferSettings["KernelParameters"]],
     Join[transferSettings,<|"Leg"->transferLeg,"BornThroughOrder"->0|>]];
    If[FailureQ[transferConv],Print[transferConv];Exit[1]];
-   transferMap[(-transferValue["Coupling"]/(2Pi)# /. transferBorn["DimensionalRegulator"]->0)&,transferConv],
-   {transferRow,Select[transferPlan["CollinearChannels"],#["Leg"]===transferLeg&]}];
+   transferMap[(-transferRow["FlavorMultiplicity"] Lookup[transferSourceCard,"FlavorMultiplicity",1]
+     transferValue["Coupling"]/(2Pi)# /. transferBorn["DimensionalRegulator"]->0)&,transferConv],
+   {transferRow,Select[transferPlan["CountertermDistributions"],#["Leg"]===transferLeg&]}];
   transferExpected=<|"DeltaCoefficient"->Total[Lookup[transferConvolutions,"DeltaCoefficient"]],
    "PlusCoefficients"->Merge[Lookup[transferConvolutions,"PlusCoefficients"],Total],
    "RegularCoefficient"->Total[Lookup[transferConvolutions,"RegularCoefficient"]]|>;
@@ -78,10 +113,11 @@ Do[
    transferMap[Function[expr,transferScale D[expr,transferScale]],transferValue["Coefficients"][0]],
    transferExpected,transferProject<>"/d ln "<>ToString[transferScale,InputForm]],
   {transferLeg,{"IncomingA","IncomingB","Observed"}}],
- {transferProject,{"ppHX_UU_NNLO","ppHX_LL_NLO","ppHX_TT_NLO","ppHX_LL_SpinTransfer_NLO","ppHX_TT_SpinTransfer_NLO"}}];
+ {transferProject,{"ppHX_UU","ppHX_LL","ppHX_TT","ppHX_LL_SpinTransfer","ppHX_TT_SpinTransfer"}}];
 
-transferOutput=transferRoot<>"/Projects/ppHX_UU_NNLO/NLO/qqp-qqp/Results/Validation/NLOSpinTransferChecks.wl";
-Put[<|"Passed"->Length[transferRows]-transferFailures,"Failed"->transferFailures,"Checks"->transferRows,
+transferOutput=transferValidationRoot<>"/Report.wl";
+FeynFacet`FamilyArtifactWrite[<|"Passed"->Length[transferRows]-transferFailures,"Failed"->transferFailures,"Checks"->transferRows,
+ "GeneratedBornSources"->transferSourceEvidence,"AcceptedResultsModified"->False,
  "Scope"->"Exact helicity conservation, polarized Born ratios, spin-angle correlation, leading soft logarithm, all three factorization-scale derivatives including mixing channels, integral-free output and polarization identity. No independent complete finite TT reference is claimed."|>,transferOutput];
 Print["NLO_SPIN_TRANSFER_CHECKS ",Length[transferRows]-transferFailures,"/",Length[transferRows]];
 Exit[If[transferFailures===0,0,1]];

@@ -155,7 +155,7 @@ seconds in aggregate, excluding package and file loading, with zero new
 integral evaluations. Nine initial alarms were resolved by exact identities
 for unsimplified zero coefficients. CF300 takes about 0.33 seconds after
 avoiding repeated polynomial expansion. The retained report is
-`ppHX_NNLO_DoubleReal/Results/Validation/EpsilonRemainderChecks/AllSavedSolutions.wxf`.
+`Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Validation/EpsilonRemainderChecks/AllSavedSolutions.wxf`.
 This run does not assert that the existing stage-3/4 artifacts were regenerated
 or completely reaudited.
 
@@ -169,4 +169,4 @@ For stage 4, provide `Stage -> 4` and `AssemblyInput` pointing to the ordinary e
 
 Repeated identical exact multiplier checks are reused within one wrapper. Source occurrences remain counted independently, and failures retain the responsible source. This avoids checking the same endpoint moment hundreds of times.
 
-The current process demonstrations and negative driver test are retained in [Stage4Optimization](../ppHX_NNLO_DoubleReal/Results/Validation/Stage4Optimization/README.md). All 345 masters and 92 endpoint contributions pass the saved stage-4 audit; all 33 boundary inputs pass the stage-3 order audit. These results concern order sufficiency, not the separately incomplete independent boundary-value reference coverage.
+The current process demonstrations and negative driver test are retained in [Stage4Optimization](../Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Validation/Stage4Optimization/README.md). All 345 masters and 92 endpoint contributions pass the saved stage-4 audit; all 33 boundary inputs pass the stage-3 order audit. These results concern order sufficiency, not the separately incomplete independent boundary-value reference coverage.

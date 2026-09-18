@@ -169,7 +169,7 @@ kiraStreamReadManifest[directory_String] := Module[{file, manifest},
   If[! FileExistsQ[file],
     ibpFail["streaming artifact", "missing Manifest.wl in " <> directory]
   ];
-  manifest = Quiet @ Check[Get[file], $Failed];
+  manifest = Quiet @ Check[FeynFacet`FamilyArtifactRead[file], $Failed];
   If[! kiraStreamManifestQ[manifest, directory],
     ibpFail[
       "streaming artifact",
@@ -257,7 +257,9 @@ kiraStreamSolveData[
     "StreamDirectory" -> FileNameJoin[{
       data["ResultDirectory"], $kiraStreamDirectoryName
     }],
-    "InputData" -> data,
+    (* The importer needs the derived topology/target summary, not full source
+       integrands retained by the in-memory input route. *)
+    "InputData" -> KeyDrop[data, "Sources"],
     "TopologyEquivalence" -> prepared["TopologyEquivalence"],
     "Targets" -> prepared["Targets"],
     "Completed" -> prepared["Completed"],
@@ -916,7 +918,7 @@ kiraStreamImportCore[solveData_Association] := Module[
   ];
   FeynFacet`FamilyArtifactWrite[manifestData, kiraStreamManifestFile[building]];
 
-  If[! kiraStreamManifestQ[Get[kiraStreamManifestFile[building]], building],
+  If[! kiraStreamManifestQ[FeynFacet`FamilyArtifactRead[kiraStreamManifestFile[building]], building],
     ibpFail[
       "streaming artifact",
       "the streaming manifest did not validate after writing"

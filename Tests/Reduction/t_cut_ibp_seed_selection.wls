@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
@@ -43,7 +44,7 @@ spM=FeynCalc`GLI[spName,{1,1,1,1,1,0,0}];
 spT=FeynCalc`GLI[spName,{1,1,1,1,1,-1,0}];
 spH=FeynCalc`GLI[spName,{1,1,1,1,1,-2,0}];
 spRows={<|spH->1,spT->-spA|>,<|spH->1,spM->-spA|>};
-spDirectory=root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Kira/Validation/TypedFiniteFieldTests";
+spDirectory=CreateDirectory[];
 spRequest=<|"WorkingDirectory"->spDirectory,"Points"->{{spA->17},{spA->19}},
  "Prime"->2147483647,"Threads"->1,"PreferredMasterIntegrals"->{spM}|>;
 spSamples=FeynFacet`SampleCutIBPEquations[spRows,{spT},{spFamily},spRequest];
@@ -53,7 +54,7 @@ FTTest`FTAssert["Kira finite-field samples eliminate a harder auxiliary at both 
  AllTrue[spSamples["Samples"],#["TargetRemainderRank"]===0&&(spT/.#["Rules"])===spM&]&&
  spSamples["ExactReductionEstablished"]===False];
 spOutside=FeynFacet`SampleCutIBPEquations[spRows,{spT},{spFamily},
- Join[spRequest,<|"WorkingDirectory"->spDirectory<>"WithoutPreference","PreferredMasterIntegrals"->{}|>]];
+ Join[spRequest,<|"WorkingDirectory"->spDirectory<>"/WithoutPreference","PreferredMasterIntegrals"->{}|>]];
 FTTest`FTAssert["an unpreferred scalar remainder has nonzero rank",
  AssociationQ[spOutside]&&AllTrue[spOutside["Samples"],#["TargetRemainderRank"]===1&]];
 spScaleRows={<|spH->1,spT->-spScale spA|>,<|spH->1,spM->-spScale^2 spA|>};
@@ -70,4 +71,6 @@ spHarder=FeynFacet`FindCutIBPPredecessorSeeds[spFamily,{spFrontier},spPlan["Seed
 FTTest`FTAssert["a bounded harder shell adds candidates without deleting the original frontier",
  AssociationQ[spHarder]&&ContainsAll[spHarder["SearchFrontier"],{spFrontier}]&&
  ContainsAll[spHarder["Seeds"],spPredecessors["Seeds"]]&&spHarder["SeedCount"]>spPredecessors["SeedCount"]];
-FTTest`FTReport[];
+If[StringStartsQ[ExpandFileName[spDirectory],ExpandFileName[$TemporaryDirectory]<>"/"],
+ DeleteDirectory[spDirectory,DeleteContents->True]];
+Print["AFFINE REGRESSION COMPLETE"];FTTest`FTReport[];

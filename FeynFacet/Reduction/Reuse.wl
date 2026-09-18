@@ -36,18 +36,17 @@ ReuseIntegralReduction[families:{__Association},targets_List,reduction_Associati
    "AllTargetsCovered"->True,"ClosedOnDeclaredMasters"->True|>|>]
 ],"CutFamily"];
 ApplyIntegralReduction[rows_Association,reduction_Association]:=Catch[Module[
- {rules,masters,images=<||>,local,objects,coefficients,output,terms,result,final},
+ {rules,masters,images=<||>,local,objects,coefficients,output,terms,result,final,parsed},
  rules=Lookup[reduction,"Rules",None];masters=Lookup[reduction,"Masters",None];
  If[!MatchQ[rules,{(_Rule)...}]||!ListQ[masters]||!AllTrue[Values[rows],AssociationQ],
   cutFamilyFail["ClosedReductionAndSparseCoefficientRowsRequired"]];
  Do[
-  objects=DeleteDuplicates[Cases[Last[rule],_FeynCalc`GLI,{0,Infinity}]];
+  parsed=linearIntegralSum[Last[rule]];
+  If[!linearIntegralSumQ[parsed]||Together[parsed["Remainder"]]=!=0,
+   cutFamilyFail["LinearIntegralReductionRulesRequired",<|"Integral"->First[rule],"Cause"->parsed|>]];
+  objects=Keys[parsed["Terms"]];
   If[!ContainsAll[masters,objects],cutFamilyFail["IntegralReductionNotClosed"]];
-  coefficients=Coefficient[Last[rule],#]&/@objects;
-  If[!FreeQ[coefficients,_FeynCalc`GLI]||
-    Expand[Last[rule]-coefficients.objects]=!=0,
-   cutFamilyFail["LinearIntegralReductionRulesRequired"]];
-  AssociateTo[images,First[rule]->AssociationThread[objects,coefficients]],
+  AssociateTo[images,First[rule]->parsed["Terms"]],
  {rule,rules}];
  Do[If[!KeyExistsQ[images,master],AssociateTo[images,master-><|master->1|>]],{master,masters}];
  output=Association@KeyValueMap[Function[{name,row},

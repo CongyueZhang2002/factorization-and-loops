@@ -2,7 +2,20 @@
 BeginPackage["FeynFacet`"];
 PrepareOrderedMeasuredBoundaryIntegration::usage =
  "PrepareOrderedMeasuredBoundaryIntegration[boundary,request] prepares singular-to-ordinary evolution for both ordered endpoints, preserving symbolic scales, and propagates exact boundary-value and rational-matrix Laurent bounds to sufficient evolution and boundary epsilon orders.";
+OrderedPhysicalBoundaryDefinition::usage="OrderedPhysicalBoundaryDefinition[data] retains the exact differential equations, coordinate convention and physical seed that uniquely define an ordered physical master solution, excluding execution history.";
 Begin["`Private`"];
+OrderedPhysicalBoundaryDefinition[data_Association]:=If[
+ Lookup[data,"Status",None]=!="OrderedPhysicalBoundaryValuesDetermined",
+ Failure["CompleteOrderedPhysicalBoundaryRequired",<||>],
+ Join[KeyTake[data,{"MasterIntegralBasis","RecoilVariable","MeasurementVariable",
+  "MeasurementEndpointVariable","DimensionalRegulator","PhysicalRecoilExponent","PhysicalNormalSeedMatrix"}],
+ <|"NormalSystem"->KeyTake[data["NormalEndpointSystem"],{"NormalGaugeMatrix",
+    "NormalizedNormalConnectionMatrix","NormalizedTangentialConnectionMatrix"}],
+   "CornerSystem"->KeyTake[data["CornerPreparation"],{"NormalizedDifferentialSystem","NormalizedToOriginalGauge"}],
+   "CornerSeedMatrix"->data["CornerBoundaryValues"]["NormalizedSeedMatrix"],
+   "CornerExponents"->Keys[data["CornerBoundaryValues"]["FrobeniusExpansions"]],
+   "InitialConstantValues"->data["CornerBoundaryValues"]["InitialConstantValues"]|>]];
+
 PrepareOrderedMeasuredBoundaryIntegration[data_Association,request_Association] :=
  Catch[Module[
  {endpoint,rho,z,e,z0,upper,n,a,t,ti,raw,rhoPrep,comparison,comparison0,rhoSeed,rhoSaturated,

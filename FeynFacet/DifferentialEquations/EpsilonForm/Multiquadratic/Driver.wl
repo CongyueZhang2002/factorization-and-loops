@@ -23,16 +23,9 @@ ClearAll[
 (* Artifacts: raw load and validation are separate                      *)
 (* ------------------------------------------------------------------ *)
 
-multiquadraticOffDiagonalBlockArtifactWrite[value_, file_String] := Module[
-  {directory, temporary},
-  directory = DirectoryName[ExpandFileName[file]];
-  If[directory =!= "" && ! DirectoryQ[directory],
-    CreateDirectory[directory, CreateIntermediateDirectories -> True]];
-  temporary = file <> ".partial-" <> ToString[$ProcessID];
-  Put[value, temporary];
-  RenameFile[temporary, file, OverwriteTarget -> True];
-  <|"Status" -> "MultiquadraticArtifactWritten", "File" -> file|>
-];
+multiquadraticOffDiagonalBlockArtifactWrite[value_,file_String]:=
+ If[FeynFacet`FamilyArtifactWrite[value,file]===file,
+  <|"Status"->"MultiquadraticArtifactWritten","File"->file|>,$Failed];
 
 (* Raw hydration only.  The artifact context is explicit and its
    namespace is created before the read, so an artifact is never parsed
@@ -49,7 +42,7 @@ multiquadraticOffDiagonalBlockArtifactLoadRaw[file_String, context_String] := Mo
     Return[multiquadraticOffDiagonalBlockFailure["ArtifactFileMissing", <|"File" -> file|>]]];
   {value, messages} = Block[
     {$Context = context, $ContextPath = {context, "System`"}, $MessageList = {}},
-    Quiet[{CheckAbort[Get[file], $Aborted], $MessageList}]];
+    Quiet[{CheckAbort[FeynFacet`FamilyArtifactRead[file,context], $Aborted], $MessageList}]];
   If[value === $Aborted,
     Return[multiquadraticOffDiagonalBlockFailure["ArtifactReadAborted",
       <|"File" -> file, "Messages" -> ToString[messages]|>]]];

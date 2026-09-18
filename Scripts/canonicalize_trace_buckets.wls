@@ -37,7 +37,8 @@ record = FeynFacet`Private`coefficientReadRecord[
   FeynFacet`Private`finiteFieldTraceManifestFile[inputDirectory]
 ];
 If[! AssociationQ[record] ||
-    record["Format"] =!= "FeynFacet-TraceCheckpoint",
+    record["Format"] =!= "FeynFacet-TraceCheckpoint" ||
+    !AssociationQ[Lookup[record,"NormalizationDefinition",None]],
   Print["Not a trace checkpoint: ", inputDirectory];
   Exit[1]
 ];
@@ -232,7 +233,8 @@ FeynFacet`Private`finiteFieldWriteTraceManifest[
   outputDirectory,
   newTraceData,
   record["InputFileFingerprint"],
-  record["KiraFileHash"]
+  record["KiraFileHash"],
+  record["NormalizationDefinition"]
 ];
 
 Print["OUTPUTS: ", Length[outputOrder], " -> ", Length[newOrder]];

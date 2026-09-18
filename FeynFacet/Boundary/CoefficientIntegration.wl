@@ -1,6 +1,7 @@
 (* Plan and solve a tangential boundary DE for its actual physical coefficient rows. *)
 BeginPackage["FeynFacet`"];
 PreparePhysicalBoundaryCoefficientIntegration::usage="PreparePhysicalBoundaryCoefficientIntegration[jets,request] propagates epsilon orders from contracted endpoint coefficient rows through the boundary DE, Laurent-saturated physical seed and exact corner constants. It requests no bulk master extension.";
+SolvePhysicalEndpointCoefficientJets::usage="SolvePhysicalEndpointCoefficientJets[jets,request] solves the physically fixed tangential DE at the sufficient coefficient orders, materializes all required GPLs, and audits the emitted Laurent coefficients.";
 Begin["`Private`"];
 PreparePhysicalBoundaryCoefficientIntegration[jets_Association,request_Association]:=Catch[Module[
  {boundary,e,power,target,coefficient,prep,seed,saturated,constants,constantSeries,constantLower,
@@ -50,4 +51,62 @@ PreparePhysicalBoundaryCoefficientIntegration[jets_Association,request_Associati
   "BoundaryFunctionArgumentRules"->Lookup[boundary,"BoundaryFunctionArgumentRules",{}],
   "Scope"->"Sufficient orders for this physical open-edge coefficient. Its opposite endpoint subtraction and joint corner terms remain explicit separate inputs."|>
 ],"TangentialEndpoint"];
+
+
+SolvePhysicalEndpointCoefficientJets[jets_Association,request_Association]:=Catch[Module[
+ {prep,e,connection,matrix,constants,values,algebra,resolve,physical,gpl,explicit,
+  coefficient,result,collected,audits=<||>,check,audit,progress,report},
+ check[value_,stage_]:=If[!AssociationQ[value],
+  Throw[Failure["PhysicalEndpointCoefficientStageFailed",<|"Stage"->stage,"Cause"->value|>],"EndpointIntegration"],value];
+ progress=Lookup[request,"ProgressFunction",None];
+ report[stage_]:=If[progress=!=None,progress[stage]];
+ audit[value_,stage_]:=Module[{a=value},
+  If[!AssociationQ[a]||!AssociationQ[Lookup[a,"Result",None]]||
+    Lookup[Lookup[a,"EpsilonRemainderAudit",<||>],"Status",None]=!="Passed",
+   Throw[Failure["PhysicalEndpointCoefficientAuditFailed",<|"Stage"->stage,"Cause"->a|>],"EndpointIntegration"]];
+  AssociateTo[audits,stage->a["EpsilonRemainderAudit"]];a["Result"]];
+ prep=check[FeynFacet`PreparePhysicalBoundaryCoefficientIntegration[jets,request],"OrderPlanning"];
+ e=prep["DimensionalRegulator"];report["OrderPlanning"];
+ connection=check[FeynFacet`ConstructSingularBoundaryConnection[
+  prep["CornerPreparation"],prep["SaturatedCornerSeed"]["Basis"],
+  <|"ColumnUpperOrders"->prep["ConnectionColumnUpperOrders"]|>,
+  "ContourDeformation"->0,"EndpointPower"->1,"Verbose"->Lookup[request,"Verbose",False]],"Connection"];
+ matrix=<|"DimensionalRegulator"->e,"Dimensions"->{connection["Dimension"],connection["BoundaryDimension"]},
+  "CoefficientMatrices"->(Values[Association[#]]&/@connection["Coefficients"]),
+  "EntryLaurentLowerBounds"->prep["ConnectionEntryLaurentLowerBounds"],
+  "ColumnUpperOrders"->prep["ConnectionColumnUpperOrders"]|>;
+ constants=check[FeynFacet`ExpandLaurentCoefficientVector[prep["AnalyticConstantValues"],e,
+  Transpose[{prep["ConstantLaurentLowerBounds"],prep["ConstantUpperOrders"]}]],"Constants"];
+ values=audit[FeynFacet`WithEpsilonRemainderChecks[
+  FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,constants,prep["BoundaryFunctionOrderRanges"]]],"BoundaryFunctions"];
+ algebra=connection["AlgebraicDefinitions"];
+ resolve[i_Integer]:=resolve[i]=algebra[[i]]/.FeynFacetSolution`a[j_Integer]:>resolve[j];
+ values["Coefficients"]=Map[Factor[Expand[#/.FeynFacetSolution`a[j_Integer]:>resolve[j]]]&,values["Coefficients"]];
+ physical=Join[connection,<|"Coefficients"->values["Coefficients"],"AlgebraicDefinitions"->{},
+  "Assumptions"->Lookup[request,"Assumptions",True]|>];
+ report["Connection"];
+ gpl=check[FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[physical,
+  "TimeLimit"->Lookup[request,"GPLTimeLimit",300],"FunctionTimeLimit"->Lookup[request,"GPLFunctionTimeLimit",30],
+  "Verbose"->Lookup[request,"Verbose",False]],"GPLConversion"];
+ If[gpl["GPLRepresentation"]["Status"]=!="RequiredIntegralsConvertedToGPL",
+  Throw[Failure["IncompletePhysicalEndpointGPLConversion",<|"Representation"->gpl["GPLRepresentation"]|>],"EndpointIntegration"]];
+ explicit=check[FeynFacetSolution`MaterializeGPLExpressions[gpl,gpl["Coefficients"]],"ExplicitGPL"];
+ values["Coefficients"]=explicit/.prep["BoundaryFunctionArgumentRules"];
+ If[Cases[values["Coefficients"],_Derivative,{0,Infinity},Heads->True]=!={},
+  Throw[Failure["UnevaluatedEndpointParameterDerivative",<||>],"EndpointIntegration"]];
+ report["ExplicitBoundaryFunctions"];
+ coefficient=check[FeynFacet`ExpandLaurentCoefficientMatrix[
+  prep["CoefficientMatrix"],e,prep["CoefficientColumnUpperOrders"]],"CoefficientMatrix"];
+ result=audit[FeynFacet`WithEpsilonRemainderChecks[
+  FeynFacet`MultiplyLaurentCoefficientMatrix[coefficient,values,prep["OutputOrderRanges"]]],"PhysicalEdgeCoefficients"];
+ collected=FeynFacet`CancelRationalCoefficients[Values[result["Coefficients"]]];
+ If[!ListQ[collected],Throw[collected,"EndpointIntegration"]];
+ result["Coefficients"]=AssociationThread[Keys[result["Coefficients"]],collected];
+ result["Coefficients"]=Map[#/.Lookup[jets,"OutputCoordinateRules",{}]&,result["Coefficients"]];
+ report["CoefficientContraction"];
+ Join[result,KeyTake[prep,{"CoefficientRowLabels","NormalVariable","TangentialVariable",
+  "NormalExponent","IntegerNormalPower"}],<|"OrderPreparation"->prep,"EpsilonRemainderAudits"->audits,
+   "TangentialVariable"->Lookup[jets,"OutputTangentialVariable",prep["TangentialVariable"]]|>]
+],"EndpointIntegration"];
+
 End[];EndPackage[];

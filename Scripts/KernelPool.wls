@@ -30,6 +30,7 @@ poolDir = Which[Length[args] >= 1, args[[1]],
 nWanted = If[Length[args] >= 2, ToExpression[args[[2]]], 8];
 preload = If[Length[args] >= 3, ToExpression[args[[3]]], True];
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];  (* repository root from this file; overhaul 2026-09-02 *)
+Get[root<>"/FeynFacet/Core/RecordFormat.wl"];
 resourcePolicyFile = FileNameJoin[{root, "Scripts",
     "KernelPoolResourcePolicy.wl"}];
 If[! FileExistsQ[resourcePolicyFile] ||
@@ -50,10 +51,9 @@ Export[sub["pool.pid"], ToString[$ProcessID], "Text"];
    work to this main kernel instead of silently falling back to serial. *)
 SetEnvironment["FACET_TASK_BROKER" -> poolDir];
 log[msg___] := (WriteString["stdout", DateString["ISODateTime"], " POOL ", StringJoin[ToString /@ {msg}], "\n"]);
-putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"}, Put[expr, tmp]; RenameFile[tmp, file, OverwriteTarget -> True]];
+putAtomic[expr_,file_]:=FeynFacetRecords`WriteRecord[expr,file];
 If[! FileExistsQ[FileNameJoin[{sub["control"], "native_cores"}]],
-  putAtomic[nativeCoreCapacity,
-    FileNameJoin[{sub["control"], "native_cores"}]]];
+  Export[FileNameJoin[{sub["control"],"native_cores"}],ToString[nativeCoreCapacity],"Text"]];
 
 currentNativeCoreCapacity[] := Module[{file, text, trimmed},
   file = FileNameJoin[{sub["control"], "native_cores"}];
@@ -105,7 +105,7 @@ kernelPreload[ks_List] := If[ks =!= {} && TrueQ[preload],
    With[{loader = FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]},
      ParallelEvaluate[If[Names["FeynFacet`FamilyArtifactRead"] === {},
        Quiet[Get[loader], General::shdw]], ks]]];
-kernelDefs[ks_List] := If[ks =!= {}, With[{f = poolRunFile}, ParallelEvaluate[Get[f], ks]]];
+kernelDefs[ks_List] := If[ks =!= {}, With[{f=poolRunFile,codec=root<>"/FeynFacet/Core/RecordFormat.wl"},ParallelEvaluate[Get[codec];Get[f],ks]]];
 kernelSetup[Kernels[]];
 If[TrueQ[preload],
   log["preloading FeynFacet in all subkernels ..."];
@@ -124,7 +124,7 @@ If[TrueQ[preload],
 poolVerdictFromDrain[drained_, sidecarFile_String] := Module[{res = drained},
   If[(! AssociationQ[res] || Lookup[res, "Status", None] === "DUPLICATE") &&
       FileExistsQ[sidecarFile],
-    res = Quiet[Check[Get[sidecarFile], $Failed]]];
+    res = Quiet[Check[FeynFacetRecords`ReadRecord[sidecarFile], $Failed]]];
   res];
 
 poolRun[file_String, logFile_String, kernelFile_String] := Module[
@@ -289,7 +289,7 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
      the mission's verdict (baseline batch 03:16-03:21: a passing 261 s
      test recorded as DUPLICATE, wall 0).  The server now prefers this
      sidecar whenever its drained EvaluationObject reports DUPLICATE. *)
-  Put[<|"Mission" -> FileNameTake[file], "Status" -> status, "HadMessages" -> hadMessages,
+  FeynFacetRecords`WriteRecord[<|"Mission" -> FileNameTake[file], "Status" -> status, "HadMessages" -> hadMessages,
       "Wall" -> AbsoluteTime[] - t0, "Kernel" -> $KernelID, "Result" -> If[ByteCount[r] < 20000, r, Short[r]]|>,
     kernelFile <> ".result"];
   Export[kernelFile <> ".done", "done", "Text"];   (* completion marker; the server collects on it *)

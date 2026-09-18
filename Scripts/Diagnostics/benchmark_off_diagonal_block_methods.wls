@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Benchmark the two live finite-field linear-algebra implementations for
    off-diagonal basis-transformation blocks. One backend is selected per
    run and applied serially to every supplied V2 block-equation record.
@@ -8,7 +9,7 @@
    BACKEND is Wolfram or FLINT. Every accepted solve is independently
    checked by VerifyOffDiagonalBasisTransformationBlock. *)
 
-If[Length[$ScriptCommandLine] < 5,
+If[Length[$ScriptCommandLine] < 4,
   Print["usage: benchmark_off_diagonal_block_methods.wls ",
     "(Wolfram|FLINT) OUTDIR FILE..."];
   Exit[2]
@@ -69,7 +70,7 @@ Do[Module[{record = records[[index]], name, dimensions, started,
   writeRow[name, dimensions, backend, accepted, method, seconds,
     Lookup[verification, "Status", "NotRun"]];
   Print["BENCH ", backend, " ", name, " accepted=", accepted,
-    " wall=", seconds, " s"],
+    " elapsed=", seconds, " s"]],
   {index, Length[records]}];
 
 Print["BENCH ", backend, " DONE"];

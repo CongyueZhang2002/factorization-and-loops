@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;root=DirectoryName[ExpandFileName[$InputFileName],2];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 arguments=Rest[$ScriptCommandLine];
@@ -8,7 +9,8 @@ If[!AllTrue[{coeff,solution,request},AssociationQ],Print["Matching coefficient r
 request=Join[request,<|"ProgressFunction"->Function[label,Print["CONTRACT ROW ",label," ",DateString[]]]|>];
 {seconds,audited}=AbsoluteTiming[FeynFacet`WithEpsilonRemainderChecks[
  FeynFacet`ContractExplicitMasterSolution[coeff["Coefficients"],solution,request]]];
-FeynFacet`FamilyArtifactWrite[audited,out,Compression->Automatic];
+written=FeynFacet`FamilyArtifactWrite[audited,out,Compression->Automatic];
+If[FailureQ[written]||written===$Failed,Print["BULK WRITE FAILED ",written];Exit[1]];
 If[!AssociationQ[audited["Result"]]||audited["EpsilonRemainderAudit"]["Status"]=!="Passed",
  Print["FAILED ",If[FailureQ[audited["Result"]],audited["Result"],audited["EpsilonRemainderAudit"]]];Exit[1]];
 Print["COMPLETED EXPLICIT BULK CONTRACTION ",Length[audited["Result"]["Rows"]]," ROWS SECONDS ",seconds];

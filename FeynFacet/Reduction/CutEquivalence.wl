@@ -223,7 +223,8 @@ cutCertifiedPrescriptionEquivalences[integrals_List,records_List,geometry_,
  Do[
   family=Lookup[families,master[[1]],Missing[]];
   If[!AssociationQ[family],Throw[Failure["MissingCutTopology",<|"Integral"->master|>]]];
-  certificate=FeynFacet`CertifyOrdinaryPrescriptionRemoval[family,master,geometry];
+  certificate=FeynFacet`CertifyOrdinaryPrescriptionRemoval[family,master,
+    Join[KeyTake[family,{"MeasurementVariable","ReferenceMomentum","TaggedMomentum"}],geometry]];
   If[!AssociationQ[certificate]||
     FeynFacet`RequireOrdinaryPrescriptionCertificate[certificate,"GenericKinematics"]=!=True,
    Throw[Failure["PoweredIntegralPrescriptionLimitRequired",<|"Integral"->master,"Cause"->certificate|>]]];

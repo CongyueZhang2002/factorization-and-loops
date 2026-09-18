@@ -1,11 +1,47 @@
 # Two independent validation levels
 
-For the full workflow and current process inputs, start with [WORKFLOW.md](../../WORKFLOW.md) and the [ppHX NNLO guide](../../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/README.md).
+For the full workflow and current process inputs, start with [WORKFLOW.md](../../WORKFLOW.md) and the [ppHX NNLO guide](../../Projects/ppHX_UU/NNLO/qqp-qqp/README.md).
 
 These drivers accept process data. The package comparison function is
 ``FeynFacetSolution`CompareLaurentCoefficients``; it requires every requested
 order, accounts for numerical uncertainty, and distinguishes failed values
 from missing coefficients. It never interprets an omitted coefficient as zero.
+
+## Saved project results
+
+~~~bash
+wolframscript -file Scripts/Validation/check_project_results.wls PROJECT ORDER [CHANNEL|all] [BASELINES.json]
+~~~
+
+This process-independent checker plans the current result card, validates every
+selected raw component and checks the saved final result against its current
+selection, physical channel, coupling normalization and requested epsilon range.
+It does not regenerate or overwrite coefficients. Reports are written under
+Reports/YYYY-MM-DD/PROJECT_ORDER_CHANNEL_ResultCheck.wl.
+
+The optional JSON baseline inventory is a nonempty list of records with Project,
+Order, Channel and BaselineResult. BaselineResult can be absolute or relative to
+the inventory. Every requested channel must have exactly one record. Comparisons
+use the shared exact coefficient checker with the common card's explicitly
+declared benchmark parameters. No baseline or archive is a production dependency.
+
+Former NLO outputs and archived baseline copies were deleted. Use independent
+reference drivers for the current regeneration, not the old Migration.json
+inventory. The September 13 campaign completed all formerly deferred long channels and SIDIS NNLO; consult its completion report for coverage and timings.
+
+For the short ppHX subset, explicit reference selection is available:
+
+~~~bash
+wolframscript -file Scripts/Validation/check_nlo_navis_references.wls ppHX_UU ppHX_LL qqp-qqp qqb-qpqpb
+wolframscript -file Scripts/Validation/check_nlo_scattering_references.wls ppHX_LL_SpinTransfer qqp-qqp 1 HelicityTransfer
+~~~
+
+The second command uses the same massless quark-line helicity conservation
+identity tested by the spin-transfer driver, with independently evaluated
+INCNLO coefficients. It does not assert an available full TT transfer reference.
+
+The source-ownership and card regression tests remain under Tests/Core; there is
+no need to execute an archived campaign helper.
 
 ## Stage 3: boundary integration only
 
@@ -92,7 +128,7 @@ requests and `stage3.wxf`. Boundary demands come from the amplitude order plan.
 Before running, changes to the family list, master identities or requested
 orders require regeneration; an old inventory cannot silently omit new work.
 The current process example and demonstrated coverage are in
-`Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/Results/DoubleReal/Validation/TwoLevelValidation_2026-09-07`.
+`Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Validation/TwoLevelValidation_2026-09-07`.
 
 AMFlow runtime calls release their own parent subkernels before external
 Wolfram solvers, allowing those solvers to use the requested worker licenses.
@@ -161,3 +197,24 @@ or running Monte Carlo. Original sources remain under External/References,
 and compact reports belong to each project/order/channel Results/Validation.
 Missing inputs, unresolved symbols, wrong physical tags or failed comparisons
 return a nonzero exit code. This is numerical finite-coefficient validation.
+
+
+## Proposed independent cross-section check
+
+[Independent numerical checks](../../Design/IndependentNumericalChecks.md)
+separates a direct regulated phase-space check of bare contributions from a
+full subtraction-based finite-observable calculation. This is a proposed
+extension, not an implemented driver or an additional passing validation level.
+
+## Current SIDIS NNLO coefficients
+
+`run_sidis_nnlo_checks.py SIDIS_UU SIDIS_LL` checks the current
+Results/NNLO/CHANNEL/Results.wl finite coefficients and
+CombinedLaurentResult.wl pole coefficients. Pinned external ancillary files are
+translated only for validation. Five exact points cover different kinematic
+regions and scale/color/flavor choices. The summary driver is
+`summarize_sidis_nnlo.wls`.
+
+With another production kernel active, run one polarization at a time with
+`--cpus 1 3 5 7`. Passing both projects starts two main kernels and therefore
+requires the whole kernel allocation.

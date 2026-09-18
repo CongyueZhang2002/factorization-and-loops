@@ -333,13 +333,13 @@ If[longTestsQ,
 (* L7: the real CF300 (12,9) descriptor                                 *)
 (* ------------------------------------------------------------------ *)
 
-FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`FamilyRootData["CF300"];
 (* FROZEN INPUTS (2026-08-25): the live campaign directory rewrites the
    strip input and the sector state under a running suite, so this test
    reads immutable copies with recorded provenance instead.  See the
    README of FrozenTestFixtures_2026-08-25/. *)
-base = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
+base = FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal",
    "UU_08_10_canonical", "FamilyEpsFormsSolving",
    "FrozenTestFixtures_2026-08-25"}];
 stripFile = FileNameJoin[{base, "cf300_frozen_strip_12_9_input.wl"}];

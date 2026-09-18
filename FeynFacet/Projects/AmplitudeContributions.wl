@@ -1,0 +1,359 @@
+(* Compiled-card amplitude and integration workflow shared by ordinary and generated contributions. *)
+BeginPackage["FeynFacet`"];
+EvaluateBareContribution::usage="EvaluateBareContribution[compiledCard,mode] computes a bare contribution with its declared components and epsilon range, writes its common result below its own ContributionPath, and returns Result and StageSeconds. Modes all, resume and assemble control reuse of exactly matching consumer-owned inputs.";
+GenerateContributionPairArtifacts::usage="GenerateContributionPairArtifacts[compiledCard,mode] dynamically schedules independent Hermitian pairs across the allocated subkernels and writes every required orientation under Work/Amplitudes. Resume validates completed pair artifacts individually.";
+Begin["`Private`"];
+projectIdentityValue[value_Association]:=Association@KeyValueMap[#1->projectIdentityValue[#2]&,KeySortBy[value,ToString[#,InputForm]&]];
+projectIdentityValue[value_List]:=projectIdentityValue/@value;
+projectIdentityValue[value_]:=value;
+projectAmplitudeIdentity[setup_Association]:=projectIdentityValue[coefficientRegulatorNormalize[KeyDrop[ibpBaseSetup[setup],{"CardName","SourceNotebook","ColorRules"}],$feynFacetEpsilon]];
+projectPairFile[path_String,pair_List]:=FileNameJoin[{path,"Pairs",
+ "F"<>ToString[pair[[1]]]<>"_C"<>ToString[pair[[2]]]<>".wl"}];
+projectPairInventory[setup_Association]:=Sort[Tuples[
+ Lookup[Lookup[setup,{"ForwardAmplitudes","ConjugateAmplitudes"}],"DiagramIndices"]]];
+projectPairRecordValidQ[saved_,setup_Association,name_String,pair_List]:=
+ AssociationQ[saved]&&Block[{analyticContextQ=coefficientAnalyticContextQ},validPreIBPResultQ[saved]]&&
+ Lookup[saved,"CardName",None]===name&&
+ Lookup[Lookup[saved,"Pair",<||>],{"Forward","Conjugate"}]===pair&&
+ Lookup[Lookup[saved["Setup"],{"ForwardAmplitudes","ConjugateAmplitudes"}],"SelectedIndex"]===pair&&
+ projectAmplitudeIdentity[saved["Setup"]]===projectAmplitudeIdentity[setup]&&
+ Lookup[Lookup[saved,"AnalyticContext",<||>],"Gamma5Scheme",None]===FeynCalc`FCGetDiracGammaScheme[];
+projectAmplitudeInputs[directory_String,setup_Association,name_String]:=Module[
+ {files,rows,expected,path=projectAbsolutePath[directory]},
+ expected=projectPairInventory[setup];files=projectPairFile[path,#]&/@expected;
+ If[Sort[FileNames["F*_C*.wl",path<>"/Pairs"]]=!=Sort[files],Return[$Failed]];
+ rows=facetWithSymbolicWorkers[facetSymbolicMap[FeynFacet`FamilyArtifactRead,files],
+   If[Length[files]>=32,facetKernelCount[Automatic,Length[files]],1]];
+ If[!ListQ[rows]||Length[rows]=!=Length[files],Return[$Failed]];
+ If[!And@@MapThread[projectPairRecordValidQ[#1,setup,name,#2]&,{rows,expected}],Return[$Failed]];
+ rows
+];
+projectReductionInput[directory_String,setup_Association,name_String]:=Module[{value},
+ If[!FileExistsQ[directory<>"/KiraStream/Manifest.wl"],Return[$Failed]];
+ value=Quiet[Check[Block[{analyticContextQ=coefficientAnalyticContextQ},KiraStreamResult[directory<>"/KiraStream"]],$Failed]];
+ If[!AssociationQ[value]||Lookup[value,"CardName",None]=!=name||
+  projectAmplitudeIdentity[value["Setup"]]=!=projectAmplitudeIdentity[setup],Return[$Failed]];
+ value
+];
+projectCoefficientInput[directory_String,setup_Association,reduction_Association]:=Module[{value,files},
+ files=Sort[FileNames["F*_C*.wl",projectAbsolutePath[directory]<>"/Pairs"]];
+ value=ReadMasterIntegralCoefficients[directory<>"/CoefficientResult.wl"];
+ If[!AssociationQ[value]||projectAmplitudeIdentity[value["Definitions"]["Setup"]]=!=projectAmplitudeIdentity[setup]||
+  Lookup[value,"ReductionInputFingerprint",None]=!=Lookup[reduction,"ReductionInputFingerprint",Missing[]]||
+  Lookup[value,"SourceInputFingerprint",None]=!=Lookup[reduction,"SourceInputFingerprint",Missing[]]||
+  !StringQ[Lookup[value,"InputFileFingerprint",None]]||
+  value["InputFileFingerprint"]=!=coefficientInputFileFingerprint[files]||
+   Lookup[value,"InputCompanions",None]=!=coefficientInputCompanions[files],Return[$Failed]];
+ value
+];
+
+projectContributionComponents[card_Association]:=If[!KeyExistsQ[card,"Components"],<|card["CardName"]->projectCompileStateFactors[card]|>,
+ If[card["Components"]===<||>,projectFail["NonemptyAmplitudeComponentsRequired"]];
+ Association@KeyValueMap[Function[{name,definition},
+   card["CardName"]<>"."<>name->projectCompileStateFactors[Join[projectMerge[KeyDrop[card,"Components"],definition],
+   <|"CardName"->card["CardName"]<>"."<>name,"ContributionPath"->card["ContributionPath"]<>"/"<>name|>,
+     projectContributionPaths[FileNameJoin[{card["WorkDirectory"],"Components",name}]]]]
+ ],card["Components"]]];
+projectPairSetup[setup_Association,name_String,pair_List]:=Join[setup,<|"CardName"->name,
+ "ForwardAmplitudes"->Append[setup["ForwardAmplitudes"],"SelectedIndex"->pair[[1]]],
+ "ConjugateAmplitudes"->Append[setup["ConjugateAmplitudes"],"SelectedIndex"->pair[[2]]]|>];
+projectPairArtifactValidQ[file_String,setup_Association]:=Module[{saved,pair},
+ If[!FileExistsQ[file],Return[False]];
+ saved=Quiet@Check[FeynFacet`FamilyArtifactRead[file],$Failed];
+ pair=Lookup[Lookup[setup,{"ForwardAmplitudes","ConjugateAmplitudes"}],"SelectedIndex"];
+ projectPairRecordValidQ[saved,setup,setup["CardName"],pair]
+];
+projectReturnedPairRowsQ[rows_,setup_Association,required_List]:=ListQ[rows]&&Length[rows]===Length[required]&&
+ AllTrue[rows,AssociationQ[#]&&AssociationQ[Lookup[#,"Setup",None]]&&MatchQ[Lookup[#,"Result",None],{_,_,_,_,_List}]&]&&
+ Sort[Lookup[Lookup[#["Setup"],{"ForwardAmplitudes","ConjugateAmplitudes"}],"SelectedIndex"]&/@rows]===Sort[required]&&
+ AllTrue[rows,Lookup[#["Setup"],"CardName",None]===setup["CardName"]&&
+   projectAmplitudeIdentity[#["Setup"]]===projectAmplitudeIdentity[setup]&];
+projectGeneratePairValue[pair_List]:=Module[
+ {context=$projectPairContext,setup,path,required,file,rows,rowSetup,value,artifact,indices,started=AbsoluteTime[]},
+ setup=projectPairSetup[context["Setup"],context["Name"],pair];path=context["Path"];
+ file[ij_]:=FileNameJoin[{path,"Pairs","F"<>ToString[ij[[1]]]<>"_C"<>ToString[ij[[2]]]<>".wl"}];
+ required=If[TrueQ[context["HermitianReduction"]]&&pair[[1]]=!=pair[[2]],{pair,Reverse[pair]},{pair}];
+ If[context["Mode"]==="resume"&&AllTrue[required,
+    projectPairArtifactValidQ[file[#],projectPairSetup[context["Setup"],context["Name"],#]]&],
+  Return[<|"Status"->"Reused","Pair"->pair,"Seconds"->AbsoluteTime[]-started|>]];
+ If[!AssociationQ[$projectPairPrepared],
+  $projectPairPrepared=projectCheck[FeynFacet`PrepareProcessDiagrams[context["Setup"]],"PreparedDiagramsRequired"]];
+ rows=Block[{$Output={}},FeynFacet`CollinearFactorizeInterferencesPreIBP[setup,
+    "PreparedDiagrams"->$projectPairPrepared,"HermitianReduction"->context["HermitianReduction"]]];
+ If[!projectReturnedPairRowsQ[rows,setup,required],
+  projectFail["RequiredInterferenceOrientationsNotReturned",<|"Pair"->pair,"Required"->required|>]];
+ Do[
+  rowSetup=row["Setup"];value=row["Result"];
+  If[!MatchQ[value,{_,_,_,_,_List}],projectFail["PreIBPResultRequired"]];
+  artifact=FeynFacet`GenerateCollinearFactorizePreIBPResult[rowSetup,
+    value[[1]],value[[2]],value[[3]],value[[4]],value[[5]],path];
+  If[!AssociationQ[artifact]||!validPreIBPResultQ[artifact],projectFail["PreIBPArtifactRequired"]];
+  indices=Lookup[Lookup[rowSetup,{"ForwardAmplitudes","ConjugateAmplitudes"}],"SelectedIndex"];
+  artifact=Append[artifact,"InterferenceConstruction"-><|"Method"->row["ConstructionMethod"],"DirectPair"->pair|>];
+  If[FeynFacet`FamilyArtifactWrite[artifact,file[indices],"Compression"->Automatic]=!=file[indices],
+   projectFail["InterferenceArtifactWriteFailed",<|"File"->file[indices]|>]],
+ {row,rows}];
+ If[!AllTrue[required,projectPairArtifactValidQ[file[#],projectPairSetup[context["Setup"],context["Name"],#]]&],
+  projectFail["WrittenPairArtifactsInvalid",<|"Pair"->pair|>]];
+ <|"Status"->"Completed","Pair"->pair,"Seconds"->AbsoluteTime[]-started|>
+];
+projectGeneratePair[pair_List]:=Module[{outcome},
+ outcome=CheckAbort[Catch[Catch[projectGeneratePairValue[pair],_,
+   Function[{failure,tag},Failure["PairThrew",<|"Cause"->failure,"Tag"->tag|>]]]],$Aborted];
+ If[AssociationQ[outcome]&&MemberQ[{"Completed","Reused"},Lookup[outcome,"Status",None]],
+  outcome,<|"Status"->If[outcome===$Aborted,"Aborted","Failed"],"Pair"->pair,"Cause"->outcome|>]
+];
+
+GenerateContributionPairArtifacts[card_Association,mode_String:"all"]:=Catch[Module[
+ {setup,plan,path,count,opened={},context,rows={},pending={},value,object,load,requested,ready,
+  tasks,taskPairs,event,expectedFiles,extras,archive,nativeBudgetText,nativeBudget},
+ If[!MemberQ[{"all","resume"},mode],projectFail["PairRunModeRequired"]];
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"AmplitudeSetupRequired"];
+ path=FileNameJoin[{card["WorkDirectory"],"Amplitudes"}];
+ If[!DirectoryQ[path<>"/Pairs"],CreateDirectory[path<>"/Pairs",CreateIntermediateDirectories->True]];
+ plan=projectCheck[FeynFacet`DiagramInterferencePlan[setup,"HermitianReduction"->Automatic],"InterferencePlanRequired"];
+ requested=Lookup[Lookup[card,"Execution",<||>],"Kernels",1];count=facetKernelCount[requested,Length[plan["Pairs"]]];
+ If[count>1&&Kernels[]=!={},projectFail["ExclusivePairWorkerPoolRequired"]];
+ expectedFiles=projectPairFile[path,#]&/@projectPairInventory[setup];
+ extras=Complement[FileNames["F*_C*.wl",path<>"/Pairs"],expectedFiles];
+ If[extras=!={},
+  archive=FileNameJoin[{path,"SupersededPairs",CreateUUID[]}];CreateDirectory[archive,CreateIntermediateDirectories->True];
+  Do[FeynFacet`FamilyArtifactMove[file,FileNameJoin[{archive,FileNameTake[file]}]],{file,extras}]];
+ nativeBudgetText=Environment["FACET_CPU_COUNT"];
+ nativeBudget=If[StringQ[nativeBudgetText]&&StringMatchQ[nativeBudgetText,DigitCharacter..],
+  Min[8,Max[1,FromDigits[nativeBudgetText]]],1];
+ context=<|"Setup"->setup,"Path"->path,"Name"->card["CardName"],"Mode"->mode,
+   "FORMThreadAllocation"-><|"Threads"->nativeBudget,"LockFile"->path<>"/FORMThreads.lock"|>,
+   "HermitianReduction"->plan["HermitianReduction"],"Gamma5Scheme"->FeynCalc`FCGetDiracGammaScheme[]|>;
+ Print["PAIR_QUEUE ",card["CardName"]," DIRECT ",Length[plan["Pairs"]]," WORKERS ",count];
+ If[count===1,
+  Block[{$projectPairContext=context,$projectPairPrepared=None},
+   Do[value=projectGeneratePair[pair];
+    If[Lookup[value,"Status",None]==="Aborted",Abort[]];
+    If[Lookup[value,"Status",None]==="Failed",projectFail["InterferenceQueueFailed",<|"Cause"->value|>]];
+    AppendTo[rows,value],{pair,plan["Pairs"]}]],
+  load=FileNameJoin[{$feynFacetWorkspaceRoot,"Addon","Load","LoadFACET.wl"}];
+  Internal`WithLocalSettings[
+   opened=facetLaunchKernels[count],
+   If[Length[opened]=!=count||Length[Kernels[]]=!=count,projectFail["RequestedPairWorkersUnavailable"]];
+   ready=With[{loader=load,data=context},ParallelEvaluate[
+    If[DownValues[FeynFacet`Private`projectGeneratePair]==={},Block[{$Output={}},Get[loader]]];
+    $HistoryLength=0;$MaxExtraPrecision=50;
+    SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
+    FeynCalc`FCSetDiracGammaScheme[data["Gamma5Scheme"]];
+    FeynFacet`Private`$projectPairContext=data;FeynFacet`Private`$projectPairPrepared=None;
+    FeynFacet`Private`$formParallelExecution=data["FORMThreadAllocation"];
+    <|"Ready"->(DownValues[FeynFacet`Private`projectGeneratePair]=!={}&&
+      DownValues[FeynFacet`CollinearFactorizeInterferencesPreIBP]=!={}&&
+      FeynFacet`Private`$projectPairContext===data&&FeynCalc`FCGetDiracGammaScheme[]===data["Gamma5Scheme"]),
+      "Kernel"->$KernelID|>]];
+   If[!ListQ[ready]||Length[ready]=!=count||!AllTrue[ready,AssociationQ[#]&&TrueQ[#["Ready"]]&],
+    projectFail["PairWorkerInitializationFailed",<|"Workers"->ready|>]];
+   tasks=Table[With[{ij=pair},ParallelSubmit[FeynFacet`Private`projectGeneratePair[ij]]],{pair,plan["Pairs"]}];
+   taskPairs=AssociationThread[tasks,plan["Pairs"]];pending=tasks;
+   While[pending=!={},
+    event=WaitNext[pending];
+    If[!MatchQ[event,{_,_,_List}],projectFail["InvalidPairQueueCompletion"]];
+    {value,object,pending}=event;
+    If[!KeyExistsQ[taskPairs,object]||!AssociationQ[value]||Lookup[value,"Pair",None]=!=taskPairs[object],
+     projectFail["PairQueueTaskIdentityMismatch"]];
+    If[Lookup[value,"Status",None]==="Aborted",Abort[]];
+    If[!MemberQ[{"Completed","Reused"},Lookup[value,"Status",None]],
+     projectFail["InterferenceQueueFailed",<|"Cause"->value|>]];
+    AppendTo[rows,value];
+    Print["PAIR_COMPLETED ",Length[rows],"/",Length[plan["Pairs"]]," ",value["Pair"]," ",value["Status"]]],
+   If[pending=!={}&&opened=!={},AbortKernels[]];
+   If[opened=!={},CloseKernels[opened]]]];
+ If[Length[rows]=!=Length[plan["Pairs"]]||Sort[Lookup[rows,"Pair"]]=!=Sort[plan["Pairs"]]||
+   !AllTrue[expectedFiles,FileExistsQ]||
+   Sort[FileNames["F*_C*.wl",path<>"/Pairs"]]=!=Sort[expectedFiles],
+  projectFail["CompletePairArtifactInventoryRequired"]];
+ projectWrite[<|"Workers"->count,"Pairs"->rows|>,path<>"/PairReport.wl"];
+ <|"Directory"->path,"PairFiles"->expectedFiles,"InterferencePlan"->plan|>
+],"ProjectCards"];
+
+(* Retain the exact resolved mathematical inputs used for a cached result.
+   Runtime allocation, requested truncation and source provenance are not physics. *)
+projectBareEvaluationDefinition[request_Association,card_Association]:=projectIdentityValue[
+ Join[KeyDrop[request,{"EpsilonRange","ThroughOrder","Kernels","Execution","SourceGeneration",
+    "Project","Channel"}],
+  <|"IntegrationMethod"->card["Assembly"]["IntegrationMethod"],"Contribution"->card["Contribution"],
+    "Order"->card["Order"],"FlavorMultiplicity"->Lookup[card,"FlavorMultiplicity",1]|>]
+];
+(* Most perturbative coefficients are manifestly homogeneous in the coupling.
+   Determine that degree without rationally combining their kinematic functions. *)
+projectCouplingDegree[x_,a_Symbol]:=Module[{degrees},
+ Which[x===a,1,FreeQ[x,a],0,
+  Head[x]===Times,degrees=projectCouplingDegree[#,a]&/@(List@@x);
+   If[AllTrue[degrees,IntegerQ],Total[degrees],Missing["NotManifestlyHomogeneous"]],
+  Head[x]===Plus,degrees=DeleteDuplicates[projectCouplingDegree[#,a]&/@(List@@x)];
+   If[Length[degrees]===1,First[degrees],Missing["NotManifestlyHomogeneous"]],
+  Head[x]===Power&&IntegerQ[x[[2]]],degrees=projectCouplingDegree[x[[1]],a];
+   If[IntegerQ[degrees],x[[2]]degrees,Missing["NotManifestlyHomogeneous"]],
+  True,Missing["NotManifestlyHomogeneous"]]
+];
+projectValidateBareCouplingPower[result_Association,coupling_Symbol,power_Integer?NonNegative]:=Module[{scalars,bad},
+ scalars=FeynFacet`PartonicScalarCoefficientRules[result];
+ If[!AssociationQ[scalars],projectFail["BareScalarCoefficientRulesRequired"]];
+ bad=Select[scalars,#=!=0&&projectCouplingDegree[#,coupling]=!=power&&
+  !FreeQ[Cancel[#/coupling^power],coupling]&];
+ If[Length[bad]>0,projectFail["BareContributionCouplingPowerMismatch",
+   <|"Coupling"->coupling,"ExpectedPower"->power,"CoefficientKeys"->Keys[bad]|>]];
+ result
+];
+projectValidateBareCouplingPower[_,_,_]:=projectFail["FormalBareCouplingAndNonnegativePowerRequired"];
+projectRebindBareCoupling[result_Association,backend_Symbol,coupling_Symbol,power_Integer?NonNegative]:=Module[{value},
+ projectValidateBareCouplingPower[result,backend,power];
+ value=FeynFacet`CreatePartonicResult[result["Coefficients"]/.backend->coupling,
+  Join[KeyDrop[result,{"Coefficients","EpsilonRange"}],<|"Coupling"->coupling,"CouplingPower"->power|>]];
+ projectCheck[value,"BareCouplingRebindingFailed"]
+];
+
+projectBareScalarContribution[card_Association,mode_String]:=Module[
+ {setup,request,kind,path,source,reduced,execution,pairs=$Failed,reduction=$Failed,table=$Failed,
+  value=$Failed,timings=<||>,seconds,canonical,canonicalPairs,solve,stream,options,weight,method,density,file,
+  definition,backendRequest,backendCoupling=FeynFacet`\[Alpha]s,coupling,power},
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"BareContributionSetupRequired"];
+ kind=card["Contribution"];path=card["WorkDirectory"];
+ request=Join[FeynFacet`ProjectAssemblyRequest[card],FeynFacet`ProjectResultIdentity[card,setup],
+  <|"EpsilonRange"->card["EpsilonRange"],"BornCouplingPower"->card["BornCouplingPower"],
+    "RenormalizationStage"->"Bare","CouplingNormalization"->card["Counterterms"]["CouplingNormalization"]|>,
+  KeyTake[card,{"SourceGeneration"}]];
+ method=Lookup[card["Assembly"],"IntegrationMethod",None];
+ If[!MemberQ[{"ProjectedCurrent","FixedObservedCurrent","CutIntegralReduction"},method],projectFail["DeclaredBareContributionIntegrationMethodRequired"]];
+ coupling=request["Coupling"];power=request["CouplingPower"];
+ If[!MatchQ[coupling,_Symbol]||!MatchQ[power,_Integer?NonNegative],
+  projectFail["FormalBareCouplingAndNonnegativePowerRequired"]];
+ definition=projectBareEvaluationDefinition[request,card];
+ backendRequest=If[method==="CutIntegralReduction",Join[request,<|"Coupling"->backendCoupling|>],request];
+ If[kind==="Born",
+  {seconds,value}=AbsoluteTiming[FeynFacet`ConstructBornResult[setup,backendRequest]];
+  AssociateTo[timings,card["CardName"]<>"Analytic"->seconds],
+ If[method==="FixedObservedCurrent",
+  density=projectFixedObservedCurrent[card,setup,Join[request,KeyTake[card,{"SymmetryFactor","FlavorMultiplicity"}]],mode];
+  value=density["Result"];timings=Join[timings,density["StageSeconds"]],
+  If[method==="ProjectedCurrent",
+  If[!AssociationQ[Lookup[request,"CurrentProjectors",None]],projectFail["DeclaredCurrentTensorProjectorsRequired"]];
+  file=card["ResultFile"];
+  If[mode=!="all",value=FeynFacet`ReadPartonicResult[file,
+   Join[FeynFacet`ProjectResultIdentity[card,setup],<|"EpsilonRange"->card["EpsilonRange"],
+    "DistributionBasis"->card["Assembly"]["DistributionBasis"],
+    "CouplingNormalization"->card["Counterterms"]["CouplingNormalization"],
+    "EvaluationDefinition"->definition|>]]];
+  If[AssociationQ[value],projectValidateBareCouplingPower[value,coupling,power];
+   Return[<|"Result"->value,"StageSeconds"-><||>,"File"->file|>]];
+  If[!AssociationQ[value],
+   If[mode==="assemble",projectFail["MatchingProjectedContributionRequired"]];
+   {seconds,value}=AbsoluteTiming[Switch[kind,
+    "Real",density=projectCheck[FeynFacet`ConstructCurrentRealDensity[setup,request],"ProjectedRealDensityFailed"];
+     FeynFacet`ConstructCurrentRealContribution[density,Join[request["EndpointExpansion"],<|"EpsilonRange"->card["EpsilonRange"]|>]],
+    "Virtual",FeynFacet`ConstructCurrentVirtualContribution[setup,request],
+    _,projectFail["BornRealOrVirtualContributionRequired"]]];
+   AssociateTo[timings,card["CardName"]<>"Analytic"->seconds]],
+  source=path<>"/Amplitudes";reduced=path<>"/Reduction";execution=card["Execution"];
+  If[mode=!="all",
+   reduction=projectReductionInput[reduced,setup,card["CardName"]];
+   If[AssociationQ[reduction],table=projectCoefficientInput[reduced,setup,reduction]]];
+  If[!AssociationQ[table],
+   pairs=If[mode==="all",$Failed,projectAmplitudeInputs[source,setup,card["CardName"]]];
+   If[pairs===$Failed&&mode=!="assemble",
+    {seconds,value}=AbsoluteTiming[FeynFacet`GenerateContributionPairArtifacts[card,mode]];
+    projectCheck[value,"ContributionPairGenerationFailed"];
+    AssociateTo[timings,card["CardName"]<>"Amplitudes"->seconds];
+    pairs=projectAmplitudeInputs[source,setup,card["CardName"]];reduction=$Failed];
+   If[pairs===$Failed,projectFail["CompleteMatchingAmplitudePairsRequired"]];
+   value=FeynFacet`ConstructZeroAmplitudeContribution[pairs,Join[backendRequest,<|"Contribution"->kind|>]];
+   If[!AssociationQ[value],
+    If[!AssociationQ[reduction],
+     If[mode==="assemble",projectFail["MatchingReductionRequired"]];
+     {seconds,canonical}=AbsoluteTiming[CanonicalizePairArtifacts[pairs,reduced,"ReturnRecords"->True]];
+     projectCheck[canonical,"CanonicalPairArtifactsRequired"];
+     AssociateTo[timings,card["CardName"]<>"Canonicalization"->seconds];
+     (* Consume the exact records just written and read back. The coefficient
+        stage reads the files later, so both stages must have the same inventory. *)
+     If[Sort[FileNames["F*_C*.wl",canonical["PairDirectory"]]]=!=Sort[canonical["Files"]],
+      projectFail["CanonicalPairInventoryMismatch"]];
+     canonicalPairs=canonical["Records"];Clear[pairs,canonical];
+     {seconds,solve}=AbsoluteTiming[KiraSolve[canonicalPairs,reduced,"Threads"->execution["KiraThreads"]]];
+     projectCheck[solve,"ContributionKiraSolveFailed"];Clear[canonicalPairs];
+     AssociateTo[timings,card["CardName"]<>"Kira"->seconds];
+     {seconds,stream}=AbsoluteTiming[KiraStreamImport[solve]];
+     If[!StringQ[stream],projectFail["ContributionKiraImportFailed",<|"Cause"->stream|>]];
+     Clear[solve];
+     AssociateTo[timings,card["CardName"]<>"KiraImport"->seconds];
+     reduction=projectReductionInput[reduced,setup,card["CardName"]];
+     If[!AssociationQ[reduction],projectFail["MatchingReductionRequired"]]];
+    If[mode==="assemble",projectFail["MatchingReducedCoefficientResultRequired"]];
+    projectWrite[reduction,reduced<>"/KiraResult.wl"];
+    options=coefficientSimplificationOptions[{"Threads"->execution["ReconstructionThreads"],
+      "NormalizationKernels"->execution["NormalizationKernels"],"ReconstructionOrderInputs"->None}];
+    AssociateTo[options,"CoefficientSetup"->setup];
+    {seconds,table}=AbsoluteTiming[finiteFieldCoefficientSimplificationCore[
+      Sort[FileNames["F*_C*.wl",reduced<>"/Pairs"]],reduced<>"/KiraResult.wl",options]];
+    projectCheck[table,"ContributionReconstructionFailed"];
+    If[!TrueQ[coefficientWriteFinalResult[table,reduced<>"/CoefficientResult.wl"]],projectFail["CoefficientResultWriteFailed"]];
+    AssociateTo[timings,card["CardName"]<>"Coefficients"->seconds]]];
+  If[!AssociationQ[value],
+   {seconds,value}=AbsoluteTiming[Switch[kind,"Real",FeynFacet`ConstructNLORealContribution[table,backendRequest],
+    "Virtual",FeynFacet`ConstructNLOVirtualContribution[table,backendRequest],
+    _,projectFail["BornRealOrVirtualContributionRequired"]]];
+   AssociateTo[timings,card["CardName"]<>"Analytic"->seconds]];
+  ];
+  weight=If[method==="CutIntegralReduction",assemblyWeight[setup],1] Lookup[card,"FlavorMultiplicity",1];
+  value=projectWeightedPartonicResult[projectCheck[value,"BareContributionEvaluationFailed"],weight]]];
+ value=projectCheck[value,"BareContributionEvaluationFailed"];
+ If[method==="CutIntegralReduction",
+  value=projectRebindBareCoupling[value,backendCoupling,coupling,power],
+  projectValidateBareCouplingPower[value,coupling,power]];
+ If[method==="CutIntegralReduction"&&card["Counterterms"]["BareCouplingFactor"]=!=1,
+  value=projectCheck[FeynFacet`MultiplyPartonicLaurentFactor[projectCheck[value,"BareContributionEvaluationFailed"],
+    card["Counterterms"]["BareCouplingFactor"]^(card["BornCouplingPower"]+
+      Switch[card["Order"],"LO",0,"NLO",1]),card["EpsilonRange"]],"BareCouplingNormalizationApplicationFailed"]];
+ value=projectCheck[value,"BareContributionEvaluationFailed"];
+ If[FeynFacet`RequirePartonicEpsilonRange[value,card["EpsilonRange"]]=!=True,
+  projectFail["BareContributionEpsilonOrdersInsufficient",<|"Required"->card["EpsilonRange"]|>]];
+ value=projectCheck[FeynFacet`CreatePartonicResult[value["Coefficients"],
+  Join[KeyDrop[value,{"Coefficients","EpsilonRange"}],
+   <|"RenormalizationStage"->"Bare","CouplingNormalization"->card["Counterterms"]["CouplingNormalization"],
+     "EvaluationDefinition"->definition|>,
+   KeyTake[card,{"SourceGeneration"}]]],"BareContributionResultRequired"];
+ projectWrite[value,card["ResultFile"]];
+ <|"Result"->value,"StageSeconds"->timings,"File"->card["ResultFile"]|>
+];
+
+projectValidateInvariantFractions[result_Association,parts_Association,card_Association]:=Module[
+ {setups,fractions,coefficients=result["Coefficients"],assumptions,changed=False},
+ If[card["Assembly"]["IntegrationMethod"]=!="CutIntegralReduction",Return[result]];
+ setups=Lookup[Values[parts],"ProcessDefinition",{}];
+ If[!AllTrue[setups,AssociationQ],projectFail["InvariantSourceProcessDefinitionsRequired"]];
+ fractions=DeleteDuplicates[Flatten[
+   Cases[List@@Lookup[#,"MomentumFraction",{}],_Symbol,Infinity]&/@setups]];
+ If[fractions=!={}&&!FreeQ[coefficients,Alternatives@@fractions],
+  assumptions=Lookup[card["Assembly"],"Assumptions",True]&&
+    And@@(cardAssumptions[#,cardHadronicVariables[#]]&/@setups);
+  coefficients=Map[partonicMap[Function[value,
+    Factor[expandPositiveMonomialPowers[value/.Lookup[card,"ColorRules",{}],assumptions]]],#]&,coefficients];
+  changed=True];
+ If[fractions=!={}&&!FreeQ[coefficients,Alternatives@@fractions],
+  projectFail["InvariantDensityMomentumFractionDependenceRemaining",
+   <|"Contribution"->card["CardName"],"Variables"->Select[fractions,!FreeQ[coefficients,#]&]|>]];
+ projectCheck[FeynFacet`CreatePartonicResult[coefficients,
+  Join[KeyDrop[result,{"Coefficients","EpsilonRange"}],
+   <|"MomentumFractionIndependence"-><|"Status"->"Passed","Variables"->fractions,
+    "RequiredColorAndPositiveRootSimplification"->changed|>|>]],"InvariantSourceValidationFailed"]
+];
+EvaluateBareContribution[card_Association,mode_String:"all"]:=Catch[Module[
+ {cards,parts=<||>,timings=<||>,value,result,metadata,path},
+ If[!MemberQ[{"all","resume","assemble"},mode],projectFail["ProjectRunModeRequired"]];
+ cards=projectContributionComponents[card];
+ KeyValueMap[Function[{name,component},value=projectBareScalarContribution[component,mode];
+  AssociateTo[parts,name->value["Result"]];timings=Join[timings,value["StageSeconds"]]],cards];
+ metadata=<|"Contribution"->card["Contribution"],"RenormalizationStage"->"Bare","Components"->Keys[parts],
+  "CouplingNormalization"->card["Counterterms"]["CouplingNormalization"]|>;
+ result=If[Length[parts]===1,First[Values[parts]],
+  projectCheck[FeynFacet`CombinePartonicResults[parts,metadata],"BareContributionComponentCombinationFailed"]];
+ result=projectValidateInvariantFractions[result,parts,card];
+ path=card["ResultFile"];projectWrite[result,path];
+ <|"Result"->result,"StageSeconds"->timings,"File"->path|>
+],"ProjectCards"];
+End[];EndPackage[];

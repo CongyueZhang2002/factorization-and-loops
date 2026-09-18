@@ -1,7 +1,7 @@
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-diagramCard=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/NLO/qqp-qqp","Real"];
+diagramCard=FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU/Raw/NLO/qqp-qqp","Real"];
 diagramPrepared=FeynFacet`PrepareProcessDiagrams[diagramCard];
 FTTest`FTAssert["preparation preserves generated diagrams",AssociationQ[diagramPrepared]&&FeynFacet`GenerateDiagram[diagramCard,"PreparedDiagrams"->diagramPrepared]===diagramPrepared["DiagramsBySide"]];
 diagramSelected=Join[diagramCard,<|"ForwardAmplitudes"->Append[diagramCard["ForwardAmplitudes"],"SelectedIndex"->1],"ConjugateAmplitudes"->Append[diagramCard["ConjugateAmplitudes"],"SelectedIndex"->2]|>];

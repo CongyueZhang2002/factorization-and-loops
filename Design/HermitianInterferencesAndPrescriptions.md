@@ -10,8 +10,10 @@ not required: helicity and transversity differences are covered.
 `DiagramInterferencePlan` uses the upper triangle when both card sides have
 the same selected diagram set and loop order, in the same process/model.
 It retains the full rectangle otherwise. 36 diagrams require 666 direct
-contractions instead of 1,296. The saving concerns amplitude contractions;
-partial fractions and integral reduction still run for both orientations.
+contractions instead of 1,296. The saving concerns amplitude contractions. Both orientations retain their
+own prescribed integral records. Identical propagator definitions share their
+Pak polynomial and ordering during family construction; each physical
+momentum-map and cut-direction check still runs independently.
 
 `CollinearFactorizeInterferencesPreIBP` saves the scalar physical contraction
 before recoil elimination, tensor/dimensional shifts and normalized integral
@@ -170,7 +172,7 @@ the single shared implementation. All twelve UU/LL NLO real-master entries
 also pass it. TT source numerators are zero.
 
 The historical audit and endpoint argument remain at
-ppHX_NNLO_DoubleReal/Results/Validation/PrescriptionAudit_2026-09-08/README.md.
+Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Validation/PrescriptionAudit_2026-09-08/README.md.
 GPT-6 Pro reviewed the consolidation; its symbolic-coordinate and Jacobian
 findings were corrected and covered by regression tests. See
 External/ChatGPT/Records/2026-09-08/14_shared_convergence_certification.md.

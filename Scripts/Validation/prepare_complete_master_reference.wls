@@ -28,5 +28,5 @@ request=Join[spec["AMFlowRuntime"],<|"IntegralDefinition"->definition,"MasterInt
  "TimeLimit"->spec["TimeLimit"],"WorkingDirectory"->spec["OutputDirectory"]<>"/AMFlowWork"|>];
 (* The AMFlow process does not load FeynCalc. Preserve qualified symbolic
    heads instead of printing short names dependent on this ContextPath. *)
-Block[{$ContextPath={"System`"}},Put[request,args[[2]]]];
+FeynFacetRecords`WriteRecord[request,args[[2]]];
 Print["PREPARED AMFLOW ",spec["ID"]," rows ",rows," upper ",request["EpsilonOrder"]];Exit[0];

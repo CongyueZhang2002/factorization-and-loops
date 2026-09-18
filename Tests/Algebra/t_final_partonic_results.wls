@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];Get[root<>"/FeynFacet/Solution.m"];$PrePrint=.;
 meta=<|"Order"->"NNLO","Contribution"->"Total","Scale"->q2,"Variables"->{xx},
@@ -29,7 +30,7 @@ temp=FileNameJoin[{$TemporaryDirectory,"feynfacet-partonic-basis-"<>ToString[$Pr
 FeynFacet`FamilyArtifactWrite[result,temp];
 FTAssert["card normal-coordinate labels do not change the physical distribution basis",
  AssociationQ[FeynFacet`ReadPartonicResult[temp,<|"DistributionBasis"->meta["DistributionBasis"]|>]]];
-DeleteFile[temp];
+FeynFacet`FamilyArtifactDelete[temp];
 
 exact=FeynFacet`VerifyPartonicPoleCancellation[<|"toy"->result|>];
 FTAssert["exact pole verification remains distinct from numerical evidence",
@@ -75,4 +76,44 @@ positiveFinal=FeynFacet`FinalizePartonicResults[<|"toy"->positive|>,positiveChec
 FTAssert["extracting a positive epsilon slice does not assert that lower finite coefficients vanish",
  positiveFinal["LaurentLowerBound"]===0&&
  FailureQ[FeynFacet`CombinePartonicResults[<|"slice"->positiveFinal|>,<||>]]];
+changed=result;changed["Coefficients"]=Join[changed["Coefficients"],<|0->row[FeynFacetSolution`G[{1,0},xx]]|>];
+gplFinal=FeynFacet`FinalizePartonicResults[<|"toy"->changed|>,exact,<||>];
+FTAssert["standard explicit GPL words are solved special functions, not unresolved integrals",
+ AssociationQ[gplFinal]&&gplFinal["toy"]["Coefficients"][0]===changed["Coefficients"][0]];
+changed["Coefficients"]=Join[changed["Coefficients"],<|0->row[FeynFacetSolution`G[unknownSolution]]|>];
+FTAssert["an incomplete G object is not accepted as an explicit GPL",
+ FailureQ[FeynFacet`FinalizePartonicResults[<|"toy"->changed|>,exact,<||>]]];
+changed["Coefficients"]=Join[changed["Coefficients"],<|0->row[FeynFacetSolution`G[{FeynCalc`GLI[f,{1}]},xx]]|>];
+FTAssert["a GPL spelling cannot conceal an unevaluated master integral",
+ FailureQ[FeynFacet`FinalizePartonicResults[<|"toy"->changed|>,exact,<||>]]];
+
+changed["Coefficients"]=Join[changed["Coefficients"],<|0->row[FeynFacetSolution`G[bad][xx]]|>];
+FTAssert["a curried G head cannot disguise an unevaluated object",
+ FailureQ[FeynFacet`FinalizePartonicResults[<|"toy"->changed|>,exact,<||>]]];
+changed["Coefficients"]=Join[changed["Coefficients"],<|0->row[FeynFacetSolution`G[{{a,b}},xx]]|>];
+FTAssert["nested GPL word lists are not scalar letters",
+ FailureQ[FeynFacet`FinalizePartonicResults[<|"toy"->changed|>,exact,<||>]]];
+analytic=Join[result,<|"Assumptions"->xx>0,"Domain"->0<=xx<=1,
+ "RealLetterPrescription"->"UpperSide","GPLContinuation"->"DeclaredPath"|>];
+analyticCheck=FeynFacet`VerifyPartonicPoleCancellation[<|"toy"->analytic|>];
+analyticFinal=FeynFacet`FinalizePartonicResults[<|"toy"->analytic|>,analyticCheck,<||>]["toy"];
+FTAssert["finite extraction retains the input analytic conventions",
+ KeyTake[analyticFinal,{"Assumptions","Domain","RealLetterPrescription","GPLContinuation"}]===
+ KeyTake[analytic,{"Assumptions","Domain","RealLetterPrescription","GPLContinuation"}]];
+combinedAnalytic=FeynFacet`CombinePartonicResults[<|"a"->analytic,"b"->analytic|>,<|"Contribution"->"Total"|>];
+FTAssert["summing results retains their common branch prescription",
+ combinedAnalytic["RealLetterPrescription"]==="UpperSide"&&combinedAnalytic["Domain"]===(0<=xx<=1)];
+narrowed=FeynFacet`FinalizePartonicResults[<|"toy"->analytic|>,analyticCheck,
+ <|"Metadata"-><|"Domain"->xx<1/2|>|>]["toy"];
+FTAssert["an added domain restriction is intersected with the existing domain",
+ TrueQ[Simplify[Equivalent[narrowed["Domain"],0<=xx<1/2]]]];
+FTAssert["a requested branch change requires an explicit analytic transformation",
+ FailureQ[FeynFacet`FinalizePartonicResults[<|"toy"->analytic|>,analyticCheck,
+ <|"Metadata"-><|"RealLetterPrescription"->"LowerSide"|>|>]]&&
+ FailureQ[FeynFacet`CombinePartonicResults[<|"a"->analytic,
+ "b"->Join[analytic,<|"GPLContinuation"->"DifferentPath"|>]|>,<|"Contribution"->"Total"|>]]];
+changedAnalytic=Join[analytic,<|"GPLContinuation"->"DifferentPath"|>];
+FTAssert["pole-check reuse also binds the declared GPL continuation",
+ FailureQ[FeynFacet`FinalizePartonicResults[<|"toy"->changedAnalytic|>,analyticCheck,<||>]]];
+
 FTReport[];

@@ -1,16 +1,21 @@
 (* Analytic massless one-loop scalar integrals, detected from momentum
    geometry. Normalization is d^D l/(i pi^(D/2)) and its conjugate.
-   Bubbles are exact Gamma expressions; the on-shell box is known through
-   epsilon^0. The finite-order contract rejects deeper box requests. *)
-FeynFacet`EvaluateOneLoopIntegral::usage="EvaluateOneLoopIntegral[definition,{low,high}] returns explicit Laurent coefficients for a massless one-loop bubble, triangle with at least one null external leg, or on-shell scalar box, recognized without family names. Bubbles allow arbitrary positive powers and orders; unit-power boxes currently support high<=0. Causal phases follow the declared loop prescription and kinematic conditions.";
+   Bubbles and supported triangles are exact Gamma expressions. Unit-power
+   boxes use the common all-order analytic provider after identifying their
+   two diagonal invariants from the propagator momentum geometry. *)
+FeynFacet`EvaluateOneLoopIntegral::usage="EvaluateOneLoopIntegral[definition,{low,high}] returns explicit Laurent coefficients for a massless one-loop bubble, triangle with at least one null external leg, or unit-power box with at most one off-shell external leg, recognized without family names. Requested orders include the Laurent demand of the master normalization. Causal phases follow the declared loop prescription and kinematic conditions.";
 oneLoopCausalLog[value_,prescription_,conditions_]:=Which[
  TrueQ[FullSimplify[value>0,Assumptions->conditions]],Log[value]-I Pi prescription,
  TrueQ[FullSimplify[value<0,Assumptions->conditions]],Log[-value],
  True,epsOrderFail["OneLoopCausalDomainRequired",<|"Invariant"->value,"Conditions"->conditions|>]];
-FeynFacet`EvaluateOneLoopIntegral[definition_Association,{low_Integer,high_Integer}]:=Catch[Module[
+FeynFacet`EvaluateOneLoopIntegral[definition_Association,range:{low_Integer,high_Integer}]:=
+ FeynFacet`EvaluateWithMasterIntegralLibrary[definition,range,
+  Function[{},oneLoopEvaluateIntegral[definition,range]]];
+oneLoopEvaluateIntegral[definition_Association,{low_Integer,high_Integer}]:=Catch[Module[
  {loops,ell,e,dim,prescription,powers,active,momenta,kin,conditions,lambda,shifts,
   normal,factor,masses,distances,nonzero,channel,aa,bb,expr,poly,coeffs,method,
-  exact=True,ss,tt,ls,lt,rGamma,lower,nonzeroPairs},
+  exact=True,ss,tt,lower,nonzeroPairs,pairIndices,diagonals,diagonalIndices,mass,
+  factorLower,boxUpper,boxValue,boxCoefficients},
  loops=Lookup[definition,"LoopMomenta",{}];e=Lookup[definition,"DimensionalRegulator",None];
  dim=Lookup[definition,"Dimension",None];powers=Lookup[definition,"PropagatorPowers",{}];
  If[Length[loops]=!=1||Lookup[definition,"CutIndices",None]=!={}||low>high||
@@ -37,21 +42,36 @@ FeynFacet`EvaluateOneLoopIntegral[definition_Association,{low_Integer,high_Integ
  If[Length[active]<=3,
   method=If[Length[active]===2,"MasslessBubbleGammaFormula","MasslessTriangleGammaFormula"];
   expr=factor oneLoopSingleScaleGamma[distances,powers[[active]],dim,prescription,conditions],
-  If[!AllTrue[powers[[active]],#===1&]||high>0,epsOrderFail["OnShellBoxKnownOnlyThroughFiniteOrder"]];
+  If[!AllTrue[powers[[active]],#===1&],epsOrderFail["UnitPropagatorPowersForAnalyticBoxRequired"]];
   nonzero=Select[distances,!epsOrderZero[#]&];
   nonzeroPairs=Pick[Subsets[Range[Length[shifts]],{2}],(!epsOrderZero[#]& /@ distances),True];
-  If[Length[nonzero]=!=2||Length[Union[Flatten[nonzeroPairs]]]=!=4,epsOrderFail["FourMasslessExternalLegsRequired"]];
-  {ss,tt}=nonzero;ls=oneLoopCausalLog[ss,prescription,conditions];lt=oneLoopCausalLog[tt,prescription,conditions];
-  rGamma=Gamma[1+e]Gamma[1-e]^2/Gamma[1-2e];
-  expr=factor 2rGamma/(ss tt)((Exp[-e ls]+Exp[-e lt])/e^2-(ls-lt)^2/2-Pi^2/2);
-  exact=False;method="MasslessOnShellBoxLaurentFormula"];
+  If[!MemberQ[{2,3},Length[nonzeroPairs]],epsOrderFail["AtMostOneOffShellBoxLegRequired"]];
+  diagonalIndices=Select[Subsets[Range[Length[nonzeroPairs]],{2}],
+    Length[Union@@nonzeroPairs[[#]]]===4&];
+  If[Length[diagonalIndices]=!=1,epsOrderFail["UniqueNonzeroBoxDiagonalInvariantsRequired"]];
+  diagonalIndices=First[diagonalIndices];{ss,tt}=nonzero[[diagonalIndices]];
+  mass=If[Length[nonzero]===2,0,First[Delete[nonzero,List/@Sort[diagonalIndices]]]];
+  factorLower=FeynFacet`DetermineMeromorphicLaurentLowerBound[factor,e];
+  If[!IntegerQ[factorLower]&&factorLower=!=Infinity,epsOrderFail["OneLoopNormalizationLaurentBoundRequired"]];
+  If[factorLower===Infinity,expr=0,
+   boxUpper=high-factorLower;
+   If[boxUpper< -2,expr=0,
+   boxValue=FeynFacet`EvaluateMasslessBoxIntegral[{ss,tt,mass},e,
+     {Min[-2,low-factorLower,boxUpper],boxUpper},conditions,prescription];
+   If[!AssociationQ[boxValue],epsOrderFail["AnalyticBoxLaurentEvaluationFailed",<|"Cause"->boxValue|>]];
+   boxCoefficients=Association@KeyValueMap[Last[#1]->#2&,boxValue["Coefficients"]];
+   epsilonAuditMultiplier[factor,e,-2,boxUpper,high,"OneLoopMasterNormalization",definition["MasterIntegral"]];
+   expr=factor Total[KeyValueMap[#2 e^#1&,boxCoefficients]]]];
+  exact=False;method="MasslessBoxPolylogarithmLaurentFormula"];
  poly=Normal[Series[expr,{e,0,high}]];
  If[!FreeQ[poly,_SeriesData|_Series|_SeriesCoefficient|_Integrate|_Failure|Indeterminate|_DirectedInfinity],epsOrderFail["ExplicitOneLoopLaurentCoefficientsRequired"]];
- lower=Min[low,If[Length[active]>=3,-2,-1]];
+ lower=If[Length[active]===4,If[factorLower===Infinity,low,Min[low,factorLower-2]],
+   With[{bound=FeynFacet`DetermineMeromorphicLaurentLowerBound[expr,e]},
+    If[bound===Infinity,low,If[IntegerQ[bound],Min[low,bound],epsOrderFail["OneLoopLaurentLowerBoundRequired"]]]]];
  coeffs=Association@Table[j->Coefficient[Expand[e^-lower poly],e,j-lower],{j,lower,high}];
  <|"MasterIntegral"->definition["MasterIntegral"],"DimensionalRegulator"->e,
   "LaurentLowerBound"->lower,"KnownThroughOrder"->high,"RequestedRange"->{low,high},
-  "Coefficients"->coeffs,"ExactInEpsilon"->TrueQ[expr===0],
+  "Coefficients"->coeffs,"ExactInEpsilon"->If[exact,TrueQ[expr===0],factorLower===Infinity],
   "AnalyticExpression"->If[exact,expr,Missing["FiniteLaurentExpression"]],
   "EvaluationMethod"->method,"LoopPrescription"->prescription,
   "Normalization"->"d^D l/(i pi^(D/2)), conjugated for negative prescription"|>
@@ -90,10 +110,18 @@ oneLoopTwoScaleTriangleGamma[{a_,b_},dim_,prescription_,conditions_]:=Module[
 FeynFacet`EvaluateOneLoopScalarFunctions::usage="EvaluateOneLoopScalarFunctions[expression,epsilon,conditions] evaluates massless FeynCalc B0 and C0 functions with at least one null external leg exactly in epsilon. It includes the conversion from FeynCalc's 1/(i pi^2) convention to the normalized loop Gamma formulas.";
 FeynFacet`EvaluateOneLoopScalarFunctions[expression_,e_Symbol,conditions_]:=Catch[Module[{objects,rules,result},
  objects=DeleteDuplicates[Cases[expression,_FeynCalc`B0|_FeynCalc`C0,{0,Infinity}]];
- rules=Table[obj->Switch[obj,
-  FeynCalc`B0[_,0,0],Pi^(-e) oneLoopSingleScaleGamma[{obj[[1]]},{1,1},4-2e,1,conditions],
-  FeynCalc`C0[_,_,_,0,0,0],Pi^(-e) oneLoopSingleScaleGamma[Take[List@@obj,3],{1,1,1},4-2e,1,conditions],
-  _,epsOrderFail["MasslessScalarLoopFunctionRequired",<|"Function"->obj|>]],{obj,objects}];
+ rules=Table[obj->Module[{definition,value,provider},
+  provider=Function[{},<|"ExactValue"->Switch[obj,
+   FeynCalc`B0[_,0,0],oneLoopSingleScaleGamma[{obj[[1]]},{1,1},4-2e,1,conditions],
+   FeynCalc`C0[_,_,_,0,0,0],oneLoopSingleScaleGamma[Take[List@@obj,3],{1,1,1},4-2e,1,conditions],
+   _,epsOrderFail["MasslessScalarLoopFunctionRequired",<|"Function"->obj|>]]|>];
+  If[FeynFacet`$MasterIntegralLibraryMode==="Disabled",value=provider[],
+   definition=masterLibraryScalarFunctionDefinition[obj,e,conditions];
+   If[!AssociationQ[definition],Throw[definition,"EpsilonOrders"]];
+   value=FeynFacet`EvaluateWithMasterIntegralLibrary[definition,Automatic,provider]];
+  If[!AssociationQ[value],Throw[value,"EpsilonOrders"]];
+  Pi^-e value["ExactValue"]
+ ],{obj,objects}];
  result=expression/.rules;
  If[!FreeQ[result,_FeynCalc`A0|_FeynCalc`B0|_FeynCalc`B1|_FeynCalc`C0|_FeynCalc`D0|_FeynCalc`PaVe|_FeynCalc`GenPaVe],
   epsOrderFail["UnsupportedScalarLoopFunction"]];

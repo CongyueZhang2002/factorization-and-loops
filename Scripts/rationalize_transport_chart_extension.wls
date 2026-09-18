@@ -17,7 +17,7 @@ If[! FileExistsQ[specificationFile],
     specificationFile];
   Exit[66]
 ];
-specification = Get[specificationFile];
+specification = FeynFacetRecords`ReadRecord[specificationFile];
 If[! AssociationQ[specification],
   Print["Parametrization-extension specification must be an Association."];
   Exit[65]
@@ -26,7 +26,7 @@ If[! AssociationQ[specification],
 base = Lookup[specification, "BaseRationalizingParametrization", Missing[]];
 baseParametrization = Which[
   AssociationQ[base], base,
-  StringQ[base] && FileExistsQ[base], Get[base],
+  StringQ[base] && FileExistsQ[base], FeynFacetRecords`ReadRecord[base],
   StringQ[base], Lookup[FeynFacet`RationalizingParametrizationCatalog[], base, None],
   True, None
 ];
@@ -63,8 +63,7 @@ If[! DirectoryQ[DirectoryName[outputFile]],
   CreateDirectory[DirectoryName[outputFile],
     CreateIntermediateDirectories -> True]];
 temporaryFile = outputFile <> ".tmp";
-Put[result, temporaryFile];
-RenameFile[temporaryFile, outputFile, OverwriteTarget -> True];
+FeynFacetRecords`WriteRecord[result,outputFile];
 Print[InputForm[<|
   "Status" -> "RationalizingParametrizationVerified",
   "Name" -> result["Name"],

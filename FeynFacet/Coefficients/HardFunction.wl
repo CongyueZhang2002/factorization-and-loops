@@ -1,20 +1,6 @@
 (* Weighted physical cut contributions in the common final coefficient format.
    Scalar master identities are applied before exact terms are combined. *)
 
-(* (-1) per ghost-antighost pair among the outgoing partons. *)
-assemblyGhostSign[setup_Association] := Module[
-  {partons, outgoing, ghostCount},
-  partons = Lookup[setup, "Partons", Missing["NotFound"]];
-  If[! MatchQ[partons, Rule[_List, _List]], Return[$Failed]];
-  outgoing = Last[partons];
-  ghostCount = Count[
-    outgoing,
-    field_ /; ! FreeQ[Hold[field], FeynArts`U]
-  ];
-  If[OddQ[ghostCount], Return[$Failed]];
-  (-1)^(ghostCount/2)
-];
-
 assemblyWeight[setup_Association] := Module[{symmetry, sign},
   symmetry = IdenticalParticleSymmetryFactor[setup];
   sign = assemblyGhostSign[setup];

@@ -5,7 +5,7 @@ Get[FileNameJoin[{root,"FeynFacet", "Solution.m"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=3,Print["Expected SOLUTION_DIRECTORY OPTIONS.wl OUTPUT_DIRECTORY"];Exit[2]];
 data=FeynFacetSolution`ReadMasterIntegralSolution[args[[1]]];
-options=Get[args[[2]]];
+options=FeynFacetRecords`ReadRecord[args[[2]]];
 If[!AssociationQ[data]||!ListQ[options],Print["Invalid solution or option list"];Exit[2]];
 result=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data,Sequence@@options];
 If[FailureQ[result],Print[result];Exit[1]];

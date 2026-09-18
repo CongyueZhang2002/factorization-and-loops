@@ -1,12 +1,48 @@
 (* Differentiate the current spanning integrals and reduce their union until
    all requested derivatives close. No preferred process or family enters. *)
 BeginPackage["FeynFacet`"];
-ConstructCutDifferentialSystem::usage="ConstructCutDifferentialSystem[families,targets,parameters,request] builds a closed multivariable DE from typed cut families. It repeatedly reduces all original and derivative targets with explicit IBPs. Request supplies WorkingDirectory, optional MomentumDerivatives indexed by parameter, SeedExtension, MaximumClosureIterations, and rational ValidationPoints for a cheap flatness check. No boundary value or master minimality is inferred.";
+ConstructCutDifferentialSystem::usage="ConstructCutDifferentialSystem[families,targets,parameters,request] builds a closed multivariable DE from typed cut families. It repeatedly reduces all original and derivative targets with explicit IBPs. Request supplies WorkingDirectory, optional MomentumDerivatives indexed by parameter, SeedExtension, GenerationKernels for independent symbolic equation generation, MaximumClosureIterations, and rational ValidationPoints for a cheap flatness check. No boundary value or master minimality is inferred.";
 IntegralRelationsFromCutDifferentialSystem::usage="IntegralRelationsFromCutDifferentialSystem[system,request] differentiates the declared master integrals with the typed integral definitions and equates them to a known exact DE. It returns rational integral equations for reuse by reduction, not equations inferred from truncated master values. request may supply ScalarRules and MomentumDerivatives.";
 ReduceMasterDifferentialSystem::usage="ReduceMasterDifferentialSystem[system,reduction] restricts an exact multivariable master DE to a subset spanning basis using closed integral identities. It verifies R_selected=Identity and every exact compatibility equation dR+R A_reduced-A_original R=0. With CloseDifferentialRelations -> True it closes differential consequences when the subset still contains dependent integrals. It preserves the generic-kinematic scope of the reduction and does not infer endpoint distribution identities.";
 
+ReduceEquivalentMasterIntegrals::usage="ReduceEquivalentMasterIntegrals[system,request] identifies exactly equivalent typed cut integrals under allowed loop changes, closes their differential consequences with the existing subset reducer, and updates every original reduction and requested value. It does not claim master minimality.";
 SelectMasterIntegralBasis::usage="SelectMasterIntegralBasis[system,reduction,request] selects a subset of exact candidate integral images as DE coordinates. It prefers nonnegative indices and smaller total denominator powers. Rational sampling chooses a candidate subset; exact inversion and differential compatibility certify its map. This makes no minimality or global nonsingularity claim.";
 Begin["`Private`"];
+(* Cumulative maps always express the earliest recorded integrals in the
+   current basis. Immediate step maps may coexist as diagnostic provenance. *)
+cutOriginalMasterEmbedding[system_Association] := Module[{stored},
+ stored=Lookup[system,"OriginalMasterIntegralEmbedding",None];
+ If[AssociationQ[stored],Return[stored]];
+ stored=Lookup[system,"MasterBasisReduction",None];
+ If[AssociationQ[stored],Return[<|
+  "MasterIntegralBasis"->stored["OriginalMasterIntegralBasis"],
+  "EmbeddingMatrix"->stored["EmbeddingMatrix"]|>]];
+ <|"MasterIntegralBasis"->system["MasterIntegralBasis"],
+   "EmbeddingMatrix"->IdentityMatrix[Length[system["MasterIntegralBasis"]]]|>
+];
+cutInverseDimensionRule[system_Association] := Module[{e,rule,value,constant,slope},
+ e=system["DimensionalRegulator"];rule=Lookup[system,"DimensionRule",D->4-2e];
+ If[!MatchQ[rule,_Rule]||First[rule]=!=D,
+  cutFamilyFail["DeclaredAffineDimensionRuleRequired"]];
+ value=Last[rule];
+ If[!FreeQ[value,D]||!PolynomialQ[value,e]||Exponent[value,e]=!=1,
+  cutFamilyFail["DeclaredAffineDimensionRuleRequired"]];
+ constant=value/.e->0;slope=Coefficient[value,e];
+ If[slope===0,cutFamilyFail["InvertibleDimensionRuleRequired"]];
+ e->Cancel[(D-constant)/slope]
+];
+
+cutConnectionMatrices[system_Association]:=Module[
+ {variables=system["KinematicVariables"],basis=system["MasterIntegralBasis"],matrices=system["ConnectionMatrices"]},
+ If[AssociationQ[matrices],
+  If[Sort[Keys[matrices]]=!=Sort[variables],cutFamilyFail["ConnectionAxesMustMatchKinematicVariables"]];
+  matrices=Lookup[matrices,variables]];
+ If[!ListQ[matrices]||Length[matrices]=!=Length[variables]||
+  !AllTrue[matrices,Dimensions[#]==={Length[basis],Length[basis]}&],
+  cutFamilyFail["CompleteMasterConnectionMatricesRequired"]];
+ Normal/@matrices
+];
+
 ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI},
  parameters:{__Symbol},request_Association]:=Catch[Module[
  {records,names,byName,directory,iterations,moving,baseRequest,reduction,basis,nextBasis,
@@ -66,48 +102,74 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   SparseArray[rows],{axis,Length[parameters]}];
  points=Lookup[request,"ValidationPoints",{}];
  If[!MatchQ[points,{{(_Rule)..}...}],cutFamilyFail["ExactRationalValidationPointsRequired"]];
- flatness=Flatten[Table[
-  Normal[D[Normal[matrices[[j]]],parameters[[i]]]-D[Normal[matrices[[i]]],parameters[[j]]]+
-   matrices[[j]].matrices[[i]]-matrices[[i]].matrices[[j]]],
- {i,Length[parameters]},{j,i+1,Length[parameters]}],2];
- checks=If[points==={},
-  residual=TimeConstrained[Factor/@Flatten[flatness],10,$Aborted];
-  If[residual===$Aborted,cutFamilyFail["FlatnessCheckNeedsRationalValidationPoints"]];
-  If[!AllTrue[residual,#===0&],cutFamilyFail["CutDifferentialSystemNotFlat",<|"Residual"->residual|>]];
-  <|"Method"->"ExactRationalFunctions","FlatnessPassed"->True|>,
-  Do[residual=Factor/@Flatten[flatness/.point];
-   If[!AllTrue[residual,MatchQ[#,_Integer|_Rational]&]||!AllTrue[residual,#===0&],
-    cutFamilyFail["CutDifferentialFlatnessSampleFailed",<|"Point"->point,"Residual"->residual|>]],
-  {point,points}];
-  <|"Method"->"ExactRationalSpecializations","Points"->points,"FlatnessPassed"->True|>];
+ checks=cutDifferentialFlatnessCheck[matrices,parameters,points];
  regulator=Lookup[request,"DimensionalRegulator",Global`Epsilon];
  <|"DataType"->"CutMasterDifferentialSystem","SchemaVersion"->1,
   "KinematicVariables"->parameters,"DimensionalRegulator"->regulator,
   "DimensionRule"->Lookup[request,"DimensionRule",D->4-2regulator],
   "MasterIntegralBasis"->basis,"ConnectionMatrices"->matrices,
   "RequestedMasterIntegrals"->targets,"RequestedMasterValues"->(targets/.Dispatch[reduction["Rules"]]),
-  "Families"->records,"Reduction"->reduction,"ClosureHistory"->history,"Validation"->checks,
+  "Families"->records,"Reduction"->Join[reduction,<|"Masters"->basis|>],"ClosureHistory"->history,"Validation"->checks,
+  "MomentumDerivatives"->moving,
   "PhysicalBoundaryConditionsApplied"->False,"MinimalMasterCountDetermined"->False|>
 ],"CutFamily"];
 
+(* Differentiate before specialization, but multiply only after it when
+   rational sample checks were requested. Constructing the full symbolic
+   commutator first defeats the purpose of the inexpensive sampled check. *)
+cutDifferentialFlatnessCheck[matrices_List,parameters_List,points_List] := Module[
+ {derivatives,flatness,residual,sampled,derivativeValues},
+ derivatives=Table[D[Normal[matrices[[j]]],parameters[[i]]],
+   {i,Length[parameters]},{j,Length[parameters]}];
+ If[points==={},
+  residual=TimeConstrained[
+   flatness=Flatten[Table[
+    Normal[derivatives[[i,j]]-derivatives[[j,i]]+
+     matrices[[j]].matrices[[i]]-matrices[[i]].matrices[[j]]],
+    {i,Length[parameters]},{j,i+1,Length[parameters]}]];
+   Factor/@flatness,10,$Aborted];
+  If[residual===$Aborted,cutFamilyFail["FlatnessCheckNeedsRationalValidationPoints"]];
+  If[!AllTrue[residual,#===0&],cutFamilyFail["CutDifferentialSystemNotFlat",<|"Residual"->residual|>]];
+  Return[<|"Method"->"ExactRationalFunctions","FlatnessPassed"->True|>]];
+ Do[
+  sampled=Normal/@matrices/.point;derivativeValues=derivatives/.point;
+  If[!AllTrue[Flatten[{sampled,derivativeValues}],MatchQ[#,_Integer|_Rational]&],
+   cutFamilyFail["CutDifferentialFlatnessSampleFailed",<|"Point"->point,
+    "Reason"->"The connection or its derivatives have an undefined or nonrational specialization."|>]];
+  residual=Flatten[Table[derivativeValues[[i,j]]-derivativeValues[[j,i]]+
+    sampled[[j]].sampled[[i]]-sampled[[i]].sampled[[j]],
+   {i,Length[parameters]},{j,i+1,Length[parameters]}]];
+  If[!AllTrue[residual,#===0&],
+   cutFamilyFail["CutDifferentialFlatnessSampleFailed",<|"Point"->point,"Residual"->residual|>]],
+ {point,points}];
+ <|"Method"->"ExactRationalSpecializations","Points"->points,"FlatnessPassed"->True|>
+];
+
 IntegralRelationsFromCutDifferentialSystem[system_Association,request_Association:<||>]:=Catch[Module[
- {masters,matrices,parameters,families,byName,derivatives,relations,parsed,rows,extra,scalarRules},
+ {masters,matrices,parameters,families,byName,derivatives,relations,parsed,rows,extra,scalarRules,inverseDimension,moving},
  If[!ContainsAll[Keys[system],{"MasterIntegralBasis","ConnectionMatrices","KinematicVariables","Families"}],
   cutFamilyFail["ExactCutDifferentialSystemRequired"]];
  {masters,matrices,parameters,families}=Lookup[system,
   {"MasterIntegralBasis","ConnectionMatrices","KinematicVariables","Families"}];
  scalarRules=Lookup[request,"ScalarRules",{}];
+ matrices=cutConnectionMatrices[system];
+ inverseDimension=cutInverseDimensionRule[system];
+ moving=Lookup[request,"MomentumDerivatives",Lookup[system,"MomentumDerivatives",<||>]];
+ If[!AssociationQ[moving]||!SubsetQ[parameters,Keys[moving]],
+  cutFamilyFail["MomentumDerivativesIndexedByDEParameterRequired"]];
+ If[KeyExistsQ[system,"MomentumDerivatives"]&&moving=!=system["MomentumDerivatives"],
+  cutFamilyFail["MatchingMomentumDerivativeOperatorsRequired"]];
  If[!MatchQ[masters,{__FeynCalc`GLI}]||Length[matrices]=!=Length[parameters]||
   !AllTrue[matrices,Dimensions[#]==={Length[masters],Length[masters]}&]||
   !MatchQ[scalarRules,{(_Rule)...}]||validateCutGLIs[masters,families]=!=True,
   cutFamilyFail["ExactTypedMasterDEDataRequired"]];
  byName=Association[(#["Topology"][[1]]->#)&/@families];
  rows=Flatten[Table[
-  extra=Lookup[Lookup[request,"MomentumDerivatives",<||>],parameters[[j]],None];
+  extra=Lookup[moving,parameters[[j]],None];
   derivatives=FeynFacet`DifferentiateCutIntegral[byName[master[[1]]],master,parameters[[j]],
    If[extra===None,<||>,<|"MomentumDerivatives"->extra|>]];
   If[FailureQ[derivatives],cutFamilyFail["KnownMasterDifferentiationFailed",<|"Cause"->derivatives|>]];
-  relations=(derivatives-Normal[matrices[[j]]][[i]].masters)/.scalarRules;
+  relations=(((derivatives-Normal[matrices[[j]]][[i]].masters)/.inverseDimension)/.scalarRules)/.inverseDimension;
   parsed=linearIntegralSum[relations];
   If[!linearIntegralSumQ[parsed]||Cancel[Together[parsed["Remainder"]]]=!=0,
    cutFamilyFail["HomogeneousIntegralDifferentialRelationRequired"]];
@@ -117,16 +179,18 @@ IntegralRelationsFromCutDifferentialSystem[system_Association,request_Associatio
  <|"Format"->"FeynFacet-IBPEquations","Rows"->rows,
   "EquationSource"->"KnownExactDifferentialSystem",
   "MasterIntegralBasis"->masters,"KinematicVariables"->parameters,
+  "DimensionConvention"->D,"MomentumDerivatives"->moving,
   "Scope"->"Assumes the supplied exact DE and typed definitions; no epsilon-truncated scalar values were used."|>
 ],"CutFamily"];
 ReduceMasterDifferentialSystem[system_Association,reduction_Association,request_Association:<||>]:=Catch[Module[
  {old,basis,rules,variables,positions,images,allObjects,index,entries,map,matrices=<||>,
-  checks=<||>,a,reduced,residual,values,cancel,families,relations={},close,restricted,inner,rows,newBasis,newMap,answer,preference,ordered,sampled,pivotRows,points,point},
+  checks=<||>,a,reduced,residual,values,cancel,families,relations={},close,restricted,inner,rows,newBasis,newMap,answer,preference,ordered,sampled,pivotRows,points,point,originalEmbedding,sourceMatrices,classMap,product,restrictionInput,newConnections,sourceInD},
  {old,variables}=Lookup[system,{"MasterIntegralBasis","KinematicVariables"},None];
  basis=Lookup[reduction,"Masters",None];rules=Lookup[reduction,"Rules",None];
  If[!ListQ[old]||!ListQ[basis]||!ListQ[rules]||!ListQ[variables]||
-  !AssociationQ[Lookup[system,"ConnectionMatrices",None]]||!ContainsAll[old,basis],
+  !ContainsAll[old,basis],
   cutFamilyFail["MasterDifferentialSystemAndSubsetBasisReductionRequired"]];
+ sourceMatrices=AssociationThread[variables,cutConnectionMatrices[system]];
  close=Lookup[request,"CloseDifferentialRelations",False];
  If[!MemberQ[{True,False},close],cutFamilyFail["ExplicitDifferentialRelationClosureChoiceRequired"]];
  positions=Flatten[FirstPosition[old,#,Missing[],{1},Heads->False]&/@basis];
@@ -137,6 +201,7 @@ ReduceMasterDifferentialSystem[system_Association,reduction_Association,request_
    Map[Function[master,{First[row],index[master]}->Coefficient[expression,master]],
      DeleteDuplicates[Cases[expression,_FeynCalc`GLI,{0,Infinity}]]]],images],1];
  map=SparseArray[Select[entries,Last[#]=!=0&],{Length[old],Length[basis]}];
+ classMap=If[AllTrue[images,MatchQ[#,_FeynCalc`GLI]&],(index[#]&/@images),None];
  If[!AllTrue[Expand[images-Normal[map].basis],#===0&],
   cutFamilyFail["LinearMasterBasisEmbeddingRequired"]];
  cancel[m_]:=Module[{flat=FeynFacet`CancelRationalCoefficients[Flatten[Normal[m]]]},
@@ -145,10 +210,17 @@ ReduceMasterDifferentialSystem[system_Association,reduction_Association,request_
  If[cancel[map[[positions,All]]-IdentityMatrix[Length[basis]]]=!=ConstantArray[0,{Length[basis],Length[basis]}],
   cutFamilyFail["SelectedMasterReductionMustBeTheIdentity"]];
  Do[
-  a=Normal[system["ConnectionMatrices"][variable]];
+  a=sourceMatrices[variable];
   If[Dimensions[a]=!={Length[old],Length[old]},cutFamilyFail["CompleteOriginalMasterConnectionMatrixRequired"]];
-  reduced=cancel[a[[positions,All]].map];
-  residual=cancel[D[Normal[map],variable]+map.reduced-a.map];
+  If[ListQ[classMap],
+   (* An integral-class map has one unit per row. Its left product gathers
+      representative rows; form the right product just once. *)
+   product=Normal[SparseArray[a].map];
+   reduced=cancel[product[[positions]]];
+   residual=cancel[product[[positions[[classMap]]]]-product],
+   reduced=cancel[Normal[SparseArray[a[[positions,All]]].map]];
+   residual=cancel[D[Normal[map],variable]+
+     Normal[map.SparseArray[reduced]-SparseArray[a].map]]];
   If[!AllTrue[Flatten[residual],#===0&],
    If[!close,cutFamilyFail["MasterReductionDifferentialCompatibilityFailed",<|"Variable"->variable,"Residual"->residual|>]];
    relations=Join[relations,Select[residual,!AllTrue[#, #===0&]&]]];
@@ -158,38 +230,66 @@ ReduceMasterDifferentialSystem[system_Association,reduction_Association,request_
   (* A spanning set need not be independent. Differentiate its exact identities
      and close the resulting physical constraints before selecting a smaller
      subset. The final embedding is checked again against every original DE. *)
+  restrictionInput=Join[KeyTake[system,{"KinematicVariables","DimensionalRegulator","DimensionRule"}],
+    <|"MasterIntegralBasis"->basis,"OriginalMasterIntegralBasis"->basis,
+      "Dimension"->Length[basis],"ConnectionMatrices"->Values[matrices]|>];
   restricted=FeynFacet`RestrictDifferentialSystemToRelations[
-    Join[system,<|"ConnectionMatrices"->Values[matrices]|>],
-    relations/.Lookup[system,"DimensionRule",{}],
+    restrictionInput,relations,
     Join[KeyTake[request,{"ValidationPoints"}],
      <|"RelationProvenance"->"Differentiation of supplied exact integral identities in the original differential system."|>]];
   If[!AssociationQ[restricted],cutFamilyFail["MasterDifferentialRelationClosureFailed",<|"Cause"->restricted|>]];
-  inner=restricted["SolutionEmbedding"];rows=globalDEIndependentRows[inner];
-  inner=cancel[inner.Inverse[inner[[rows]]]];
+  inner=restricted["SolutionEmbedding"];rows=restricted["FreeColumns"];
+  If[inner[[rows]]=!=IdentityMatrix[Length[rows]],cutFamilyFail["FreeCoordinateEmbeddingRequired"]];
   (* The closure routine uses epsilon; return the change of integral basis
      in the dimension convention used by the input reduction. *)
-  If[!FreeQ[{system["ConnectionMatrices"],map},D],
-   inner=inner/.system["DimensionalRegulator"]->((4-D)/2)];
-  newBasis=basis[[rows]];newMap=cancel[map.inner];
+  sourceInD=!FreeQ[{Values[sourceMatrices],Normal[map]},D];
+  newConnections=restricted["ConnectionMatrices"];
+  If[sourceInD,
+   inner=inner/.cutInverseDimensionRule[system];
+   newConnections=newConnections/.cutInverseDimensionRule[system]];
+  newBasis=basis[[rows]];newMap=cancel[Normal[map.SparseArray[inner]]];
   preference=Lookup[request,"PreferredMasterIntegrals",Automatic];
   If[preference===Automatic,
-   ordered=SortBy[Range[Length[old]],Function[j,{Total[Max[0,-#]&/@old[[j,2]]],
-     Total[Max[0,#]&/@old[[j,2]]],j}]],
-   If[!ListQ[preference]||!DuplicateFreeQ[preference]||!ContainsAll[old,preference],
-    cutFamilyFail["PreferredMasterIntegralsMustBelongToOriginalSystem"]];
-   ordered=Join[(First@FirstPosition[old,#]&/@preference),
-    Complement[Range[Length[old]],(First@FirstPosition[old,#]&/@preference)]]];
+   (* C E=0 and dE+E Bnew-B E=0 certify d(RE)+(RE)Bnew-A(RE)=0.
+      Free coordinates are already original integral rows; no nullspace
+      normalization or repeated full original-system products are needed. *)
+   residual=cancel[Normal[SparseArray[relations].SparseArray[inner]]];
+   If[!AllTrue[Flatten[residual],#===0&],cutFamilyFail["ClosedIntegralRelationsFailed"]];
+   newBasis=basis[[rows]];
+   originalEmbedding=cutOriginalMasterEmbedding[system];
+   answer=Join[system,
+    If[KeyExistsQ[system,"RequestedMasterValues"],
+     <|"RequestedMasterValues"->(system["RequestedMasterValues"]/.Dispatch[Thread[old->(newMap.newBasis)]])|>,<||>],
+    <|"OriginalMasterIntegralEmbedding"->Join[originalEmbedding,
+       <|"EmbeddingMatrix"->cancel[Normal[SparseArray[originalEmbedding["EmbeddingMatrix"]].SparseArray[newMap]]]|>],
+      "MasterIntegralBasis"->newBasis,
+      "Families"->Select[system["Families"],MemberQ[First/@newBasis,#["Topology"][[1]]]&],
+      "ConnectionMatrices"->AssociationThread[variables,SparseArray/@newConnections],
+      "MasterBasisReduction"-><|"OriginalMasterIntegralBasis"->old,"EmbeddingMatrix"->newMap,
+       "SelectedOriginalRows"->positions[[rows]],"ExactDifferentialCompatibility"->checks,
+       "SubsetIdentityVerified"->True,"VerificationMethod"->"FactoredExactDifferentialIdentities"|>,
+      "ExternalEndpointUniformityEstablished"->False|>];
+   answer=cutWithComposedReduction[answer,system,old,newBasis,newMap];
+   Return[Join[answer,<|"AdditionalMasterRelations"-><|"SpanningBasis"->basis,
+     "Relations"->relations,"DifferentialClosure"->restricted,"SpanningBasisEmbedding"->inner,
+     "Provenance"->"Exact differential consequences of the supplied integral identities and original DE."|>|>],Module]];
+
+  If[!ListQ[preference]||!DuplicateFreeQ[preference]||!ContainsAll[old,preference],
+   cutFamilyFail["PreferredMasterIntegralsMustBelongToOriginalSystem"]];
+  ordered=Join[(First@FirstPosition[old,#]&/@preference),
+   Complement[Range[Length[old]],(First@FirstPosition[old,#]&/@preference)]];
   points=Lookup[request,"ValidationPoints",{}];
   If[points=!={},
-   point=First[points];
-   point=Append[point,Lookup[system,"DimensionRule",D->4-2system["DimensionalRegulator"]]/.point];
+   point=differentialDimensionPoint[First[points],system,"Both"];
+   If[FailureQ[point],cutFamilyFail["ConsistentMasterBasisSelectionPointRequired",<|"Cause"->point|>]];
    sampled=newMap/.point;
+   If[!MatrixQ[sampled,exactRationalQ],cutFamilyFail["CompleteRationalMasterBasisSelectionPointRequired"]];
    (* Sampling chooses a row subset only. The inversion and every subsequent
       identity are exact; an unlucky point never certifies a false relation. *)
    pivotRows=globalDEIndependentRows[sampled[[ordered]]];
    If[Length[pivotRows]===Length[newBasis],
     rows=ordered[[pivotRows]];newBasis=old[[rows]];
-    newMap=cancel[newMap.Inverse[newMap[[rows]]]];
+    newMap=cancel[newMap.globalDEExactInverse[newMap[[rows]]]];
     inner=newMap[[positions]]]];
   answer=FeynFacet`ReduceMasterDifferentialSystem[system,
     <|"Masters"->newBasis,"Rules"->Thread[old->(newMap.newBasis)]|>];
@@ -199,16 +299,69 @@ ReduceMasterDifferentialSystem[system_Association,reduction_Association,request_
     "SpanningBasisEmbedding"->inner,
     "Provenance"->"Exact differential consequences; assumes the supplied physical integral reduction and original DE."|>|>],Module]];
  families=Select[system["Families"],MemberQ[First/@basis,#["Topology"][[1]]]&];
- Join[system,<|"MasterIntegralBasis"->basis,"Families"->families,"ConnectionMatrices"->matrices,
+ originalEmbedding=cutOriginalMasterEmbedding[system];
+ answer=Join[system,If[KeyExistsQ[system,"RequestedMasterValues"],
+   <|"RequestedMasterValues"->(system["RequestedMasterValues"]/.Dispatch[rules])|>,<||>],
+  <|"OriginalMasterIntegralEmbedding"->Join[originalEmbedding,
+    <|"EmbeddingMatrix"->cancel[originalEmbedding["EmbeddingMatrix"].map]|>],
+   "MasterIntegralBasis"->basis,"Families"->families,"ConnectionMatrices"->matrices,
   "MasterBasisReduction"-><|"OriginalMasterIntegralBasis"->old,"EmbeddingMatrix"->map,
     "SelectedOriginalRows"->positions,"ExactDifferentialCompatibility"->checks,
     "SubsetIdentityVerified"->True|>,
-  "ExternalEndpointUniformityEstablished"->False|>]
+  "ExternalEndpointUniformityEstablished"->False|>];
+ cutWithComposedReduction[answer,system,old,basis,Normal[map]]
+],"CutFamily"];
+
+(* A basis change must also retain rules for former masters, which native
+   exporters may omit because they were identities in the previous basis. *)
+cutComposeIntegralReduction[reduction_Association,mapping_List,masters_List]:=Module[
+ {replacement=Dispatch[mapping],oldRules=reduction["Rules"],rules,images,required},
+ images=Thread[reduction["Masters"]->(reduction["Masters"]/.replacement)];
+ rules=Normal[Association[Join[
+   (First[#]->(Last[#]/.replacement))&/@oldRules,images,mapping]]];
+ rules=Select[rules,First[#]=!=Last[#]&];
+ required=Union[Lookup[reduction,"Targets",{}],First/@oldRules,reduction["Masters"],First/@mapping];
+ If[!ContainsAll[Join[First/@rules,masters],required]||
+   !ContainsAll[masters,DeleteDuplicates[Cases[Last/@rules,_FeynCalc`GLI,{0,Infinity}]]],
+  cutFamilyFail["CompleteComposedIntegralReductionRequired"]];
+ Join[reduction,<|"Masters"->masters,"Rules"->rules|>]
+];
+
+cutWithComposedReduction[answer_Association,source_Association,old_List,basis_List,map_]:=Module[
+ {reduction=Lookup[source,"Reduction",None]},
+ If[reduction===None,Return[answer]];
+ If[!AssociationQ[reduction],cutFamilyFail["ClosedSourceIntegralReductionRequired"]];
+ Join[answer,<|"Reduction"->cutComposeIntegralReduction[
+   reduction,Thread[old->(map.basis)],basis]|>]
+];
+
+ReduceEquivalentMasterIntegrals[system_Association,request_Association]:=Catch[Module[
+ {old=system["MasterIntegralBasis"],sourceReduction=system["Reduction"],equivalences,representatives,
+  rules,reduced},
+ If[!AssociationQ[sourceReduction]||!ListQ[Lookup[sourceReduction,"Masters",None]]||
+  Sort[sourceReduction["Masters"]]=!=Sort[old]||
+  !ListQ[sourceReduction["Rules"]],cutFamilyFail["ReductionInCurrentMasterBasisRequired"]];
+ equivalences=FeynFacet`FindCutIntegralEquivalences[old,system["Families"],
+  "Normalization"->"Explicit typed integral definitions",
+  "OrdinaryPrescriptionGeometry"->Lookup[request,"OrdinaryPrescriptionGeometry",None]];
+ If[!AssociationQ[equivalences]||!AllTrue[equivalences["Mappings"],#["Factor"]===1&],
+  cutFamilyFail["ExactNonzeroMasterIntegralEquivalencesRequired",<|"Cause"->equivalences|>]];
+ representatives=equivalences["RepresentativeMasterIntegrals"];
+ If[TrueQ[Lookup[request,"Verbose",False]],
+  Print["EXACT AFFINE MASTER CLASSES ",Length[representatives]," / ",Length[old]]];
+ If[Length[representatives]===Length[old],Return[Join[system,<|"IntegralEquivalences"->equivalences|>],Module]];
+ rules=Select[(#["Source"]->#["Representative"])&/@equivalences["Mappings"],First[#]=!=Last[#]&];
+ reduced=FeynFacet`ReduceMasterDifferentialSystem[system,<|"Masters"->representatives,"Rules"->rules|>,
+  Join[KeyTake[request,{"ValidationPoints"}],<|"CloseDifferentialRelations"->True|>]];
+ If[!AssociationQ[reduced],cutFamilyFail["EquivalentMasterDifferentialReductionFailed",<|"Cause"->reduced|>]];
+ If[TrueQ[Lookup[request,"Verbose",False]],
+  Print["EXACT DIFFERENTIAL MASTER RELATIONS CLOSED ",Length[reduced["MasterIntegralBasis"]]]];
+ Join[reduced,<|"IntegralEquivalences"->equivalences|>]
 ],"CutFamily"];
 
 SelectMasterIntegralBasis[system_Association,reduction_Association,request_Association]:=Catch[Module[
  {basis,variables,matrices,candidates,points,point,rules,sourceBasis,basisRules={},images,objects,
-  matrix,cancel,ordered,sample,rows,selected,s,si,connections,residual,proof,families,n,rel,oldMap,answer},
+  matrix,cancel,ordered,sample,rows,selected,s,si,connections,residual,proof,families,n,rel,oldMap,answer,cutIndices,originalEmbedding,substitution,trialPoint,trialRows,samplingAttempts={},newReduction},
  basis=system["MasterIntegralBasis"];variables=system["KinematicVariables"];n=Length[basis];
  matrices=system["ConnectionMatrices"];
  If[AssociationQ[matrices],matrices=Lookup[matrices,variables]];
@@ -218,6 +371,7 @@ SelectMasterIntegralBasis[system_Association,reduction_Association,request_Assoc
    !AllTrue[matrices,Dimensions[#]==={n,n}&],
   cutFamilyFail["ExactCandidateIntegralsAndRationalSelectionPointsRequired"]];
  sourceBasis=Lookup[reduction,"Masters",None];
+ If[ListQ[sourceBasis]&&Sort[sourceBasis]===Sort[basis],sourceBasis=basis];
  If[sourceBasis=!=basis,
   rel=Lookup[system,"AdditionalMasterRelations",<||>];
   If[!ContainsAll[Keys[rel],{"SpanningBasis","SpanningBasisEmbedding"}]||
@@ -227,9 +381,15 @@ SelectMasterIntegralBasis[system_Association,reduction_Association,request_Assoc
  rules=Association[reduction["Rules"]];
  Do[If[!KeyExistsQ[rules,master],AssociateTo[rules,master->master]],{master,sourceBasis}];
  candidates=DeleteDuplicates[Join[candidates,basis]];
+ If[TrueQ[Lookup[request,"RequireUnitCutBasis",False]],
+  cutIndices=Association[(#["Topology"][[1]]->#["CutIndices"])&/@reduction["Families"]];
+  candidates=Select[candidates,With[{indices=Lookup[cutIndices,#[[1]],Missing["Family"]]},
+    ListQ[indices]&&AllTrue[#[[2,indices]],#===1&]]&];
+  If[candidates==={},cutFamilyFail["UnitCutBasisCandidatesRequired"]]];
  If[!AllTrue[candidates,KeyExistsQ[rules,#]&],
   cutFamilyFail["EveryBasisCandidateMustHaveAnExactIntegralReduction"]];
- images=(Lookup[rules,Key[#]]/.Dispatch[basisRules])&/@candidates;
+ substitution=Dispatch[basisRules];
+ images=(Lookup[rules,Key[#]]/.substitution)&/@candidates;
  objects=Union[Cases[images,_FeynCalc`GLI,{0,Infinity}]];
  If[!ContainsAll[basis,objects],cutFamilyFail["CandidateIntegralImagesMustCloseOnSystemBasis"]];
  cancel[m_]:=Module[{values=FeynFacet`CancelRationalCoefficients[Flatten[Normal[m]]]},
@@ -240,14 +400,23 @@ SelectMasterIntegralBasis[system_Association,reduction_Association,request_Assoc
  matrix=cancel[matrix];
  ordered=SortBy[Range[Length[candidates]],Function[j,
   {Total[Max[0,-#]&/@candidates[[j,2]]],Total[Max[0,#]&/@candidates[[j,2]]],j}]];
- point=First[points];
- point=Append[point,Lookup[system,"DimensionRule",D->4-2system["DimensionalRegulator"]]/.point];
- sample=matrix/.point;
- If[!MatrixQ[sample,exactRationalQ],cutFamilyFail["CompleteRationalMasterBasisSelectionPointRequired"]];
- rows=globalDEIndependentRows[sample[[ordered]]];
- If[Length[rows]=!=n,cutFamilyFail["CandidateIntegralImagesDoNotSpanTheSystem"]];
- rows=ordered[[rows]];selected=candidates[[rows]];s=matrix[[rows]];
- si=cancel[Inverse[s]];
+ point=None;
+ Do[
+  trialPoint=differentialDimensionPoint[p,system,"Both"];
+  If[FailureQ[trialPoint],
+   cutFamilyFail["ConsistentMasterBasisSelectionPointRequired",<|"Cause"->trialPoint|>]];
+  sample=Quiet[matrix/.trialPoint,{Power::infy,Infinity::indet}];
+  If[!MatrixQ[sample,exactRationalQ],
+   AppendTo[samplingAttempts,<|"Point"->trialPoint,"Status"->"NonrationalOrSingular"|>];Continue[]];
+  trialRows=globalDEIndependentRows[sample[[ordered]]];
+  AppendTo[samplingAttempts,<|"Point"->trialPoint,"Rank"->Length[trialRows]|>];
+  If[Length[trialRows]===n,point=trialPoint;rows=ordered[[trialRows]];Break[]],
+ {p,points}];
+ If[point===None,cutFamilyFail["NoFullRankMasterBasisSelectionSample",
+  <|"Attempts"->samplingAttempts,"RequiredRank"->n,"ExactNonspanEstablished"->False|>]];
+ selected=candidates[[rows]];s=matrix[[rows]];
+ si=globalDEExactInverse[s];
+ If[FailureQ[si],cutFamilyFail["ExactMasterBasisInverseFailed",<|"Cause"->si|>]];
  If[!AllTrue[Flatten[cancel[s.si-IdentityMatrix[n]]],#===0&],
   cutFamilyFail["ExactMasterBasisInverseFailed"]];
  connections=Table[cancel[(D[s,variables[[j]]]+s.matrices[[j]]).si],{j,Length[variables]}];
@@ -255,16 +424,23 @@ SelectMasterIntegralBasis[system_Association,reduction_Association,request_Assoc
   If[!AllTrue[Flatten[residual],#===0&],cutFamilyFail["SelectedMasterDifferentialCompatibilityFailed"]];
   variables[[j]]->True,{j,Length[variables]}];
  families=Select[reduction["Families"],MemberQ[First/@selected,#["Topology"][[1]]]&];
- oldMap=Lookup[Lookup[system,"MasterBasisReduction",<||>],"EmbeddingMatrix",None];
- answer=Join[KeyDrop[system,{"AdditionalMasterRelations","MasterBasisReduction"}],
+ originalEmbedding=cutOriginalMasterEmbedding[system];
+ oldMap=originalEmbedding["EmbeddingMatrix"];
+ substitution=Dispatch[Thread[basis->(si.selected)]];
+ newReduction=cutComposeIntegralReduction[reduction,
+  Join[Thread[sourceBasis->((sourceBasis/.Dispatch[basisRules])/.substitution)],
+    Thread[basis->(si.selected)]],selected];
+ answer=Join[KeyDrop[system,{"AdditionalMasterRelations","MasterBasisReduction","OriginalMasterIntegralEmbedding"}],
+  If[KeyExistsQ[system,"RequestedMasterValues"],
+    <|"RequestedMasterValues"->(system["RequestedMasterValues"]/.substitution)|>,<||>],
   <|"MasterIntegralBasis"->selected,"Families"->families,"ConnectionMatrices"->connections,
+   "Reduction"->newReduction,
    "IntegralBasisChange"-><|"SourceMasterIntegralBasis"->basis,"SourceToSelectedMatrix"->s,
-    "SelectedToSourceMatrix"->si,"CandidateIntegrals"->candidates,"SelectionPoint"->point,
+    "SelectedToSourceMatrix"->si,"CandidateIntegrals"->candidates,"SelectionPoint"->point,"SelectionAttempts"->samplingAttempts,
     "ExactDifferentialCompatibility"->Association[proof],"GlobalNonsingularityClaimed"->False|>,
    "ExternalEndpointUniformityEstablished"->False|>];
- If[oldMap=!=None,AssociateTo[answer,"OriginalMasterIntegralEmbedding"-><|
-  "MasterIntegralBasis"->system["MasterBasisReduction"]["OriginalMasterIntegralBasis"],
-  "EmbeddingMatrix"->cancel[oldMap.si]|>]];
+ AssociateTo[answer,"OriginalMasterIntegralEmbedding"->Join[originalEmbedding,
+   <|"EmbeddingMatrix"->cancel[oldMap.si]|>]];
  answer
 ],"CutFamily"];
 End[];EndPackage[];

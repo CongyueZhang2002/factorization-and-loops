@@ -6,7 +6,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{root,"Addon","Load","LoadFACET.wl"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=2,Print["Expected INPUT.wl OUTPUT.wl"];Exit[2]];
-input=Get[args[[1]]];
+input=FeynFacetRecords`ReadRecord[args[[1]]];
 If[!AssociationQ[input],Print["Input must be an association"];Exit[2]];
 task=Lookup[input,"Task",None];data=Lookup[input,"Data",None];
 request=Lookup[input,"Request",<||>];
@@ -30,8 +30,7 @@ If[!AssociationQ[result] && !FailureQ[result],
 output=ExpandFileName[args[[2]]];
 If[!DirectoryQ[DirectoryName[output]],CreateDirectory[DirectoryName[output],CreateIntermediateDirectories->True]];
 temporary=output<>".tmp-"<>ToString[$ProcessID];
-Block[{$Context="Global`",$ContextPath={"System`","Global`"}},Put[result,temporary]];
-RenameFile[temporary,output,OverwriteTarget->True];
+FeynFacetRecords`WriteRecord[result,output];
 Print["Status: ",If[FailureQ[result],result[[1]],result["Status"]]];
 Print["Computation seconds: ",seconds];
 Print["Saved: ",output];

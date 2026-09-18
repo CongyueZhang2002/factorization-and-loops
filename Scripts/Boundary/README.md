@@ -1,6 +1,6 @@
 # Boundary data
 
-For the full workflow and current process inputs, start with [WORKFLOW.md](../../WORKFLOW.md) and the [ppHX NNLO guide](../../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/README.md).
+For the full workflow and current process inputs, start with [WORKFLOW.md](../../WORKFLOW.md) and the [ppHX NNLO guide](../../Projects/ppHX_UU/NNLO/qqp-qqp/README.md).
 
 `reduce_master_integral_boundaries.wls INPUT.wl OUTPUT_DIRECTORY` applies the
 general boundary-reduction pipeline to fresh family-local finite solutions.

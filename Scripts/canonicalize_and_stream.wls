@@ -4,7 +4,7 @@ Print["FEYNFACET DRIVER ENTERED"];
 
    Usage:
      wolframscript -file Scripts/canonicalize_and_stream.wls \
-       <processDirectory> <sourceResultName> <canonicalResultName> [canonicalize|solve|import] [kiraThreads]
+       <rawChannelDirectory> <sourceResultName> <canonicalResultName> [canonicalize|solve|import] [kiraThreads]
 
    "solve" canonicalizes, solves and imports. "import" resumes from the
    retained canonical artifacts and matching solved Kira workspace.
@@ -17,7 +17,7 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 arguments = Rest[$ScriptCommandLine];
 If[Length[arguments] < 3,
-  Print["Usage: canonicalize_and_stream.wls <processDirectory> <sourceResultName> <canonicalResultName> [canonicalize|solve|import] [kiraThreads]"];
+  Print["Usage: canonicalize_and_stream.wls <rawChannelDirectory> <sourceResultName> <canonicalResultName> [canonicalize|solve|import] [kiraThreads]"];
   Exit[1]
 ];
 processDirectory = FileNameJoin[{root, arguments[[1]]}];
@@ -31,9 +31,9 @@ kiraThreads = If[Length[arguments] >= 5,
   If[StringMatchQ[arguments[[5]], DigitCharacter ..] && FromDigits[arguments[[5]]] > 0,
     FromDigits[arguments[[5]]], Print["Expected a positive Kira thread count."]; Exit[1]], Automatic];
 
-sourceDirectory = FileNameJoin[{processDirectory, "Results", sourceName}];
+sourceDirectory = FileNameJoin[{processDirectory, sourceName}];
 canonicalDirectory = FileNameJoin[{
-  processDirectory, "Results", canonicalName
+  processDirectory, canonicalName
 }];
 If[!importOnly,
 pairFiles = Sort[FileNames[
@@ -87,7 +87,7 @@ If[! StringQ[streamDirectory],
 Print["IMPORTSECONDS: ", Round[importSeconds, 0.1]];
 Print["STREAMDIRECTORY: ", streamDirectory];
 
-manifest = Get[FileNameJoin[{streamDirectory, "Manifest.wl"}]];
+manifest = FeynFacetRecords`ReadRecord[FileNameJoin[{streamDirectory, "Manifest.wl"}]];
 Print["FAMILIES: ", manifest["FamilyCount"]];
 Print["TARGETS: ", manifest["TargetCount"]];
 Print["MASTERS: ", manifest["MasterCount"]];

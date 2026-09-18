@@ -897,7 +897,7 @@ propagatorDescriptor[propagator_, kinematics_List : {}] := Module[
     MatchQ[
       raw,
       (_FeynCalc`PropagatorDenominator |
-        _FeynCalc`StandardPropagatorDenominator)
+        _FeynCalc`StandardPropagatorDenominator | _FeynCalc`GenericPropagatorDenominator)
     ],
     FeynCalc`FeynAmpDenominator[raw],
     raw
@@ -906,12 +906,19 @@ propagatorDescriptor[propagator_, kinematics_List : {}] := Module[
     internal,
     denominator : (
         FeynCalc`PropagatorDenominator |
-        FeynCalc`StandardPropagatorDenominator
+        FeynCalc`StandardPropagatorDenominator | FeynCalc`GenericPropagatorDenominator
       )[___] :> denominator,
     {0, Infinity}
   ];
   If[Length[objects] =!= 1, Return[$Failed]];
   denominator = First[objects];
+  If[Head[denominator] === FeynCalc`GenericPropagatorDenominator,
+    If[!MatchQ[denominator, FeynCalc`GenericPropagatorDenominator[_, {_Integer?Positive, 1 | -1}]],
+      Return[$Failed]];
+    unitCore = FeynCalc`ExpandScalarProduct[denominator[[1]]] /. kinematics;
+    Return[<|"Representation" -> "Generic", "Momentum" -> Missing["PolynomialPropagator"],
+      "Type" -> "PolynomialLorentzian", "Power" -> denominator[[2,1]], "UnitCore" -> unitCore|>]
+  ];
   standard = Head[denominator] === FeynCalc`StandardPropagatorDenominator;
   If[standard,
     quadratic = ! exactZeroQ[denominator[[1]]];

@@ -2075,7 +2075,7 @@ multiquadraticOffDiagonalBlockCompileOneFormEntry[form : {_, _}, letterRecord_,
    acquires no nested kernel of its own. *)
 multiquadraticOffDiagonalBlockCompileShardTask[dataFile_String, indices_List] := Module[
   {payload, forms, records, roots, entries},
-  payload = Quiet[CheckAbort[Get[dataFile], $Failed]];
+  payload = Quiet[CheckAbort[FeynFacet`FamilyArtifactRead[dataFile], $Failed]];
   If[! AssociationQ[payload], Return[$Failed]];
   forms = Lookup[payload, "OneForms", $Failed];
   records = Lookup[payload, "LetterRecords", None];

@@ -8,7 +8,7 @@ args=Rest[$ScriptCommandLine];
 If[Length[args]=!=2,Print["Expected REQUEST.wl OUTPUT.wxf"];Exit[2]];
 file=ExpandFileName[Last[args]];
 If[ToLowerCase[FileExtension[file]]=!="wxf",Print["Output must have .wxf extension"];Exit[2]];
-request=Get[ExpandFileName[First[args]]];
+request=FeynFacetRecords`ReadRecord[ExpandFileName[First[args]]];
 If[!AssociationQ[request]||!ContainsAll[Keys[request],{"CoefficientFile","Request"}]||
  !StringQ[request["CoefficientFile"]]||!AssociationQ[request["Request"]]||
  !AssociationQ[Lookup[request,"DefinitionRequest",<||>]]||KeyExistsQ[request,"Definitions"],

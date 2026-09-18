@@ -3,31 +3,9 @@
    hadronic distributions are removed and flux, color averages and the
    observed-particle measure are supplied explicitly. *)
 BeginPackage["FeynFacet`"];
-ConstructBornInvariantDensity::usage="ConstructBornInvariantDensity[setup,request] generates all selected Born diagram interferences and returns b(s,t,u;epsilon) multiplying delta(s+t+u) in E_c d sigma/d^(D-1)p_c. Request declares Scale, MandelstamVariables and DimensionalRegulator. IncomingColorDimensions can override the QCD representation dimensions.";
+ConstructBornInvariantDensity::usage="ConstructBornInvariantDensity[setup,request] generates all selected Born diagram interferences and returns b(s,t,u;epsilon) multiplying delta(s+t+u) in E_c d sigma/d^(D-1)p_c. Request declares Scale, MandelstamVariables and DimensionalRegulator. Incoming color averages follow the declared QCD field representations.";
 ConstructBornResult::usage="ConstructBornResult[setup,request] computes a Born density and returns explicit epsilon coefficients in the common result format. Request includes Variables and EpsilonRange.";
 Begin["`Private`"];
-FeynFacet`PartonicInvariantDensityNormalization::usage="PartonicInvariantDensityNormalization[setup,request] supplies the common flux, incoming color average, observed measure and removal of PDF/FF fractions for E_c d sigma/d^(D-1)p_c. It applies equally to Born, real and virtual contributions; loop and unobserved phase-space measures belong to the amplitude and master definitions.";
-FeynFacet`PartonicInvariantDensityNormalization[setup_Association,request_Association]:=Catch[Module[
- {s,e,partons,hadrons,fractions,observed,dimensions,distribution,fractionFactor,colorFactor,flux,observedMeasure},
- If[!ContainsAll[Keys[request],{"Scale","DimensionalRegulator"}],collinearKernelFail["InvariantDensityNormalizationRequestRequired"]];
- {s,e}=Lookup[request,{"Scale","DimensionalRegulator"}];
- {partons,hadrons,fractions}=Lookup[setup,{"Partons","HadronMomentum","MomentumFraction"}];
- observed=Flatten[Position[(!MissingQ[#]& /@ Last[hadrons]),True]];
- If[Length[First[partons]]=!=2||Length[observed]=!=1,collinearKernelFail["OneObservedPartonAndTwoIncomingRequired"]];
- dimensions=Lookup[request,"IncomingColorDimensions",Automatic];
- If[dimensions===Automatic,dimensions=Map[Which[
-  MatchQ[#,FeynArts`F[__]|-FeynArts`F[__]],FeynCalc`CA,
-  MatchQ[#,FeynArts`V[5]],FeynCalc`CA^2-1,
-  True,collinearKernelFail["IncomingColorRepresentationRequired",<|"Parton"->#|>]]&,First[partons]]];
- If[!MatchQ[dimensions,{_,_}],collinearKernelFail["TwoIncomingColorDimensionsRequired"]];
- distribution=setup["CoefficientKinematics"]["DistributionFactor"];
- fractionFactor=(Times@@First[fractions]) Last[fractions][[First[observed]]]^2;
- colorFactor=1/(Times@@dimensions);flux=1/(2s);observedMeasure=1/(2(2Pi)^(3-2e));
- <|"Factor"->fractionFactor/distribution colorFactor flux observedMeasure,
-  "FluxFactor"->flux,"ObservedMeasure"->observedMeasure,"IncomingColorAverage"->colorFactor,
-  "RemovedDistributionFactor"->distribution,"RemovedFractionDenominator"->fractionFactor,
-  "IncomingSpinAverage"->"Included by quark/gluon correlator projectors"|>
- ],"CollinearCounterterms"];
 bornInterferenceRows[setup_,selectedPair_,normalization_,prepared_:Automatic]:=Catch[Module[
  {pairSetup,diagrams,interferences,preibp,expression,rows={}},
  diagrams=If[prepared===Automatic,PrepareProcessDiagrams[setup],prepared];
@@ -138,7 +116,7 @@ partonicCornerDistribution[value_,n_Integer?Positive]:=
 currentBornSupport[request_Association]:=Module[
  {variables=request["Variables"],axes=request["DistributionBasis"],point,kinematics,momentumRules,
   constraints,solutions,determinant,measure},
- axes=axes["Axes"];point=Thread[Lookup[axes,"Variable"]->Lookup[axes,"Endpoint"]];
+ axes=axes["Axes"];variables=Lookup[axes,"Variable"];point=Thread[variables->Lookup[axes,"Endpoint"]];
  (* Support rules override matching invariants; they do not discard the
     four-dimensional rules for explicitly physical external momenta. *)
  kinematics=Normal[Association[FeynCalc`FCI[Join[request["KinematicRules"],
@@ -157,6 +135,53 @@ currentBornSupport[request_Association]:=Module[
  <|"Variables"->variables,"Axes"->axes,"Point"->point,"KinematicRules"->kinematics,
   "MomentumRules"->momentumRules,"JacobianDeterminant"->determinant,"Measure"->measure|>
 ];
+FeynFacet`ConstructCurrentBornResult[setup_Association,request_Association]/;
+ Length[Last[setup["Partons"]]]===2&&AnyTrue[Lookup[setup,"SpinDensities",{}],
+  Lookup[#,"Role",None]==="FF"&&Lookup[#,"MomentumSpace",None]==="Physical4"&]:=
+ FeynFacet`ConstructFixedObservedBornResult[setup,request];
+
+FeynFacet`ConstructFixedObservedBornResult::usage="ConstructFixedObservedBornResult[setup,request] integrates the single unobserved on-shell recoil at tree level while keeping the tagged momentum physical and fixed. It derives the endpoint Jacobian, verifies that ordinary Born denominators do not vanish in the stated domain, and retains the requested epsilon coefficients.";
+FeynFacet`ConstructFixedObservedBornResult[setup_Association,request_Association]:=Catch[Module[
+ {generated,support,scalar,kin,physical,conditions,e,range,denominators,cores,series,coefficients,meta},
+ If[!ContainsAll[Keys[request],{"CurrentProjectors","KinematicRules","BornMomentumRules","BornConstraints",
+   "CurrentNormalization","DistributionBasis","Variables","DimensionalRegulator","EpsilonRange","BareCouplingRules"}]||
+   Lookup[setup["ForwardAmplitudes"],"LoopOrder"]!=0||Lookup[setup["ConjugateAmplitudes"],"LoopOrder"]!=0||
+   Length[Last[setup["Partons"]]]=!=2||Length[request["DistributionBasis"]["Axes"]]=!=1||
+   !MatchQ[request["EpsilonRange"],{0,_Integer?NonNegative}],
+  partonicResultFail["FixedObservedTreeCurrentAndOneRecoilRequired"]];
+ support=currentBornSupport[request];
+ generated=FeynFacet`ConstructCurrentIntegrands[setup,request];
+ If[!AssociationQ[generated],partonicResultFail["CurrentBornGenerationFailed",<|"Cause"->generated|>]];
+ e=request["DimensionalRegulator"];range=request["EpsilonRange"];
+ conditions=Lookup[request,"Assumptions",True]/.support["Point"];
+ kin=Normal[Association[Join[support["KinematicRules"],
+  support["KinematicRules"]/.FeynCalc`Momentum[a_,D]:>FeynCalc`Momentum[a]]]];
+ physical=DeleteDuplicates[Join[setup["PhysicalMomenta"],Flatten[
+  Values[Lookup[#,"SpinVectors",<||>]]&/@Lookup[request,"SpinCorrelations",{}]]]];
+ scalar=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[#]/.support["MomentumRules"]]&/@Values[generated["Values"]];
+ denominators=DeleteDuplicates[Cases[scalar,_FeynCalc`FeynAmpDenominator,Infinity]];
+ cores=Factor[FeynCalc`ExpandScalarProduct[FeynCalc`FeynAmpDenominatorExplicit[#]]/.kin/.support["Point"]]&/@denominators;
+ If[!AllTrue[cores,FreeQ[#,_FeynCalc`Pair|_FeynCalc`FeynAmpDenominator|_FeynCalc`SmallVariable]&&
+   TrueQ[FullSimplify[Element[#,Reals]&&#!=0,Assumptions->conditions]]&],
+  partonicResultFail["NonvanishingOrdinaryBornPropagatorsRequired",<|"Values"->cores|>]];
+ scalar=FullSimplify[Factor[setEvanescentZero[
+   FeynCalc`ExpandScalarProduct[#/.Thread[denominators->cores]],physical]/.kin/.
+   support["Point"]],Assumptions->conditions]&/@scalar;
+ scalar=FeynFacet`SubstituteScalarPowers[support["Measure"]scalar,request["BareCouplingRules"]]/.
+  Lookup[request,"ColorRules",{}]/.D->4-2e;
+ If[!FreeQ[scalar,_FeynCalc`Pair|_FeynCalc`DiracTrace|_FeynCalc`Polarization|_FeynCalc`SMP|_Failure|_Integrate],
+  partonicResultFail["ExplicitFixedObservedBornCoefficientRequired",<|"Value"->scalar|>]];
+ series=Normal[Series[scalar,{e,0,Last[range]}]];
+ coefficients=Association@Table[n->partonicCornerDistribution[FullSimplify[Coefficient[series,e,n],
+  Assumptions->conditions],1],{n,0,Last[range]}];
+ meta=Join[KeyDrop[request,{"CurrentProjectors","KinematicRules","BornMomentumRules","BornConstraints","BareCouplingRules"}],
+  <|"Order"->"LO","Contribution"->"Born","StructureFunctions"->Keys[generated["Values"]],
+   "ProcessDefinition"->setup,"BornSupportJacobian"->support["JacobianDeterminant"],
+   "OrdinaryBornPropagatorValues"->cores,"ObservedMeasureIncluded"->False,
+   "UnobservedPhaseSpace"->"2 Pi delta_+((p_total-k_observed)^2)"|>];
+ CreatePartonicResult[coefficients,meta]
+],"PartonicResults"];
+
 FeynFacet`ConstructCurrentBornResult[setup_Association,request_Association]:=Catch[Module[
  {generated,amplitudes,interference,tensor,projectors,kinematics,momentumRules,variables,axes,point,
   constraints,solutions,determinant,measure,scalar,e,range,coefficients,meta,series},

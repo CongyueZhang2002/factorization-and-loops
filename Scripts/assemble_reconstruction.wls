@@ -65,7 +65,7 @@ Print["Assembled in ", tenth[seconds], " s"];
 artifactFile = FileNameJoin[{directory, "AssembledCoefficients.wl"}];
 Print["Writing ", artifactFile];
 Print["  wrote in ",
-  tenth[First @ AbsoluteTiming[Put[artifact, artifactFile]]],
+  tenth[First @ AbsoluteTiming[FeynFacetRecords`WriteRecord[artifact, artifactFile]]],
   " s, ", tenth[FileByteCount[artifactFile]/2.^20], " MB"];
 
 Print["SUMMARY"];

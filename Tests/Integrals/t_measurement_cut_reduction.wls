@@ -54,7 +54,7 @@ mcEulerExpected=(D-4)mcUnit+mcQ(1-mcX)/mcX FeynCalc`GLI[MeasuredTwoParticle,{1,2
  mcZ mcQ/mcX mcDotted;
 FTTest`FTAssert["the loop Euler derivative retains the denominator-degree terms",
  Factor[mcEuler-mcEulerExpected]===0];
-mcWork=root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Kira/TypedMeasurementCutRegression";
+mcWork=root<>"/Projects/SIDIS_UU/NNLO/q-q/Kira/TypedMeasurementCutRegression";
 mcReduction=FeynFacet`KiraReduction[{mcFamily},mcTargets,
  <|"WorkingDirectory"->mcWork,"MassDimensions"->{mcQ->2,mcX->0,mcZ->0},"Threads"->1|>];
 FTTest`FTAssert["Kira reduces shifted linear measurement cuts without pinching them",
@@ -79,5 +79,5 @@ FTTest`FTAssert["homogeneous virtuality scaling includes the measurement Jacobia
 FTTest`FTAssert["the independently normalized measured density integrates to the ordinary phase space",
  FullSimplify[Integrate[mcExpected,{mcZ,0,1},Assumptions->mcE<0&&mcQ>0&&0<mcX<1]-
  FeynFacet`MasslessPhaseSpaceVolume[2,mcQ(1-mcX)/mcX,mcE],mcE<0&&mcQ>0&&0<mcX<1]===0];
-FeynFacet`FamilyArtifactWrite[mcReduction,root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Results/Validation/MeasurementCutReduction.wl"];
+FeynFacet`FamilyArtifactWrite[mcReduction,root<>"/Projects/SIDIS_UU/NNLO/q-q/Results/Validation/MeasurementCutReduction.wl"];
 FTTest`FTReport[];

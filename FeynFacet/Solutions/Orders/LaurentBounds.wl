@@ -8,7 +8,7 @@ epsOrderNormalize[z_,e_Symbol] := z /. s_Symbol /;
   MemberQ[DeleteDuplicates[{SymbolName[e],"eps","ep","Epsilon"}],SymbolName[s]] :> e;
 epsOrderZero[z_] := TrueQ[z===0] || TrueQ[Cancel[Together[z]]===0];
 
-epsOrderValuation[z_,e_] := Module[{r,arg,a,v,parts,bound,coefficients,first,found},
+epsOrderValuation[z_,e_] := Module[{r,arg,a,v,parts,bound,coefficients,first,found,expanded},
  If[!FreeQ[z,_Real|Indeterminate|_DirectedInfinity|_Missing|_Failure|$Failed|$Aborted],epsOrderFail["ExactMeromorphicExpressionRequired"]];
  If[epsOrderZero[z],Return[Infinity]];
  If[FreeQ[z,e],Return[0]];
@@ -48,6 +48,20 @@ epsOrderValuation[z_,e_] := Module[{r,arg,a,v,parts,bound,coefficients,first,fou
   v=Head[z][a];
   If[epsOrderZero[v],epsOrderValuation[arg-a,e],
    If[TrueQ[FullSimplify[v!=0]],0,epsOrderFail["TrigonometricLeadingValueNotEstablished"]]],
+ Head[z]===Beta && Length[z]===2,
+  epsOrderValuation[Gamma[z[[1]]]Gamma[z[[2]]]/Gamma[z[[1]]+z[[2]]],e],
+ Head[z]===HypergeometricPFQ && Last[z]===1,
+  (* Continue the regulated family before looking for its first coefficient.
+     Substitution at epsilon zero can change a critical unit-argument limit. *)
+  found=Missing[];
+  Do[
+   expanded=FeynFacet`ExpandHypergeometricLaurentSeries[z,e,depth];
+   If[FailureQ[expanded],epsOrderFail["HypergeometricLaurentValuationNotEstablished",<|"Cause"->expanded|>]];
+   If[!epsOrderZero[expanded["Polynomial"]],
+    found=epsOrderValuation[expanded["Polynomial"],e];Break[]],
+  {depth,{0,1,2,4,8}}];
+  If[MissingQ[found],epsOrderFail["HypergeometricLaurentValuationNotEstablished",
+    <|"Expression"->z,"ZeroCoefficientsCheckedThrough"->8|>]];found,
  Head[z]===Gamma,
   arg=z[[1]];a=Quiet[Limit[arg,e->0]];
   If[!NumericQ[a] || !FreeQ[a,Indeterminate|DirectedInfinity[_]],
@@ -89,6 +103,14 @@ epsOrderMeromorphicBound[x_,e_] := Module[{v,base,exponent},
   If[v===Infinity,epsOrderFail["UnregulatedMeromorphicDenominator"]];
   If[!IntegerQ[v],epsOrderFail["ExactDenominatorLaurentValuationRequired"]];
   Return[exponent v]];
+ If[Head[x]===HarmonicNumber&&Length[x]===1,
+  Return[epsOrderMeromorphicBound[PolyGamma[0,x[[1]]+1]+EulerGamma,e]]];
+ If[Head[x]===PolyGamma&&Length[x]===2&&IntegerQ[x[[1]]]&&x[[1]]>=0,
+  base=Quiet[Limit[x[[2]],e->0]];
+  If[NumericQ[base]&&FreeQ[base,Indeterminate|_DirectedInfinity],
+   If[IntegerQ[base]&&base<=0,
+    v=epsOrderValuation[x[[2]]-base,e];
+    If[IntegerQ[v]&&v>0,Return[-(x[[1]]+1)v]],Return[0]]]];
  epsOrderValuation[x,e]
 ];
 FeynFacet`DetermineMeromorphicLaurentLowerBound::usage =

@@ -23,6 +23,5 @@ If[mode==="compact",
  If[FailureQ[report],Print[InputForm[report]];Exit[1]];
  report=Join[report,<|"SourceLoadSeconds"->loadSeconds,"CompactLoadSeconds"->compactLoadSeconds,
   "VerificationSeconds"->operationSeconds,"SourceBytes"->FileByteCount[sourcePath],"OutputBytes"->FileByteCount[outputPath]|>]];
- Put[report,outputPath<>"."<>mode<>".report.wl.tmp"];
- RenameFile[outputPath<>"."<>mode<>".report.wl.tmp",outputPath<>"."<>mode<>".report.wl",OverwriteTarget->True];
+ FeynFacetRecords`WriteRecord[report,outputPath<>"."<>mode<>".report.wl"];
  Print[InputForm[report]];Print["FINITE_DISTRIBUTION_",ToUpperCase[mode],"_PASSED"];

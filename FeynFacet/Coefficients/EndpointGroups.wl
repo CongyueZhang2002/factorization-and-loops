@@ -67,26 +67,41 @@ FindEndpointCoefficientFrames[catalog_Association,masters_List]:=Catch[Module[
 
 (* Principal parts are taken from exact terms only. In particular, a fresh
    regular Laurent prefix is never subjected to the old pole subtraction. *)
-endpointGroupPrincipalPart[expression_,z_Symbol,e_Symbol,location_] := Module[
- {field,restore,delta,shifted,variables,reduced,m,series,part},
- {field,restore}=coefficientRationalFieldReduce[expression];
+endpointGroupPrincipalParts[expressions_List,z_Symbol,e_Symbol,location_] := Module[
+ {field,restore,delta,shifted,variables,reduced,orders,result,indices,series,m,analyticSymbols},
+ If[expressions==={},Return[{}]];
+ {field,restore}=coefficientRationalFieldReduce[expressions];
  If[!FreeQ[Last/@restore,z],
   endpointGroupFail["NormalDependentAnalyticPrefactorNeedsPrincipalPartExpansion"]];
+ analyticSymbols=First/@restore;
+ If[analyticSymbols=!={}&&!FreeQ[field,
+   Power[base_,n_Integer]/;n<0&&!FreeQ[base,z]&&!FreeQ[base,Alternatives@@analyticSymbols]],
+  endpointGroupFail["MixedAnalyticNormalDenominatorNotSupported"]];
  delta=Unique["normalDisplacement"];
  shifted=field/.z->location+delta;
- variables=DeleteDuplicates[Cases[shifted,_Symbol,{0,Infinity}]];
- reduced=FeynFacet`CancelRationalExpressions[{shifted},variables];
- If[!ListQ[reduced],endpointGroupFail["ExactCoefficientPrincipalPartFailed",<|"Cause"->reduced|>]];
- reduced=First[reduced];
- m=If[reduced===0,0,Max[0,-coefficientEndpointNormalOrder[reduced,delta]]];
- If[!IntegerQ[m],endpointGroupFail["FiniteCoefficientPoleOrderRequired"]];
- If[m===0,Return[<|"PoleOrder"->0,"PrincipalPart"->0|>]];
- series=FeynFacet`RationalLaurentCoefficients[{reduced},variables,delta,{-m,-1}];
- If[!MatchQ[series,{_Association}],endpointGroupFail["RationalPrincipalPartCoefficientsRequired",<|"Cause"->series|>]];
- part=Total[KeyValueMap[#2 (z-location)^#1&,First[series]]]/.restore;
- <|"PoleOrder"->m,"PrincipalPart"->part,
-   "Method"->"Exact rational principal part before epsilon expansion"|>
+ variables=DeleteDuplicates[Prepend[Cases[shifted,_Symbol,{0,Infinity}],delta]];
+ reduced=FeynFacet`CancelRationalExpressions[shifted,variables];
+ If[!ListQ[reduced]||Length[reduced]=!=Length[expressions],
+  endpointGroupFail["ExactCoefficientPrincipalPartFailed",<|"Cause"->reduced|>]];
+ orders=If[#===0,0,Max[0,-coefficientEndpointNormalOrder[#,delta]]]&/@reduced;
+ If[!VectorQ[orders,IntegerQ],endpointGroupFail["FiniteCoefficientPoleOrderRequired"]];
+ result=ConstantArray[<|"PoleOrder"->0,"PrincipalPart"->0|>,Length[expressions]];
+ (* Equal pole orders share one recurrence range. Regular terms are not
+    expanded and a deep pole never increases another term's epsilon order. *)
+ Do[
+  indices=Flatten[Position[orders,m]];
+  series=FeynFacet`RationalLaurentCoefficients[reduced[[indices]],variables,delta,{-m,-1}];
+  If[!MatchQ[series,{__Association}]||Length[series]=!=Length[indices],
+   endpointGroupFail["RationalPrincipalPartCoefficientsRequired",<|"Cause"->series|>]];
+  MapThread[Function[{i,coefficients},
+   result[[i]]=<|"PoleOrder"->m,
+    "PrincipalPart"->(Total[KeyValueMap[#2 (z-location)^#1&,coefficients]]/.restore),
+    "Method"->"Exact rational principal part before epsilon expansion"|>],{indices,series}],
+ {m,DeleteCases[DeleteDuplicates[orders],0]}];
+ result
 ];
+endpointGroupPrincipalPart[expression_,z_Symbol,e_Symbol,location_] :=
+ First[endpointGroupPrincipalParts[{expression},z,e,location]];
 endpointGroupCancelList[expressions_List] := Module[{field,restore,variables,result},
  {field,restore}=coefficientRationalFieldReduce[expressions];
  variables=DeleteDuplicates[Cases[field,_Symbol,{0,Infinity}]];
@@ -146,12 +161,31 @@ endpointGroupCheckDefinitions[table_Association,catalog_Association] := Module[
   endpointGroupFail["PhysicalMasterDefinitionDiffersFromEndpointCatalog"]];
  True
 ];
+endpointGroupCheckEmittedCoefficients[entries_List,emitted_List] := Module[
+ {byMaster,actualTerms,originalTerms,differences,comparison,identities},
+ byMaster=GroupBy[emitted,coefficientMasterID[#["Master"]]&];
+ differences=Table[
+  originalTerms=entry["Terms"];
+  actualTerms=Flatten[Lookup[Lookup[byMaster,Key[coefficientMasterID[entry["Master"]]],{}],"Terms",{}],1];
+  If[Select[actualTerms,#["Representation"]==="LaurentSeries"&]=!=
+     Select[originalTerms,#["Representation"]==="LaurentSeries"&],
+   endpointGroupFail["FiniteRegularCoefficientChanged"]];
+  Total[coefficientEndpointTermExpression/@Select[originalTerms,#["Representation"]==="Exact"&]]-
+   Total[coefficientEndpointTermExpression/@Select[actualTerms,#["Representation"]==="Exact"&]],
+ {entry,entries}];
+ comparison=endpointGroupCancelList[differences];
+ Do[If[comparison[[i]]=!=0,
+   endpointGroupFail["ExactSourceCoefficientRecombinationFailed",<|"Master"->entries[[i]]["Master"]|>]],
+ {i,Length[entries]}];
+ Lookup[entries,"Master"]
+];
 ConstructEndpointCoefficientGroups[table_Association,catalog_Association,request_Association]:=Catch[Module[
  {frames=catalog["Frames"],classes=catalog["IntegralClasses"],first,e,z,entries,residual,
   groups,counts,whole,assigned=<||>,removed={},added={},groupEntries,entry,terms,pieces,
   part,record,label,locations,coefficient,remaining,candidates,frame,aligned,row,cancelled,
+  principalIndices,principalParts,changedTerms={},
   attempt,trials,chosen,inputs=<||>,ordinary=<||>,owner,originalFamily,key,sourceFile,
-  rules=Lookup[request,"KinematicRules",{}],pref,basis,normalRequest,comparison,original,identities={},insert,gaugeDivisors=<||>,emitted,owners,expectedOwners},
+  rules=Lookup[request,"KinematicRules",{}],pref,basis,normalRequest,identities={},insert,gaugeDivisors=<||>,emitted,owners,expectedOwners},
  If[table["Format"]=!="FeynFacet-MasterIntegralCoefficients"||
    !TrueQ[Lookup[table,"PhysicalMasterNormalizationApplied",False]]||frames===<||>,
   endpointGroupFail["PhysicalCoefficientTableAndEndpointCatalogRequired"]];
@@ -182,6 +216,14 @@ ConstructEndpointCoefficientGroups[table_Association,catalog_Association,request
  Do[
   label="PoleGroup"<>IntegerString[g,10,4];
   groupEntries={};
+  principalIndices=Flatten[Table[
+    If[MemberQ[whole,i],{},({i,#}&/@Select[Range[Length[entries[[i,"Terms"]]]],
+      entries[[i,"Terms",#,"Representation"]]==="Exact"&])],
+    {i,groups[[g,"SourceRows"]]}],1];
+  principalParts=endpointGroupPrincipalParts[
+    (coefficientEndpointTermExpression[entries[[#[[1]],"Terms",#[[2]]]]]&/@principalIndices),
+    z,e,groups[[g,"DivisorLocation"]]];
+  principalParts=AssociationThread[principalIndices,principalParts];
   Do[
    entry=entries[[i]];
    If[MemberQ[whole,i],
@@ -190,8 +232,7 @@ ConstructEndpointCoefficientGroups[table_Association,catalog_Association,request
     terms={};pieces={};
     Do[
      If[entry["Terms"][[j,"Representation"]]=!="Exact",Continue[]];
-     coefficient=coefficientEndpointTermExpression[entry["Terms"][[j]]];
-     part=endpointGroupPrincipalPart[coefficient,z,e,groups[[g,"DivisorLocation"]]];
+     part=principalParts[{i,j}];
      If[part["PrincipalPart"]===0,Continue[]];
      record=<|"Master"->coefficientMasterID[entry["Master"]],"PoleLabel"->label,
        "SourceTermIndex"->j,"PoleExpression"->part["PrincipalPart"]|>;
@@ -201,7 +242,8 @@ ConstructEndpointCoefficientGroups[table_Association,catalog_Association,request
         including their unknown tails and source certificates, stay intact. *)
      remaining=coefficientEndpointTermExpression[residual[[i,"Terms",j]]]-part["PrincipalPart"];
      residual[[i,"Terms",j]]=<|"Representation"->"Exact","PreFactor"->1,
-       "Coefficient"->endpointGroupCancel[remaining]|>,
+       "Coefficient"->remaining|>;
+     AppendTo[changedTerms,{i,j}],
     {j,Length[entry["Terms"]]}];
     If[terms=!={},AppendTo[groupEntries,Join[entry,<|"Terms"->terms,
       "PartialCoefficientContributions"->pieces|>]]];
@@ -244,6 +286,13 @@ ConstructEndpointCoefficientGroups[table_Association,catalog_Association,request
     <|"PoleGroup"->label,"Support"->Lookup[groupEntries,"Master"],"Attempts"->trials|>]];
   insert[label,chosen],
  {g,Length[groups]}];
+ (* Subtractions at different poles commute exactly. Cancel each changed
+    source term once after all principal parts have been removed. *)
+ changedTerms=DeleteDuplicates[changedTerms];
+ cancelled=endpointGroupCancelList[
+   (coefficientEndpointTermExpression[residual[[#[[1]],"Terms",#[[2]]]]]&/@changedTerms)];
+ MapThread[Function[{index,value},
+   residual[[index[[1]],"Terms",index[[2]],"Coefficient"]]=value],{changedTerms,cancelled}];
  (* Place every remaining source in its original saved frame when possible;
     otherwise choose a covering saved frame. Auxiliary coordinates carry
     zero coefficients, never invented zero physical boundary amplitudes. *)
@@ -278,19 +327,10 @@ ConstructEndpointCoefficientGroups[table_Association,catalog_Association,request
   endpointGroupFail["EmittedWholeCoefficientOwnershipFailed"]];
  If[!coefficientPoleCoverage[removed,added,coefficientMasterID/@Lookup[entries,"Master"]],
   endpointGroupFail["ExactCoefficientPieceCoverageFailed"]];
- (* Per-source reconstruction is checked before applying any new DE frame. *)
- Do[
-  original=Select[entries[[i]]["Terms"],#["Representation"]==="Exact"&];
-  remaining=If[MemberQ[whole,i],Total[coefficientEndpointTermExpression/@original],
-    Total[coefficientEndpointTermExpression/@Select[residual[[i]]["Terms"],#["Representation"]==="Exact"&]]+
-    Total[Lookup[Select[removed,#["Master"]===coefficientMasterID[entries[[i]]["Master"]]&],"PoleExpression",{}]]];
-  comparison=endpointGroupCancel[Total[coefficientEndpointTermExpression/@original]-remaining];
-  If[comparison=!=0,endpointGroupFail["ExactSourceCoefficientRecombinationFailed",<|"Master"->entries[[i]]["Master"]|>]];
-  If[Select[residual[[i]]["Terms"],#["Representation"]==="LaurentSeries"&]=!=
-     Select[entries[[i]]["Terms"],#["Representation"]==="LaurentSeries"&],
-   endpointGroupFail["FiniteRegularCoefficientChanged"]];
-  AppendTo[identities,entries[[i]]["Master"]],
- {i,Length[entries]}];
+ (* Reconstruct from actual emitted values, not from subtraction metadata
+    or the original whole-source expression. This also checks finite pieces
+    that would survive a common-frame moving-pole cancellation. *)
+ identities=endpointGroupCheckEmittedCoefficients[entries,emitted];
  <|"DataType"->"EndpointCoefficientGroups","CoefficientInputs"->inputs,
    "PoleGroups"->groups,"RemovedCoefficientPieces"->removed,"AddedCoefficientPieces"->added,
    "ExactSourceRecombinations"->identities,"FiniteRegularCoefficientsUnchanged"->True,

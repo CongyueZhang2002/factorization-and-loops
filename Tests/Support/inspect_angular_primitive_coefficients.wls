@@ -1,0 +1,12 @@
+Print["FEYNFACET DRIVER ENTERED"];
+$HistoryLength=0;$MaxExtraPrecision=50;root=DirectoryName[ExpandFileName[$InputFileName],3];
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+p=root<>"/Projects/SIDIS_HighPT_TT_SpinTransfer/Raw/NLO/q-q/Real/Work/Components/SameFlavor/Work/";
+a=FeynFacet`FamilyArtifactRead[p<>"AngularIntegrals.wl"];
+rows=Values[a["IntegralEvaluations"]];
+Print["ALL ",Length[rows]," REDUCTION SIZE ",Total[ByteCount[#["Reduction"]]&/@rows]," EXACT SIZE ",Total[ByteCount[#["ExactExpression"]]&/@rows]];
+Do[r=rows[[i]];ex=r["Reduction"];sy=Keys[r["Seeds"]];num=Numerator[ex];den=Denominator[ex];
+ Print["ROW ",i," ",r["MasterIntegral"]," POWER ",r["Powers"]," SEEDS ",Length[sy]," BYTES ",ByteCount[ex]," DEN SEED ",!FreeQ[den,Alternatives@@sy]];
+ Print["COEFFICIENT BYTES ",ByteCount/@Join[{ex/.Thread[sy->0]},Coefficient[ex,#]&/@sy]];
+ Print["DEN ",ToString[System`InputForm[System`Short[den,2]]]],{i,{1,2,20,30,40,60,100}}];
+Print["COMPLETED angular primitive diagnostic"];

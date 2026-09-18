@@ -32,7 +32,7 @@ QuarkFlavorSumTerms[external_List,positions_List,classes_Association]:=Catch[Mod
   following=Reap[Do[
    known=Join[fixed,Flatten[Values[state["NewFlavors"]]]];
    Do[Sow[Join[state,<|"Species"->ReplacePart[state["Species"],position->species]|>]],
-    {species,Join[{"g"},Flatten[Table[{{"q",f},{"qbar",f}},{f,known}],1]]}];
+    {species,Join[{"g"},Flatten[Table[{{"q",f},{"qb",f}},{f,known}],1]]}];
    Do[
     index=First@FirstPosition[names,name];
     nextIndex=Length[state["NewFlavors"][name]]+1;
@@ -42,7 +42,7 @@ QuarkFlavorSumTerms[external_List,positions_List,classes_Association]:=Catch[Mod
     newSpecies=Join[state["NewFlavors"],<|name->Append[state["NewFlavors"][name],flavor]|>];
     Do[Sow[<|"Species"->ReplacePart[state["Species"],position->{kind,flavor}],
       "Multiplicity"->state["Multiplicity"]available,"NewFlavors"->newSpecies|>],
-      {kind,{"q","qbar"}}],
+      {kind,{"q","qb"}}],
    {name,names}],
   {state,states}]][[2]];
   states=If[following==={},{},First[following]],

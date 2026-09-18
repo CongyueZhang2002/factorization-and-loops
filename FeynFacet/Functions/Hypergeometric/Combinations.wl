@@ -5,7 +5,7 @@ ExpandGaussHypergeometricCombinations::usage="ExpandGaussHypergeometricCombinati
 Begin["`Private`"];
 ExpandGaussHypergeometricCombinations[values_Association,e_Symbol,range:{_Integer,_Integer}]:=
  Catch[Module[{labels=Keys[values],objects,aliases,polynomials,n,m,coefficients,lower,upper,
-  needed,functions=<||>,vector,matrix,result,expanded,entry},
+  needed,functions=<||>,vector,matrix,result,expanded,entry,fallback,methods={}},
  If[values===<||>||First[range]>Last[range],epsOrderFail["FiniteGaussCombinationRequestRequired"]];
  objects=DeleteDuplicates[Cases[Values[values],_Hypergeometric2F1,{0,Infinity}]];
  aliases=Unique["gaussFunction"]&/@objects;n=Length[labels];m=Length[objects]+1;
@@ -20,6 +20,11 @@ ExpandGaussHypergeometricCombinations[values_Association,e_Symbol,range:{_Intege
  Do[
   expanded=If[j===1,Association@Table[k->If[k===0,1,0],{k,0,needed[[j]]}],
     FeynFacetSolution`GaussHypergeometricEpsilonCoefficients[Take[List@@objects[[j-1]],3],objects[[j-1,4]],e,needed[[j]]]];
+  If[FailureQ[expanded]&&expanded[[1]]==="GaussEpsilonParametersUnsupported",
+   fallback=FeynFacet`ExpandHypergeometricLaurentSeries[objects[[j-1]],e,needed[[j]]];
+   If[AssociationQ[fallback]&&fallback["LaurentLowerBound"]>=0,
+    expanded=Association@Table[k->Coefficient[fallback["Polynomial"],e,k],{k,0,needed[[j]]}];
+    AppendTo[methods,<|"Function"->objects[[j-1]],"Method"->"IsolatedHypExp"|>]]];
   If[!AssociationQ[expanded],epsOrderFail["SupportedExplicitGaussExpansionRequired",<|"Function"->objects[[j-1]],"Cause"->expanded|>]];
   KeyValueMap[AssociateTo[functions,{j,#1}->#2]&,expanded],
  {j,m}];
@@ -31,6 +36,6 @@ ExpandGaussHypergeometricCombinations[values_Association,e_Symbol,range:{_Intege
  result=FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,ConstantArray[range,n]];
  If[FailureQ[result],Throw[result,"EpsilonOrders"]];
  Join[result,<|"CoefficientRowLabels"->labels,"GaussFunctionBasis"->objects,
-  "GaussFunctionUpperOrders"->Rest[needed],"CoefficientEntryLaurentLowerBounds"->lower|>]
+  "GaussFunctionUpperOrders"->Rest[needed],"AdditionalExpansionMethods"->methods,"CoefficientEntryLaurentLowerBounds"->lower|>]
 ],"EpsilonOrders"];
 End[];EndPackage[];

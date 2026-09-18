@@ -3,7 +3,7 @@ $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-directory=root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q";
+directory=root<>"/Projects/SIDIS_UU/Raw/NNLO/q-q";
 setup=FeynFacet`ReadProcessCard[directory,"DoubleReal.DifferentFlavorDown"];
 numeric=FeynFacet`GenerateCurrentAmplitudes[setup];
 chargedSetup=Append[setup,"ElectromagneticCharges"-><|"UpType"->qa,"DownType"->qb|>];

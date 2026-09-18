@@ -2,7 +2,7 @@
 (* Shared request validation and process-level parallel evaluation. *)
 FeynFacetSolution`EvaluateMasterIntegralSolutionRequest::usage="EvaluateMasterIntegralSolutionRequest[data,request] evaluates a point, optionally loading physical boundary data and comparing independent reference data with basis and accuracy checks.";
 FeynFacetSolution`EvaluateMasterIntegralSolutionBatch::usage="EvaluateMasterIntegralSolutionBatch[requests,opts] evaluates independent families or kinematic points on up to eight persistent subkernels. Each request supplies SolutionDirectory and Point, with optional BoundaryDataFile, ReferenceDataFile, EvaluationOptions and OutputFile.";
-readNumericalFile[path_String] := If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]];
+readNumericalFile[path_String] := If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 FeynFacetSolution`EvaluateMasterIntegralSolutionRequest[data_Association,request_Association] := Catch[Module[{boundary,reference=None,options,evaluated,ag,pg,comparisons={},q,row,rules,
  a,b,ids,missing,boundaryBasis,normalizeBasis,precision,uncertainty,tolerance,nonzeroComparisons=0,
   expectedPoint,coordinates=Lookup[data,"RationalizingCoordinates",None]},

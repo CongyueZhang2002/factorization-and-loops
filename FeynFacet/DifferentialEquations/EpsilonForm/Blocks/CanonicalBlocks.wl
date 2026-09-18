@@ -153,22 +153,12 @@ canonicalBlocksFail[symbol_, message_, args___] := (
    (v, w, eps, gli).  Read inside FeynFacet`Private` those would become
    private symbols distinct from the Global` ones every consumer uses,
    so the read happens in a Global` reading context. *)
-canonicalBlocksGetGlobal[file_String] :=
-  Block[{$Context = "Global`", $ContextPath = {"Global`", "System`"}},
-    Get[file]
-  ];
+canonicalBlocksGetGlobal[file_String]:=FeynFacet`FamilyArtifactRead[file];
 
 (* A kill -9 during Put leaves a truncated artifact that Get later
    accepts as a partial expression; write to a temporary name in the
    same directory and rename, which is atomic on one filesystem. *)
-canonicalBlocksPutAtomic[expr_, file_String] := Module[{temp},
-  temp = file <> ".partial" <> ToString[$ProcessID];
-  Quiet[DeleteFile[temp]];
-  Put[expr, temp];
-  If[! FileExistsQ[temp], Return[$Failed]];
-  RenameFile[temp, file, OverwriteTarget -> True];
-  file
-];
+canonicalBlocksPutAtomic[expr_,file_String]:=FeynFacet`FamilyArtifactWrite[expr,file];
 
 canonicalBlocksDefaultVariables[] :=
   {Symbol["Global`v"], Symbol["Global`w"]};

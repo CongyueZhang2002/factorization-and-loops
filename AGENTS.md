@@ -5,7 +5,7 @@ collinear factorization and reverse unitarity: process cards -> diagrams ->
 cut-aware IBP reduction (Kira) -> master integrals from their differential
 equations (epsilon form, solution along paths, boundary data) -> endpoint
 expansion -> assembly of the hard function. The process enters only through
-its cards. 
+its cards.
 
 Read [WORKFLOW.md](WORKFLOW.md), then the selected project/channel README,
 then [STATUS.md](STATUS.md). These are the context-free execution directions
@@ -29,22 +29,39 @@ for a future agent.
   optional epsilon-form and standalone solution modules. Retired code is in
   `Archive/RetiredCode/FeynFacet/`, outside loading and active source scans.
 - `Scripts/` drivers and launchers; `Tests/` the tests; each has a README.
-- `Projects/<project>/card.wl` common physics; `Projects/<project>/<order>/<channel>/Cards/`
-  contribution cards; `Results/` and `Kira/` belong to that order/channel.
+- `Projects/<project>/Common-Card.wl` common physics; `Raw/<order>/<channel>/<contribution>/Card.wl`
+  independent contributions and owned `Work/`; `Results/<order>/<channel>/Result_Card.wl`
+  selects the contributions to assemble. A raw counterterm belongs to its
+  perturbative source channel. Result cards use OutputChannel to select an
+  explicit counterterm component across raw channels; do not file counterterms
+  under the destination channel or append source-channel suffixes to operator names.
+  Project names have no perturbative-order suffix. Antiquarks use qb/qpb (explicit flavors ub/db).
+  Old result retention is explicit, never inside Projects. All former NLO results
+  and archived NLO result copies were deleted at the user’s request.
   Read `Design/ProjectCardsAndResults.md`. Old layouts are archived; no adapters.
+- Reports/YYYY-MM-DD/ holds user-facing reports, tables and accepted campaign
+  summaries. Only physics projects belong directly under Projects. Completed
+  run logs and one-off campaign scripts belong under Archive/Runs; reusable
+  drivers and tests stay in Scripts and Tests.
+- `Library/MasterIntegrals/` contains shared explicit physical master values,
+  independent of project ownership, indexed by canonical family, sector and powers.
+  Read `Design/SharedMasterIntegralLibrary.md`. Partial matches supply known DE
+  coefficients; a bounded IBP miss is inconclusive. Preserve paired metadata, normalization, causal prescriptions and domains.
+  Cold timing runs bypass reuse via `Recompute`; never relabel a cached solve as cold.
 - `Design/` current methods; `Goals/README.md` current roadmap;
   `Archive/History/` superseded plans and correspondence.
 - `Codex/` Pro consultation bridge state; `Tests/Support/` independent test
   implementations. Upstream reduction/reconstruction data stays with its process.
-- Persistent outputs and validation records live in Projects/<project>/<order>/<channel>/Results;
-  Kira workspaces live in Projects/<project>/<order>/<channel>/Kira. Do not write result trees under Codex,
+- Persistent contributions live in Projects/<project>/Raw/<order>/<channel>/<contribution>;
+  accepted sums live in Projects/<project>/Results/<order>/<channel>. Kira and coefficient workspaces
+  live inside the owning contribution Work directory. Do not write result trees under Codex,
   Design, Scripts or Examples. Scratch is temporary and removed after retained
   results are saved in the process folder.
 - `~/FACET` is the frozen legacy tree, read-only.
 
 ## Tips
 
-- If you feel getting stuck, ask chatgpt pro through `External/ChatGPT`, along with latest github link. It has higher reasoning budget. You can also ask it for review of plan/code/result. 
+- If you feel getting stuck, ask chatgpt pro through `External/ChatGPT`, along with latest github link. It has higher reasoning budget. You can also ask it for review of plan/code/result.
 
 ## Traps (each one cost real time)
 
@@ -52,7 +69,11 @@ for a future agent.
   SameTest -> SameQ silently leaves duplicates. SameTest is valid for Complement
   and Intersection; do not replace those option rules.
 
-- Prevent using hashes if possibke, it often turned out to be counterproductive.
+- Avoid adding hashes without a concrete consistency requirement; repeated hashing of large intermediate expressions has been counterproductive.
+- A producer source version is provenance, not a physical analytic convention.
+  Canonicalized artifacts record their producing version and preserve
+  OriginalAnalyticContext; never overwrite physical assumptions or schemes
+  to make inputs compatible. Regenerate with all after amplitude-algebra fixes.
 - Regulator symbols differ per package (`eps`, `ep`, `Epsilon`,
   `CANONICA`eps`): normalize by `SymbolName` at every boundary, never by
   symbol identity.
@@ -73,11 +94,12 @@ for a future agent.
   Preserve it when removing redundant path separators; DirectoryName can retain a trailing slash.
 - For `Exists`/`ForAll` with a computed variable list, inject the list and condition using `With` before `Resolve`; a held symbol with an OwnValue is not the intended quantified list.
 - `Put` is not atomic: write to a temporary file and `RenameFile`.
-- `Put` and `Compress` can omit context names using the caller's context path.
-  Artifact writes use an empty `$ContextPath` and a neutral output context,
-  qualifying package symbols and shadowable System names. Otherwise
-  ``Global`Epsilon`` or ``System`Generic`` can be rebound by `Get`;
-  a guarded reader alone is insufficient.
+- Generated Wolfram text uses `FamilyArtifactWrite` and exact machine reads
+  use `FamilyArtifactRead`. The readable `.wl` contains bare mathematical
+  symbols; its `.meta.wxf` companion preserves symbol identities and execution
+  metadata. Use the paired move/copy/delete helpers, never a main-file-only
+  rename. Do not add content hashes: a simple write identifier pairs the files.
+  See [the record format](Design/ReadableRecords.md).
 - `Together` rationalizes square-root denominators and destroys
   algebraic-letter expressions.
 - Libra `Projector` returns a zero matrix on Wolfram 14.2 unless
@@ -102,17 +124,17 @@ Rules:
 1. One name per concept, fixed at first use and anchored to the literature;
    the same name in code, chat, plans, artifacts and agent briefs.
 
-Banned words (word -> replacement): 
+Banned words (word -> replacement):
 
-arm -> start; 
-drain -> finish; 
-fire -> starts; 
+arm -> start;
+drain -> finish;
+fire -> starts;
 gate -> check or test;
-in flight -> running; 
-land, ship -> finished; 
-lever -> option orchange; 
+in flight -> running;
+land, ship -> finished;
+lever -> option or change;
 meticulous;
 post-mortem;
 port;
-spawn -> start; suite -> test; 
+spawn -> start; suite -> test;
 wall (metaphor) -> the measured limit;

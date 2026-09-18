@@ -6,7 +6,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[FileNameJoin[{root,"Addon","Load","LoadFACET.wl"}]]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=2,Print["Expected INPUT.wl OUTPUT_DIRECTORY"];Exit[2]];
-read[x_String]:=If[ToLowerCase[FileExtension[x]]==="wxf",Import[x,"WXF"],Get[x]];
+read[x_String]:=If[ToLowerCase[FileExtension[x]]==="wxf",Import[x,"WXF"],FeynFacetRecords`ReadRecord[x]];
 read[x_]:=x;
 require[x_,stage_]:=If[FailureQ[x]||!AssociationQ[x],Print["FAIL ",stage," ",x];Exit[1]];
 save[data_,path_]:=Module[{tmp=path<>".partial",stream},

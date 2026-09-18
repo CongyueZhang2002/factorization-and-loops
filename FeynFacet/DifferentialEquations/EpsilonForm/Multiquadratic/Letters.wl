@@ -902,7 +902,7 @@ multiquadraticOffDiagonalBlockConstructDLogBatch[letters_List, roots_List,
       dataFile = FileNameJoin[{$TemporaryDirectory,
         "facet_mq_dlog_" <> StringReplace[CreateUUID[], "-" -> ""] <>
           ".wl"}];
-      Put[payload, dataFile];
+      FeynFacet`FamilyArtifactWrite[payload, dataFile];
       (* Round-robin rather than contiguous shards: conjugate algebraic
          letters and hard inhomogeneity entries tend to be adjacent, so this
          prevents one helper from inheriting an entire expensive family. *)
@@ -929,10 +929,10 @@ multiquadraticOffDiagonalBlockConstructDLogBatch[letters_List, roots_List,
       route = "ParallelShards"]]];
   CheckAbort[body[],
     If[AssociationQ[handle], Quiet[taskBrokerCancel[handle]]];
-    If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[DeleteFile[dataFile]]];
+    If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[FeynFacet`FamilyArtifactDelete[dataFile]]];
     If[launched =!= {}, Quiet[CloseKernels[launched]]];
     Abort[]];
-  If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[DeleteFile[dataFile]]];
+  If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[FeynFacet`FamilyArtifactDelete[dataFile]]];
   If[launched =!= {}, Quiet[CloseKernels[launched]]];
   If[AssociationQ[budgetResult], Return[budgetResult]];
   If[! MatchQ[data, {___Association}] || Length[data] =!= count,

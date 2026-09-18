@@ -1,0 +1,16 @@
+Print["FEYNFACET DRIVER ENTERED"];
+$HistoryLength=0;$MaxExtraPrecision=50;
+root=DirectoryName[ExpandFileName[$InputFileName],2];
+Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
+arguments=Rest[$ScriptCommandLine];
+If[Length[arguments]=!=2,Print["Usage: construct_fixed_observed_born.wls PROJECT CHANNEL"];Exit[2]];
+directory=root<>"/Projects/"<>First[arguments]<>"/Raw/LO/"<>Last[arguments];
+card=FeynFacet`ReadContributionCard[directory,"Born"];
+If[!AssociationQ[card],Print[card];Exit[1]];
+setup=FeynFacet`ReadProcessCard[card];
+request=Join[FeynFacet`ProjectAssemblyRequest[card],<|"EpsilonRange"->card["EpsilonRange"],"PrintTimings"->True|>];
+{seconds,result}=FeynFacet`Private`facetElapsedTiming[FeynFacet`ConstructFixedObservedBornResult[setup,request]];
+If[!AssociationQ[result],Print[result];Exit[1]];
+FeynFacet`FamilyArtifactWrite[result,card["ResultFile"]];
+Print["COMPLETED ",card["ResultFile"]," SECONDS ",seconds];
+Print["BORN COEFFICIENTS ",InputForm[result["Coefficients"]]];

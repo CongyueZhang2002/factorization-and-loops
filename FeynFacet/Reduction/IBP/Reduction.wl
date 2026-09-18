@@ -80,11 +80,16 @@ ibpBaseSetup[setup_Association] := Join[
 ];
 
 ibpInputSummary[item_, includeTargets_] := Module[
-  {file, result, directory},
+  {file, result},
   file = If[StringQ[item], ExpandFileName[item], Missing["InMemory"]];
   If[StringQ[item] && ! FileExistsQ[file], Return[$Failed]];
-  result = If[StringQ[item], Quiet @ Check[Get[file], $Failed], item];
+  result = If[StringQ[item], Quiet @ Check[FeynFacet`FamilyArtifactRead[file], $Failed], item];
   If[! validPreIBPResultQ[result], Return[$Failed]];
+  ibpValidatedInputSummary[result,file,includeTargets]
+];
+(* Shared summary construction after the caller has validated the full record.
+   Coefficient collection uses it while the expression is already in memory. *)
+ibpValidatedInputSummary[result_Association,file_,includeTargets_] := Module[{directory},
   directory = Lookup[result, "ResultDirectory", Missing[]];
   If[! StringQ[directory] || ! DirectoryQ[directory],
     directory = If[StringQ[file], DirectoryName[DirectoryName[file]], $Failed]
@@ -146,13 +151,30 @@ ibpDedupedRecords[records_List] := KeyValueMap[
   GroupBy[records, #1["Topology"][[1]] &]
 ];
 
-ibpInputData[items_List, includeTargets_: False] := Module[
-  {summaries, unique, pairs, data, fingerprints, canonicalized, result},
+(* Keep only one batch of full expressions while reading in parallel.
+   Definition validation runs in the caller, preserving its analytic-context scope. *)
+ibpFileSummaryBatch[files_List,includeTargets_]:=Module[{rows},
+ rows=facetSymbolicMap[FeynFacet`FamilyArtifactRead,files];
+ If[!ListQ[rows]||Length[rows]=!=Length[files],Return[{$Failed}]];
+ MapThread[Function[{value,file},
+   If[validPreIBPResultQ[value],ibpValidatedInputSummary[value,ExpandFileName[file],includeTargets],$Failed]],
+   {rows,files}]
+];
+ibpInputData[items_List, includeTargets_: False] := Module[{summaries},
   If[items === {} || ! (AllTrue[items, AssociationQ] || AllTrue[items, StringQ]),
     ibpFail["input validation", "expected nonempty Associations or saved result files"]
   ];
-  summaries = ibpInputSummary[#, includeTargets] & /@ items;
-  If[MemberQ[summaries, $Failed],
+  summaries = If[AllTrue[items,StringQ]&&Length[items]>=32,
+    facetWithSymbolicWorkers[
+      Flatten[ibpFileSummaryBatch[#,includeTargets]& /@ Partition[items,UpTo[16]],1],
+      facetKernelCount[Automatic,Length[items]]],
+    ibpInputSummary[#,includeTargets]& /@ items];
+  If[!ListQ[summaries],ibpFail["input validation","the record workers did not return summaries"]];
+  ibpCombineInputSummaries[summaries,includeTargets]
+];
+ibpCombineInputSummaries[summaries_List,includeTargets_:False] := Module[
+  {unique,pairs,data,fingerprints,canonicalized,result},
+  If[summaries==={}||!AllTrue[summaries,AssociationQ],
     ibpFail["input validation", "a pre-IBP result is missing, invalid or has no result directory"]
   ];
   pairs = Lookup[summaries, "Pair"];
@@ -515,7 +537,7 @@ ibpProjectLocation[resultDirectory_String] :=
 
 ibpProjectLocation[resultDirectory_String, workspaceRoot_String] := Module[{location,projectRoot},
  location=projectResultLocation[resultDirectory,workspaceRoot];
- If[FailureQ[location]||location["RunParts"]==={},ibpFail["project setup","an order/channel Results directory is required"]];
+ If[FailureQ[location]||location["RunParts"]==={},ibpFail["project setup","a contribution Work directory is required"]];
  projectRoot=FileNameJoin[Join[{workspaceRoot},location["OwnerParts"],{"Kira"}]];
  If[!DirectoryQ[projectRoot],CreateDirectory[projectRoot,CreateIntermediateDirectories->True]];
  <|"WorkspaceRoot"->ExpandFileName[workspaceRoot],"Root"->projectRoot,
@@ -1171,10 +1193,10 @@ ibpImportRules[project_Association, records_List] := Module[
   result
 ];
 
-ibpDeclaredMasters[project_Association] := Module[
+ibpDeclaredMasters[project_Association, identityTargets_:Automatic] := Module[
   {
     directory, manifest, nameMap, paths, lines, parseInteger, parseLine,
-    masters
+    masters, initialList=False
   },
   directory = project["Directory"];
   manifest = project["Manifest"];
@@ -1188,7 +1210,12 @@ ibpDeclaredMasters[project_Association] := Module[
       "masters.final"
     }] & /@ manifest;
   If[! AllTrue[paths, FileExistsQ],
-    ibpFail["Kira master validation", "a masters.final file is missing"]
+    If[!ListQ[identityTargets],
+      ibpFail["Kira master validation", "a masters.final file is missing"]];
+    paths=If[FileExistsQ[#],#,FileNameJoin[{DirectoryName[#],"masters"}]]&/@paths;
+    If[!AllTrue[paths,FileExistsQ],
+      ibpFail["Kira master validation", "a declared master list is missing"]];
+    initialList=True
   ];
   parseInteger[text_String] := Module[{trimmed, sign},
     trimmed = StringTrim[text];
@@ -1221,6 +1248,8 @@ ibpDeclaredMasters[project_Association] := Module[
   lines = Flatten[Select[Import[#1, "Lines"],
       StringTrim[#1] =!= "" &] & /@ paths];
   masters = DeleteDuplicates[parseLine /@ lines];
+  If[initialList&&!ContainsAll[masters,identityTargets],
+    ibpFail["Kira master validation","identity targets are absent from the initial master list"]];
   masters
 ];
 
@@ -2046,26 +2075,8 @@ ibpWriteKiraReduction[result_Association, output_String] := Module[
     Message[KiraReduction::save, target];
     Return[$Failed]
   ];
-  temporary = target <> ".tmp-" <> StringReplace[CreateUUID[], "-" -> ""];
-  If[
-    Quiet @ Check[
-      Put[result, temporary];
-      FileExistsQ[temporary] && FileByteCount[temporary] > 0,
-      False
-    ] =!= True,
-    Message[KiraReduction::save, target];
-    Return[$Failed]
-  ];
-  If[
-    Quiet @ Check[
-      RenameFile[temporary, target, OverwriteTarget -> True];
-      True,
-      False
-    ] =!= True,
-    Quiet @ Check[DeleteFile[temporary], Null];
-    Message[KiraReduction::save, target];
-    Return[$Failed]
-  ];
+  If[FeynFacet`FamilyArtifactWrite[result,target]=!=target,
+    Message[KiraReduction::save,target];Return[$Failed]];
   target
 ];
 
@@ -2084,7 +2095,7 @@ ibpValidateSavedKiraReduction[
     path_String,
     expected_Association
   ] := Module[{saved, valid},
-  saved = Quiet @ Check[Get[path], $Failed];
+  saved = Quiet @ Check[FeynFacet`FamilyArtifactRead[path], $Failed];
   valid = AssociationQ[saved] &&
     kiraReductionQ[saved] &&
     SameQ[ibpKiraReductionSummary[saved], expected] &&

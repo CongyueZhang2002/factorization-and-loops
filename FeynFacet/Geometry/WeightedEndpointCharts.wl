@@ -4,6 +4,7 @@ ConstructWeightedEndpointCharts::usage="ConstructWeightedEndpointCharts[variable
 WeightedEndpointTaylorIndices::usage="WeightedEndpointTaylorIndices[weights,order] lists all nonnegative Taylor multi-indices with weighted degree at most order.";
 
 ConstructMonomialEndpointCharts::usage="ConstructMonomialEndpointCharts[variables,exponentMatrices,request] builds positive monomial charts and exactly verifies that their logarithmic cones cover the unit cube with disjoint interiors. Nonnegative integer matrices may include real ramification. Every signed and absolute Jacobian is explicit.";
+ConstructNewtonEndpointCharts::usage="ConstructNewtonEndpointCharts[variables,polynomials,request] constructs a complete two-variable monomial cover from the common Newton fan, with an exact regular subdivision and optional positive integer ramification. It proposes charts; actual unit factors, connection normalization and seam regularity must still be verified.";
 Begin["`Private`"];
 WeightedEndpointTaylorIndices[weights:{__Integer},order_Integer?NonNegative]/;AllTrue[weights,#>0&]:=
  SortBy[Select[Tuples[Range[0,Floor[order/#]]&/@weights],#.weights<=order&],{#.weights,#}&];
@@ -81,5 +82,43 @@ ConstructMonomialEndpointCharts[xs:{__Symbol},matrices:{__List},request_Associat
  <|"Format"->"FeynFacet-MonomialEndpointCharts","OriginalVariables"->xs,"Charts"->charts,
   "CoverageVerified"->True,"DisjointInteriorsVerified"->True,
   "CoverArgument"->"Negative logarithms map the positive unit cube to the positive orthant. Exact linear real quantifier elimination verifies coverage by the matrix cones and excludes intersections of their interiors."|>
+];
+(* The positive normal fan is only a candidate resolution. Coefficient
+   signs and finite positive-ratio zeros are checked by the endpoint producer. *)
+ConstructNewtonEndpointCharts[xs:{_Symbol,_Symbol},polynomials_List,request_Association:<||>]:=Module[
+ {supports,rays={{1,0},{0,1}},weight,delta,pair,values,ordered,regular,refine,
+  determinant,bezout,complement,middle,ramification,matrices,cover},
+ If[polynomials==={}||!AllTrue[polynomials,PolynomialQ[#,xs]&],
+  Return[Failure["EndpointPolynomialSupportsRequired",<||>]]];
+ supports=DeleteDuplicates[(First/@CoefficientRules[#,xs])&/@polynomials];
+ Do[
+  Do[delta=pair[[1]]-pair[[2]];
+   If[Times@@delta<0,
+    weight=Abs[Reverse[delta]];weight=weight/Apply[GCD,weight];
+    values=(#.weight)&/@support;
+    If[pair[[1]].weight===Min[values]&&pair[[2]].weight===Min[values],AppendTo[rays,weight]]],
+  {pair,Subsets[support,{2}]}],
+ {support,supports}];
+ ordered=SortBy[DeleteDuplicates[rays],If[First[#]===0,Infinity,Last[#]/First[#]]&];
+ refine[u_,v_]:=Module[{determinant=Det[{u,v}],bezout,complement,middle},
+  If[determinant===1,Return[{u,v}]];
+  bezout=Last[ExtendedGCD@@u];complement={-bezout[[2]],bezout[[1]]};
+  middle=complement+Ceiling[Det[{v,complement}]/determinant]u;
+  If[Det[{u,middle}]=!=1||!TrueQ[0<Det[{middle,v}]<determinant],
+   Return[Failure["NewtonFanRegularSubdivisionFailed",<||>]]];
+  With[{tail=refine[middle,v]},If[FailureQ[tail],tail,Prepend[tail,u]]]
+ ];
+ regular={First[ordered]};
+ Do[values=refine[ordered[[i]],ordered[[i+1]]];
+  If[FailureQ[values],Return[values,Module]];
+  regular=Join[regular,Rest[values]],{i,Length[ordered]-1}];
+ ramification=Lookup[request,"Ramification",1];
+ If[!IntegerQ[ramification]||ramification<1,Return[Failure["PositiveIntegerEndpointRamificationRequired",<||>]]];
+ matrices=(ramification Transpose[#]&)/@Partition[regular,2,1];
+ cover=FeynFacet`ConstructMonomialEndpointCharts[xs,matrices,KeyTake[request,{"ChartVariables"}]];
+ If[FailureQ[cover],Return[cover]];
+ Join[cover,<|"NewtonPolynomials"->polynomials,"NewtonSupportRays"->ordered,
+  "RegularFanRays"->regular,"Ramification"->ramification,"ResolutionVerified"->False,
+  "ResolutionScope"->"Exact complete candidate cover. Pulled-back factors, all retained seams, physical modes and uniform remainders require separate checks."|>]
 ];
 End[];EndPackage[];

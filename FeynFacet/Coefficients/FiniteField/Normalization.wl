@@ -847,6 +847,28 @@ finiteFieldCertifyPhysicalVariables[expression_,context_Association]:=Module[{va
  value
 ];
 
+(* Scalar products recur many times in coefficient expressions. Expand each
+   distinct product with the established kinematic substitution, then substitute
+   its exact scalar image. Other tensor structures retain the general evaluator. *)
+finiteFieldHadronicVariables[expression_,data_Association]:=Module[
+ {objects,atoms,masked,images,result,coordinates=Keys[data["Coordinates"]]},
+ If[coordinates==={},Return[expression]];
+ objects=DeleteDuplicates@Cases[expression,
+   object:(_FeynCalc`SP|_FeynCalc`SPD|_FeynCalc`SPE|
+     _FeynCalc`CSP|_FeynCalc`CSPD|_FeynCalc`CSPE):>object,{0,Infinity}];
+ atoms=Table[Unique["hadronicScalar$"],Length[objects]];
+ masked=expression/.Dispatch[Thread[objects->atoms]];
+ If[!FreeQ[masked,Alternatives@@coordinates]||
+   !FreeQ[masked,object_/;With[{head=Head[Unevaluated[object]]},
+     MatchQ[head,_Symbol]&&Context[head]==="FeynCalc`"]],
+  Return[applyHadronicVariables[expression,data]]];
+ images=applyHadronicVariables[#,data]& /@ objects;
+ If[MemberQ[images,$Failed],Return[applyHadronicVariables[expression,data]]];
+ result=Quiet[expression/.Dispatch[Thread[objects->images]],{Power::infy,Infinity::indet}];
+ If[!FreeQ[result,Indeterminate|_DirectedInfinity],
+  applyHadronicVariables[expression,data],result]
+];
+
 finiteFieldNormalizeTarget[
     expression_,
     distributionFactor_,
@@ -859,7 +881,7 @@ finiteFieldNormalizeTarget[
     dimensionless, rationalized, terms, descended, violation, module, admissibility
   },
   admissibility=finiteFieldTargetContext[context];
-  physical = applyHadronicVariables[
+  physical = finiteFieldHadronicVariables[
     expression,
     context["HadronicVariables"]
   ];
@@ -928,7 +950,7 @@ finiteFieldPrepareReductionCoefficient[
   ] := Module[{prepared, descended, violation, module},
   prepared = expression /.
     metadata["ReverseRules"] /. metadata["DimensionRule"];
-  prepared = applyHadronicVariables[
+  prepared = finiteFieldHadronicVariables[
     prepared,
     context["HadronicVariables"]
   ];
@@ -1086,4 +1108,3 @@ finiteFieldNormalizeTraceBatch[batch_List] :=
     #,
     $finiteFieldTraceWorkerData
   ] & /@ batch;
-

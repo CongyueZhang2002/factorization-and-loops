@@ -1,0 +1,124 @@
+(* Physical one-column residual evolution with previously solved coefficients.
+   The same Frobenius subtraction as the full boundary connection is used.
+   Recursion follows epsilon order and the strictly triangular B(e=0). *)
+BeginPackage["FeynFacet`"];
+ConstructPhysicalBoundarySolution::usage="ConstructPhysicalBoundarySolution[preparation,seed,amplitudes,request] evolves only the missing physical Laurent coefficients. KnownMasterValues supplies explicit original-basis values; their sufficient prepared components enter the inhomogeneous DE exactly. Boundary constants come from the supplied physical Frobenius data.";
+Begin["`Private`"];
+physicalBoundaryFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"PhysicalBoundaryReuse"];
+(* Scale GPLs from a constant upper point to the evolution variable. Trailing
+   zeros are removed by the shuffle identity before using homogeneity. *)
+physicalBoundaryGPLScale[expr_,x_,conditions_]:=Module[{regularize,convert,objects,rules},
+ regularize[word_List,z_]:=regularize[word,z]=Module[{v,shuffles,count,others},
+  Which[word==={},1,AllTrue[word,#===0&],Log[z]^Length[word]/Length[word]!,
+   Last[word]=!=0,FeynFacetSolution`G[word,z],
+   True,v=Most[word];shuffles=Insert[v,0,#]&/@Range[Length[v]+1];
+   count=Count[shuffles,word];others=DeleteCases[shuffles,word];
+   (regularize[v,z]Log[z]-Total[regularize[#,z]&/@others])/count]];
+ convert[g_]:=Module[{word=g[[1]],z=g[[2]],scaled},
+  If[FreeQ[g,x],Return[g]];
+  If[!FreeQ[z,x],Return[g]];
+  scaled=Cancel[Together[x #]]&/@word;
+  If[!FreeQ[scaled,x]||!TrueQ[Refine[x>0,conditions]],Return[g]];
+  regularize[word,z]/.h:FeynFacetSolution`G[w_List,z]:>
+    FeynFacetSolution`G[Cancel[Together[x #]]&/@w,x z]];
+ objects=DeleteDuplicates@Cases[expr,_FeynFacetSolution`G,{0,Infinity}];
+ rules=(#->convert[#])&/@objects;expr/.rules
+];
+ConstructPhysicalBoundarySolution[prep_Association,seed_?MatrixQ,amplitudes_Association,
+ request_Association]:=Catch[Module[
+ {normal,prepared,x,e,n,c,upper,lower,known,columns,amin,amax,high,depth,frob,active={},
+  b,g,o,p,ip,bc,gc,oc,pc,ic,nc,zero,poly,amp,mat,source,residual,counter,
+  knownCoefficient,knownError,error,output,integrate,coefs=<||>,integrated={},reused={},
+  conditions,t,check,compact,old,coverageCatch=Unique["physicalCoverage"]},
+ check[v_,stage_]:=If[FailureQ[v]||!AssociationQ[v],
+  physicalBoundaryFail["PhysicalBoundaryPreparationFailed",<|"Stage"->stage,"Cause"->v|>],v];
+ normal=prep["NormalizedDifferentialSystem"];prepared=prep["PreparedDifferentialSystem"];
+ {x,e}=Lookup[normal,{"Variable","DimensionalRegulator"}];n=Length[normal["ConnectionMatrix"]];
+ c=Dimensions[seed][[2]];{upper,lower,columns}=Lookup[request,
+  {"MasterIntegralUpperOrders","OriginalMasterLaurentLowerBounds","ColumnUpperOrders"}];
+ known=Lookup[request,"KnownMasterValues",<||>];conditions=Lookup[request,"Assumptions",True];
+ If[!VectorQ[upper,IntegerQ]||!VectorQ[lower,IntegerQ]||Length[upper]=!=n||Length[lower]=!=n||
+  !VectorQ[columns,IntegerQ]||Length[columns]=!=c||
+  Lookup[amplitudes,"Dimension",None]=!=c||Lookup[amplitudes,"DimensionalRegulator",None]=!=e,
+  physicalBoundaryFail["PhysicalBoundaryOrdersAndAmplitudesRequired"]];
+ amin=Min[amplitudes["LaurentLowerBounds"]];amax=Lookup[request,"EvolutionUpperOrder",Max[upper]];
+ If[!IntegerQ[amin],physicalBoundaryFail["FinitePhysicalAmplitudeLowerBoundRequired"]];
+ high=Max[0,amax-amin,Max[columns]];
+ {b,g,o,p}={First[prepared["ConnectionMatrices"]],prep["NormalizedToPreparedGauge"],
+  prep["NormalizedToOriginalGauge"],prepared["BasisTransformationMatrix"]};
+ ip=Map[Cancel,Inverse[p],{2}];zero=ConstantArray[0,{n,n}];
+ depth=check[FeynFacet`DetermineBoundaryCountertermOrder[b,g,{x,e},{0,high}],"SubtractionOrder"];
+ frob=check[FeynFacet`ConstructFrobeniusBoundaryExpansion[normal,seed,
+  <|"MaximumNormalOrder"->depth["MaximumNormalOrder"],"EpsilonOrderRange"->{0,Max[columns]},
+   "ColumnUpperOrders"->columns|>],"FrobeniusCounterterm"];
+ {bc,gc,oc,pc,nc}=solutionLaurentCoefficients[#,e,high,True]&/@{b,g,o,p,normal["ConnectionMatrix"]};
+ If[AnyTrue[{bc,gc,oc,pc,nc},AnyTrue[Keys[#],#<0&]&],
+  physicalBoundaryFail["EpsilonRegularPhysicalEvolutionFrameRequired"]];
+ If[!AllTrue[Flatten[Table[Lookup[bc,0,zero][[i,j]],{i,n},{j,i,n}]],solutionZero],
+  physicalBoundaryFail["StrictlyTriangularUnregulatedConnectionRequired"]];
+ (* Certified algebraic zeros must be literal zeros before dependency traversal. *)
+ If[KeyExistsQ[bc,0],bc[0]=MapIndexed[If[#2[[2]]>=#2[[1]],0,#1]&,bc[0],{2}]];
+ ic=solutionLaurentCoefficients[ip,e,
+   Max[0,amax-Min[Append[Lookup[Values[known],"LaurentLowerBound",{}],amin]]],True];
+ compact[value_]:=First[FeynFacet`CancelRationalCoefficients[{value}]];
+ amp[j_,k_]:=Which[k<amplitudes["LaurentLowerBounds"][[j]],0,
+  k>amplitudes["KnownThroughOrders"][[j]],
+   Throw[Failure["PhysicalAmplitudeOrderMissing",<|"Row"->j,"Order"->k|>],coverageCatch],
+  KeyExistsQ[amplitudes["Coefficients"],{j,k}],amplitudes["Coefficients"][[Key[{j,k}]]],
+  True,Throw[Failure["PhysicalAmplitudeCoefficientMissing",<|"Row"->j,"Order"->k|>],coverageCatch]];
+ poly[i_,k_]:=poly[i,k]=If[k<amin,0,compact@Total@Flatten@Table[
+  With[{matrix=frob["Coefficients"][[Key[{m,q}]]][[h]]},
+   If[matrix[[i,j]]===0,0,x^m Log[x]^(h-1)matrix[[i,j]]amp[j,k-q]]],
+  {m,0,frob["MaximumNormalOrder"]},{q,0,Min[Max[columns],k-amin]},
+  {h,Length[frob["Coefficients"][[Key[{m,q}]]]]},{j,c}]];
+ mat[data_,i_,k_,f_]:=Total@Flatten@Table[
+  If[data[q][[i,j]]===0,0,data[q][[i,j]]f[j,k-q]],{q,Keys[data]},{j,n}];
+ counter[data_,i_,k_]:=compact[mat[data,i,k,poly]];
+ residual[i_,k_]:=residual[i,k]=If[k<amin,0,compact[mat[nc,i,k,poly]-D[poly[i,k],x]]];
+ source[i_,k_]:=source[i,k]=If[k<amin,0,compact[mat[gc,i,k,residual]]];
+ knownCoefficient[i_,k_]:=Module[{v=Lookup[known,i,None]},
+  If[k<lower[[i]],Return[0]];
+  If[v===None,Return[Missing["MasterNotKnown"]]];
+  Which[k<v["LaurentLowerBound"],0,k>v["KnownThroughOrder"],Missing["OrderNotKnown"],
+   True,Lookup[v["Coefficients"],k,Missing["CoefficientNotKnown"]]]];
+ knownError[i_,k_]:=Module[{value},
+  If[known===<||>,Return[Missing["NoKnownMasters"]]];
+  value=mat[ic,i,k,knownCoefficient];
+  If[!FreeQ[value,_Missing],Return[Missing["PreparedComponentNotKnown"]]];
+  value=Catch[compact[value-counter[gc,i,k]],coverageCatch];
+  If[FailureQ[value],Missing["BoundaryCoverageForOptionalReuse"],value]];
+ t=Unique["physicalEvolution"];
+ integrate[value_]:=Module[{normalized,result},
+  normalized=physicalBoundaryGPLScale[compact[value],x,conditions];
+  If[normalized===0,Return[0]];
+  result=FeynFacetSolution`IntegrateGPL[normalized/.x->t,{t,0,x},
+   "Assumptions"->(conditions/.x->t),"TimeLimit"->Lookup[request,"GPLTimeLimit",300],
+   "MaxExpressionLeaves"->Lookup[request,"GPLMaxExpressionLeaves",2000000]];
+  If[FailureQ[result]||!FreeQ[result,_Integrate|_Derivative],
+   physicalBoundaryFail["ExplicitPhysicalResidualIntegrationFailed",<|"Cause"->result|>]];
+  result];
+ error[i_,k_]:=error[i,k]=Module[{value,integrand},
+  If[MemberQ[active,{i,k}],physicalBoundaryFail["CyclicPhysicalCoefficientDependency",<|"Row"->i,"Order"->k,"Stack"->active|>]];
+  If[k<amin,Return[0]];
+  value=knownError[i,k];
+  If[!MissingQ[value],AppendTo[reused,{i,k}];Return[value]];
+  AppendTo[active,{i,k}];
+  integrand=compact[source[i,k]+mat[bc,i,k,error]];
+  active=Most[active];
+  If[integrand===0,Return[0]];
+  value=integrate[integrand];AppendTo[integrated,{i,k}];value];
+ output[i_,k_]:=Module[{v=knownCoefficient[i,k]},
+  If[!MissingQ[v],Return[v]];
+  compact[counter[oc,i,k]+mat[pc,i,k,error]]];
+ old=Catch[Do[AssociateTo[coefs,{i,k}->output[i,k]],{i,n},{k,lower[[i]],upper[[i]]}],coverageCatch];
+ If[FailureQ[old],Throw[old,"PhysicalBoundaryReuse"]];
+ If[!masterLibraryExplicitQ[Values[coefs]],physicalBoundaryFail["ExplicitPhysicalMasterCoefficientsRequired"]];
+ <|"DataType"->"PhysicalMasterLaurentSolution","Representation"->"ExplicitGPL",
+  "DimensionalRegulator"->e,"Coefficients"->coefs,"BoundaryValuesApplied"->True,
+  "OriginalMasterLaurentLowerBounds"->lower,"MasterIntegralUpperOrders"->upper,
+  "AlgebraicDefinitions"->{},"KernelDefinitions"->{},"IntegralDefinitions"->{},
+  "PartialReuse"-><|"IntegratedCoefficients"->integrated,"ReusedPreparedCoefficients"->reused,
+    "KnownOriginalRows"->Keys[known],"FrobeniusCountertermOrder"->depth["MaximumNormalOrder"],
+    "Method"->"Physical inhomogeneous residual DE with demand-driven Laurent coefficients"|>|>
+],"PhysicalBoundaryReuse"];
+End[];EndPackage[];

@@ -90,10 +90,9 @@ record = <|
 
 temporary = FileNameJoin[{outdir,
   "result_" <> tag <> "_" <> backend <> ".wl.partial"}];
-Put[record, temporary];
-RenameFile[temporary,
-  FileNameJoin[{outdir, "result_" <> tag <> "_" <> backend <> ".wl"}],
-  OverwriteTarget -> True];
+FeynFacetRecords`WriteRecord[record, temporary];
+FeynFacetRecords`MoveRecord[temporary,
+  FileNameJoin[{outdir, "result_" <> tag <> "_" <> backend <> ".wl"}]];
 
 Print["BENCH tag=", tag, " backend=", backend,
   " solved=", record["Solved"],

@@ -52,7 +52,7 @@ FeynFacet`ContractAnalyticMasterCoefficients[table_Association,values_Associatio
 FeynFacet`ContractExplicitMasterSolution::usage="ContractExplicitMasterSolution[rows,solution,request] contracts sparse exact coefficient rows with a fully explicit saved master Laurent solution in the common normalization. It checks every master order and returns finite Laurent coefficients; endpoint continuation remains a separate operation.";
 FeynFacet`ContractExplicitMasterSolution[rows_Association,solution_Association,request_Association]:=
  Catch[Module[{basis,e,known,low,upper,values,rules,table,result,results=<||>,progress,range,
-   current,master,orders},
+   current,master,orders,rowLowerBounds,minimumLower},
  basis=Lookup[solution,"MasterIntegralBasis",None];e=Lookup[solution,"DimensionalRegulator",None];
  known=Lookup[solution,"Coefficients",None];low=Lookup[solution,"OriginalMasterLaurentLowerBounds",None];
  upper=Lookup[solution,"MasterIntegralUpperOrders",None];rules=Lookup[request,"MasterKinematicRules",{}];
@@ -75,6 +75,14 @@ FeynFacet`ContractExplicitMasterSolution[rows_Association,solution_Association,r
   j-><|"MasterIntegral"->master,"DimensionalRegulator"->e,"LaurentLowerBound"->low[[j]],
    "KnownThroughOrder"->upper[[j]],"Coefficients"->Association@Table[
     k->(known[[Key[{j,k}]]]/.rules),{k,orders}]|>,{j,Length[basis]}];
+ rowLowerBounds=Association@KeyValueMap[Function[{label,row},label->Min[
+  KeyValueMap[Function[{mi,c},If[c===0,Infinity,
+   low[[First@FirstPosition[basis,mi]]]+FeynFacet`DetermineMeromorphicLaurentLowerBound[c,e]]],row]]],rows];
+ If[!AllTrue[Values[rowLowerBounds],IntegerQ[#]||#===Infinity&],
+  epsOrderFail["EstablishedBulkLaurentLowerBoundsRequired"]];
+ minimumLower=Min[Values[rowLowerBounds]];
+ If[TrueQ[Lookup[request,"RetainLowerLaurentOrders",False]]&&minimumLower=!=Infinity,
+  range={Min[First[range],minimumLower],Last[range]}];
  progress=Lookup[request,"ProgressFunction",None];
  Do[
   If[progress=!=None,progress[label]];
@@ -89,7 +97,11 @@ FeynFacet`ContractExplicitMasterSolution[rows_Association,solution_Association,r
  {label,Keys[rows]}];
  <|"Format"->"FeynFacet-ExplicitMasterCoefficientRows","DimensionalRegulator"->e,
   "EpsilonOrderRange"->range,"Rows"->results,"MasterIntegralBasis"->basis,
+  "LaurentLowerBounds"->rowLowerBounds,
   "MasterKinematicRules"->rules,"EndpointDistributionsConstructed"->False,
+  "DensityDefinition"-><|"CoefficientRows"->rows,"MasterIntegralBasis"->basis,
+   "DimensionalRegulator"->e,"MasterKinematicRules"->rules,
+   "PhysicalBoundaryDefinition"->Lookup[solution,"PhysicalBoundaryDefinition",Missing["NotAnOrderedPhysicalSolution"]]|>,
   "Scope"->"Pointwise Laurent coefficients on the open physical domain, in the already common normalization."|>
  ],"EpsilonOrders"];
 End[];EndPackage[];

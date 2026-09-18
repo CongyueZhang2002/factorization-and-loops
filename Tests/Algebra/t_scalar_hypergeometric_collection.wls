@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 Clear[ce,cz,ct,cr,cs,cq];
@@ -33,4 +34,4 @@ FTAssert["Gauss contraction propagates the rational double pole",
 FTAssert["a Gamma-only combination retains its nonzero Laurent coefficients",
  With[{a=FeynFacet`ExpandGaussHypergeometricCombinations[<|"A"->Gamma[1+ce]/ce|>,ce,{-2,0}]},
  AssociationQ[a]&&a["Coefficients"][{1,-1}]===1&&a["Coefficients"][{1,0}]===-EulerGamma]];
-FTReport[];
+Print["SCALAR HYPERGEOMETRIC COLLECTION TEST COMPLETE"];FTReport[];

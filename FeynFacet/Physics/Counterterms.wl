@@ -1,17 +1,14 @@
-(* Collinear subtraction of invariant single-inclusive partonic densities.
+(* Splitting and finite operator kernels for collinear factorization.
    Kernels use a_s=alpha_s/(2 Pi) and explicit daughter <- parent labels.
    Finite scheme kernels mean f_new=(1+a_s Z) convolution f_old. *)
 BeginPackage["FeynFacet`"];
-LeadingSplittingKernel::usage="LeadingSplittingKernel[daughter,parent,spin,xi,parameters] gives LO delta/plus/regular kernels for individual species {q,flavor}, {qbar,flavor}, or g. Parameters declares CA, CF, TR, and FlavorCount. Spin is U, L, or T. Plus[k] means [Log[1-xi]^k/(1-xi)]_+.";
-FactorizationSchemeKernel::usage="FactorizationSchemeKernel[name,daughter,parent,spin,xi,parameters,order] supplies the coefficient of (alpha_s/(2 Pi))^order in the finite PDF/FF redefinition Z. The default order is one; order zero is the identity. HelicityMSbar provides the full-flavor Larin-to-MSbar PDF coefficients through order two; using them requires a matching raw operator definition. MSbar has no finite corrections. Cards may supply FiniteKernelsByOrder or a channel kernel with an explicit PerturbativeOrder.";
-ConvolveBornCollinearKernel::usage="ConvolveBornCollinearKernel[born,kernel,request] acts on the invariant Born density b(s,t,u;epsilon) delta(s+t+u). Born is a common LO PartonicResult with explicit epsilon coefficients and MandelstamVariables. Request declares Leg (IncomingA, IncomingB, or Observed), Scale s, Variables {v,w}. It returns exact delta/plus/regular coefficients on 0<w<=1, with the complete D-dimensional FF Jacobian.";
-ConvolveBornMellinKernel::usage="ConvolveBornMellinKernel[born,kernel,axis,range] convolves a corner-supported Born partonic result with a one-variable Mellin kernel, preserving every declared epsilon coefficient and all other distribution axes.";
-ConstructCurrentCollinearCounterterm::usage="ConstructCurrentCollinearCounterterm[bornResults,request] constructs the NLO incoming PDF and observed FF counterterms for declared PDF/FF legs of a current process from explicit LO dependencies, LO splitting kernels and the declared finite schemes.";
+LeadingSplittingKernel::usage="LeadingSplittingKernel[daughter,parent,spin,xi,parameters] gives LO delta/plus/regular kernels for individual species {q,flavor}, {qb,flavor}, or g. Parameters declares CA, CF, TR, and FlavorCount. Spin is U, L, or T. Plus[k] means [Log[1-xi]^k/(1-xi)]_+.";
+FactorizationSchemeKernel::usage="FactorizationSchemeKernel[name,daughter,parent,spin,xi,parameters,order] supplies the coefficient of (alpha_s/(2 Pi))^order in the finite PDF/FF redefinition Z. The default order is one; order zero is the identity. HelicityMSbar provides the full-flavor Larin-to-MSbar PDF coefficients through order two; using them requires a matching raw operator definition. MSbar has no finite corrections. Cards may supply FiniteKernelsByOrder or a channel kernel with an explicit PerturbativeOrder. An optional request association declares Evolution; unsupported timelike defaults are rejected after resolving every matrix fallback.";
 Begin["`Private`"];
 ClearAll[collinearKernelFail,collinearKernelSpeciesQ,collinearKernelRecord,
- collinearKernelValidate,collinearBornMap];
+ collinearKernelValidate];
 collinearKernelFail[tag_,details_:<||>]:=Throw[Failure[tag,details],"CollinearCounterterms"];
-collinearKernelSpeciesQ[x_]:=x==="g"||MatchQ[x,{"q"|"qbar",_Integer|_String}];
+collinearKernelSpeciesQ[x_]:=x==="g"||MatchQ[x,{"q"|"qb",_Integer|_String}];
 collinearKernelRecord[x_,delta_,plus_,regular_]:=<|"Variable"->x,
  "DeltaCoefficient"->delta,"PlusCoefficients"->plus,"RegularCoefficient"->regular|>;
 collinearKernelValidate[k_]:=Module[{x,plus},
@@ -20,7 +17,8 @@ collinearKernelValidate[k_]:=Module[{x,plus},
  x=k["Variable"];plus=k["PlusCoefficients"];
  If[!MatchQ[x,_Symbol]||!AssociationQ[plus]||!AllTrue[Keys[plus],IntegerQ[#]&&#>=0&]||
   !FreeQ[{k["DeltaCoefficient"],Values[plus]},x]||
-  !FreeQ[k,_Real|_SeriesData|_Integrate|_Inactive|_Failure|_Missing|Indeterminate|_DirectedInfinity],
+  !FreeQ[KeyTake[k,{"Variable","DeltaCoefficient","PlusCoefficients","RegularCoefficient"}],
+    _Real|_SeriesData|_Integrate|_Inactive|_Failure|_Missing|Indeterminate|_DirectedInfinity],
   collinearKernelFail["ExplicitCollinearKernelRequired"]];k
 ];
 LeadingSplittingKernel[daughter_,parent_,spin_,xi_Symbol,parameters_Association]:=Catch[Module[
@@ -72,7 +70,9 @@ helicityFinitePDFCoefficient[daughter_,parent_,xi_,parameters_,order_]:=Module[
 FactorizationSchemeKernel[name_,daughter_,parent_,spin_,xi_Symbol,parameters_Association]:=
  FactorizationSchemeKernel[name,daughter,parent,spin,xi,parameters,1];
 FactorizationSchemeKernel[name_,daughter_,parent_,spin_,xi_Symbol,parameters_Association,
- order_Integer]:=Catch[Module[{record,orders,channel},
+ order_Integer,request_Association:<||>]:=Catch[Module[{record,orders,channel},
+ If[!MemberQ[{None,"SpaceLike","TimeLike"},Lookup[request,"Evolution",None]],
+  collinearKernelFail["FiniteKernelEvolutionRequired"]];
  If[!collinearKernelSpeciesQ[daughter]||!collinearKernelSpeciesQ[parent]||
    !MemberQ[{"U","L","T"},spin]||order<0,
   collinearKernelFail["PartonSpeciesSpinAndNonnegativeSchemeOrderRequired"]];
@@ -84,13 +84,13 @@ FactorizationSchemeKernel[name_,daughter_,parent_,spin_,xi_Symbol,parameters_Ass
   channel=Map[If[AssociationQ[#]&&!KeyExistsQ[#,"PerturbativeOrder"],
     Append[#,"PerturbativeOrder"->order],#]&,Lookup[orders,order,<||>]];
   Return[FactorizationSchemeKernel[<|"FiniteKernels"->channel,
-   "DefaultScheme"->Lookup[name,"DefaultScheme","MSbar"]|>,daughter,parent,spin,xi,parameters,order]]];
+   "DefaultScheme"->Lookup[name,"DefaultScheme","MSbar"]|>,daughter,parent,spin,xi,parameters,order,request]]];
  If[AssociationQ[name]&&KeyExistsQ[name,"FiniteKernels"],
   If[!AssociationQ[name["FiniteKernels"]],collinearKernelFail["FiniteSchemeKernelMatrixRequired"]];
   record=Lookup[name["FiniteKernels"],Key[{daughter,parent,spin}],Missing["NoFiniteKernelOverride"]];
   If[MissingQ[record],Return[FactorizationSchemeKernel[Lookup[name,"DefaultScheme","MSbar"],
-    daughter,parent,spin,xi,parameters,order]]];
-  Return[FactorizationSchemeKernel[record,daughter,parent,spin,xi,parameters,order]]];
+    daughter,parent,spin,xi,parameters,order,request]]];
+  Return[FactorizationSchemeKernel[record,daughter,parent,spin,xi,parameters,order,request]]];
  If[AssociationQ[name],record=collinearKernelValidate[name];
   If[record["Variable"]=!=xi,collinearKernelFail["KernelVariableMismatch"]];
   If[Lookup[record,"PerturbativeOrder",1]=!=order,
@@ -98,130 +98,13 @@ FactorizationSchemeKernel[name_,daughter_,parent_,spin_,xi_Symbol,parameters_Ass
   Return[record]];
  If[!MemberQ[{"MSbar","HelicityMSbar"},name],
   collinearKernelFail["FactorizationSchemeUnsupported",<|"Scheme"->name|>]];
+ If[order===2&&spin==="L"&&name==="HelicityMSbar"&&Lookup[request,"Evolution",None]==="TimeLike",
+  collinearKernelFail["ExplicitTimelikeFiniteHelicityKernelRequired"]];
  If[name==="HelicityMSbar"&&spin==="L"&&!KeyExistsQ[parameters,"CF"],
   collinearKernelFail["ColorAndFlavorParametersRequired"]];
  collinearKernelRecord[xi,0,<||>,If[name==="HelicityMSbar"&&spin==="L",
   helicityFinitePDFCoefficient[daughter,parent,xi,parameters,order],0]]
 ],"CollinearCounterterms"];
-collinearBornMap[leg_,s_,v_,w_,e_]:=Switch[leg,
- "IncomingA",<|"Fraction"->w,"Invariants"->{w s,w s(v-1),-s v w},"ConstraintJacobian"->1/(s v),"MeasureWeight"->1|>,
- "IncomingB",With[{xi=(1-v)/(1-v w)},<|"Fraction"->xi,"Invariants"->{xi s,s(v-1),-xi s v w},"ConstraintJacobian"->1/(s(1-v w)),"MeasureWeight"->1|>],
- "Observed",With[{xi=1-v+v w},<|"Fraction"->xi,"Invariants"->{s,s(v-1)/xi,-s v w/xi},"ConstraintJacobian"->xi/s,"MeasureWeight"->xi^(-2+2e)|>],
- _,collinearKernelFail["CollinearLegUnsupported",<|"Leg"->leg|>]];
-(* Reconstruct the invariant coefficient needed by the physical convolution.
-   This is a kinematic substitution and its delta Jacobian, not a file-format adapter. *)
-partonicBornInvariantCoefficient[born_Association,upper_Integer]:=Module[{check,e,s,v,w,mandel,delta},
- check=RequirePartonicEpsilonRange[born,{0,upper}];
- If[FailureQ[check],collinearKernelFail["BornEpsilonOrdersInsufficient",<|"Cause"->check|>]];
- If[born["Order"]=!="LO"||!AllTrue[Values[born["Coefficients"]],
-  #["RegularCoefficient"]===0&&AllTrue[Values[#["PlusCoefficients"]],#===0&]&],
-  collinearKernelFail["BornDeltaResultRequired"]];
- e=born["DimensionalRegulator"];s=born["Scale"];{v,w}=born["Variables"];mandel=born["MandelstamVariables"];
- delta=Sum[born["Coefficients"][j]["DeltaCoefficient"]e^j,{j,0,upper}];
- (s v delta)/.Thread[{s,v}->{mandel[[1]],1+mandel[[2]]/mandel[[1]]}]
-];
-
-
-ConvolveBornCollinearKernel[born_Association,kernel_Association,request_Association]:=Catch[Module[
- {k,xi,e,mandel,s,v,w,leg,map,h,ratio,slope,weight,endpointWeight,
-  delta,plus=<||>,regular,coeff,atEndpoint,power,j,bornExpression,assumptions,endpointData},
- k=collinearKernelValidate[kernel];xi=k["Variable"];
- If[!ContainsAll[Keys[born],{"Coefficients","EpsilonRange","MandelstamVariables","DimensionalRegulator"}]||
-   !ContainsAll[Keys[request],{"Leg","Scale","Variables"}],collinearKernelFail["BornDensityAndCollinearRequestRequired"]];
- e=born["DimensionalRegulator"];mandel=born["MandelstamVariables"];
- s=request["Scale"];{v,w}=request["Variables"];leg=request["Leg"];
- If[!MatchQ[mandel,{_Symbol,_Symbol,_Symbol}]||!MatchQ[{e,s,v,w,xi},{_Symbol..}]||
-  !DuplicateFreeQ[mandel]||!DuplicateFreeQ[{e,s,v,w,xi}],collinearKernelFail["DistinctKinematicVariablesRequired"]];
- bornExpression=partonicBornInvariantCoefficient[born,Lookup[request,"BornThroughOrder",Last[born["EpsilonRange"]]]];
- If[!FreeQ[bornExpression,v|w|xi],collinearKernelFail["BornCoefficientUsesOutputCoordinates"]];
- If[!FreeQ[bornExpression,_SeriesData|_Integrate|_Inactive|_Failure|_Missing|Indeterminate|_DirectedInfinity|_Real],
-  collinearKernelFail["ExactBornCoefficientRequired"]];
- assumptions=0<v<1&&0<w<1&&s>0;
- map=collinearBornMap[leg,s,v,w,e];h=map["Fraction"];
- ratio=Cancel[(1-h)/(1-w)];slope=Cancel[D[h,w]/.w->1];
- If[!TrueQ[FullSimplify[0<slope<Infinity,0<v<1]],collinearKernelFail["NondegenerateCollinearEndpointRequired"]];
- weight=map["ConstraintJacobian"]map["MeasureWeight"](bornExpression/.Thread[mandel->map["Invariants"]]);
- endpointData={weight,D[weight,w]}/.w->1;
- If[!FreeQ[endpointData,Indeterminate|_DirectedInfinity|Power[0,_]|_ConditionalExpression],collinearKernelFail["SmoothBornEndpointRequired"]];
- endpointWeight=Cancel[(weight/.w->1)/slope];
- If[!FreeQ[endpointWeight,Indeterminate|_DirectedInfinity],collinearKernelFail["RegularBornEndpointRequired"]];
- delta=endpointWeight k["DeltaCoefficient"];
- regular=weight(k["RegularCoefficient"]/.xi->h);
- KeyValueMap[Function[{logPower,kernelCoefficient},
-  delta+=kernelCoefficient endpointWeight Log[slope]^(logPower+1)/(logPower+1);
-  Do[
-   coeff=kernelCoefficient Binomial[logPower,j] weight/ratio If[logPower===j,1,Log[ratio]^(logPower-j)];
-   atEndpoint=kernelCoefficient Binomial[logPower,j] endpointWeight If[logPower===j,1,Log[slope]^(logPower-j)];
-   AssociateTo[plus,j->(Lookup[plus,j,0]+atEndpoint)];
-   regular+=(coeff-atEndpoint)Log[1-w]^j/(1-w),{j,0,logPower}]],k["PlusCoefficients"]];
- <|"Variable"->w,"Endpoint"->1,"Domain"->assumptions,"DimensionalRegulator"->e,
-  "DeltaCoefficient"->delta,"PlusCoefficients"->plus,"RegularCoefficient"->regular,
-  "CollinearMap"->map,"DensityConvention"->"E_c d sigma / d^(D-1) p_c",
-  "BornSupport"->"delta(s+t+u)","KernelDirection"->"daughter <- parent",
-  "PlusConvention"->"[Log[1-w]^k/(1-w)]_+ on [0,1]; other endpoint excluded"|>
- ],"CollinearCounterterms"];
-
-FeynFacet`ConstructNLOCollinearCounterterm::usage="ConstructNLOCollinearCounterterm[born,card] produces explicit Laurent delta/plus/regular coefficients from a Born density, LO kernel and a selected finite PDF/FF scheme. The common dimensional factor (mu_R^2)^(p epsilon) for a Born alpha_s^p is left outside every NLO contribution.";
-FeynFacet`ConstructNLOUVCounterterm::usage="ConstructNLOUVCounterterm[born,card] applies MSbar coupling renormalization, deriving the Born power of alpha_s from the generated expression.";
-collinearDistributionSeries[record_,e_,high_]:=Module[{delta,plus,regular,scalarSeries},
- scalarSeries[expr_]:=Module[{poly=Normal[Series[expr,{e,0,high}]]},
-  If[!FreeQ[poly,_SeriesData|_Series|_SeriesCoefficient|_Integrate|_Failure|Indeterminate|_DirectedInfinity],collinearKernelFail["ExplicitCountertermSeriesRequired"]];
-  Association@Table[j->Coefficient[Expand[e poly],e,j+1],{j,-1,high}]];
- delta=scalarSeries[record["DeltaCoefficient"]];plus=scalarSeries /@ record["PlusCoefficients"];
- regular=scalarSeries[record["RegularCoefficient"]];
- Association@Table[j-><|"DeltaCoefficient"->delta[j],"PlusCoefficients"->(# [j]& /@ plus),"RegularCoefficient"->regular[j]|>,{j,-1,high}]
-];
-collinearBornRegularInEpsilon[born_,e_]:=If[!TrueQ[RequirePartonicEpsilonRange[born,{0,0}]],
- collinearKernelFail["BornCoefficientRegularInEpsilonRequired"]];
-FeynFacet`ConstructNLOCollinearCounterterm[born_Association,card_Association]:=Catch[Module[
- {e,xi,parameters,kernel,finite,poleRecord,finiteRecord,combined,alpha,muR2,muF2,norm,high,keys,series},
- keys={"Leg","Scale","Variables","Daughter","Parent","Spin","KernelParameters","Coupling","RenormalizationScaleSquared","FactorizationScaleSquared","SplittingVariable"};
- If[!ContainsAll[Keys[card],keys],collinearKernelFail["NLOCollinearCardIncomplete",<|"Missing"->Complement[keys,Keys[card]]|>]];
- e=born["DimensionalRegulator"];xi=card["SplittingVariable"];parameters=card["KernelParameters"];
- {alpha,muR2,muF2}=Lookup[card,{"Coupling","RenormalizationScaleSquared","FactorizationScaleSquared"}];
- high=Lookup[card,"ThroughOrder",0];If[!IntegerQ[high]||high<0,collinearKernelFail["CountertermUpperOrderRequired"]];
- collinearBornRegularInEpsilon[born,e];
- If[!TrueQ[RequirePartonicEpsilonRange[born,{0,high+1}]],collinearKernelFail["BornEpsilonOrdersInsufficient",<|"Required"->{0,high+1}|>]];
- kernel=Lookup[card,"SplittingKernel",LeadingSplittingKernel[card["Daughter"],card["Parent"],card["Spin"],xi,parameters]];
- finite=Lookup[card,"FiniteKernel",FactorizationSchemeKernel[Lookup[card,"Scheme","MSbar"],card["Daughter"],card["Parent"],card["Spin"],xi,parameters]];
- If[FailureQ[kernel]||FailureQ[finite],collinearKernelFail["CountertermKernelConstructionFailed"]];
- If[!FreeQ[{kernel,finite},e],collinearKernelFail["FourDimensionalFactorizationKernelsRequired"]];
- poleRecord=ConvolveBornCollinearKernel[born,kernel,card];finiteRecord=ConvolveBornCollinearKernel[born,finite,card];
- If[FailureQ[poleRecord]||FailureQ[finite],collinearKernelFail["BornCollinearConvolutionFailed",<|"Pole"->poleRecord,"Finite"->finiteRecord|>]];
- norm=Exp[e(Log[4Pi]-EulerGamma)]Exp[e(Log[muR2]-Log[muF2])]/e;
- combined=Join[poleRecord,<|
-  "DeltaCoefficient"->alpha/(2Pi)(norm poleRecord["DeltaCoefficient"]-finiteRecord["DeltaCoefficient"]),
-  "PlusCoefficients"->Association@Table[j->alpha/(2Pi)(norm Lookup[poleRecord["PlusCoefficients"],j,0]-Lookup[finiteRecord["PlusCoefficients"],j,0]),
-    {j,Union[Keys[poleRecord["PlusCoefficients"]],Keys[finiteRecord["PlusCoefficients"]]]}],
-  "RegularCoefficient"->alpha/(2Pi)(norm poleRecord["RegularCoefficient"]-finiteRecord["RegularCoefficient"])|>];
- series=collinearDistributionSeries[combined,e,high];
- CreatePartonicResult[(partonicMap[partonicCollect,#]& /@ series),<|"Format"->"FeynFacet-PartonicResult","FormatVersion"->1,"Order"->"NLO",
-  "DimensionalPrefactor"->born["DimensionalPrefactor"],
-  "Scale"->card["Scale"],"Variables"->card["Variables"],"Contribution"->If[card["Leg"]==="Observed","FFCounterterm","PDFCounterterm"],
-  "Subtraction"->KeyTake[card,{"Leg","Daughter","Parent","Spin","Scheme","FactorizationScaleSquared"}],"DimensionalRegulator"->e,"Variable"->Last[card["Variables"]],
-    "Normalization"->"a_s=alpha_s/(2 pi); MSbar pole 1/eps+ln(4 pi)-EulerGamma; finite scheme f_new=(1+a_s Z) convolution f_old",
-  "ScaleDomain"->(muR2>0&&muF2>0),"DensityConvention"->"E_c d sigma/d^(D-1)p_c"|>]
- ],"CollinearCounterterms"];
-FeynFacet`ConstructNLOUVCounterterm[born_Association,card_Association]:=Catch[Module[
- {e,alpha,power,parameters,beta,xi,unit,mapped,norm,high,combined,keys},
- keys={"Scale","Variables","Coupling","KernelParameters","SplittingVariable"};
- If[!ContainsAll[Keys[card],keys],collinearKernelFail["NLOUVCardIncomplete"]];
- {alpha,parameters,xi}=Lookup[card,{"Coupling","KernelParameters","SplittingVariable"}];e=born["DimensionalRegulator"];
- collinearBornRegularInEpsilon[born,e];power=born["CouplingPower"];
- If[!IntegerQ[power]||power<0,collinearKernelFail["HomogeneousBornCouplingRequired"]];
- beta=(11parameters["CA"]-4parameters["TR"]parameters["FlavorCount"])/3;
- high=Lookup[card,"ThroughOrder",0];If[!IntegerQ[high]||high<0,collinearKernelFail["CountertermUpperOrderRequired"]];
- If[!TrueQ[RequirePartonicEpsilonRange[born,{0,high+1}]],collinearKernelFail["BornEpsilonOrdersInsufficient",<|"Required"->{0,high+1}|>]];
- unit=collinearKernelRecord[xi,1,<||>,0];mapped=ConvolveBornCollinearKernel[born,unit,Join[card,<|"Leg"->"IncomingA"|>]];
- If[FailureQ[mapped],collinearKernelFail["BornUVSupportFailed",<|"Cause"->mapped|>]];
- norm=-power beta alpha/(4Pi)Exp[e(Log[4Pi]-EulerGamma)]/e;
- combined=Join[mapped,<|"DeltaCoefficient"->norm mapped["DeltaCoefficient"]|>];
- CreatePartonicResult[(partonicMap[partonicCollect,#]& /@ collinearDistributionSeries[combined,e,high]),<|"Format"->"FeynFacet-PartonicResult","FormatVersion"->1,"Order"->"NLO",
-  "DimensionalPrefactor"->born["DimensionalPrefactor"],
-  "Scale"->card["Scale"],"Variables"->card["Variables"],"Contribution"->"UVCounterterm",
-  "Subtraction"->KeyTake[card,{"Leg","Daughter","Parent","Spin","Scheme","FactorizationScaleSquared"}],"DimensionalRegulator"->e,"Variable"->Last[card["Variables"]],
-    "BornCouplingPower"->power,"Beta0"->beta,"RenormalizationScheme"->"MSbar","DensityConvention"->"E_c d sigma/d^(D-1)p_c"|>]
- ],"CollinearCounterterms"];
 
 FeynFacet`EnumerateNLOCollinearChannels::usage="EnumerateNLOCollinearChannels[channel,request] enumerates the Born channels required by nonzero LO splitting and finite scheme kernels for two incoming partons and one observed parton. Request supplies Species, Polarization, Schemes, SplittingVariable and KernelParameters. The unobserved recoil is summed over the declared species and exact quark-flavor conservation is imposed. Diagram generation must still confirm each allowed Born channel.";
 FeynFacet`EnumerateNLOCollinearChannels[channel_Association,request_Association]:=Catch[Module[
@@ -242,7 +125,7 @@ FeynFacet`EnumerateNLOCollinearChannels[channel_Association,request_Association]
    !TrueQ[parameters["FlavorCount"]-Length[qcdFixedFlavors[channel]]===0],
    freeFlavor=ToString[Unique["flavor"],InputForm];
    probe=FeynFacet`EnumerateNLOCollinearChannels[channel,Join[request,<|
-    "Species"->Join[species,{{"q",freeFlavor},{"qbar",freeFlavor}}],
+    "Species"->Join[species,{{"q",freeFlavor},{"qb",freeFlavor}}],
     "FlavorSummation"->None|>]];
    If[!AssociationQ[probe],collinearKernelFail["FlavorCompletenessEnumerationFailed"]];
    If[!FreeQ[probe["Channels"],freeFlavor],
@@ -276,86 +159,4 @@ FeynFacet`EnumerateNLOCollinearChannels[channel_Association,request_Association]
   "Coverage"->"All nonzero kernels within the declared flavor basis, with quark-flavor conservation; confirm the remaining Born channels by diagram generation"|>
  ],"CollinearCounterterms"];
 
-collinearBornCorner[row_,0]:=row;
-collinearBornCorner[row_Association,n_Integer?Positive]:=(
- If[!partonicZeroTreeQ[row["PlusCoefficients"]]||!partonicZeroTreeQ[row["RegularCoefficient"]],
-  collinearKernelFail["CornerSupportedBornResultRequired"]];
- collinearBornCorner[row["DeltaCoefficient"],n-1]);
-collinearCornerKernel[coefficient_,kernel_,n_Integer?Positive,1]:=partonicDistribution[
- partonicCornerDistribution[coefficient kernel["DeltaCoefficient"],n-1],
- partonicCornerDistribution[coefficient #,n-1]&/@kernel["PlusCoefficients"],
- partonicCornerDistribution[coefficient kernel["RegularCoefficient"],n-1]];
-collinearCornerKernel[coefficient_,kernel_,n_Integer?Positive,axis_Integer]:=partonicDistribution[
- collinearCornerKernel[coefficient,kernel,n-1,axis-1],<||>,
- If[n===1,0,partonicDistributionZero[n-1]]];
-ConvolveBornMellinKernel[born_Association,kernel_Association,axis_Symbol,{low_Integer,high_Integer}]:=Catch[Module[
- {axes,position,e,rows,coefficient},
- If[born["Order"]=!="LO"||!KeyExistsQ[born["DistributionBasis"],"Axes"],collinearKernelFail["TensorProductBornResultRequired"]];
- axes=Lookup[born["DistributionBasis"]["Axes"],"Variable"];position=FirstPosition[axes,axis,Missing[]];
- If[MissingQ[position]||!FreeQ[kernel,born["DimensionalRegulator"]]||kernel["Variable"]=!=axis,
-  collinearKernelFail["RegulatorIndependentKernelOnDeclaredAxisRequired"]];
- If[FailureQ[RequirePartonicEpsilonRange[born,{low,high}]],collinearKernelFail["BornEpsilonOrdersInsufficient"]];
- collinearKernelValidate[kernel];e=born["DimensionalRegulator"];
- rows=Association@Table[n->collinearCornerKernel[collinearBornCorner[born["Coefficients"][n],Length[axes]],kernel,Length[axes],First[position]],{n,low,high}];
- CreatePartonicResult[rows,Join[KeyDrop[born,{"Coefficients","EpsilonRange","Coverage"}],<|"EpsilonRange"->{low,high}|>]]
-],"CollinearCounterterms"];
-ConstructCurrentCollinearCounterterm[bornResults_Association,request_Association]:=Catch[Module[
- {target,variables,ct,e,range,needed,parts=<||>,details={},born,bornChannel,leg,axis,spin,daughter,parent,
-  kernel,finite,scaleLog,convolved,schemeConvolved,coefficients,rows,value,id,meta,alpha,normalization,legSpecs,legSpec,index,role,observed},
- If[!ContainsAll[Keys[request],{"PhysicalChannel","Variables","Counterterms","DimensionalRegulator","EpsilonRange","Polarization","Include","FactorizationLegs"}],
-  collinearKernelFail["CurrentCollinearRequestRequired"]];
- target=request["PhysicalChannel"];variables=request["Variables"];ct=request["Counterterms"];e=request["DimensionalRegulator"];
- range=request["EpsilonRange"];alpha=ct["Coupling"];
- legSpecs=request["FactorizationLegs"];
- If[!MatchQ[range,{-1,_Integer?NonNegative}]||!MatchQ[variables,{_Symbol..}]||
-  !AssociationQ[legSpecs]||legSpecs===<||>||!AllTrue[Values[legSpecs],AssociationQ]||
-  !ContainsAll[Keys[legSpecs],request["Include"]],collinearKernelFail["DeclaredCurrentFactorizationLegsRequired"]];
- Do[legSpec=legSpecs[leg];role=Lookup[legSpec,"Role",None];axis=Lookup[legSpec,"Variable",None];
-  index=Lookup[legSpec,"Index",None];
-  If[!MemberQ[variables,axis]||!MemberQ[{"PDF","FF"},role]||
-    (role==="PDF"&&(!IntegerQ[index]||index<1||index>Length[target["Incoming"]]))||
-    (role==="FF"&&!KeyExistsQ[target,"Observed"])||
-    !KeyExistsQ[ct["Schemes"],leg]||!KeyExistsQ[ct["FactorizationScalesSquared"],leg],
-   collinearKernelFail["CurrentFactorizationLegRequired",<|"Leg"->leg|>]],{leg,Keys[legSpecs]}];
- needed={0,Last[range]+1};
- Do[born=bornResults[name];bornChannel=born["PhysicalChannel"];
-  If[FailureQ[RequirePartonicEpsilonRange[born,needed]],collinearKernelFail["BornEpsilonOrdersInsufficient",<|"Channel"->name,"Required"->needed|>]];
-  born=coefficientRegulatorNormalize[born,e];
-  Do[
-   If[!MemberQ[request["Include"],leg],Continue[]];
-   legSpec=legSpecs[leg];axis=legSpec["Variable"];role=legSpec["Role"];
-   If[role==="PDF",
-    index=legSpec["Index"];
-    If[Length[bornChannel["Incoming"]]=!=Length[target["Incoming"]]||
-     Lookup[bornChannel,"Observed",None]=!=Lookup[target,"Observed",None]||
-     ReplacePart[bornChannel["Incoming"],index->target["Incoming"][[index]]]=!=target["Incoming"],Continue[]];
-    {daughter,parent}={bornChannel["Incoming"][[index]],target["Incoming"][[index]]};
-    spin=request["Polarization"]["Incoming"][[index]],
-    If[bornChannel["Incoming"]=!=target["Incoming"]||!KeyExistsQ[bornChannel,"Observed"],Continue[]];
-    {daughter,parent}={target["Observed"],bornChannel["Observed"]};spin=request["Polarization"]["Observed"]];
-   kernel=LeadingSplittingKernel[daughter,parent,spin,axis,ct["KernelParameters"]];
-   finite=FactorizationSchemeKernel[ct["Schemes"][leg],daughter,parent,spin,axis,ct["KernelParameters"]];
-   If[FailureQ[kernel]||FailureQ[finite],collinearKernelFail["CurrentSplittingKernelFailed"]];
-   scaleLog=Log[ct["RenormalizationScaleSquared"]/ct["FactorizationScalesSquared"][leg]];
-   convolved=ConvolveBornMellinKernel[born,kernel,axis,needed];
-   schemeConvolved=ConvolveBornMellinKernel[born,finite,axis,{0,Last[range]}];
-   If[!AssociationQ[convolved]||!AssociationQ[schemeConvolved],collinearKernelFail["CurrentBornConvolutionFailed"]];
-   coefficients=Association@Table[n->partonicDistributionSum[
-    Join[Table[partonicMap[Function[value,alpha/(2Pi) scaleLog^(n-j+1)/Factorial[n-j+1] value],
-      convolved["Coefficients"][j]],{j,0,n+1}],
-     If[n>=0,{partonicMap[Function[value,-alpha/(2Pi)value],schemeConvolved["Coefficients"][n]]},{}]],Length[variables]],
-   {n,First[range],Last[range]}];
-   id=leg<>"/"<>name;AssociateTo[parts,id->coefficients];
-   AppendTo[details,<|"Leg"->leg,"BornChannel"->name,"Daughter"->daughter,"Parent"->parent,
-    "Spin"->spin,"Scheme"->ct["Schemes"][leg],"RequiredBornEpsilonRange"->needed|>],
-  {leg,Keys[legSpecs]}],{name,Keys[bornResults]}];
- If[parts===<||>,collinearKernelFail["NonemptyCurrentCountertermContributionsRequired"]];
- rows=Association@Table[n->partonicDistributionSum[(#[n]&/@Values[parts]),Length[variables]],{n,First[range],Last[range]}];
- meta=Join[KeyDrop[request,{"Counterterms","CurrentProjectors","KinematicRules","BornMomentumRules","BornConstraints",
-   "TwoParticleMeasurement","BareCouplingRules","EndpointExpansion"}],
-  <|"Order"->"NLO","Contribution"->"Counterterm","CouplingPower"->1,
-  "StructureFunctions"->Lookup[request,"StructureFunctions",Keys[request["CurrentProjectors"]]],"Subtractions"->details,
-  "CountertermConvention"->"alpha_s/(2 pi) [(mu_R^2/mu_F^2)^epsilon P^(0)/epsilon - Z^(1)], Born epsilon coefficients retained"|>];
- CreatePartonicResult[rows,meta]
-],"CollinearCounterterms"];
 End[];EndPackage[];

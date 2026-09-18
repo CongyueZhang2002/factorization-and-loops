@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
@@ -46,4 +47,37 @@ faLong=FeynCalc`DiracTrace[
 faResult=FeynFacet`EvaluateFORMDiracExpression[faLong,faRequest];
 FTTest`FTAssert["a contracted eight-gamma trace retains its full dimensional polynomial",
  AssociationQ[faResult]&&Factor[faResult["Value"]-FeynCalc`Calc[faLong]]===0];
+faSerial=FeynFacet`EvaluateFORMDiracExpression[faLong,Append[faRequest,"Threads"->1]];
+faParallel=FeynFacet`EvaluateFORMDiracExpression[faLong,Append[faRequest,"Threads"->2]];
+FTTest`FTAssert["serial FORM and two-thread TFORM give identical exact tensors",
+ AssociationQ[faSerial]&&AssociationQ[faParallel]&&faSerial["Value"]===faParallel["Value"]&&
+ faSerial["Threads"]===1&&faParallel["Threads"]===2&&faParallel["Program"]==="tform"];
+FTTest`FTAssert["native thread requests cannot exceed the allocation",
+ FailureQ[FeynFacet`EvaluateFORMDiracExpression[faLong,Append[faRequest,"Threads"->9]]]];
+faWorker=Block[{$KernelID=1},Catch[FeynFacet`Private`formAlgebraExecution[<||>],"FORMAlgebra"]];
+FTTest`FTAssert["Wolfram amplitude workers keep FORM serial",
+ AssociationQ[faWorker]&&faWorker["Threads"]===1];
+faTform=FileNameJoin[{DirectoryName[FeynFacet`Private`formAlgebraExecution[<||>]["Executable"]],"tform"}];
+faSingleTform=FeynFacet`EvaluateFORMDiracExpression[faLong,
+ Join[faRequest,<|"Executable"->faTform,"Threads"->1|>]];
+FTTest`FTAssert["one total TFORM thread means zero workers",
+ AssociationQ[faSingleTform]&&faSingleTform["Value"]===faSerial["Value"]&&
+ MemberQ[FeynFacet`Private`formAlgebraExecution[<|"Executable"->faTform,"Threads"->1|>]["Arguments"],"-w0"]];
+faTwoThread=FeynFacet`Private`formAlgebraExecution[<|"Threads"->2|>];
+FTTest`FTAssert["TFORM total allocation includes its master",MemberQ[faTwoThread["Arguments"],"-w1"]];
+faExplicitWorker=Block[{$KernelID=1},Catch[
+ FeynFacet`Private`formAlgebraExecution[<|"Executable"->faTform|>],"FORMAlgebra"]];
+FTTest`FTAssert["an explicit TFORM executable remains single-threaded in a worker",
+ AssociationQ[faExplicitWorker]&&MemberQ[faExplicitWorker["Arguments"],"-w0"]];
+faManagedDirectory=CreateDirectory[];
+faManaged=Block[{$KernelID=1,FeynFacet`Private`$formParallelExecution=
+ <|"Threads"->2,"LockFile"->faManagedDirectory<>"/Threads.lock"|>},
+ FeynFacet`EvaluateFORMDiracExpression[faLong,faRequest]];
+FTTest`FTAssert["managed workers use their shared native allocation without changing the tensor",
+ AssociationQ[faManaged]&&faManaged["Threads"]===2&&faManaged["Value"]===faSerial["Value"]];
+faLockAgain=StartProcess[{"python3",root<>"/Scripts/raw_result_lock.py",faManagedDirectory<>"/Threads.lock"}];
+faReleased=TimeConstrained[ReadLine[faLockAgain],5,$TimedOut];
+KillProcess[faLockAgain];
+FTTest`FTAssert["the native allocation lock is released after evaluation",faReleased==="LOCKED"];
+DeleteDirectory[faManagedDirectory,DeleteContents->True];
 FTTest`FTReport[];

@@ -2,7 +2,7 @@
    GPL letters are constant with respect to the integration variable.
    The algorithms operate on explicit finite expressions, never a DE generator. *)
 FeynFacetSolution`G::usage="G[{a1,...,an},z] is the Goncharov polylogarithm with kernels dt/(t-ai) and the standard logarithmic regularization at zero. The empty word equals one.";
-FeynFacetSolution`IntegrateGPL::usage="IntegrateGPL[expression,{t,0,s}] constructs an explicit primitive in rational functions and GPLs, with its finite lower-end value subtracted, including integrable logarithmic endpoint singularities. Rational higher poles are reduced by integration by parts. Unsupported function dependence is reported.";
+FeynFacetSolution`IntegrateGPL::usage="IntegrateGPL[expression,{t,0,s}] constructs an explicit primitive in rational functions and GPLs, with its finite lower-end value subtracted, including integrable logarithmic lower-end singularities. The upper point must permit finite direct substitution, and the caller supplies the path/branch domain. Rational higher poles are reduced by integration by parts; classical polylogarithms of rational arguments are pulled back with their finite basepoint constants. Unsupported function dependence is reported.";
 Clear[FeynFacetSolution`G];
 FeynFacetSolution`G[{},z_]:=1;
 FeynFacetSolution`G /: D[FeynFacetSolution`G[word_List,z_],v_Symbol] /; word=!={} && FreeQ[word,v] :=
@@ -12,7 +12,15 @@ Derivative[orders_List,1][FeynFacetSolution`G] /; AllTrue[orders,#===0&] :=
 gplFail[tag_,details_:<||>]:=Throw[Failure[tag,details],"GPLIntegration"];
 gplRationalQ[z_,t_]:=Module[{q=Together[z]},
  PolynomialQ[Numerator[q],t]&&PolynomialQ[Denominator[q],t]];
-gplBound[z_]:=If[LeafCount[z]>$gplMaxLeaves,gplFail["GPLExpressionSizeLimit"]];
+gplBound[z_]:=With[{leaves=LeafCount[z]},If[leaves>$gplMaxLeaves,
+ gplFail["GPLExpressionSizeLimit",<|"ExpressionLeaves"->leaves,"Limit"->$gplMaxLeaves|>]]];
+(* Compact a growing primitive before unrelated word contributions make its
+   external coefficient field too large. Limits apply to the compact explicit
+   expression, and remain unchanged. This is exact rational collection. *)
+gplCompactPrimitive[expression_]:=If[LeafCount[expression]>Min[20000,$gplMaxLeaves/4],
+ gplCollectCoefficients[expression],expression];
+gplPrimitiveSum[terms_List]:=gplCompactPrimitive[Total[terms]];
+
 gplMake[{},t_]:=1;
 gplMake[word_List,t_]:=FeynFacetSolution`G[word,t];
 gplWords[z_,t_]:=Module[{visit,add,multiply,check,out},
@@ -33,15 +41,22 @@ gplWords[z_,t_]:=Module[{visit,add,multiply,check,out},
   FreeQ[q,_FeynFacetSolution`G],If[check[q],<|{}->q|>,
     gplFail["NonRationalGPLCoefficient",<|"Coefficient"->Short[q]|>]],
   MatchQ[q,FeynFacetSolution`G[_List,t]],
-    If[FreeQ[q[[1]],t],<|q[[1]]->1|>,gplFail["GPLVariableOrLettersNotSupported"]],
+    If[FreeQ[q[[1]],t],<|q[[1]]->1|>,gplFail["GPLVariableOrLettersNotSupported",<|"GPL"->q,"IntegrationVariable"->t|>]],
   Head[q]===Plus,Fold[add,<||>,visit /@ List@@q],
   Head[q]===Times,Fold[multiply,<|{}->1|>,visit /@ List@@q],
   Head[q]===Power&&IntegerQ[q[[2]]]&&q[[2]]>=0,
     Nest[multiply[#,visit[q[[1]]]]&,<|{}->1|>,q[[2]]],
-  MatchQ[q,_FeynFacetSolution`G],gplFail["GPLVariableOrLettersNotSupported"],
+  MatchQ[q,_FeynFacetSolution`G],gplFail["GPLVariableOrLettersNotSupported",<|"GPL"->q,"IntegrationVariable"->t|>],
   True,gplFail["NonPolynomialDependenceOnGPL"]];
  out=visit[z];
  If[Length[out]>$gplMaxTerms,gplFail["GPLWordCountLimit"]];
+ (* Large coefficients can contain thousands of cancelling rational
+    summands after a pullback. Cancel the whole coefficient of each GPL word
+    in one exact native batch before integrating or forming endpoint series. *)
+ If[LeafCount[out]>20000,
+  With[{values=FeynFacet`CancelRationalCoefficients[Values[out]]},
+   If[!ListQ[values],gplFail["GPLRationalCoefficientCancellationFailed",<|"Cause"->values|>]];
+   out=AssociationThread[Keys[out],values]]];
  Select[out,#=!=0&]
 ];
 
@@ -95,7 +110,7 @@ gplRationalDecomposition[r_,t_]:=gplRationalDecomposition[r,t]=Module[
  simple=Select[simple,Last[#]=!=0&];
  Do[
   {fac,a}=entry;degree=Exponent[fac,t];
-  If[degree>$gplMaxDegree,gplFail["GPLPoleDegreeLimit",<|"Degree"->degree|>]];
+  If[degree>$gplMaxDegree,gplFail["GPLPoleDegreeLimit",<|"Degree"->degree,"Factor"->fac,"Variable"->t|>]];
   roots=Switch[degree,
    1,{-Coefficient[fac,t,0]/Coefficient[fac,t,1]},
    2,discriminant=Coefficient[fac,t,1]^2-4 Coefficient[fac,t,2] Coefficient[fac,t,0];
@@ -112,18 +127,26 @@ gplRationalDecomposition[r_,t_]:=gplRationalDecomposition[r,t]=Module[
  {Cancel[Together[primitive]],residues}
 ];
 
-gplIntegrateWord[r_,word_List,t_]:=gplIntegrateWord[r,word,t]=Module[{parts,primitive,residues,result,free,dependent},
- If[Head[r]===Plus,Return[Total[gplIntegrateWord[#,word,t]& /@ List@@r]]];
+gplIntegrateWord[r_,word_List,t_]:=gplIntegrateWord[r,word,t]=Module[{parts,primitive,residues,result,free,dependent,expanded},
+ If[Head[r]===Plus,Return[gplPrimitiveSum[gplIntegrateWord[#,word,t]& /@ List@@r]]];
  If[Head[r]===Times,
   free=Times@@Select[List@@r,FreeQ[#,t]&];dependent=Times@@Select[List@@r,!FreeQ[#,t]&];
   If[free=!=1,Return[free gplIntegrateWord[dependent,word,t]]]];
+ (* Expand only in the integration variable. External color factors,
+    kinematic coefficients and transcendental constants stay factored.
+    Integrating these rational summands before taking the complete endpoint
+    limit avoids an enormous multivariate common numerator in Cancel. *)
+ expanded=If[LeafCount[r]<=4000,r,Expand[r,t]];
+ If[Head[expanded]===Plus,
+  If[Length[expanded]>$gplMaxTerms,gplFail["GPLRationalTermCountLimit"]];
+  Return[gplPrimitiveSum[gplIntegrateWord[#,word,t]&/@List@@expanded]]];
  If[Length[word]+1>$gplMaxWeight,gplFail["GPLWeightLimit"]];
  If[r===0,Return[0]];
  parts=gplRationalDecomposition[Cancel[r],t];{primitive,residues}=parts;
  result=primitive gplMake[word,t]+Total[(#[[2]] gplMake[Prepend[word,#[[1]]],t])& /@ residues];
  If[word=!={}&&primitive=!=0,
   result-=gplIntegrateWord[Cancel[primitive/(t-First[word])],Rest[word],t]];
- gplBound[result];result
+ result=gplCompactPrimitive[result];gplBound[result];result
 ];
 
 (* Local power/log series retain the finite endpoint contribution of a
@@ -144,18 +167,90 @@ gplSeries[word_List,n_Integer,t_]:=gplSeries[word,n,t]=Module[{rest,derivative,e
   out+=Last[rule] gplIntegrateMonomial[rule[[1,1]]-1,rule[[1,2]],t]],{rule,cr}];
  out
 ];
-gplAtZero[expression_,t_]:=Module[{words,poles,order,expanded,ell=Unique["logarithm"],value},
+gplEndpointLog[log_,assumptions_]:=gplEndpointLog[log,assumptions]=Module[{value},
+ value=FeynFacetSolution`ExpandPositiveLogarithms[log,assumptions];
+ If[FailureQ[value],log,value]
+];
+(* A source endpoint may already contain a classical polylogarithm while
+   a pulled-back term produces the same value with a reduced rational
+   argument. Canonicalize both arguments before coefficient cancellation.
+   This changes no function branch: only identical rational arguments merge. *)
+gplCanonicalPolylogArguments[expression_]:=Module[{objects,rules},
+ objects=DeleteDuplicates[Cases[expression,PolyLog[_Integer,_],{0,Infinity}]];
+ rules=(#->PolyLog[#[[1]],Cancel[#[[2]]]])&/@objects;
+ expression/.rules
+];
+gplEndpointScalars[expression_]:=Module[{value=gplCanonicalPolylogArguments[expression]},
+ If[!ValueQ[$gplAssumptions]||$gplAssumptions===True,value,
+  value/.log_Log:>gplEndpointLog[log,$gplAssumptions]]
+];
+(* Expand each rational summand locally in t, with all independent factors
+   outside the recurrence. A global Series first combines unrelated external
+   coefficients and can dominate the integration. The recurrence is formal
+   division of numerator and denominator series; no endpoint value is guessed. *)
+gplRationalLaurent[r_,t_]:=gplRationalLaurent[r,t]=Module[
+ {expanded,free,dependent,q,num,den,nv,dv,valuation,count,d0,coefficients},
+ If[r===0,Return[<||>]];
+ If[FreeQ[r,t],Return[<|0->r|>]];
+ If[Head[r]===Plus,Return[Merge[gplRationalLaurent[#,t]&/@List@@r,Total]]];
+ If[Head[r]===Times,
+  free=Times@@Select[List@@r,FreeQ[#,t]&];
+  dependent=Times@@Select[List@@r,!FreeQ[#,t]&];
+  If[free=!=1,Return[Map[free #&,gplRationalLaurent[dependent,t]]]]];
+ expanded=Expand[r,t];
+ If[Head[expanded]===Plus,
+  If[Length[expanded]>$gplMaxTerms,gplFail["GPLRationalTermCountLimit"]];
+  Return[Merge[gplRationalLaurent[#,t]&/@List@@expanded,Total]]];
+ q=Together[r];{num,den}=NumeratorDenominator[q];
+ If[!PolynomialQ[num,t]||!PolynomialQ[den,t],gplFail["NonRationalGPLCoefficient"]];
+ If[num===0,Return[<||>]];
+ nv=Exponent[num,t,Min];dv=Exponent[den,t,Min];valuation=nv-dv;
+ If[!IntegerQ[valuation],gplFail["IntegerGPLLocalOrderRequired"]];
+ If[valuation>0,Return[<||>]];
+ If[-valuation>$gplMaxEndpointOrder,gplFail["GPLEndpointExpansionLimit"]];
+ count=-valuation;d0=Coefficient[den,t,dv];coefficients={};
+ Do[AppendTo[coefficients,
+   (Coefficient[num,t,nv+j]-Sum[
+    Coefficient[den,t,dv+i]coefficients[[j-i+1]],{i,1,j}])/d0],
+ {j,0,count}];
+ AssociationThread[Range[valuation,0],coefficients]
+];
+gplAtZero[expression_,t_]:=Module[
+ {words,terms=<||>,ell=Unique["logarithm"],finite,coefficient,add},
  words=gplWords[expression,t];
- poles=Map[Function[q,Module[{v=Together[q]},
-  Max[0,Exponent[Denominator[v],t,Min]-Exponent[Numerator[v],t,Min]]]],Values[words]];
- order=Max[Append[poles,0]];
- If[order>$gplMaxEndpointOrder,gplFail["GPLEndpointExpansionLimit"]];
- expanded=Total[KeyValueMap[#2 gplSeries[#1,order,t]&,words]]/.Log[t]->ell;
- value=Quiet[Check[Normal[Series[expanded,{t,0,0}]],$Failed]];
- If[value===$Failed,gplFail["GPLEndpointValueNotConstructed"]];
- value=Cancel[Together[value]];
- If[!FreeQ[value,t|ell|Indeterminate|_DirectedInfinity],
-  gplFail["GPLLowerEndpointNotFinite",<|"EndpointExpansion"->Short[value]|>]];
+ add[key_,value_]:=AssociateTo[terms,key->(Lookup[terms,Key[key],0]+value)];
+ KeyValueMap[Function[{word,rational},Module[{laurent,order,local},
+  laurent=gplRationalLaurent[rational,t];
+  If[Length[laurent]>0,
+   order=Max[0,-Min[Keys[laurent]]];
+   local=CoefficientRules[Expand[gplSeries[word,order,t]/.Log[t]->ell],{t,ell}];
+   KeyValueMap[Function[{power,c},
+    Do[If[power+rule[[1,1]]<=0,
+      add[{power+rule[[1,1]],rule[[1,2]]},c Last[rule]]],
+     {rule,local}]],laurent]]
+ ]],words];
+ finite=gplEndpointScalars[Lookup[terms,Key[{0,0}],0]];
+ KeyValueMap[Function[{power,c},If[power=!={0,0},
+  coefficient=Cancel[Together[gplEndpointScalars[c]]];
+  (* Factored conjugate radical factors can hide an exact zero from
+     rational cancellation. Expand only this candidate residual numerator;
+     ordinary coefficient expressions remain compact. *)
+  If[coefficient=!=0,
+   coefficient=Cancel[Expand[Numerator[coefficient]]/Denominator[coefficient]]];
+  If[coefficient=!=0,gplFail[
+   If[TrueQ[coefficient!=0],"GPLLowerEndpointNotFinite","GPLEndpointCancellationNotEstablished"],
+   <|"PowerAndLogarithm"->power,"Coefficient"->Short[coefficient]|>]]]],terms];
+ If[!FreeQ[finite,t|ell|Indeterminate|_DirectedInfinity],
+  gplFail["GPLLowerEndpointNotFinite",<|"EndpointValue"->Short[finite]|>]];
+ finite
+];
+(* Definite integration here uses a regular upper matching point. Singular
+   upper limits need GPL connection constants in a new local coordinate and
+   cannot be replaced by a direct 0/0 substitution. The invariant caller
+   supplies two endpoint-to-interior paths under its physical assumptions. *)
+gplUpperValue[primitive_,t_,s_]:=Module[{value=primitive/.t->s},
+ If[!FreeQ[value,Indeterminate|_DirectedInfinity],
+  gplFail["RegularGPLUpperPointRequired",<|"UpperPoint"->s|>]];
  value
 ];
 gplNormalizeLogs[expression_,t_]:=expression/.Log[r_]/;!FreeQ[r,t]:>Module[{v0,derivative,p,q,num,den,order},
@@ -173,14 +268,78 @@ gplNormalizeLogs[expression_,t_]:=expression/.Log[r_]/;!FreeQ[r,t]:>Module[{v0,d
     The full primitive must still have a finite lower endpoint. *)
  order gplMake[{0},t]+p-gplAtZero[p,t]+Log[v0]
 ];
+(* Classical polylogarithms of a rational argument are pulled back by
+   their differential equation, with the actual value at the lower endpoint.
+   A nonzero basepoint is retained; dropping it would change the integral.
+   The common real collinear charts have finite rational arguments there,
+   including Li_n(1), n>1. Singular infinity branches require a prior explicit
+   analytic continuation and are never inferred by PowerExpand. *)
+gplNormalizeClassicalPolylogs[expression_,t_]:=Module[{objects,pull,rules},
+ pull[1,r_]:=-gplNormalizeLogs[Log[1-r],t];
+ pull[n_Integer,r_]/;n>1:=pull[n,r]=Module[{base,derivative,primitive},
+  If[!gplRationalQ[r,t],gplFail["RationalClassicalPolylogarithmArgumentRequired"]];
+  base=Quiet[Cancel[Cancel[r]/.t->0]];
+  If[!FreeQ[base,Indeterminate|_DirectedInfinity],
+   base=Quiet[Limit[r,t->0,Direction->"FromAbove"]]];
+  If[!FreeQ[base,Indeterminate|_DirectedInfinity|_Limit],
+   gplFail["FiniteClassicalPolylogarithmBasePointRequired",<|"Argument"->r|>]];
+  derivative=Cancel[D[r,t]/r]pull[n-1,r];
+  primitive=gplRationalPrimitive[derivative,t];
+  primitive-gplAtZero[primitive,t]+PolyLog[n,base]
+ ];
+ objects=DeleteDuplicates[Cases[expression,
+  z:PolyLog[n_Integer,r_]/;n>0&&!FreeQ[r,t],{0,Infinity}]];
+ rules=Table[obj->pull[obj[[1]],Cancel[obj[[2]]]],{obj,objects}];
+ expression/.rules
+];
+(* The integration recursion deliberately preserves sparse rational
+   summands. Collect identical GPL atoms before a growing primitive becomes
+   unwieldy and after finite upper-end substitution. This keeps explicit
+   results compact by exact coefficient-field arithmetic. *)
+(* Transcendental functions are explicit polynomial atoms here. Separate
+   their coefficients before rational factorization, which otherwise expands
+   one enormous polynomial in both kinematic variables and logarithms. This
+   is an algebraic collection identity, not an assumed independence relation. *)
+gplFactorCoefficient[coefficient_]:=Module[{atoms},
+ atoms=DeleteDuplicates[Cases[coefficient,
+  _Log|_PolyLog|_PolyGamma|_Zeta|System`EulerGamma,{0,Infinity}]];
+ If[atoms==={},Factor[coefficient],Collect[coefficient,atoms,Factor]]
+];
+gplCollectCoefficients[expression_]:=Module[{objects},
+ If[LeafCount[expression]<=1000,Return[expression]];
+ objects=DeleteDuplicates[Cases[expression,_FeynFacetSolution`G,{0,Infinity}]];
+ If[objects==={},gplFactorCoefficient[expression],
+  Collect[expression,objects,gplFactorCoefficient]]
+];
+(* Share exact recurrence results only while assumptions and all mathematical
+   limits agree. The outer scope restores every memo table on success, failure
+   or timeout; standalone calls retain the same bounded lifetime. *)
+SetAttributes[gplWithMemoization,HoldAll];
+gplWithMemoization[settings_,body_]:=If[
+ ValueQ[$gplMemoSettings]&&$gplMemoSettings===settings,body,
+ Block[{$gplMemoSettings=settings},
+  Internal`InheritedBlock[{gplShuffle,gplIntegrateWord,gplRationalDecomposition,
+   gplRationalLaurent,gplSeries,gplEndpointLog,gplRefineRadical,gplPullbackWord},body]]];
+gplRefineRadical[value_Power,assumptions_]:=gplRefineRadical[value,assumptions]=
+ Refine[Factor[value[[1]]]^value[[2]],assumptions];
+gplRefineConstantRadicals[expression_,t_]:=Module[{objects},
+ If[!ValueQ[$gplAssumptions]||$gplAssumptions===True,Return[expression]];
+ objects=DeleteDuplicates[Cases[expression,
+  q:Power[_,power_Rational]/;Denominator[power]===2&&FreeQ[q,t],{0,Infinity}]];
+ expression/.((#->gplRefineRadical[#,$gplAssumptions])&/@objects)
+];
+gplNormalizeRationalIntegrand[expression_,t_]:=Module[{normalized},
+ normalized=gplNormalizeClassicalPolylogs[gplRefineConstantRadicals[expression,t],t];
+ gplEndpointScalars[gplNormalizeLogs[gplNormalizeArguments[normalized,t],t]]
+];
 Options[FeynFacetSolution`IntegrateGPL]={
- "TimeLimit"->30,"MaxExpressionLeaves"->200000,"MaxTerms"->10000,
+ "TimeLimit"->30,"Assumptions"->True,"MaxExpressionLeaves"->200000,"MaxTerms"->10000,
  "MaxWeight"->16,"MaxPoleDegree"->4,"MaxEndpointExpansionOrder"->32};
 FeynFacetSolution`IntegrateGPL[expression_,{t_Symbol,0,s_},OptionsPattern[]]:=
- Block[{$gplMaxLeaves=OptionValue["MaxExpressionLeaves"],$gplMaxTerms=OptionValue["MaxTerms"],
+ Block[{$gplAssumptions=OptionValue["Assumptions"],$gplMaxLeaves=OptionValue["MaxExpressionLeaves"],$gplMaxTerms=OptionValue["MaxTerms"],
   $gplMaxWeight=OptionValue["MaxWeight"],$gplMaxDegree=OptionValue["MaxPoleDegree"],
   $gplMaxEndpointOrder=OptionValue["MaxEndpointExpansionOrder"]},
- Internal`InheritedBlock[{gplShuffle,gplIntegrateWord,gplRationalDecomposition,gplSeries},
+ gplWithMemoization[{$gplAssumptions,$gplMaxLeaves,$gplMaxTerms,$gplMaxWeight,$gplMaxDegree,$gplMaxEndpointOrder},
  TimeConstrained[Catch[Module[{normalized,words,primitive,lower,result},
   If[!NumericQ[OptionValue["TimeLimit"]]||!TrueQ[OptionValue["TimeLimit"]>0],
     gplFail["InvalidGPLIntegrationOptions"]];
@@ -189,9 +348,9 @@ FeynFacetSolution`IntegrateGPL[expression_,{t_Symbol,0,s_},OptionsPattern[]]:=
   (* All memoization is confined to this conversion, with the current bounds. *)
   If[!FreeQ[expression,Power[base_,power_Rational]/;Denominator[power]===2&&!FreeQ[base,t]],
    Return[gplIntegrateQuadraticRoot[expression,t,s],Module]];
-  normalized=gplNormalizeLogs[gplNormalizeArguments[expression,t],t];gplBound[normalized];
+  normalized=gplNormalizeRationalIntegrand[expression,t];gplBound[normalized];
   words=gplWords[normalized,t];
-  primitive=Total[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]];
+  primitive=gplPrimitiveSum[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]];
   lower=gplAtZero[primitive,t];
-  result=(primitive/.t->s)-lower;gplBound[result];result
+  result=gplCollectCoefficients[gplUpperValue[primitive,t,s]-lower];gplBound[result];result
  ],"GPLIntegration"],OptionValue["TimeLimit"],Failure["GPLIntegrationTimeLimit",<||>]]]];

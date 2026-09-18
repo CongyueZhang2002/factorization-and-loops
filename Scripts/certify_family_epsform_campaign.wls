@@ -25,8 +25,7 @@ familyName[file_] := First[StringCases[FileBaseName[file],
 
 writeAtomic[value_, file_] := Module[{temporary},
   temporary = file <> ".partial-" <> ToString[$ProcessID];
-  Put[value, temporary];
-  RenameFile[temporary, file, OverwriteTarget -> True]
+  FeynFacetRecords`WriteRecord[value,file]
 ];
 
 differentialFiles = SortBy[

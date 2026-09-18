@@ -1,0 +1,105 @@
+(* Exact physical boundary transport over an ordered two-dimensional fan. *)
+BeginPackage["FeynFacet`"];
+PrepareMonomialEndpointBoundaryAtlas::usage="PrepareMonomialEndpointBoundaryAtlas[orderedBoundary,cover,request] constructs endpoint systems on a regular two-dimensional monomial fan, transports the complete physical boundary columns between adjacent exceptional divisors, and determines the ordinary boundary systems. Full connection and corner checks are required. Scalar coefficients, seams and integrability remain separate.";
+Begin["`Private`"];
+PrepareMonomialEndpointBoundaryAtlas[data_Association,cover_Association,request_Association:<||>]:=
+ Catch[Module[{rho,z,sigma,e,basis,source,g,gi,original,charts,count,cache=<||>,frames=<||>,
+  entries=<||>,cancel,check,report,progress,endpoint,intersection,makeFrame,normalRequest,
+  i,j,k,ep,int,match,values,previousEndpoint,previousValues,normalIndex,otherIndex,
+  sourceMatrix,targetMatrix,overlap,sourcePositions,targetPositions,a,b,chartMatching,
+  boundaryValues,boundarySystems,exceptional,ordinary,otherFrame,otherMatching,stage},
+ check[value_,label_]:=If[!AssociationQ[value],
+  Throw[Failure["PhysicalEndpointAtlasConstructionFailed",<|"Stage"->label,"Cause"->value|>],"EndpointAtlas"],value];
+ If[Lookup[data,"Status",None]=!="OrderedPhysicalBoundaryValuesDetermined"||
+  !TrueQ[Lookup[cover,"CoverageVerified",False]]||!TrueQ[Lookup[cover,"DisjointInteriorsVerified",False]],
+  Throw[Failure["CompleteOrderedBoundaryAndVerifiedCoverRequired",<||>],"EndpointAtlas"]];
+ {rho,z,sigma,e,basis}=Lookup[data,{"RecoilVariable","MeasurementVariable",
+   "MeasurementEndpointVariable","DimensionalRegulator","MasterIntegralBasis"}];
+ If[cover["OriginalVariables"]=!={rho,sigma},
+  Throw[Failure["OrderedBoundaryAndCoverCoordinatesMustMatch",<||>],"EndpointAtlas"]];
+ charts=cover["Charts"];count=Length[charts];
+ If[count<2||!AllTrue[charts,Dimensions[#["ExponentMatrix"]]==={2,2}&],
+  Throw[Failure["OrderedTwoDimensionalEndpointFanRequired",<||>],"EndpointAtlas"]];
+ (* The first and last outer rays are the original coordinate axes. *)
+ If[charts[[1,"ExponentMatrix",2,1]]=!=0||charts[[count,"ExponentMatrix",1,2]]=!=0,
+  Throw[Failure["FanMustBeOrderedBetweenOriginalCoordinateRays",<||>],"EndpointAtlas"]];
+ progress=Lookup[request,"ProgressFunction",None];report[label_]:=If[progress=!=None,progress[label]];
+ cancel[m_]:=Module[{v=FeynFacet`CancelRationalCoefficients[Flatten[Normal[m]]]},
+  If[!ListQ[v],Throw[v,"EndpointAtlas"]];Partition[v,Last[Dimensions[m]]]];
+ source=data["NormalEndpointSystem"];g=source["NormalGaugeMatrix"];gi=source["InverseNormalGaugeMatrix"];
+ original=<|"KinematicVariables"->{rho,sigma},"DimensionalRegulator"->e,
+  "MasterIntegralBasis"->basis,"ConnectionMatrices"->{
+   cancel[(D[g,rho]+g.source["NormalizedNormalConnectionMatrix"]).gi],
+   -cancel[(D[g,z]+g.source["NormalizedTangentialConnectionMatrix"]).gi]}/.z->1-sigma|>;
+ normalRequest=<|"MaximumNormalOrder"->0,
+  "AnalyticDomain"->"Positive local endpoint coordinates with the declared parameter assumptions.",
+  "BranchPrescription"->"Exact continuation of the original physically fixed ordered boundary."|>;
+ endpoint[index_,axis_]:=Module[{key={index,axis},vars,pulled,result},
+  If[KeyExistsQ[cache,key],Return[cache[key]]];
+  vars=charts[[index,"Variables"]][[{axis,3-axis}]];
+  pulled=check[FeynFacet`PullBackRationalDifferentialSystem[original,vars,
+    charts[[index,"SourceVariableSubstitution"]]],{"CoordinatePullback",index,axis}];
+  report[{"NormalSystem",index,axis}];
+  result=check[FeynFacet`ConstructTangentialEndpointSystem[
+   <|"NormalVariable"->vars[[1]],"TangentialVariable"->vars[[2]],"DimensionalRegulator"->e,
+   "OriginalMasterIntegralBasis"->basis,"NormalConnectionMatrix"->pulled["ConnectionMatrices"][[1]],
+   "TangentialConnectionMatrix"->pulled["ConnectionMatrices"][[2]]|>,normalRequest,
+   "Verbose"->Lookup[request,"Verbose",False]],{"NormalSystem",index,axis}];
+  AssociateTo[cache,key->result];result];
+ makeFrame[index_,axis_]:=Module[{key={index,axis},result},
+  If[KeyExistsQ[frames,key],Return[frames[key]]];
+  result=FeynFacet`NormalizeEndpointIntersection[endpoint[index,axis]];
+  AssociateTo[frames,key->result];result];
+ Do[
+  normalIndex=If[i===1,2,1];otherIndex=3-normalIndex;ep=endpoint[i,normalIndex];
+  int=makeFrame[i,normalIndex];
+  If[!AssociationQ[int],int=makeFrame[i,otherIndex]];
+  int=check[int,{"JointFrame",i}];
+  If[i===1,
+   chartMatching=<|"Variables"->Lookup[ep,{"NormalVariable","TangentialVariable"}],
+    "ExponentMatrix"->charts[[i,"ExponentMatrix"]][[All,{normalIndex,otherIndex}]]|>;
+   (* The triangular source matcher must use the initial normal ordering. *)
+   If[int["KinematicVariables"]=!=chartMatching["Variables"],
+    Throw[Failure["InitialMonomialCornerNeedsItsMatchedNormalOrdering",<||>],"EndpointAtlas"]];
+   match=check[FeynFacet`MatchOrderedBoundaryAtMonomialCorner[int,data,chartMatching],{"InitialPhysicalMatching",i}];
+   values=check[FeynFacet`ConstructEulerEndpointBoundaryValues[ep,int,match],{"InitialBoundaryValues",i}],
+   sourcePositions=First@FirstPosition[charts[[i-1,"Variables"]],#]&/@
+     Lookup[previousEndpoint,{"NormalVariable","TangentialVariable"}];
+   sourceMatrix=charts[[i-1,"ExponentMatrix"]][[All,sourcePositions]];
+   targetMatrix=charts[[i,"ExponentMatrix"]][[All,{normalIndex,otherIndex}]];
+   overlap=Inverse[sourceMatrix].targetMatrix;
+   If[overlap[[1,1]]=!=1||overlap[[2,1]]=!=0||
+      !IntegerQ[overlap[[1,2]]]||!MatchQ[overlap[[2,2]],_Integer|_Rational]||overlap[[2,2]]===0,
+    Throw[Failure["AdjacentFanBoundaryOverlapNotSupported",<|"OverlapMatrix"->overlap|>],"EndpointAtlas"]];
+   values=check[FeynFacet`PullBackEndpointBoundaryValues[previousEndpoint,ep,previousValues,
+    <|"NormalUnitPower"->overlap[[1,2]],"TangentialPower"->overlap[[2,2]]|>],{"PhysicalOverlap",i}];
+   match=check[FeynFacet`MatchEndpointBoundaryAtIntersection[ep,int,values],{"PhysicalCornerMatching",i}]
+  ];
+  boundaryValues=<|normalIndex->values|>;boundarySystems=<||>;
+  exceptional=Select[Range[2],AllTrue[charts[[i,"ExponentMatrix"]][[All,#]],#>0&]&];
+  ordinary=Complement[Range[2],exceptional];
+  If[MemberQ[exceptional,otherIndex]||MemberQ[ordinary,otherIndex],
+   otherFrame=check[makeFrame[i,otherIndex],{"OtherJointOrdering",i,otherIndex}];
+   otherMatching=If[int["KinematicVariables"]===otherFrame["KinematicVariables"],match,
+     check[FeynFacet`TransferJointBoundaryConstants[int,otherFrame,match],{"OtherPhysicalOrdering",i,otherIndex}]];
+   If[MemberQ[exceptional,otherIndex],
+    AssociateTo[boundaryValues,otherIndex->check[
+     FeynFacet`ConstructEulerEndpointBoundaryValues[endpoint[i,otherIndex],otherFrame,otherMatching],
+     {"OtherExceptionalBoundary",i,otherIndex}]],
+    AssociateTo[boundarySystems,otherIndex->check[
+     FeynFacet`ConstructPhysicalEndpointBoundarySystem[endpoint[i,otherIndex],otherFrame,otherMatching],
+     {"OrdinaryBoundarySystem",i,otherIndex}]]];
+  ];
+  AssociateTo[entries,i-><|"Chart"->charts[[i]],"Intersection"->int,"PhysicalMatching"->match,
+   "EndpointSystems"->Association@Table[j->endpoint[i,j],{j,2}],
+   "ExceptionalBoundaryValues"->boundaryValues,"OrdinaryBoundarySystems"->boundarySystems|>];
+  If[i<count,previousEndpoint=endpoint[i,2];previousValues=boundaryValues[2]];
+  report[{"PhysicalChartComplete",i}],
+ {i,count}];
+ <|"DataType"->"PhysicalMonomialEndpointAtlas","Status"->"PhysicalBoundaryAtlasConstructed",
+  "Cover"->cover,"Charts"->entries,"DimensionalRegulator"->e,"MasterIntegralBasis"->basis,
+  "BoundaryConstantCount"->data["BoundaryConstantCount"],
+  "ProjectionConditionsEstablished"->False,
+  "Scope"->"Complete physical boundary transport on this fan. Scalar jets, chart seams, support and uniform subtraction remain required."|>
+],"EndpointAtlas"];
+End[];EndPackage[];

@@ -7,7 +7,7 @@ auditInputFile=ExpandFileName[First[auditArgs]];auditOutput=ExpandFileName[Last[
 Block[{Print},Get[auditRoot<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 auditReadFiles={};auditBaseDirectory=DirectoryName[auditInputFile];
 auditRead[file_String]:=Module[{path=ExpandFileName[If[StringStartsQ[file,"/"]||StringMatchQ[file,LetterCharacter~~":"~~__],file,FileNameJoin[{auditBaseDirectory,file}]]]},AppendTo[auditReadFiles,path];
- If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]]];
+ If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]]];
 auditRead[value_]:=value;
 auditInput=auditRead[auditInputFile];
 If[!AssociationQ[auditInput],Print["An audit manifest association is required."];Exit[2]];

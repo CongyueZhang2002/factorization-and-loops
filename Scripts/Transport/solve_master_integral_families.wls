@@ -8,7 +8,7 @@ Block[{Print},Get[FileNameJoin[{root,"Addon","Load","LoadFACET.wl"}]]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=2,Print["Expected INPUT.wl OUTPUT_DIRECTORY"];Exit[2]];
 inputFile=ExpandFileName[args[[1]]];output=ExpandFileName[args[[2]]];
-input=Get[inputFile];
+input=FeynFacetRecords`ReadRecord[inputFile];
 families=Lookup[input,"Families",None];
 If[!AssociationQ[families] || families===<||> ||
  !AllTrue[Keys[families],StringQ[#] && StringMatchQ[#,RegularExpression["[A-Za-z0-9_-]+"]]&],

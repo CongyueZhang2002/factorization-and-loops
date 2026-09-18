@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 (* Regression for the reconstruction result parser.
 
    The parser that ReconstructCoefficients replaced
@@ -60,7 +61,7 @@ syntheticTrace = <|
     "SignatureIndex" -> 1 + Mod[i, 2]|>, {i, 10}]
 |>;
 FeynFacet`Private`finiteFieldWriteTraceManifest[
-  traceDirectory, syntheticTrace, "synthetic", "synthetic"];
+  traceDirectory, syntheticTrace, "synthetic", "synthetic", <||>];
 
 record = FeynFacet`Private`reconstructionTraceRecord[traceDirectory];
 traceData = If[AssociationQ[record], record["TraceData"], $Failed];

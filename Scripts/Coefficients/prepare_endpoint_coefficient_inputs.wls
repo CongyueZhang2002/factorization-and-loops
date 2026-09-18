@@ -6,7 +6,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=1,Print["Expected INPUT_REQUEST.wl"];Exit[2]];
-read[p_]:=If[StringQ[p],If[ToLowerCase[FileExtension[p]]==="wxf",Import[p,"WXF"],Get[p]],p];
+read[p_]:=If[StringQ[p],If[ToLowerCase[FileExtension[p]]==="wxf",Import[p,"WXF"],FeynFacetRecords`ReadRecord[p]],p];
 request=read[First[args]];table=read[request["CoefficientFile"]];
 If[Lookup[table,"Format",None]=!="FeynFacet-MasterIntegralCoefficients"||
  !TrueQ[Lookup[table,"PhysicalMasterNormalizationApplied",False]],Print["PhysicalCoefficientTableRequired"];Exit[1]];

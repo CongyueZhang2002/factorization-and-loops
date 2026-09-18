@@ -5,15 +5,17 @@ Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 arguments=Rest[$ScriptCommandLine];
 If[Length[arguments]=!=4,Print["Usage: evaluate_current_one_loop_integrands.wls PROJECT ORDER CHANNEL CONTRIBUTION"];Exit[2]];
 {projectName,orderName,channelName,contribution}=arguments;
-directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
+directory=root<>"/Projects/"<>projectName<>"/Raw/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contribution];
 If[!AssociationQ[card],Print[card];Exit[1]];
-path=directory<>"/Results/"<>StringReplace[contribution,"."->"/"];
+path=card["WorkDirectory"];
 source=FeynFacet`FamilyArtifactRead[path<>"/TensorReducedIntegrands.wl"];
 If[!AssociationQ[source]||!KeyExistsQ[source,"InteriorValues"],
  Print["Completed measured one-loop reduction required"];Exit[1]];
 If[FeynFacet`RequireMatchingProcessDefinition[source,FeynFacet`ReadProcessCard[card]]=!=True,
  Print["Generated inputs do not match the current process card; regenerate the contribution"];Exit[1]];
+If[Lookup[source,"IntegrationDefinition",None]=!=FeynFacet`ContributionIntegrationDefinition[card],
+ Print["The saved measured reduction must retain the current integration definition"];Exit[1]];
 e=source["DimensionalRegulator"];geometry=source["Measurement"];
 conditions=geometry["Assumptions"]&&card["Assembly"]["Assumptions"];
 values=FeynFacet`NormalizeMeasuredCurrentScalarValues[source,
@@ -25,6 +27,7 @@ FeynFacet`FamilyArtifactWrite[result,path<>"/InteriorLaurentAudit.wl",Compressio
 If[!AssociationQ[result["Result"]]||result["EpsilonRemainderAudit"]["Status"]=!="Passed",
  Print[ToString[System`Short[result,4],InputForm]];Exit[1]];
 result=Join[result["Result"],<|"ProcessDefinition"->source["ProcessDefinition"],
+ "IntegrationDefinition"->source["IntegrationDefinition"],
  "PhysicalTwoParticleMeasureIncluded"->True,"CurrentNormalizationIncluded"->True,
  "CouplingRules"->card["Assembly"]["BareCouplingRules"],"Seconds"->seconds|>];
 FeynFacet`FamilyArtifactWrite[result,path<>"/InteriorLaurentCoefficients.wl",Compression->Automatic];

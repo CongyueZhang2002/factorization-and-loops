@@ -51,6 +51,29 @@ class WolframRunnerTests(unittest.TestCase):
             self.assertFalse(result["Passed"])
             self.assertNotIn("COMPLETED OLD OUTPUT", logfile.read_text())
 
+    def test_assigned_cpu_ids_and_counts_reach_the_kernel_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            script = folder / "driver.wls"
+            script.write_text("placeholder")
+            cpus = sorted(os.sched_getaffinity(0))[:4:2]
+            seen = {}
+            popen = subprocess.Popen
+
+            def child(command, **kwargs):
+                seen.update(kwargs["env"])
+                self.assertEqual(command[:3], ["taskset", "-c", ",".join(map(str, cpus))])
+                return popen([sys.executable, "-c",
+                              "print('FEYNFACET DRIVER ENTERED'); print('COMPLETED TEST')"], **kwargs)
+
+            with patch.object(wolfram.subprocess, "Popen", side_effect=child):
+                result = wolfram.run_wolfram(script, [], logfile=folder / "run.log",
+                                            completion="COMPLETED ", cpus=cpus)
+            self.assertTrue(result["Passed"])
+            self.assertEqual(seen["FACET_CPU_LIST"], ",".join(map(str, cpus)))
+            self.assertEqual(seen["FACET_CPU_COUNT"], str(len(cpus)))
+            self.assertEqual(seen["FACET_KERNEL_COUNT"], str(len(cpus)))
+
     def test_worker_is_stopped_after_launcher_has_exited(self):
         with tempfile.TemporaryDirectory() as directory:
             pidfile = Path(directory) / "worker.pid"

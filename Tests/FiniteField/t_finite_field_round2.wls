@@ -41,7 +41,7 @@ legacyFiniteFieldRecord[value_Association] := Association[
   KeyValueMap[legacyFiniteFieldKey[#1] -> #2 &, value]];
 
 fixture = legacyOffDiagonalBlockRecord[
-  FeynFacet`FamilyArtifactRead[FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldBenchmark", "fixtures", "fixture_CF254_9_6.wl"}]]];
+  FeynFacet`FamilyArtifactRead[FileNameJoin[{root, "Tests", "Fixtures", "DifferentialEquations", "FiniteFieldRaw", "CF254_9_6_input.wl"}]]];
 prep = FeynFacet`Private`PrepareOffDiagonalBlockFiniteFieldSystem[fixture];
 census = prep["SupportCensus"];
 checks["SupportCertified"] = TrueQ[census["CertifiedQ"]];

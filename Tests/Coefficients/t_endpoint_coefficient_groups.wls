@@ -25,6 +25,17 @@ pp=Catch[FeynFacet`Private`endpointGroupPrincipalPart[
   3/(z-e)^2+2/(z-e)+1/(z+1),z,e,e],"EndpointGroups"];
 check["complete higher principal part",AssociationQ[pp]&&pp["PoleOrder"]===2&&
  Together[pp["PrincipalPart"]-3/(z-e)^2-2/(z-e)]===0];
+batchExpressions={0,7,z+e,3/(z-e)^2+2/(z-e)+1/(z+1),
+ Gamma[1+e]/(z-e),((z-e)(z+1))/((z-e)^2 (z+1))};
+batch=Catch[FeynFacet`Private`endpointGroupPrincipalParts[batchExpressions,z,e,e],"EndpointGroups"];
+check["batch mixed pole orders",ListQ[batch]&&Lookup[batch,"PoleOrder"]==={0,0,0,2,1,1}];
+expectedPrincipal={0,0,0,3/(z-e)^2+2/(z-e),Gamma[1+e]/(z-e),1/(z-e)};
+check["batch exact principal coefficients",And@@MapThread[Together[#1-#2]===0&,
+ {Lookup[batch,"PrincipalPart"],expectedPrincipal}]];
+check["normal-dependent analytic prefactor rejected in batch",
+ FailureQ[Catch[FeynFacet`Private`endpointGroupPrincipalParts[
+  {1/(z-e),Log[z]/(z-e)},z,e,e],"EndpointGroups"]]];
+check["empty principal batch",FeynFacet`Private`endpointGroupPrincipalParts[{},z,e,e]==={}];
 one=FeynFacet`ConstructEndpointCoefficientGroups[table[{exact[1/(z-e)]}],catalog[z-e],request];
 check["singular determinant allowed",AssociationQ[one]&&Length[one["CoefficientInputs"]]===1&&
  First[Values[one["CoefficientInputs"]]]["NormalizedCoefficientRow"]==={1}];
@@ -55,4 +66,23 @@ collisionCatalog=Append[catalog[z-e],"Frames"-><|"PoleGroup0001"->makeFrame[z-e]
 check["pole label cannot overwrite an ordinary contribution",
  FailureQ[FeynFacet`ConstructEndpointCoefficientGroups[
  table[{finite,exact[1/(z-e)]}],collisionCatalog,request]]];
+movingExpression=3+z+1/((z+e)(z+2e));
+movingParts=Catch[FeynFacet`Private`endpointGroupPrincipalParts[{movingExpression},z,e,#],"EndpointGroups"]&/@{-e,-2e};
+check["coalescing poles separated before epsilon limit",
+ Together[movingParts[[1,1,"PrincipalPart"]]-1/(e(z+e))]===0&&
+ Together[movingParts[[2,1,"PrincipalPart"]]+1/(e(z+2e))]===0];
+check["coalescing pole remainder",Together[movingExpression-Total[movingParts[[All,1,"PrincipalPart"]]]-(3+z)]===0];
+check["mixed analytic normal denominator rejected",
+ FailureQ[Catch[FeynFacet`Private`endpointGroupPrincipalParts[
+  {1/((Gamma[1+e]-e Gamma[e])(z-e)+(z-e)^2)},z,e,e],"EndpointGroups"]]];
+emittedValues=Flatten[Lookup[Values[one["CoefficientInputs"]],"CoefficientEntries"],1];
+corrupted=emittedValues;corrupted[[1,"Terms",1,"Coefficient"]]+=1;
+check["emitted whole-source finite corruption rejected",
+ FailureQ[Catch[FeynFacet`Private`endpointGroupCheckEmittedCoefficients[
+  table[{exact[1/(z-e)]}]["Masters"],corrupted],"EndpointGroups"]]];
+partialValues=Flatten[Lookup[Values[shared["CoefficientInputs"]],"CoefficientEntries"],1];
+corrupted=partialValues;corrupted[[1,"Terms",1,"Coefficient"]]+=1;
+check["emitted partial-source finite corruption rejected",
+ FailureQ[Catch[FeynFacet`Private`endpointGroupCheckEmittedCoefficients[
+  table[{finite,exact[1/(z-e)+2/(z+e)]}]["Masters"],corrupted],"EndpointGroups"]]];
 Print["ENDPOINT COEFFICIENT GROUP TESTS PASS ",checks];

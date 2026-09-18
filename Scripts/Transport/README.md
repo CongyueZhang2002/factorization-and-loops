@@ -2,7 +2,7 @@
 
 This is the master-solution portion of [WORKFLOW.md](../../WORKFLOW.md), not the
 whole diagram-to-hard-function workflow. The current ppHX inputs are indexed in
-[the NNLO channel guide](../../Projects/ppHX_UU_NNLO/NNLO/qqp-qqp/README.md).
+[the NNLO channel guide](../../Projects/ppHX_UU/NNLO/qqp-qqp/README.md).
 
 A closed differential system and requested master epsilon orders enter
 `ConstructMasterIntegralSolution`. It determines sufficient expansion orders,
@@ -113,7 +113,7 @@ wolframscript -file Scripts/Transport/construct_master_integral_taylor_expansion
 This optional numerical route uses the stored rational DE and a finite closed
 epsilon-state vector. Its file contains actual Taylor coefficients, a center,
 direction and validity estimates. It does not replace the symbolic solution.
-See [numerical interfaces and timings](../../Design/NumericalEvaluationSpeedups_2026-09-06.md).
+See [numerical interfaces and timings](../../Design/NumericalEvaluationSpeedups.md).
 
 ## Optional GPL representation
 
@@ -139,7 +139,7 @@ Optional `GPLConversionOptions` converts the result before writing.
 The direct driver defaults to complete compressed WXF; use
 `"FileFormat" -> "WolframText"` for an explicit text export.
 
-See [the scope, branches and measured comparisons](../../Design/GPLImplementation_2026-09-06.md).
+See [the scope, branches and measured comparisons](../../Design/GPLImplementation.md).
 GPL is optional because conversion can increase file size and numerical cost.
 
 ## Independent checks

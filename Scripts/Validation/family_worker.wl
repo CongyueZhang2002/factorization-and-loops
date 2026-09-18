@@ -13,6 +13,7 @@ runFamily[task_Association] := Module[
  SetSystemOptions["ParallelOptions"->{"ParallelThreadNumber"->1,"MKLThreadNumber"->1}];
  SetEnvironment[{"OMP_NUM_THREADS"->"1","OPENBLAS_NUM_THREADS"->"1","MKL_NUM_THREADS"->"1"}];
  Get[root<>"/FeynFacet/Interfaces/AMFlowRuntime.wl"];
+  Get[root<>"/FeynFacet/Core/RecordFormat.wl"];
  request=folder<>"/pool_request.wxf";referenceRequest=folder<>"/amflow_request.wl";
  reference=folder<>"/amflow_reference.wxf";comparison=folder<>"/comparison.wxf";
  specification=Import[task["RequestFile"],"WXF"];
@@ -35,7 +36,7 @@ runFamily[task_Association] := Module[
   writeJSON[folder<>"/pool_status.json",record];
   If[phase==="amflow",
    (* Parsing/serialization must preserve all context-qualified integral heads. *)
-   old=Get[referenceRequest];old=Join[old,<|"Threads"->1,"WolframScriptExecution"->"CurrentKernel","TimeLimit"->phaseTime|>];
+   old=FeynFacetRecords`ReadRecord[referenceRequest];old=Join[old,<|"Threads"->1,"WolframScriptExecution"->"CurrentKernel","TimeLimit"->phaseTime|>];
    Block[{$ContextPath={"System`"}},Put[old,referenceRequest<>".tmp"]];
    RenameFile[referenceRequest<>".tmp",referenceRequest,OverwriteTarget->True]];
   If[phase==="compare"&&FileExistsQ[comparison<>".json"],DeleteFile[comparison<>".json"]];

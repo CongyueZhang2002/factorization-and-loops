@@ -243,7 +243,7 @@ an explicitly unchecked fixed-order evaluation. No DE is solved.
 A limited polynomial path check rejects detected poles/branch points and
 reports unresolved factors. General branch continuation and singular endpoint
 evaluation are not provided by this reader.
-See [numerical evaluation and AMFlow comparisons](NumericalMasterIntegralEvaluation_2026-09-06.md).
+See [numerical evaluation and AMFlow comparisons](NumericalMasterIntegralEvaluation.md).
 
 The process-independent driver accepts a dlog form or a general system:
 
@@ -287,7 +287,7 @@ remain conditional in the batch report.
 ## Earlier five-family examples and current scope
 
 The earlier output directories in this section were deleted in the
-[stale-result cleanup](StaleDEResultRemoval_2026-09-06.md). The measurements remain
+[stale-result cleanup](../Reports/2026-09-06/StaleDEResultRemoval.md). The measurements remain
 historical evidence. The executable example now uses the current raw-DE inputs.
 
 
@@ -325,7 +325,7 @@ determine the physical constants or replace AMFlow validation.
 The current all-family run has regenerated all 91 DEs and constructed 2,220
 explicit coefficients for the current coefficient-table demands of 345 masters.
 It occupies 79.1 MB compressed and took 31.2 minutes elapsed with family
-parallelism. [The campaign report](Stage1And2FullCampaign_2026-09-06.md)
+parallelism. [The campaign report](../Reports/2026-09-06/Stage1And2FullCampaign.md)
 records the inputs and scope. The 174 positions in the earlier table include
 lower sectors and are not 174 distinct requested masters.
 
@@ -337,10 +337,10 @@ factorization demands. Physical constants and global continuation are
 subsequent work. Ordinary-point solutions themselves contain no unknown
 kinematic boundary functions.
 
-[Earlier demonstration measurements](../ppHX_NNLO_DoubleReal/Results/Validation/FiniteMasterIntegralSolutions/master_range_measurements.json),
-[focused check results](../ppHX_NNLO_DoubleReal/Results/Validation/FiniteMasterIntegralSolutions/master_range_checks.json),
-[the family inventory](../ppHX_NNLO_DoubleReal/Results/Validation/FiniteMasterIntegralSolutions/family_input_inventory.json),
-and [the current run description](../ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/Stage1And2_2026-09-06/README.md)
+[Earlier demonstration measurements](../Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Validation/FiniteMasterIntegralSolutions/master_range_measurements.json),
+[focused check results](../Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Validation/FiniteMasterIntegralSolutions/master_range_checks.json),
+[the family inventory](../Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/Validation/FiniteMasterIntegralSolutions/family_input_inventory.json),
+and [the current run description](../Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/UU_08_10_canonical/Stage1And2_2026-09-06/README.md)
 record the completed examples. Earlier U-only exports and their historical
 timings remain in `FiniteMasterIntegralSolutions_sources/measurements.json`;
 they have not been relabelled as master-range solutions.
@@ -361,7 +361,7 @@ Only definitions needed for the requested coefficients are imported; unused
 provider kernels may have unrelated singularities. Known normalization values
 are stored and substituted explicitly.
 
-[The boundary-reduction report](GlobalBoundaryReduction_2026-09-06.md) gives
+[The boundary-reduction report](GlobalBoundaryReduction.md) gives
 the current counts and the separate, not-yet-applied physical dimension bound.
 
 
@@ -384,7 +384,7 @@ Coefficients still stores the local ordinary-point fundamental matrix.
 Its columns must not be interpreted as Frobenius amplitudes. The rewritten
 answer is MasterIntegralCoefficients.
 
-See [singular matching](ExplicitSingularBoundaryMatching_2026-09-07.md).
+See [singular matching](ExplicitSingularBoundaryMatching.md).
 The symbolic files are complete through their recorded orders. Stable numerical
 evaluation of the process's singular connection still needs endpoint
 initialization; unweighted endpoint collocation failed a nonzero test.

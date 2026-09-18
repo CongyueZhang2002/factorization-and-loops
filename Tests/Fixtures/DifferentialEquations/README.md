@@ -16,5 +16,5 @@ These are test fixtures, not an old production run or the current solution
 inventory. The general production run is
 `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/Stage1And2_2026-09-06`.
 
-[The removal record](../../../Design/StaleDEResultRemoval_2026-09-06.md)
+[The removal record](../../../Reports/2026-09-06/StaleDEResultRemoval.md)
 lists their source paths and the removed directories.

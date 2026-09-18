@@ -5,7 +5,8 @@
    Rational specializations select independent rows; the stored elimination
    is exact. Different base points are handled later, not equated here. *)
 Clear[ConstructGlobalMasterDifferentialSystem];
-ClearAll[globalDEIndependentRows, globalDEZeroQ, globalDEIdentity,globalDECloseRelations];
+ClearAll[globalDEIndependentRows, globalDEZeroQ, globalDEIdentity,globalDECloseRelations,
+  globalDECancelMatrix,globalDERowReduction,globalDEExactInverse,globalDEEmbeddingResidual];
 
 globalDEZeroQ[x_] := Together[x] === 0;
 globalDEIdentity[x_] := cutEquivalenceIntegral[x];
@@ -18,37 +19,109 @@ globalDEIndependentRows[matrix_List] := Module[{reduced},
 ];
 
 
+(* Exact sparse Gaussian elimination over rational functions. Rational
+   specializations choose rows elsewhere; every elimination here is exact.
+   Unit pivots and low fill-in avoid the expression growth of generic RREF. *)
+globalDECancelMatrix[matrix_List]:=Module[{values},
+ If[matrix==={},Return[{}]];
+ values=FeynFacet`CancelRationalCoefficients[Flatten[matrix]];
+ If[!ListQ[values]||Length[values]=!=Times@@Dimensions[matrix],
+  Return[Failure["ExactRelationCancellationFailed",<|"Cause"->values|>]]];
+ Partition[values,Length[First[matrix]]]
+];
+globalDERowReduction[matrix_List,allowed_:Automatic]:=Module[
+ {active=matrix,rows={},pivots={},columns,pivot,rowIndex,column,row,nonzero,rowCounts,
+  columnCounts,affected,updated,order,n},
+ If[matrix==={},Return[<|"Rows"->{},"PivotColumns"->{},"RemainingRows"->{}|>]];
+ n=Length[First[matrix]];columns=Replace[allowed,Automatic->Range[n]];
+ If[!MatrixQ[matrix]||!VectorQ[columns,IntegerQ[#]&&1<=#<=n&]||!DuplicateFreeQ[columns],
+  Return[Failure["ExactRelationMatrixAndColumnsRequired",<||>]]];
+ active=globalDECancelMatrix[active];If[FailureQ[active],Return[active]];
+ While[active=!={},
+  rowCounts=Count[#,_?(#=!=0&)]&/@active;
+  columnCounts=Count[#,_?(#=!=0&)]&/@Transpose[active];
+  nonzero=Select[Position[active,_?(#=!=0&),{2},Heads->False],MemberQ[columns,Last[#]]&];
+  If[nonzero==={},Break[]];
+  pivot=First@MinimalBy[nonzero,Function[position,
+   {If[MemberQ[{1,-1},Extract[active,position]],0,1],
+    (rowCounts[[position[[1]]]]-1)(columnCounts[[position[[2]]]]-1),
+    LeafCount[Extract[active,position]],position[[2]],position[[1]]}]];
+  {rowIndex,column}=pivot;
+  updated=globalDECancelMatrix[{active[[rowIndex]]/active[[rowIndex,column]]}];
+  If[FailureQ[updated],Return[updated,Module]];row=First[updated];
+  active=Delete[active,rowIndex];
+  affected=Select[Range[Length[active]],active[[#,column]]=!=0&];
+  If[affected=!={},
+   updated=globalDECancelMatrix[(#-#[[column]]row)&/@active[[affected]]];
+   If[FailureQ[updated],Return[updated,Module]];active[[affected]]=updated];
+  affected=Select[Range[Length[rows]],rows[[#,column]]=!=0&];
+  If[affected=!={},
+   updated=globalDECancelMatrix[(#-#[[column]]row)&/@rows[[affected]]];
+   If[FailureQ[updated],Return[updated,Module]];rows[[affected]]=updated];
+  AppendTo[rows,row];AppendTo[pivots,column];
+  active=Select[active,!AllTrue[#,#===0&]&]];
+ order=Ordering[pivots];
+ <|"Rows"->rows[[order]],"PivotColumns"->pivots[[order]],"RemainingRows"->active|>
+];
+globalDEEmbeddingResidual[source_List,embedding_List,target_List,variables_List]:=
+ Table[globalDECancelMatrix[D[embedding,variables[[j]]]+
+   Normal[SparseArray[embedding].SparseArray[target[[j]]]-
+     SparseArray[source[[j]]].SparseArray[embedding]]],{j,Length[variables]}];
+
+globalDEExactInverse[matrix_List]:=Module[{n=Length[matrix],result,inverse,residual},
+ If[Dimensions[matrix]=!={n,n},Return[Failure["SquareExactBasisMatrixRequired",<||>]]];
+ If[matrix===IdentityMatrix[n],Return[matrix]];
+ result=globalDERowReduction[Join[matrix,IdentityMatrix[n],2],Range[n]];
+ If[FailureQ[result],Return[result]];
+ If[result["PivotColumns"]=!=Range[n],Return[Failure["SingularExactBasisMatrix",<||>]]];
+ inverse=result["Rows"][[All,n+1;;2n]];
+ residual=globalDECancelMatrix[SparseArray[matrix].SparseArray[inverse]-IdentityMatrix[n]//Normal];
+ If[FailureQ[residual]||!AllTrue[Flatten[residual],#===0&],
+  Return[Failure["ExactBasisInverseFailed",<||>]]];
+ inverse
+];
+
 (* Differential consequences of exact integral relations are relations too.
    Work at generic epsilon; rational samples only select candidate pivots.
    The retained row reduction and every final embedding are exact. *)
 globalDECloseRelations[initial_,matrices_,variables_,samples_,limit_]:=Module[
- {constraints=initial,selected,rows,rank=-1,newRank,consequences,history={},n,closed=False,pivots,remainder},
+ {constraints=initial,selected,rows,rank=-1,newRank,consequences,history={},n,
+  closed=False,pivots={},remainder,reduced,validSamples},
  n=Length[First[matrices]];
- If[constraints==={},Return[<|"Rows"->{},"History"->{},"Closed"->True|>]];
+ If[constraints==={},Return[<|"Rows"->{},"PivotColumns"->{},"History"->{},"Closed"->True|>]];
  Do[
-  If[AnyTrue[samples,!AllTrue[Flatten[constraints/.#],MatchQ[#,_Integer|_Rational]&]&],
-    Return[Failure["SingularOrNonrationalRelationSample",<||>]]];
-  selected=Union@@(globalDEIndependentRows[constraints/.#]&/@samples);
-  rows=If[selected==={},{},Select[RowReduce[constraints[[selected]]],
-    !AllTrue[#,globalDEZeroQ]&]];
-  (* A special sample may lose rank. Check the whole rational row space
-     before accepting the sampled selection or declaring closure. *)
-  pivots=Map[Function[row,SelectFirst[Range[n],!globalDEZeroQ[row[[#]]]&]],rows];
-  remainder=If[rows==={},constraints,
-    Map[Together,constraints-constraints[[All,pivots]].rows,{2}]];
+  If[samples==={},
+   (* Sampling is an optional row-selection optimization. Boundary systems
+      may omit it; exact elimination still supplies the complete proof. *)
+   selected=Range[Length[constraints]],
+   validSamples=Select[samples,
+    Quiet[AllTrue[Flatten[constraints/.#],MatchQ[#,_Integer|_Rational]&],{Power::infy,Infinity::indet}]&];
+   If[validSamples==={},Return[Failure["SingularOrNonrationalRelationSample",<||>],Module]];
+   selected=Union@@(globalDEIndependentRows[constraints/.#]&/@validSamples)
+  ];
+  reduced=globalDERowReduction[If[selected==={},{},constraints[[selected]]]];
+  If[FailureQ[reduced],Return[reduced,Module]];
+  rows=reduced["Rows"];pivots=reduced["PivotColumns"];
+  remainder=If[rows==={},constraints,globalDECancelMatrix[
+    Normal[constraints-SparseArray[constraints[[All,pivots]]].SparseArray[rows]]]];
+  If[FailureQ[remainder],Return[remainder,Module]];
   remainder=Select[remainder,!AllTrue[#,globalDEZeroQ]&];
-  If[remainder=!={},rows=Select[RowReduce[Join[rows,remainder]],!AllTrue[#,globalDEZeroQ]&]];
+  If[remainder=!={},
+   reduced=globalDERowReduction[Join[rows,remainder]];
+   If[FailureQ[reduced],Return[reduced,Module]];
+   rows=reduced["Rows"];pivots=reduced["PivotColumns"]];
   newRank=Length[rows];
   AppendTo[history,<|"Iteration"->iteration,"RelationRank"->newRank|>];
   If[newRank===0||newRank===rank||newRank===n,closed=True;Break[]];
   rank=newRank;
-  consequences=Flatten[Table[
-    Map[Together,D[rows,variables[[axis]]]+rows.Normal[matrices[[axis]]],{2}],
-    {axis,Length[variables]}],1];
-  constraints=DeleteDuplicates[Join[rows,consequences]],
+  consequences=Table[globalDECancelMatrix[
+    D[rows,variables[[axis]]]+Normal[SparseArray[rows].SparseArray[matrices[[axis]]]]],
+    {axis,Length[variables]}];
+  If[AnyTrue[consequences,FailureQ],Return[First@Select[consequences,FailureQ],Module]];
+  constraints=DeleteDuplicates[Join[rows,Flatten[consequences,1]]],
  {iteration,limit}];
  If[!closed,Return[Failure["IntegralRelationClosureIncomplete",<|"History"->history|>]]];
- <|"Rows"->rows,"History"->history,"Closed"->True|>
+ <|"Rows"->rows,"PivotColumns"->pivots,"History"->history,"Closed"->True|>
 ];
 
 Options[ConstructGlobalMasterDifferentialSystem] = {
@@ -247,8 +320,10 @@ FeynFacet`RestrictDifferentialSystemToRelations::usage =
  "RestrictDifferentialSystemToRelations[system,rows,request] closes supplied exact homogeneous relations under every kinematic derivative, constructs a basis of their common nullspace, and verifies the induced connection and full embedding identities.";
 FeynFacet`RestrictDifferentialSystemToRelations[system_Association,relations_List,
  request_Association:<||>] := Catch[Module[
- {s,variables,e,a,n,samples,closed,c,basis,rows,left,selection,connection,residual,m},
- s=solutionNormalizeDifferentialSystem[system];If[FailureQ[s],Throw[s]];
+ {s,variables,e,a,n,samples,closed,c,basis,left,connection,residual,m,pivots,free,
+  normalizedRelations,check,clock=SessionTime[],times=<||>},
+ check[value_]:=If[FailureQ[value],Throw[value]];
+ s=solutionNormalizeDifferentialSystem[system];check[s];
  variables=s["KinematicVariables"];e=s["DimensionalRegulator"];
  a=Normal/@s["ConnectionMatrices"];n=Length[First[a]];
  If[!AllTrue[a,Dimensions[#]==={n,n}&]||
@@ -256,31 +331,38 @@ FeynFacet`RestrictDifferentialSystemToRelations[system_Association,relations_Lis
   Throw[Failure["DifferentialRelationDimensionsInvalid",<||>]]];
  samples=Lookup[request,"ValidationPoints",Table[
   Thread[Append[variables,e]->Table[1/Prime[7k+j+3],{j,Length[variables]+1}]],{k,2}]];
- closed=globalDECloseRelations[relations,a,variables,samples,n+1];
- If[FailureQ[closed],Throw[closed]];c=closed["Rows"];
- basis=If[c==={},IdentityMatrix[n],Transpose[NullSpace[c]]];
- m=If[basis==={},0,Last[Dimensions[basis]]];
+ samples=differentialDimensionPoint[#,system,"Regulator"]&/@samples;
+ Scan[check,samples];
+ normalizedRelations=relations/.Lookup[system,"DimensionRule",{}];
+ closed=globalDECloseRelations[normalizedRelations,a,variables,samples,n+1];check[closed];
+ AssociateTo[times,"RelationEliminationSeconds"->SessionTime[]-clock];clock=SessionTime[];
+ c=closed["Rows"];pivots=closed["PivotColumns"];free=Complement[Range[n],pivots];m=Length[free];
  If[m===0,Throw[Failure["RelationsForceZeroSolution",<|"RelationClosure"->closed|>]]];
- rows=globalDEIndependentRows[basis];selection=IdentityMatrix[n][[rows]];
- left=Map[Cancel,Inverse[basis[[rows]]].selection,{2}];
- connection=Table[Map[Together,left.(a[[j]].basis-D[basis,variables[[j]]]),{2}],
-  {j,Length[variables]}];
- residual=Flatten@Table[D[basis,variables[[j]]]+basis.connection[[j]]-a[[j]].basis,
-  {j,Length[variables]}];
- If[!AllTrue[residual,globalDEZeroQ]||
-   !AllTrue[Flatten[left.basis-IdentityMatrix[m]],globalDEZeroQ]||
-   (c=!={}&&!AllTrue[Flatten[c.basis],globalDEZeroQ]),
+ basis=Normal[SparseArray[Thread[Transpose[{free,Range[m]}]->1],{n,m}]];
+ If[pivots=!={},basis[[pivots]]=-c[[All,free]]];
+ left=IdentityMatrix[n][[free]];
+ connection=Table[globalDECancelMatrix[Normal[SparseArray[a[[j,free]]].SparseArray[basis]]],
+   {j,Length[variables]}];Scan[check,connection];
+ AssociateTo[times,"CoordinateEmbeddingSeconds"->SessionTime[]-clock];clock=SessionTime[];
+ residual=globalDEEmbeddingResidual[a,basis,connection,variables];Scan[check,residual];
+ If[!AllTrue[Flatten[residual],#===0&]||left.basis=!=IdentityMatrix[m],
   Throw[Failure["RestrictedConnectionEmbeddingFailed",<||>]]];
- If[!And@@Flatten@Table[
-   AllTrue[Flatten[D[connection[[i]],variables[[j]]]-D[connection[[j]],variables[[i]]]+
-    connection[[i]].connection[[j]]-connection[[j]].connection[[i]]],globalDEZeroQ],
-  {i,Length[variables]},{j,i+1,Length[variables]}],
-  Throw[Failure["RestrictedConnectionNotFlat",<||>]]];
+ If[c=!={},
+  residual=globalDECancelMatrix[Normal[SparseArray[c].SparseArray[basis]]];check[residual];
+  If[!AllTrue[Flatten[residual],#===0&],Throw[Failure["RestrictedConstraintsFailed",<||>]]]];
+ Do[
+  residual=globalDECancelMatrix[D[connection[[i]],variables[[j]]]-D[connection[[j]],variables[[i]]]+
+    Normal[SparseArray[connection[[i]]].SparseArray[connection[[j]]]-
+      SparseArray[connection[[j]]].SparseArray[connection[[i]]]]];check[residual];
+  If[!AllTrue[Flatten[residual],#===0&],Throw[Failure["RestrictedConnectionNotFlat",<||>]]],
+ {i,Length[variables]},{j,i+1,Length[variables]}];
+ AssociateTo[times,"ExactEmbeddingAndFlatnessSeconds"->SessionTime[]-clock];
  <|"DataType"->"ConstrainedDifferentialSystem","KinematicVariables"->variables,
   "DimensionalRegulator"->e,"ConnectionMatrices"->connection,"Dimension"->m,
   "OriginalMasterIntegralBasis"->Range[m],"SourceDimension"->n,
-  "SolutionEmbedding"->basis,"SolutionLeftInverse"->left,
-  "RelationClosure"->closed,"RelationProvenance"->Lookup[request,"RelationProvenance",None],
+  "FreeColumns"->free,"SolutionEmbedding"->basis,"SolutionLeftInverse"->left,
+  "RelationClosure"->closed,"PhaseSeconds"->times,
+  "RelationProvenance"->Lookup[request,"RelationProvenance",None],
   "Verification"-><|"DifferentialClosure"->True,"Embedding"->True,"LeftInverse"->True,
    "Flatness"->True,"Method"->"ExactRationalIdentities"|>|>
 ]];

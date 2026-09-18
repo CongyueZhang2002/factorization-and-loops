@@ -4,6 +4,30 @@ SampleCutIBPEquations::usage="SampleCutIBPEquations[rows,targets,families,reques
 NormalizeIntegralEquationScale::usage="NormalizeIntegralEquationScale[rows,weights,scale] verifies exact monomial homogeneity of every coefficient row under I_i=scale^weight_i J_i. It removes one common monomial per row, producing a scale-independent rational system. This is an exact change of unknowns, not an assumed numerical specialization or physical integral scaling law.";
 RestoreIntegralEquationScale::usage="RestoreIntegralEquationScale[rules,normalization] restores exact original-integral reduction rules from the scale-independent unknowns in a verified NormalizeIntegralEquationScale record.";
 Begin["`Private`"];
+(* Stream one sorted equation at a time. Do not materialize both a list
+   of all row strings and a second concatenated copy of the native input. *)
+cutKiraWriteEquationRows[equations_List,idMap_Association,coefficientText_,file_String]:=Module[
+ {stream=None,temporary=file<>".tmp",completed=False,lineBreak=FromCharacterCode[10],ordered,text},
+ ordered=SortBy[equations,{Max[idMap/@Keys[#]]&,Length}];
+ Internal`WithLocalSettings[
+  stream=OpenWrite[temporary,CharacterEncoding->"UTF8"],
+  If[Head[stream]=!=OutputStream,cutFamilyFail["KiraEquationStreamOpenFailed"]];
+  If[ordered==={},WriteString[stream,lineBreak<>lineBreak]];
+  Scan[Function[row,
+   text=StringRiffle[KeyValueMap[
+    Function[{integral,coefficient},"FeynFacetIBP["<>ToString[idMap[integral]]<>"]*("<>
+     coefficientText[coefficient]<>")"],row],lineBreak]<>lineBreak<>lineBreak;
+   If[!TrueQ[Check[WriteString[stream,text];True,False]],cutFamilyFail["KiraEquationStreamWriteFailed"]]
+  ],ordered];
+  Close[stream];stream=None;
+  If[RenameFile[temporary,file,OverwriteTarget->True]===$Failed,cutFamilyFail["KiraEquationStreamInstallFailed"]];
+  completed=True,
+  If[Head[stream]===OutputStream,Close[stream]];
+  If[!completed&&FileExistsQ[temporary],DeleteFile[temporary]]
+ ];
+ file
+];
+
 cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:{}]:=Module[
  {names,familyOrder,unknowns,idMap,variables,aliases,variableRules,coefficientValues,
   coefficientText,rows,project,head=Global`FeynFacetIBP},
@@ -28,17 +52,14 @@ cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:
   cutFamilyFail["KiraCoefficientAliasAlreadyDefined"]];
  variableRules=Thread[variables->aliases];
  coefficientText[value_]:=coefficientText[value]=StringDelete[ToString[value/.variableRules,InputForm,PageWidth->Infinity]," "];
- rows=Map[Function[row,StringRiffle[KeyValueMap[
-  Function[{integral,coefficient},"FeynFacetIBP["<>ToString[idMap[integral]]<>"]*("<>coefficientText[coefficient]<>")"],
-  row],"\n"]],SortBy[equations,{Max[idMap/@Keys[#]]&,Length}]];
- Export[directory<>"/equations.kira",StringRiffle[rows,"\n\n"]<>"\n\n","String"];
+ cutKiraWriteEquationRows[equations,idMap,coefficientText,directory<>"/equations.kira"];
  Export[directory<>"/targets",StringRiffle[("FeynFacetIBP["<>ToString[idMap[#]]<>"]"&/@targets),"\n"]<>"\n","String"];
  project=<|"Directory"->directory,"Runtime"->ibpRuntime[],"Manifest"->{<|"Name"->head|>},
   "EquationSource"->"TypedIBP","IntegralIndex"->idMap,"IndexedIntegrals"->unknowns,
   "IdentifierHead"->head,"CoefficientDecodeRules"->Thread[aliases->variables],
   "CoefficientVariables"->variables,"CoefficientAliases"->aliases|>;
  FamilyArtifactWrite[KeyTake[project,{"IndexedIntegrals","IdentifierHead","CoefficientDecodeRules",
-   "CoefficientVariables","CoefficientAliases"}],directory<>"/IntegralIdentifiers.wl",Compression->Automatic];
+   "CoefficientVariables","CoefficientAliases"}],directory<>"/IntegralIdentifiers.wxf",Compression->Automatic];
  project
 ];
 cutKiraEquationJob[mode_,pointFile_:"points",inputFile_:"equations.kira"]:=StringRiffle[Join[{

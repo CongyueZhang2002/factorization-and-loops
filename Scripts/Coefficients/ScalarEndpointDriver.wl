@@ -1,3 +1,4 @@
+Get[DirectoryName[ExpandFileName[$InputFileName],3]<>"/FeynFacet/Core/RecordFormat.wl"];
 (* Reusable scalar endpoint continuation with invocation-local state. *)
 BeginPackage["ScalarEndpointDriver`"];
 RunScalarEndpointFamily::usage="RunScalarEndpointFamily[input,output] checkpoints one coefficient family's order plan, normal extension, projection and finite physical solution; it never exits the kernel.";
@@ -18,7 +19,7 @@ $driverImplementation=Association@Table[path->Import[path,"Text"],
 ReadScalarEndpointInput[path_String] := If[!FileExistsQ[path],
  Failure["ScalarEndpointInputFileMissing",<|"Path"->path|>],
  Switch[ToLowerCase[FileExtension[path]],"wxf",Import[path,"WXF"],
-  "json",Import[path,"RawJSON"],_,Block[{$Context="Global`"},Get[path]]]];
+  "json",Import[path,"RawJSON"],_,Block[{$Context="Global`"},FeynFacetRecords`ReadRecord[path]]]];
 ReadScalarEndpointInput[value_] := value;
 WriteScalarEndpointArtifact[value_,path_String] := Module[{tmp=path<>".partial",stream},
  If[!DirectoryQ[DirectoryName[path]],CreateDirectory[DirectoryName[path],CreateIntermediateDirectories->True]];

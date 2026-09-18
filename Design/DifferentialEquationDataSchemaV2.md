@@ -211,7 +211,7 @@ does not remove the fixed-target or fixed-basis restrictions. A sampled
 finite-field rank defect alone is diagnostic evidence. A claim under every
 admissible basis additionally requires a basis-invariant obstruction or a
 proved completeness argument. See the
-[2026-09-06 audit](Stage1CostsAndEpsilonFormCriteria_2026-09-06.md).
+[2026-09-06 audit](Stage1CostsAndEpsilonFormCriteria.md).
 
 ## 6. Family assembly
 
@@ -481,7 +481,7 @@ The obsolete V1 generated run archive has been removed.  If a V1 record reaches 
 function, the result is the typed refusal `LegacyDifferentialEquationSchemaUnsupported`.
 Regeneration starts from the preserved reduction/master inputs and records the
 wall time and peak memory of every mathematical stage as the new performance
-baseline.  The [removal record](StaleDEResultRemoval_2026-09-06.md) records the deleted
+baseline.  The [removal record](../Reports/2026-09-06/StaleDEResultRemoval.md) records the deleted
 pre-V2 runs and the small retained test fixtures.
 
 Performance data are stored beside, not inside, the mathematical result:

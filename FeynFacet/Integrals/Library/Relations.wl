@@ -1,0 +1,189 @@
+(* Bounded exact reduction to already stored masters. Relations are produced
+   by row operations on genuine IBP equations, never by testing sample values. *)
+BeginPackage["FeynFacet`"];
+ReduceMasterIntegralToLibrary::usage="ReduceMasterIntegralToLibrary[definition,range,request] attempts a bounded exact IBP reduction to stored values in the same active family and its subsectors. Successful relations are persisted separately from independent master values; all coefficient pole orders enter coverage planning.";
+Begin["`Private`"];
+masterLibraryPowerDefinition[d_,powers_]:=Join[d,<|
+ "MasterIntegral"->FeynCalc`GLI[d["MasterIntegral"][[1]],powers],"PropagatorPowers"->powers|>];
+masterLibraryIBPFamily[d_]:=Module[{source,top,mom,signs,props,masses,kin,cuts,request},
+ source=Lookup[d,"SourceCutDefinition",<||>];
+ If[!MemberQ[{None,{},True},Lookup[d,"AdditionalAcceptanceBoundaries",
+  Lookup[source,"AdditionalAcceptanceBoundaries",None]]],Return[Missing["IBPDomainNotSupported"]]];
+ top=Lookup[d,"MomentumSpaceTopology",Lookup[source,"Topology",None]];
+ If[!MatchQ[top,_FeynCalc`FCTopology],
+  mom=Lookup[d,"PropagatorMomenta",{}];kin=FeynCalc`FCI[d["KinematicRules"]];
+  If[Length[mom]=!=Length[d["PropagatorPowers"]]||!FreeQ[mom,_Missing],
+   Return[Missing["IBPTopologyUnavailable"]]];
+  signs=Lookup[d,"OriginalPropagatorPrescriptions",Lookup[d,"PropagatorPrescriptions",{}]];
+  masses=MapThread[Cancel[Expand[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[FeynCalc`SPD[#1]]]-
+    FeynCalc`FCI[#2]]/.kin]&,{mom,d["InversePropagators"]}];
+  props=MapThread[FeynCalc`FeynAmpDenominator[FeynCalc`StandardPropagatorDenominator[
+    FeynCalc`Momentum[#1,D],0,-#2,{1,#3}]]&,{mom,masses,signs}];
+  top=FeynCalc`FCTopology[d["MasterIntegral"][[1]],props,d["LoopMomenta"],d["ExternalMomenta"],kin,{}]];
+ request=<|"Topology"->top,"MeasurePrefactor"->d["MeasurePrefactor"],
+  "Dimension"->D,"Assumptions"->d["KinematicConditions"]|>;
+ If[d["CutIndices"]==={},
+  FeynFacet`CreateLoopIntegralFamily[request],
+  If[AssociationQ[source]&&KeyExistsQ[source,"Cuts"],
+   FeynFacet`CreateCutIntegralFamily[source],
+   cuts=MapThread[<|"Index"->#1,"Type"->"Particle","Momentum"->#2,"EnergyDirection"->1|>&,
+    {d["CutIndices"],d["OrientedCutMomenta"]}];
+   FeynFacet`CreateCutIntegralFamily[Join[request,<|"Cuts"->cuts,
+    "TimeDirection"->Lookup[d,"TimeDirection",Total[d["OrientedCutMomenta"]]]|>]]]]
+];
+masterLibraryRelationFile[dir_,c_]:=Module[{catalog,family,location},
+ catalog=masterLibraryCatalog[masterLibraryCatalogFile[dir,c]];
+ family=Lookup[catalog["Families"],c["FamilyKey"],None];
+ If[family===None,Return[Missing["IntegralFamilyNotStored"]]];
+ location=masterLibraryLocation[dir,c,family];location["Directory"]<>"/Relations.wl"
+];
+masterLibraryReadRelations[file_]:=If[FileExistsQ[file],masterLibraryRead[file],
+ <|"DataType"->"StoredIBPRelations","Relations"-><||>|>];
+masterLibraryRelationValue[d_,c_,relation_,range_,dir_]:=Module[
+ {e=d["DimensionalRegulator"],terms,coefficients,values,record,term,weight,valuation,upper,lower,
+  exact=True,total=0,needs={},data,matrix,vector,result,coefs=<||>,bounds={},known={},exactTails={},
+  proof,reuse,available=Infinity,required,constraint,checked,constraintRange,expressions},
+ (* Stored integrals need not form an independent basis. Check any pure
+    library relations exposed by the same row reduction before using its target. *)
+ Do[
+  constraintRange=range;
+  checked=masterLibraryRelationValue[d,c,Join[KeyDrop[relation,"LibraryConstraints"],
+   <|"Terms"->constraint|>],constraintRange,dir];
+  If[MatchQ[checked,Missing["InsufficientStoredEpsilonCoverage",_]],
+   constraintRange={Min[First[range],checked[[2]]["KnownThroughOrder"]],checked[[2]]["KnownThroughOrder"]};
+   checked=masterLibraryRelationValue[d,c,Join[KeyDrop[relation,"LibraryConstraints"],
+    <|"Terms"->constraint|>],constraintRange,dir]];
+  If[!AssociationQ[checked],Return[Missing["StoredBasisConsistencyNotEstablished"]]];
+  expressions=If[KeyExistsQ[checked,"Coefficients"],Values[checked["Coefficients"]],{checked["ExactValue"]}];
+  If[!AllTrue[expressions,masterLibraryEqual[#,0]||
+    TrueQ[TimeConstrained[FullSimplify[#==0,Assumptions->d["KinematicConditions"]],0.5,False]]&],
+   masterLibraryFail["StoredIBPConstraintNotSatisfied",<|"Identifier"->relation["Identifier"],
+    "Reason"->"Stored values do not establish an IBP relation among themselves."|>]],
+ {constraint,Lookup[relation,"LibraryConstraints",{}]}];
+ terms=relation["Terms"];coefficients=Lookup[terms,"Coefficient"]/.c["FromCanonicalSymbols"];
+ proof=<|"Identifier"->relation["Identifier"],"IdentityMethod"->"ExactIBPRowReduction",
+  "BasisTransformation"->terms,"EquationCount"->relation["EquationCount"]|>;
+ If[terms==={},Return[masterLibraryResult[d,<|"ExactValue"->0|>,range,proof]]];
+ values=Table[term=terms[[j]];
+  If[!StringQ[term["ValueFile"]]||StringContainsQ[term["ValueFile"],".."]||
+    !StringStartsQ[term["ValueFile"],"Families/"],masterLibraryFail["InvalidIBPValueReference"]];
+  record=masterLibraryRead[dir<>"/"<>term["ValueFile"]];
+  If[Lookup[record,"Powers",None]=!=term["Powers"],masterLibraryFail["IBPReferencePowersMismatch"]];
+  masterLibraryValue[record["Value"],FeynFacetLibrary`eps]/.c["FromCanonicalSymbols"],
+ {j,Length[terms]}];
+ If[AllTrue[values,KeyExistsQ[#,"ExactValue"]&],
+  total=Total[MapThread[#1 #2["ExactValue"]&,{coefficients,values}]];
+  Return[masterLibraryResult[d,<|"ExactValue"->total|>,range,proof]]];
+ If[range===Automatic,Return[Missing["ExactAnalyticFunctionNotStored"]]];
+ Do[valuation=FeynFacet`DetermineMeromorphicLaurentLowerBound[coefficients[[j]],e];
+  If[!IntegerQ[valuation],masterLibraryFail["RationalIBPCoefficientValuationRequired"]];
+  required=Last[range]-valuation;AppendTo[needs,required];
+  If[KeyExistsQ[values[[j]],"KnownThroughOrder"],
+   available=Min[available,values[[j]]["KnownThroughOrder"]+valuation]],
+ {j,Length[terms]}];
+ If[Last[range]>available,Return[Missing["InsufficientStoredEpsilonCoverage",
+  <|"Identifier"->relation["Identifier"],"KnownThroughOrder"->available,
+   "RequestedThroughOrder"->Last[range]|>]]];
+ Do[data=masterLibraryResult[d,values[[j]],{Min[First[range],needs[[j]]],needs[[j]]},proof];
+  If[!AssociationQ[data],Return[data,Module]];
+  AppendTo[bounds,data["LaurentLowerBound"]];AppendTo[known,data["KnownThroughOrder"]];
+  AppendTo[exactTails,TrueQ[data["ExactInEpsilon"]]];
+  KeyValueMap[AssociateTo[coefs,{j,#1}->#2]&,data["Coefficients"]],
+ {j,Length[terms]}];
+ lower=Min[First[range],Min[MapThread[
+   FeynFacet`DetermineMeromorphicLaurentLowerBound[#1,e]+#2&,{coefficients,bounds}]]];
+ matrix=FeynFacet`ExpandLaurentCoefficientMatrix[{coefficients},e,Last[range]-bounds];
+ vector=<|"DimensionalRegulator"->e,"Dimension"->Length[terms],"Coefficients"->coefs,
+  "LaurentLowerBounds"->bounds,"KnownThroughOrders"->known,"ExactTails"->exactTails|>;
+ result=FeynFacet`WithEpsilonRemainderChecks[
+  FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,{{lower,Last[range]}}]];
+ If[!AssociationQ[result["Result"]]||result["EpsilonRemainderAudit"]["Status"]=!="Passed",
+  masterLibraryFail["IBPLaurentContractionFailed",<|"Cause"->result|>]];
+ data=result["Result"];
+ masterLibraryResult[d,<|"Coefficients"->Association@KeyValueMap[Last[#1]->#2&,data["Coefficients"]],
+  "LaurentLowerBound"->lower,"KnownThroughOrder"->Last[range]|>,range,proof]
+];
+masterLibraryFindIBP[d_,c_,range_,request_]:=Module[{dir,file,r,relation},
+ If[!TrueQ[Lookup[request,"UseIBPRelations",True]],Return[Missing["IBPReuseDisabled"]]];
+ dir=masterLibraryDirectory[request];file=masterLibraryRelationFile[dir,c];
+ If[MissingQ[file],Return[file]];
+ r=masterLibraryReadRelations[file];relation=Lookup[r["Relations"],masterLibraryKey[c["Powers"]],None];
+ If[relation===None,
+  relation=masterLibraryDeriveIBP[d,c,dir,request];
+  If[!AssociationQ[relation],Return[relation]];
+  If[MemberQ[{"ReadWrite","Recompute"},masterLibraryMode[request]],
+   masterLibraryPublishRelation[file,c,relation,dir]]];
+ masterLibraryRelationValue[d,c,relation,range,dir]
+];
+masterLibraryPublishRelation[file_,c_,relation_,dir_]:=Module[{lock=dir<>"/WriteLock",ok=False,r,result},
+ Do[If[StringQ[Quiet[Check[CreateDirectory[lock],$Failed]]],ok=True;Break[]];Pause[.05],{200}];
+ If[!ok,masterLibraryFail["MasterLibraryWriterBusy"]];
+ result=CheckAbort[Catch[Block[{$masterLibraryReadCache=None},
+  r=masterLibraryReadRelations[file];
+  AssociateTo[r["Relations"],masterLibraryKey[c["Powers"]]->relation];
+  masterLibraryWrite[r,file]],"MasterLibrary"],Quiet[DeleteDirectory[lock]];Abort[]];
+ Quiet[DeleteDirectory[lock]];
+ If[FailureQ[result],Throw[result,"MasterLibrary"]];
+ If[AssociationQ[$masterLibraryReadCache],KeyDropFrom[$masterLibraryReadCache,file]];
+ result
+];
+masterLibraryDeriveIBP[d_,c_,dir_,request_]:=TimeConstrained[Catch[Module[
+ {family,top,name,n,cuts,ordinary,subsets,patterns,known=<||>,candidate,cc,catalog,fid,
+  location,index,powers,integral,records,term,seeds,neighbors,eq,all,unknown,matrix,reduced,
+  pivot,row,rhs,terms={},constraints,makeTerms,dimension=d["Dimension"],target,limit,maxSeeds,maxSubsectors},
+ family=masterLibraryIBPFamily[d];
+ If[!AssociationQ[family],Return[Missing["CompleteIBPFamilyUnavailable"]]];
+ top=family["Topology"];name=top[[1]];n=Length[d["PropagatorPowers"]];cuts=d["CutIndices"];
+ ordinary=Complement[Flatten@Position[d["PropagatorPowers"],_?Positive],cuts];
+ maxSubsectors=Lookup[request,"MaximumIBPSubsectors",32];maxSeeds=Lookup[request,"MaximumIBPSeeds",128];
+ If[2^Length[ordinary]>maxSubsectors,Return[Missing["IBPSubsectorSearchLimit"]]];
+ patterns=Table[powers=ConstantArray[0,n];powers[[Join[cuts,sector]]]=1;powers,{sector,Subsets[ordinary]}];
+ Do[candidate=masterLibraryPowerDefinition[d,powers];cc=masterLibraryCanonical[candidate];
+  catalog=masterLibraryCatalog[masterLibraryCatalogFile[dir,cc]];
+  fid=Lookup[catalog["Families"],cc["FamilyKey"],None];If[fid===None,Continue[]];
+  location=masterLibraryLocation[dir,cc,fid];index=masterLibrarySector[location["Directory"]<>"/Index.wl"];
+  Do[term=record;candidate=ConstantArray[0,n];
+   candidate[[cc["SourcePropagatorIndices"]]]=term["Powers"];
+   integral=FeynCalc`GLI[name,candidate];
+   AssociateTo[known,integral->Join[term,<|
+    "ValueFile"->location["RelativeDirectory"]<>"/"<>term["Master"]<>".wl"|>]],
+  {record,Values[index["Entries"]]}],
+ {powers,patterns}];
+ If[known===<||>,Return[Missing["NoStoredIBPBasis"]]];
+ target=FeynCalc`GLI[name,d["PropagatorPowers"]];
+ seeds=DeleteDuplicates@Join[{target},Keys[known],FeynCalc`GLI[name,#]&/@patterns];
+ neighbors=Flatten[Table[FeynCalc`GLI[name,ReplacePart[master[[2]],i->master[[2,i]]+delta]],
+  {master,seeds},{i,n},{delta,{-1,1}}],2];
+ seeds=DeleteDuplicates@Join[seeds,Select[neighbors,
+  AllTrue[#[[2,cuts]],#>0&]&&Total[Abs[#[[2]]]]<=Total[Abs[target[[2]]]]+1&]];
+ If[Length[seeds]>maxSeeds,Return[Missing["IBPSeedSearchLimit"]]];
+ eq=FeynFacet`GenerateCutIBPEquations[family,seeds];
+ If[!AssociationQ[eq],Return[Missing["IBPEquationsUnavailable"]]];
+ records=eq["Rows"]/.D->dimension;all=Union@@(Keys/@records);
+ unknown=Prepend[DeleteCases[Complement[all,Keys[known]],target],target];
+ all=Join[unknown,Keys[known]];
+ matrix=Table[Lookup[record,all,0],{record,records}];
+ reduced=RowReduce[matrix];pivot=SelectFirst[reduced,First[#]=!=0&,None];
+ If[pivot===None,Return[Missing["IBPRelationNotEstablished"]]];
+ row=Cancel[#/First[pivot]]&/@pivot;
+ If[!AllTrue[Take[Rest[row],Length[unknown]-1],#===0&],
+  Return[Missing["IBPRelationNotClosedInStoredMasters"]]];
+ makeTerms[weights_]:=Map[Function[j,
+  term=known[Keys[known][[j]]];
+  <|"ValueFile"->term["ValueFile"],"Powers"->term["Powers"],
+    "Coefficient"->(weights[[j]]/.c["ToCanonicalSymbols"])|>],
+  Select[Range[Length[known]],weights[[#]]=!=0&]];
+ terms=makeTerms[-Drop[row,Length[unknown]]];
+ constraints=makeTerms[Drop[#,Length[unknown]]]&/@Select[reduced,
+  AllTrue[Take[#,Length[unknown]],#===0&]&&!AllTrue[Drop[#,Length[unknown]],#===0&]&];
+ <|"Identifier"->"IBP/"<>c["Bucket"]<>"/S"<>ToString[c["Sector"]]<>"/"<>
+    StringRiffle[ToString/@c["Powers"],","],
+  "Terms"->terms,"LibraryConstraints"->constraints,"TargetPowers"->c["Powers"],"EquationCount"->Length[records],
+  "ProofMethod"->"Exact row reduction of generated integration-by-parts equations",
+  "SeedPowers"->(Last/@seeds),
+  "DerivationDefinition"->(d/.c["ToCanonicalSymbols"]),
+  "TargetEquation"->(Thread[all->row]/.c["ToCanonicalSymbols"])|>
+],"MasterLibrary"],Lookup[request,"IBPTimeLimit",0.5],Missing["IBPSearchTimeLimit"]];
+ReduceMasterIntegralToLibrary[d_Association,range_,request_Association:<||>]:=Catch[
+ masterLibraryFindIBP[d,masterLibraryCanonical[d],range,request],"MasterLibrary"];
+End[];EndPackage[];

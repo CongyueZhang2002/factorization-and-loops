@@ -1,0 +1,177 @@
+(* Persistent physical master values. Integral identity, analytic scope and
+   Laurent coverage are checked independently of project and family names. *)
+BeginPackage["FeynFacet`"];
+FindMasterIntegralValue::usage="FindMasterIntegralValue[definition,range,request] looks up an explicitly defined physical integral in the shared library. Automatic range requests an exact analytic function; {low,high} requests complete Laurent coefficients. Missing identity or coverage returns Missing, never zero.";
+StoreMasterIntegralValue::usage="StoreMasterIntegralValue[definition,value,request] stores an explicit exact function or contiguous Laurent coefficients with their physical definition and provenance. It merges only compatible, exactly agreeing data and serializes concurrent writers.";
+EvaluateWithMasterIntegralLibrary::usage="EvaluateWithMasterIntegralLibrary[definition,range,provider,request] first looks up a sufficient stored value, otherwise calls provider[] and stores the explicit result. It never substitutes insufficient epsilon coverage.";
+MasterIntegralLibraryDirectory::usage="MasterIntegralLibraryDirectory[] returns the repository shared library, or the FEYNFACET_MASTER_LIBRARY_DIRECTORY override.";
+$MasterIntegralLibraryMode::usage="ReadWrite is the default. ReadOnly reads existing masters; Recompute bypasses reuse but publishes new values; Disabled performs neither. FEYNFACET_MASTER_LIBRARY_MODE sets the initial mode.";
+FindMasterIntegralValues::usage="FindMasterIntegralValues[definitions,ranges,request] matches a batch of original integral definitions and reports matched values, missing rows and exact required ranges.";
+StoreMasterIntegralSolution::usage="StoreMasterIntegralSolution[definitions,solution,request] publishes a physically fixed, fully explicit original-basis Laurent solution. CoordinateRules explicitly express the solution in the definition coordinates.";
+Begin["`Private`"];
+$MasterIntegralLibraryMode=Replace[Environment["FEYNFACET_MASTER_LIBRARY_MODE"],
+ Except["ReadWrite"|"ReadOnly"|"Recompute"|"Disabled"]->"ReadWrite"];
+MasterIntegralLibraryDirectory[]:=Replace[Environment["FEYNFACET_MASTER_LIBRARY_DIRECTORY"],
+ Except[_String?(StringLength[#]>0&)]:>FileNameJoin[{$feynFacetRoot,"Library","MasterIntegrals"}]];
+masterLibraryFail[tag_,data_:<||>]:=Throw[Failure[tag,data],"MasterLibrary"];
+masterLibraryDirectory[request_]:=ExpandFileName[Lookup[request,"LibraryDirectory",MasterIntegralLibraryDirectory[]]];
+masterLibraryMode[request_]:=Module[{mode=Lookup[request,"Mode",$MasterIntegralLibraryMode]},
+ If[!MemberQ[{"ReadWrite","ReadOnly","Recompute","Disabled"},mode],masterLibraryFail["InvalidMasterLibraryMode"]];mode];
+masterLibraryExplicitQ[value_]:=FreeQ[value,
+ _Integrate|_NIntegrate|_Inactive|_Series|_SeriesCoefficient|_SeriesData|_Real|
+ _Derivative|_FeynCalc`GLI|_Failure|_Missing|Indeterminate|_DirectedInfinity]&&
+ FreeQ[value,h_Symbol[___]/;MemberQ[{"i","a","k","C","F"},SymbolName[h]]&&Context[h]==="FeynFacetSolution`"];
+masterLibraryValue[value_Association,e_]:=Module[{coefficients,lower,upper,exact,record=<||>},
+ exact=Lookup[value,"ExactValue",Lookup[value,"AnalyticExpression",Missing[]]];
+ If[!MissingQ[exact],
+  If[!masterLibraryExplicitQ[exact],masterLibraryFail["ExplicitPhysicalMasterValueRequired"]];
+  Return[<|"ExactValue"->exact|>]];
+ coefficients=Lookup[value,"Coefficients",None];
+ If[AssociationQ[coefficients],
+  lower=Lookup[value,"LaurentLowerBound",None];upper=Lookup[value,"KnownThroughOrder",None];
+  If[!IntegerQ[lower]||!IntegerQ[upper]||lower>upper||
+    Sort[Keys[coefficients]]=!=Range[lower,upper]||
+    !FreeQ[Values[coefficients],e]||!masterLibraryExplicitQ[Values[coefficients]],
+   masterLibraryFail["ContiguousExplicitMasterOrdersRequired"]];
+  record=Join[record,<|"Coefficients"->KeySort[coefficients],"LaurentLowerBound"->lower,
+    "KnownThroughOrder"->upper|>]];
+ If[record===<||>,masterLibraryFail["ExactOrLaurentMasterValueRequired"]];
+ record
+];
+masterLibraryEqual[a_,b_]:=a===b||TrueQ[
+ First[FeynFacet`CancelRationalCoefficients[{a-b}]]===0];
+masterLibraryCheckExact[exact_,finite_,id_]:=Module[{e=FeynFacetLibrary`eps,expanded,lower,upper},
+ {lower,upper}=Lookup[finite,{"LaurentLowerBound","KnownThroughOrder"}];
+ expanded=Quiet[Check[Normal[Series[exact,{e,0,upper}]],$Failed]];
+ If[expanded===$Failed||!masterLibraryExplicitQ[expanded]||
+  !masterLibraryEqual[expanded,Total[KeyValueMap[#2 e^#1&,finite["Coefficients"]]]],
+  masterLibraryFail["StoredExactAndLaurentMasterConflict",<|"Identifier"->id|>]];
+ True
+];
+
+masterLibraryMergeValues[old_,stored_,id_]:=Module[{lower,upper,overlap},
+ If[KeyExistsQ[old,"ExactValue"]&&KeyExistsQ[stored,"ExactValue"],
+  If[!masterLibraryEqual[old["ExactValue"],stored["ExactValue"]],masterLibraryFail["StoredExactMasterValueConflict",<|"Identifier"->id|>]];
+  Return[old]];
+ If[KeyExistsQ[old,"ExactValue"],masterLibraryCheckExact[old["ExactValue"],stored,id];Return[old]];
+ If[KeyExistsQ[stored,"ExactValue"],masterLibraryCheckExact[stored["ExactValue"],old,id];Return[stored]];
+ lower=Min[old["LaurentLowerBound"],stored["LaurentLowerBound"]];
+ upper=Max[old["KnownThroughOrder"],stored["KnownThroughOrder"]];
+ overlap=Range[lower,Min[old["KnownThroughOrder"],stored["KnownThroughOrder"]]];
+ If[!AllTrue[overlap,masterLibraryEqual[Lookup[old["Coefficients"],#,0],Lookup[stored["Coefficients"],#,0]]&],
+  masterLibraryFail["StoredMasterCoefficientConflict",<|"Identifier"->id|>]];
+ <|"LaurentLowerBound"->lower,"KnownThroughOrder"->upper,
+  "Coefficients"->Association@Table[j->If[j<=stored["KnownThroughOrder"],
+    Lookup[stored["Coefficients"],j,0],Lookup[old["Coefficients"],j,0]],{j,lower,upper}]|>
+];
+masterLibraryResult[definition_,value_,range_,reuse_]:=Module[{e,lower,result,coeffs},
+ e=definition["DimensionalRegulator"];
+ If[range===Automatic,Return[If[KeyExistsQ[value,"ExactValue"],
+  <|"ExactValue"->value["ExactValue"],"MasterIntegral"->definition["MasterIntegral"],
+   "DimensionalRegulator"->e,"LibraryReuse"->reuse|>,Missing["ExactAnalyticFunctionNotStored"]]]];
+ If[KeyExistsQ[value,"Coefficients"],
+  If[Last[range]>value["KnownThroughOrder"],Return[Missing["InsufficientStoredEpsilonCoverage",
+    <|"Identifier"->reuse["Identifier"],"KnownThroughOrder"->value["KnownThroughOrder"],
+     "RequestedThroughOrder"->Last[range]|>]]];
+  lower=Min[First[range],value["LaurentLowerBound"]];
+  coeffs=Association@Table[j->Lookup[value["Coefficients"],j,0],{j,lower,Last[range]}],
+  lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[value["ExactValue"],e];
+  If[lower===Infinity,lower=First[range]];
+  If[!IntegerQ[lower],Return[Missing["ExactMasterLaurentExpansionNotEstablished"]]];
+  lower=Min[First[range],lower];
+  result=Quiet[Check[Normal[Series[value["ExactValue"],{e,0,Last[range]}]],$Failed]];
+  If[result===$Failed||!masterLibraryExplicitQ[result],Return[Missing["ExactMasterLaurentExpansionNotEstablished"]]];
+  coeffs=Association@Table[j->Coefficient[Expand[e^-lower result],e,j-lower],{j,lower,Last[range]}]];
+ Join[KeyTake[value,{"ExactValue"}],<|"MasterIntegral"->definition["MasterIntegral"],
+  "DimensionalRegulator"->e,"Coefficients"->coeffs,"LaurentLowerBound"->lower,
+  "KnownThroughOrder"->Last[range],"RequestedRange"->range,
+  "ExactInEpsilon"->TrueQ[Lookup[value,"ExactValue",None]===0],
+  "EvaluationMethod"->"SharedMasterIntegralLibrary","LibraryReuse"->reuse|>]
+];
+FindMasterIntegralValue[definition_Association,range_:Automatic,request_Association:<||>]:=Catch[Module[
+ {dir,c,location,record,value,mode,reuse},
+ mode=masterLibraryMode[request];
+ If[MemberQ[{"Disabled","Recompute"},mode],Return[Missing["LibraryReuseDisabled"]]];
+ If[range=!=Automatic&&(!MatchQ[range,{_Integer,_Integer}]||First[range]>Last[range]),
+  masterLibraryFail["MasterLibraryOrderRangeRequired"]];
+ dir=masterLibraryDirectory[request];c=masterLibraryCanonical[definition];
+ location=masterLibraryLocate[dir,c];
+ If[MissingQ[location],Return[masterLibraryFindIBP[definition,c,range,request]]];
+ reuse=Join[KeyTake[location,{"Identifier","FamilyIdentifier","Sector"}],
+  KeyTake[c,{"Powers","SourcePropagatorIndices","LoopTransformation","IdentityMethod"}],
+  <|"Scope"->"Identical integral, physical domain, normalization and causal prescription."|>];
+ If[range=!=Automatic&&!TrueQ[location["ExactAnalyticFunction"]]&&Last[range]>location["KnownThroughOrder"],
+  Return[Missing["InsufficientStoredEpsilonCoverage",Join[reuse,
+   <|"KnownThroughOrder"->location["KnownThroughOrder"],"RequestedThroughOrder"->Last[range]|>]]]];
+ record=masterLibraryLoadValue[location];
+ value=record["Value"]/.c["FromCanonicalSymbols"];
+ masterLibraryResult[definition,value,range,reuse]
+],"MasterLibrary"];
+StoreMasterIntegralValue[definition_Association,value_Association,request_Association:<||>]:=Catch[Module[
+ {mode,c,stored,provenance},
+ mode=masterLibraryMode[request];
+ If[MemberQ[{"Disabled","ReadOnly"},mode],Return[<|"Status"->"LibraryWriteDisabled"|>]];
+ c=masterLibraryCanonical[definition];stored=masterLibraryValue[value,definition["DimensionalRegulator"]];
+ If[!FreeQ[stored,Alternatives@@definition["LoopMomenta"]],masterLibraryFail["IntegratedPhysicalValueRequired"]];
+ stored=stored/.c["ToCanonicalSymbols"];
+ provenance=Lookup[request,"Provenance",<|"Producer"->Lookup[value,"EvaluationMethod","ExplicitPhysicalMasterSolution"]|>];
+ masterLibraryStore[masterLibraryDirectory[request],c,stored,provenance]
+],"MasterLibrary"];
+FindMasterIntegralValues[definitions_Association,ranges_Association,request_Association:<||>]:=Catch[Module[
+ {values=<||>,missing={},unidentified={},insufficient={},details=<||>,partial=<||>,result,supplied,available,statistics},
+ If[Sort[Keys[definitions]]=!=Sort[Keys[ranges]],Return[Failure["MasterLibraryRequestCoverageMismatch",<||>]]];
+ Block[{$masterLibraryReadCache=<||>,$masterLibraryReadStatistics=<||>},Do[
+  result=FindMasterIntegralValue[definitions[key],ranges[key],request];
+  If[FailureQ[result],Return[result,Module]];
+  If[AssociationQ[result],AssociateTo[values,key->result],
+   AppendTo[missing,key];AssociateTo[details,key->result];
+   If[MatchQ[result,Missing["InsufficientStoredEpsilonCoverage",_]],
+    AppendTo[insufficient,key];
+    available=result[[2]]["KnownThroughOrder"];
+    supplied=FindMasterIntegralValue[definitions[key],{Min[First[ranges[key]],available],available},request];
+    If[FailureQ[supplied],Return[supplied,Module]];
+    If[AssociationQ[supplied],AssociateTo[partial,key->supplied]],
+    AppendTo[unidentified,key]]],
+ {key,Keys[definitions]}];statistics=$masterLibraryReadStatistics];
+ <|"Status"->If[missing==={},"AllMastersAvailable","MissingMasterValues"],"Complete"->(missing==={}),
+  "Values"->values,"PartialValues"->partial,"MissingRows"->missing,"UnidentifiedRows"->unidentified,
+  "InsufficientOrderRows"->insufficient,"MissingDetails"->details,
+  "RequestedRanges"->ranges,"LookupCount"->Length[definitions],"LookupStatistics"->statistics|>
+],"MasterLibrary"];
+EvaluateWithMasterIntegralLibrary[definition_Association,range_,provider_Function,request_Association:<||>]:=Module[
+ {found,result,stored},
+ found=FindMasterIntegralValue[definition,range,request];
+ If[AssociationQ[found]||FailureQ[found],Return[found]];
+ result=provider[];
+ If[!AssociationQ[result],Return[result]];
+ stored=StoreMasterIntegralValue[definition,result,request];
+ If[FailureQ[stored],Return[stored]];
+ Join[result,<|"LibraryStorage"->stored|>]
+];
+StoreMasterIntegralSolution[definitions_Association,solution_Association,request_Association:<||>]:=Catch[Module[
+ {basis,lower,upper,e,coefficients,rules,rows,record,result,records=<||>},
+ {basis,lower,upper,e,coefficients}=Lookup[solution,{"MasterIntegralBasis","OriginalMasterLaurentLowerBounds",
+  "MasterIntegralUpperOrders","DimensionalRegulator","Coefficients"}];
+ If[!TrueQ[Lookup[solution,"BoundaryValuesApplied",False]]||!ListQ[basis]||
+  !VectorQ[lower,IntegerQ]||!VectorQ[upper,IntegerQ]||Length[basis]=!=Length[lower]||
+  Length[basis]=!=Length[upper]||Keys[definitions]=!=Range[Length[basis]]||
+  Lookup[Values[definitions],"MasterIntegral"]=!=basis||!AssociationQ[coefficients]||
+  !AllTrue[{"AlgebraicDefinitions","KernelDefinitions","IntegralDefinitions"},
+    Lookup[solution,#,{}]==={}&]||!MatchQ[e,_Symbol]||
+  !AllTrue[Values[definitions],#["DimensionalRegulator"]===e&]||
+  !And@@MapThread[LessEqual,{lower,upper}],
+  masterLibraryFail["BoundExplicitPhysicalMasterSolutionRequired"]];
+ rules=Lookup[request,"CoordinateRules",{}];
+ If[!MatchQ[rules,{___Rule}],masterLibraryFail["ExplicitSolutionCoordinateRulesRequired"]];
+ Do[
+  rows=Range[lower[[i]],upper[[i]]];
+  If[!AllTrue[rows,KeyExistsQ[coefficients,{i,#}]&],masterLibraryFail["IncompletePhysicalMasterCoefficients"]];
+  record=<|"Coefficients"->Association@Table[j->(coefficients[[Key[{i,j}]]]/.rules),{j,rows}],
+   "LaurentLowerBound"->lower[[i]],"KnownThroughOrder"->upper[[i]]|>;
+  result=StoreMasterIntegralValue[definitions[i],record,KeyDrop[request,"CoordinateRules"]];
+  If[FailureQ[result],Throw[result,"MasterLibrary"]];
+  AssociateTo[records,i->result],
+ {i,Length[basis]}];
+ <|"Status"->"PhysicalMasterSolutionStored","MasterCount"->Length[basis],"Records"->records|>
+],"MasterLibrary"];
+End[];EndPackage[];

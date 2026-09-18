@@ -10,7 +10,7 @@ $PrePrint=.;
 Get[FileNameJoin[{root,"FeynFacet", "Solution.m"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]!=3,Print["Expected SOLUTION_DIRECTORY REQUEST.wl REPORT.wxf"];Exit[2]];
-request=Get[args[[2]]];
+request=FeynFacetRecords`ReadRecord[args[[2]]];
 data=FeynFacetSolution`ReadMasterIntegralSolution[args[[1]]];
 point=request["Point"];precision=Lookup[request,"WorkingPrecision",90];
 goal=Lookup[request,"AccuracyGoal",30];seriesOrder=Lookup[request,"SeriesOrder",70];

@@ -112,6 +112,9 @@ CreatePartonicResultFromProfileCoefficients[bulk_Association,profiles_Associatio
  finite[vector_,i_,high_]:=Module[{lo,known,stored,lower},
   stored=vector["StoredOrderRanges"][[i]];known=vector["KnownThroughOrders"][[i]];
   lower=vector["LaurentLowerBounds"][[i]];
+  If[lower=!=Infinity&&First[stored]>lower,
+   projectedEndpointFail["MissingLowerLaurentProfileCoefficients",
+    <|"Row"->i,"StoredFromOrder"->First[stored],"LaurentLowerBound"->lower|>]];
   lo=If[lower===Infinity,Min[0,known],Max[First[stored],lower]];
   If[!IntegerQ[known]||known<high||!IntegerQ[lo],
    projectedEndpointFail["SufficientFiniteProfileVectorOrdersRequired"]];

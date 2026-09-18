@@ -6,7 +6,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],2];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=3,Print["Expected RELATION_REQUEST.wl MATCH.wxf OUTPUT.wxf"];Exit[2]];
-read[path_]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 file=ExpandFileName[args[[3]]];
 If[ToLowerCase[FileExtension[file]]=!="wxf",Print["Output must have .wxf extension"];Exit[2]];
 request=read[ExpandFileName[args[[1]]]];match=read[ExpandFileName[args[[2]]]];

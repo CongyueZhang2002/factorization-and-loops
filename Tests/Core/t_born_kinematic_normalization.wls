@@ -21,12 +21,12 @@ FTTest`FTAssert["unknown branches are left untouched",
  FeynFacet`Private`expandPositiveMonomialPowers[Sqrt[ba bb],True]===Sqrt[ba bb]];
 FTTest`FTAssert["two negative factors do not split onto wrong principal branches",
  FeynFacet`Private`expandPositiveMonomialPowers[Sqrt[ba bb],ba<0&&bb<0]===Sqrt[ba bb]];
-bornProject=FeynFacet`ReadProjectCard[root<>"/Projects/ppHX_UU_NNLO"];
-bornRequest=FeynFacet`ProjectAssemblyRequest[bornProject,"u-ubar_g-g","Born"];
+bornProject=FeynFacet`ReadProjectCard[root<>"/Projects/ppHX_UU"];
+bornRequest=FeynFacet`ProjectAssemblyRequest[bornProject,"u-ub_g-g","Born"];
 FTTest`FTAssert["Born request inherits the declared color identities",
  bornRequest["ColorRules"]===bornProject["ColorRules"]];
 {bornSeconds,bornFresh}=AbsoluteTiming[FeynFacet`ConstructBornResult[
- FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU_NNLO/LO/u-ubar_g-g","Born"],
+ FeynFacet`ReadProcessCard[root<>"/Projects/ppHX_UU/Raw/LO/u-ub_g-g","Born"],
  Join[bornRequest,<|"EpsilonRange"->{0,1},"BornCouplingPower"->2|>]]];
 FTTest`FTAssert["observed-gluon Born has no PDF fraction or reference-coordinate dependence through epsilon one",
  AssociationQ[bornFresh]&&FreeQ[bornFresh["Coefficients"],xa|xb|zh|_SeriesData|$Aborted|$Failed]];
@@ -34,7 +34,7 @@ bornColor=FeynCalc`CA;
 bornExpected=-(bornColor^2-1)(1-2v+2v^2)*
  (bornColor^2-1-2bornColor^2 v+2bornColor^2 v^2)*
  \[Alpha]s^2/(2bornColor^3 s^2(v-1)v^2);
-FTTest`FTAssert["qqbar to gg Born retains its exact invariant normalization",
+FTTest`FTAssert["qqb to gg Born retains its exact invariant normalization",
  AssociationQ[bornFresh]&&Factor[bornFresh["Coefficients"][0]["DeltaCoefficient"]-bornExpected]===0];
 Print["BORN_NORMALIZATION_SECONDS ",bornSeconds];
 FTTest`FTReport[];

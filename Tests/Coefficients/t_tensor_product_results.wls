@@ -45,4 +45,18 @@ tpMapped=FeynFacet`Private`partonicMap[Function[FeynFacet`Private`x,FeynFacet`Pr
  <|"DeltaCoefficient"->0,"PlusCoefficients"-><|0->2|>,"RegularCoefficient"->3|>];
 FTTest`FTAssert["named pure functions keep their parameters during recursive coefficient mapping",
  tpMapped===<|"DeltaCoefficient"->1,"PlusCoefficients"-><|0->3|>,"RegularCoefficient"->4|>];
+tpDelta=FeynFacet`EndpointDeltaDerivative[tpr,0,1];
+tpPlus=FeynFacet`EndpointPlusDistribution[tpr,-1,0,1,1];
+tpCancellation=(tpa tpDelta-tpa tpr tpDelta+tpb tpPlus-tpb tpr tpPlus+Log[1-tpr])/(1-tpr);
+tpCancellationExpansion=Join[tpExpansion,<|"LaurentLowerBound"->0,"Coefficients"-><|0->tpCancellation|>|>];
+tpCancellationResult=FeynFacet`CreatePartonicResultFromEndpointExpansion[tpCancellationExpansion,tpMeta];
+FTTest`FTAssert["removable common denominators do not obstruct already projected delta and plus coefficients",
+ AssociationQ[tpCancellationResult]&&
+ tpCancellationResult["Coefficients"][0]["RegularCoefficient"]["DeltaCoefficient"]===tpa&&
+ tpCancellationResult["Coefficients"][0]["RegularCoefficient"]["PlusCoefficients"][0]===tpb&&
+ Factor[tpCancellationResult["Coefficients"][0]["RegularCoefficient"]["RegularCoefficient"]-Log[tpz]/tpz]===0];
+tpUnprojected=Join[tpExpansion,<|"LaurentLowerBound"->0,"Coefficients"-><|0->tpr tpPlus|>|>];
+FTTest`FTAssert["algebraic normalization still rejects a genuinely normal-variable-dependent distribution coefficient",
+ MatchQ[FeynFacet`CreatePartonicResultFromEndpointExpansion[tpUnprojected,tpMeta],
+  Failure["EndpointCoefficientsMustBeProjected",_Association]]];
 FTTest`FTReport[];

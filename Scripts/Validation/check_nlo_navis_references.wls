@@ -1,29 +1,34 @@
 #!/usr/bin/env wolframscript
-(* Full finite NNLO-campaign NLO scattering comparisons with public Navis.
+Print["FEYNFACET DRIVER ENTERED"];
+(* Full finite NLO scattering comparisons with public Navis.
    Reference expressions remain external validation inputs. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];args=Rest[$ScriptCommandLine];
-If[Length[args]=!=2,Print["Usage: check_nlo_navis_references.wls UU_PROJECT LL_PROJECT"];Exit[2]];
+If[Length[args]<2,Print["Usage: check_nlo_navis_references.wls UU_PROJECT LL_PROJECT [CHANNEL ...]"];Exit[2]];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-projects=AssociationThread[{"UU","LL"},FeynFacet`ReadProjectCard[root<>"/Projects/"<>#]&/@args];
+projects=AssociationThread[{"UU","LL"},FeynFacet`ReadProjectCard[root<>"/Projects/"<>#]&/@Take[args,2]];
 If[!AllTrue[Values[projects],AssociationQ],Print[projects];Exit[1]];
-channels=<|"qqp-qqp"->1,"qqbar-qpqpbar"->5,"qg-qg"->13,"u-g_g-u"->14|>;
-referencePath=projects["LL"]["Directory"]<>"/NLO/qg-qg/Results/Validation/Navis_points.json";
+channels=<|"qqp-qqp"->1,"qqb-qpqpb"->5,"qg-qg"->13,"u-g_g-u"->14|>;
+If[Length[args]>2,
+ If[Complement[Drop[args,2],Keys[channels]]=!={}||!DuplicateFreeQ[Drop[args,2]],
+  Print["Unsupported or duplicate channel selection."];Exit[2]];
+ channels=KeyTake[channels,Drop[args,2]]];
+referencePath=projects["LL"]["Directory"]<>"/Results/NLO/"<>First[Keys[channels]]<>"/Validation/Navis_points.json";
 proc=RunProcess[{"python3",root<>"/Tests/Support/Navis/evaluate_reference.py",
  root<>"/External/References/ppHX_NLO",referencePath}];
 If[proc["ExitCode"]=!=0||!StringContainsQ[proc["StandardOutput"],"NAVIS_REFERENCE_POINTS 40 COEFFICIENTS 320"],Print[proc];Exit[1]];
 reference=Import[referencePath,"RawJSON"];passed=0;failed=0;reports={};
 vector[r_]:={r["DeltaCoefficient"],Lookup[r["PlusCoefficients"],0,0],Lookup[r["PlusCoefficients"],1,0],r["RegularCoefficient"]};
 Do[
- project=projects[pol];directory=project["Directory"]<>"/NLO/"<>channel;
+ project=projects[pol];directory=project["Directory"]<>"/Results/NLO/"<>channel;
  polarization=<|"Incoming"->If[pol==="UU",{"U","U"},{"L","L"}],"Observed"->"U"|>;
- result=FeynFacet`ReadPartonicResult[directory<>"/Results/Result.wl",
+ result=FeynFacet`ReadPartonicResult[directory<>"/Results.wl",
   <|"Order"->"NLO","Contribution"->"Total","Polarization"->polarization,"EpsilonRange"->{0,0}|>];
  If[!AssociationQ[result],Print[result];Exit[1]];
  physical=result["PhysicalChannel"];inc=physical["Incoming"];obs=physical["Observed"];j=channels[channel];
  eligible=Switch[j,
   1,MatchQ[inc,{{"q",_},{"q",_}}]&&inc[[1,2]]=!=inc[[2,2]]&&obs===inc[[1]],
-  5,MatchQ[inc,{{"q",_},{"qbar",_}}]&&inc[[1,2]]===inc[[2,2]]&&MatchQ[obs,{"q",_}]&&Last[obs]=!=inc[[1,2]],
+  5,MatchQ[inc,{{"q",_},{"qb",_}}]&&inc[[1,2]]===inc[[2,2]]&&MatchQ[obs,{"q",_}]&&Last[obs]=!=inc[[1,2]],
   13,MatchQ[inc,{{"q",_},"g"}]&&obs===inc[[1]],
   14,MatchQ[inc,{{"q",_},"g"}]&&obs==="g"];
  If[!TrueQ[eligible],Print["Reference physical channel mismatch: ",channel];Exit[2]];
@@ -57,7 +62,7 @@ Do[
   "PhysicalMultiplier"->multiplier,"ReferenceSource"->reference["Source"],
   "NormalizationSource"->reference["NormalizationSource"],"Schemes"->reference["Schemes"],
   "SecondsExcludingLoading"->AbsoluteTime[]-started|>;
- FeynFacet`Private`projectWrite[report,directory<>"/Results/Validation/NavisReferences.wl"];
+ FeynFacet`Private`projectWrite[report,directory<>"/Validation/NavisReferences.wl"];
  AppendTo[reports,KeyDrop[report,{"Checks"}]];
  Print[report["Status"]," ",pol,"/",channel," ",report["Passed"],"/",Length[checks],
   " max error=",Max[Lookup[checks,"RelativeError"]]," seconds=",report["SecondsExcludingLoading"]],

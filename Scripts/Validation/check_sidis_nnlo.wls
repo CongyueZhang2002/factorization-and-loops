@@ -3,12 +3,19 @@ Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];Get[root<>"/FeynFacet/Solution.m"];$PrePrint=.;
-args=Rest[$ScriptCommandLine];If[Length[args]<1,Print["Usage: check_sidis_nnlo.wls PROJECT [POINT_INDEX]"];Exit[2]];
+args=Rest[$ScriptCommandLine];If[Length[args]<1,Print["Usage: check_sidis_nnlo.wls PROJECT [POINT_INDEX] [CHANNEL ...]"];Exit[2]];
 projectName=First[args];pointIndex=If[Length[args]>1,ToExpression[args[[2]]],1];
 project=FeynFacet`ReadProjectCard[root<>"/Projects/"<>projectName];pol=First[project["Polarization"]["Incoming"]]==="L";
-validation=project["Directory"]<>"/NNLO/q-q/Results/Validation";
+channels=If[Length[args]>2,Drop[args,2],project["Orders"]["NNLO"]];
+If[!DuplicateFreeQ[channels]||!SubsetQ[project["Orders"]["NNLO"],channels],Print["Declared distinct NNLO channels required"];Exit[2]];
+reportStem="NNLOComparisonPoint"<>ToString[pointIndex]<>
+ If[channels===project["Orders"]["NNLO"],"","-"<>StringRiffle[channels,"_"]];
+validation=project["Directory"]<>"/Results/NNLO/q-q/Validation";
 refFile=validation<>"/ReferenceNNLOCoefficients.wl";
-If[!FileExistsQ[refFile],Print["Translated independent NNLO reference required"];Exit[1]];
+referenceSource=root<>"/External/References/SIDIS/"<>
+ If[pol,"ancillary_LL_2404.08597v3.inc","ancillary_UU_2401.16281v2.inc"];
+conversion=RunProcess[{"python3",root<>"/Tests/Support/sidis_form_reference.py",referenceSource,refFile,"--order","2"}];
+If[conversion["ExitCode"]=!=0,Print["Independent reference translation failed ",conversion["StandardError"]];Exit[1]];
 reference=FeynFacet`FamilyArtifactRead[refFile];
 points={{5/11,3/13},{4/5,2/3},{3/13,5/11},{2/3,4/5},{5/11,3/13}};
 If[!IntegerQ[pointIndex]||!Between[pointIndex,{1,Length[points]}],Exit[2]];
@@ -39,18 +46,19 @@ objects=Flatten[stateObjects];states={"Delta",{"Plus",0},{"Plus",1},{"Plus",2},{
 expectedExpression[channel_,component_]:=Module[{prefix,key,sumCharges=nU eU^2+nD eD^2,sign},
  prefix=If[pol,"DC2","C2"<>If[component===1,"T","L"]];
  Switch[channel,
- "q-q"|"qbar-qbar",eU^2 reference[prefix<>"Q2QNS"]+sumCharges reference[prefix<>"Q2QPS"],
- "q-qbar"|"qbar-q",eU^2 reference[prefix<>"Q2QB"],
- "q-g"|"qbar-g",eU^2 reference[prefix<>"Q2G"],
- "g-q"|"g-qbar",eU^2 reference[prefix<>"G2Q"],
+ "q-q"|"qb-qb",eU^2 reference[prefix<>"Q2QNS"]+sumCharges reference[prefix<>"Q2QPS"],
+ "q-qb"|"qb-q",eU^2 reference[prefix<>"Q2QB"],
+ "q-g"|"qb-g",eU^2 reference[prefix<>"Q2G"],
+ "g-q"|"g-qb",eU^2 reference[prefix<>"G2Q"],
  "g-g",sumCharges reference[prefix<>"G2G"],
- _,sign=If[MemberQ[{"q-qp","qbar-qpbar"},channel],1,-1];
+ _,sign=If[MemberQ[{"q-qp","qb-qpb"},channel],1,-1];
   eU^2 reference[prefix<>"Q2QP1"]+eD^2 reference[prefix<>"Q2QP2"]+sign eU eD reference[prefix<>"Q2QP3"]]
 ];
 Do[
- result=FeynFacet`ReadPartonicResult[project["Directory"]<>"/NNLO/"<>channel<>"/Results/CombinedLaurentResult.wl"];
- If[!AssociationQ[result],Print["Missing combined result ",channel];Exit[1]];
- finite=Association[walk[result["Coefficients"][0],{channel},2]];
+ result=FeynFacet`ReadPartonicResult[project["Directory"]<>"/Results/NNLO/"<>channel<>"/CombinedLaurentResult.wl"];
+ finalResult=FeynFacet`ReadPartonicResult[project["Directory"]<>"/Results/NNLO/"<>channel<>"/Results.wl"];
+ If[!AssociationQ[result]||!AssociationQ[finalResult],Print["Missing current combined or finite result ",channel];Exit[1]];
+ finite=Association[walk[finalResult["Coefficients"][0],{channel},2]];
  KeyValueMap[AssociateTo[actual,#1->(2Pi)^2 #2]&,finite];
  Do[KeyValueMap[AssociateTo[pole,Prepend[#1,k]->(2Pi)^2 #2]&,Association[walk[result["Coefficients"][k],{channel},2]]],
  {k,Select[Keys[result["Coefficients"]],#<0&]}];
@@ -66,7 +74,7 @@ Do[
  AssociateTo[expected,Append[Prepend[path,channel],i]->coefficient],
  {term,terms}],
  {i,n}],
-{channel,project["Orders"]["NNLO"]}];
+{channel,channels}];
 keys=Union[Keys[actual],Keys[expected]];
 a=Lookup[actual,keys,0];b=Lookup[expected,keys,0]//.refRules;
 Print["EVALUATING POINT ",pointIndex," FINITE STRATA ",Length[keys]," POLE STRATA ",Length[pole],
@@ -80,7 +88,7 @@ If[!VectorQ[refNumeric,NumericQ],Print["REFERENCE UNRESOLVED ",DeleteDuplicates[
 errors=MapThread[Abs[#1-#2]/Max[1,Abs[#1],Abs[#2]]&,{numerical[[1]],refNumeric}];
 poleErrors=Abs[numerical[[2]]];
 failed=Pick[keys,#>10^-30&/@errors,True];poleFailed=Pick[Keys[pole],#>10^-30&/@poleErrors,True];
-out=<|"Point"->point,"ParameterRules"->rules,"WorkingPrecision"->wp,"EvaluationSeconds"->seconds,
+out=<|"Channels"->channels,"Point"->point,"ParameterRules"->rules,"WorkingPrecision"->wp,"EvaluationSeconds"->seconds,
  "FiniteCoefficientCount"->Length[keys],"PoleCoefficientCount"->Length[pole],
  "MaximumFiniteRelativeError"->Max[errors],"MaximumPoleAbsoluteResidual"->Max[poleErrors],
  "FailedFiniteCoefficients"->failed,"FailedPoleCoefficients"->poleFailed,
@@ -88,7 +96,7 @@ out=<|"Point"->point,"ParameterRules"->rules,"WorkingPrecision"->wp,"EvaluationS
  "PoleValues"->AssociationThread[Keys[pole],numerical[[2]]],
  "ReferenceFiles"->{refFile,root<>"/External/References/SIDIS/SingleValued_2505.18109v2/README.md"},
  "Status"->If[failed==={}&&poleFailed==={},"Passed","Failed"]|>;
-FeynFacet`FamilyArtifactWrite[out,validation<>"/NNLOComparisonPoint"<>ToString[pointIndex]<>".wl",Compression->Automatic];
+FeynFacet`FamilyArtifactWrite[out,validation<>"/"<>reportStem<>".wl",Compression->Automatic];
 Print["NNLO COMPARISON ",out["Status"]," FINITE FAILED ",Length[failed],"/",Length[keys]," POLES FAILED ",Length[poleFailed],"/",Length[pole],
  " MAX ERR ",N[Max[errors],6]," MAX POLE ",N[Max[poleErrors],6]," SECONDS ",seconds];
 Print["FAILED FINITE ",Take[failed,UpTo[15]]," FAILED POLES ",Take[poleFailed,UpTo[15]]];

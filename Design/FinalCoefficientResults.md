@@ -6,7 +6,7 @@ databases are disposable working data. Failed or unfinished runs keep their
 restart data.
 
 The current main NNLO UU result is:
-ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/MasterIntegralCoefficients.wxf.
+Projects/ppHX_UU/NNLO/qqp-qqp/Results/DoubleReal/UU_08_10_canonical/MasterIntegralCoefficients.wxf.
 
 It contains all 347 master coefficients: 345 exact expressions and two Laurent
 expansions, both through epsilon^5. The latter start at epsilon^-4 and epsilon^-2.

@@ -4,7 +4,7 @@ root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[FileNameJoin[{root,"FeynFacet", "Solution.m"}]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]!=2,Print["Expected REQUESTS.wl OUTPUT.wxf"];Exit[2]];
-request=If[FileExtension[args[[1]]]==="wxf",Import[args[[1]],"WXF"],Get[args[[1]]]];
+request=If[FileExtension[args[[1]]]==="wxf",Import[args[[1]],"WXF"],FeynFacetRecords`ReadRecord[args[[1]]]];
 result=FeynFacetSolution`EvaluateMasterIntegralSolutionBatch[request["Requests"],
  Sequence@@Lookup[request,"BatchOptions",{}]];
 output=ExpandFileName[args[[2]]];

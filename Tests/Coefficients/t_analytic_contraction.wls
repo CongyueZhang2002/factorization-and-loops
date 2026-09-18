@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];$HistoryLength=0;$MaxExtraPrecision=50;
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;passed=0;failed=0;
 check[label_,test_]:=If[TrueQ[test],passed++;Print["PASS ",label],failed++;Print["FAIL ",label]];
@@ -28,6 +29,11 @@ explicitAudit=FeynFacet`WithEpsilonRemainderChecks[
 check["sparse rows contract a matched explicit solution with the same order audit",
  AssociationQ[explicitAudit["Result"]]&&explicitAudit["Result"]["Rows"]["channel"]["Coefficients"][0]===b1&&
  explicitAudit["EpsilonRemainderAudit"]["Status"]==="Passed"];
+complete=FeynFacet`ContractExplicitMasterSolution[explicitRows,explicitSolution,
+ <|"EpsilonOrderRange"->{0,0},"RetainLowerLaurentOrders"->True|>];
+check["bulk assembly can retain every lower pole without additional upper master orders",
+ complete["EpsilonOrderRange"]==={-2,0}&&complete["Rows"]["channel"]["Coefficients"][-2]===bm1&&
+ complete["LaurentLowerBounds"]["channel"]===-2];
 largeMultiplier=(Sum[(ax+az)^j epTest^j,{j,0,30}])Gamma[1-epTest]^2/epTest^2;
 largeAudit=FeynFacet`WithEpsilonRemainderChecks[
  FeynFacet`Private`epsilonAuditMultiplier[largeMultiplier,epTest,0,2,0,"LargeRational",master]];

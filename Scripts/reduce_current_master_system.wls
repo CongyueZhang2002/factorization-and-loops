@@ -7,18 +7,18 @@ arguments=Rest[$ScriptCommandLine];
 If[Length[arguments]=!=4,
  Print["Usage: reduce_current_master_system.wls PROJECT ORDER CHANNEL CONTRIBUTION"];Exit[2]];
 {projectName,orderName,channelName,contributionName}=arguments;
-directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
+directory=root<>"/Projects/"<>projectName<>"/Raw/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contributionName];
 If[!AssociationQ[card]||!AssociationQ[Lookup[card,"Components",None]],
  Print["A contribution with explicit components is required"];Exit[1]];
 components=Keys[card["Components"]];
-paths=AssociationMap[directory<>"/Results/"<>contributionName<>"/"<>#<>"/DifferentialSystem.wl"&,components];
+paths=AssociationMap[card["WorkDirectory"]<>"/Components/"<>#<>"/Work/DifferentialSystem.wl"&,components];
 systems=FeynFacet`FamilyArtifactRead/@paths;
 If[!AllTrue[Values[systems],AssociationQ[#]&&Lookup[#,"DataType",None]==="CutMasterDifferentialSystem"&],
  Print["Every component must have a completed differential system"];Exit[1]];
 families=DeleteDuplicates[Flatten[Lookup[Values[systems],"Families"],1]];
 masters=DeleteDuplicates[Flatten[Lookup[Values[systems],"MasterIntegralBasis"],1]];
-output=directory<>"/Results/"<>contributionName<>"/MasterIntegrals";
+output=card["WorkDirectory"]<>"/MasterIntegrals";
 If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];
 {equivalenceSeconds,equivalences}=AbsoluteTiming[
  FeynFacet`FindCutIntegralEquivalences[masters,families,"Normalization"->"Explicit typed phase-space definitions"]];

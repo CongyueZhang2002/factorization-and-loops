@@ -177,8 +177,7 @@ FTAssert["D5a KallenQ4a Subst is the derived (v(s,t), w(s,t))",
   (First /@ kq4a["SourceVariableSubstitution"]) === {vv, ww} &&
   zeroQ[Last[kq4a["SourceVariableSubstitution"][[1]]] - derivedV] &&
   zeroQ[Last[kq4a["SourceVariableSubstitution"][[2]]] - derivedW]];
-FTAssert["D5b KallenQ4a root images are the derived sqrt(lambda1), \
-sqrt(4v+w^2)",
+FTAssert["D5b KallenQ4a root images are the derived sqrt(lambda1), sqrt(4v+w^2)",
   Length[kq4a["RationalizedSquareRoots"]] === 2 &&
   zeroQ[kq4a["RationalizedSquareRoots"][[1]]["RationalRoot"] -
     derivedRoot1] &&
@@ -463,12 +462,12 @@ FTAssert["S7 KallenQ4a's pulled-back squares are carried at 16 and 4",
    state is 76 MiB of run data and stays out of git; this block reads its
    24x24 LEADING TRUNCATION, a tracked few hundred KiB with a SHA-256
    provenance manifest, so a fresh clone runs it. *)
-fixtureDirectory = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
+fixtureDirectory = FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "FrozenTestFixtures_2026-08-25"}];
 stateFile = FileNameJoin[{fixtureDirectory, "cf259_frozen_rows24.wl"}];
 manifestFile = FileNameJoin[{fixtureDirectory, "SHA256SUMS"}];
-familyChartFile = FileNameJoin[{root, "Projects","ppHX_UU_NNLO","NNLO","qqp-qqp","Results","DoubleReal",
+familyChartFile = FileNameJoin[{root, "Projects","ppHX_UU","NNLO","qqp-qqp","Results","DoubleReal",
   "UU_08_10_canonical", "TransportFamilyCharts.wl"}];
 If[! (FileExistsQ[stateFile] && FileExistsQ[familyChartFile] &&
     FileExistsQ[manifestFile]),
@@ -480,23 +479,20 @@ If[! (FileExistsQ[stateFile] && FileExistsQ[familyChartFile] &&
     FTAssert["T1 the campaign's family charts register",
       Lookup[registration, "Status", None] === "FamilyChartsRegistered"];
     frame = FeynFacet`FamilyRootData["CF259"];
-    FTAssert["T2 CF259's registered frame is the exact three-root \
-multiquadratic identity frame",
+    FTAssert["T2 CF259's registered frame is the exact three-root multiquadratic identity frame",
       AssociationQ[frame] && Lookup[frame, "Status", None] === "ExactFrame" &&
       Length[Lookup[frame, "Roots", {}]] === 3];
     state = FeynFacet`FamilyArtifactRead[stateFile];
     (* MEASURED on the frozen fixture, 2026-08-25.  A statement about the
        SHAPE of the fixed artifact, which no campaign run can move -- not
        about the sector a run had reached when the file was written. *)
-    FTAssert["T3 the reduced CF259 fixture reads back with the schema this \
-block consumes: the 24x24 two-variable leading truncation in 16 sector ranges",
+    FTAssert["T3 the reduced CF259 fixture reads back with the schema this block consumes: the 24x24 two-variable leading truncation in 16 sector ranges",
       AssociationQ[state] &&
       Dimensions[Lookup[state, "A", {}]] === {2, 24, 24} &&
       Dimensions[Lookup[state, "OriginalA", {}]] === {2, 24, 24} &&
       Length[Lookup[state, "Ranges", {}]] === 16 &&
       StringQ[Lookup[state, "ChartFingerprint", None]]];
-    FTAssert["T3b the reduction carries its own provenance and matches the \
-directory's SHA-256 manifest",
+    FTAssert["T3b the reduction carries its own provenance and matches the directory's SHA-256 manifest",
       Lookup[state, "Schema", None] === "FeynFacetFrozenTestFixture" &&
       Lookup[state, "Family", None] === "CF259" &&
       Lookup[state, "ReducedRows", None] === 24 &&
@@ -509,13 +505,11 @@ directory's SHA-256 manifest",
           StringContainsQ[#, "cf259_frozen_rows24.wl"] &];
         entry = If[lines === {}, None, First[StringSplit[First[lines]]]];
         StringQ[entry] && entry === FileHash[stateFile, "SHA256", "HexString"]]];
-    FTAssert["T4 the state was produced in the frame under test \
-(chart fingerprint)",
+    FTAssert["T4 the state was produced in the frame under test (chart fingerprint)",
       Hash[KeyTake[frame, {"Name", "Variables", "Subst", "Roots", "Parents"}],
         "SHA256", "HexString"] === state["ChartFingerprint"]];
     rowBound = Last[state["Ranges"][[16]]];
-    FTAssert["T4b rows 1..16 of the frozen fixture is the 24x24 leading \
-truncation (row bound read from the state's own \"Ranges\")",
+    FTAssert["T4b rows 1..16 of the frozen fixture is the 24x24 leading truncation (row bound read from the state's own \"Ranges\")",
       rowBound === 24];
     truncation = {state["A"][[1, 1 ;; rowBound, 1 ;; rowBound]],
       state["A"][[2, 1 ;; rowBound, 1 ;; rowBound]]};
@@ -524,15 +518,13 @@ truncation (row bound read from the state's own \"Ranges\")",
       frame, {xx, yy}];
     classification = FeynFacet`Private`transportChartRootIndices[
       truncation, allRoots];
-    FTAssert["T5 the truncation carries frame roots {1, 3} and no \
-undeclared radical",
+    FTAssert["T5 the truncation carries frame roots {1, 3} and no undeclared radical",
       classification["RootIndices"] === {1, 3} &&
       classification["UnclassifiedRadicalBases"] === {}];
     rootSquares = Lookup[allRoots[[classification["RootIndices"]]],
       "QuadraticRadicand", {}];
     chart = FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[rootSquares, {xx, yy}];
-    FTAssert["T6 that root pair now resolves to KallenQ4a (it was \
-Missing[\"RegulatorFactorizationUnsuccessful\"], which is what stopped the solve)",
+    FTAssert["T6 that root pair now resolves to KallenQ4a (it was Missing[\"RegulatorFactorizationUnsuccessful\"], which is what stopped the solve)",
       AssociationQ[chart] && chart["Name"] === "KallenQ4a"];
     {seconds, factor} = AbsoluteTiming[
       FeynFacet`FactorFamilyRegulatorDependenceInCoefficientPresentation[
@@ -553,12 +545,10 @@ Missing[\"RegulatorFactorizationUnsuccessful\"], which is what stopped the solve
        of the frozen matrix, not a run position.  It is asserted as the
        exact status, and T8 verifies the mathematical claim BEHIND that
        status independently of the function's own verdict. *)
-    FTAssert["T7 the call gets past the RegulatorFactorizationUnsuccessful stop, with the \
-measured status AlreadyEpsFactored on the frozen truncation",
+    FTAssert["T7 the call gets past the RegulatorFactorizationUnsuccessful stop, with the measured status AlreadyEpsFactored on the frozen truncation",
       AssociationQ[factor] && status =!= "RegulatorFactorizationUnsuccessful" &&
       status === "AlreadyEpsFactored"];
-    FTAssert["T8 the reason is exact: the frozen rows-1..16 truncation is \
-itself eps-factored in the frame, in both variables",
+    FTAssert["T8 the reason is exact: the frozen rows-1..16 truncation is itself eps-factored in the frame, in both variables",
       FeynFacet`Private`familyRegulatorFactoredQ[truncation[[1]], ee] &&
       FeynFacet`Private`familyRegulatorFactoredQ[truncation[[2]], ee]];
     (* The PRE-factorization counterpart lives in the same fixture as

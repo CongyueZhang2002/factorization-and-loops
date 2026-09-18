@@ -4,7 +4,7 @@ Print["FEYNFACET DRIVER ENTERED"];
 
    Usage:
      wolframscript -file Scripts/stream_to_coefficients.wls \
-       <processDirectory> <canonicalResultName> [threads] [kernels]
+       <rawChannelDirectory> <canonicalResultName> [threads] [kernels]
 
    The materialization uses KiraStreamResult, which loads the whole
    reduction into memory - appropriate for small and medium sets; the
@@ -17,7 +17,7 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 arguments = Rest[$ScriptCommandLine];
 If[Length[arguments] < 2,
-  Print["Usage: stream_to_coefficients.wls <processDirectory> <canonicalResultName> [threads] [kernels]"];
+  Print["Usage: stream_to_coefficients.wls <rawChannelDirectory> <canonicalResultName> [threads] [kernels]"];
   Exit[1]
 ];
 processDirectory = FileNameJoin[{root, arguments[[1]]}];
@@ -25,7 +25,7 @@ resultName = arguments[[2]];
 threads = If[Length[arguments] >= 3, ToExpression[arguments[[3]]], 8];
 kernels = If[Length[arguments] >= 4, ToExpression[arguments[[4]]], 6];
 
-resultDirectory = FileNameJoin[{processDirectory, "Results", resultName}];
+resultDirectory = FileNameJoin[{processDirectory, resultName}];
 streamDirectory = FileNameJoin[{resultDirectory, "KiraStream"}];
 kiraFile = FileNameJoin[{resultDirectory, "KiraResult.wl"}];
 

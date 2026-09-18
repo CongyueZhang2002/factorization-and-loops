@@ -1,4 +1,5 @@
 #!/usr/bin/env wolframscript
+Get[DirectoryName[ExpandFileName[$InputFileName],3]<>"/FeynFacet/Core/RecordFormat.wl"];
 (* Recompute an independent reference using another upstream solver backend.
    A copied symbolic AMFlow workspace may be supplied; no production DE or
    production boundary value enters the reference computation. *)
@@ -8,7 +9,7 @@ args=Rest[$ScriptCommandLine];
 If[!MemberQ[{4,5},Length[args]],Print["Expected ORIGINAL_REQUEST.wl ORIGINAL_REFERENCE.wxf NATIVE_AMFLOW_DIRECTORY OUTPUT_DIRECTORY [FreshBoundaryOrders|SkipTargetReduction|NoMaximalCut]"];Exit[2]];
 folder=ExpandFileName[args[[4]]];If[!DirectoryQ[folder],CreateDirectory[folder,CreateIntermediateDirectories->True]];
 reusedSymbolicWorkspace=DirectoryQ[folder<>"/AMFlowWork"]&&FileNames["diffeq",folder<>"/AMFlowWork",Infinity]=!={};
-request=Get[args[[1]]];
+request=FeynFacetRecords`ReadRecord[args[[1]]];
 If[ExpandFileName[request["WorkingDirectory"]]===folder<>"/AMFlowWork",Print["Benchmark must use its own workspace"];Exit[2]];
 freshBoundaryOrders=Length[args]===5&&args[[5]]==="FreshBoundaryOrders";
 oldBoundaryOrders=If[freshBoundaryOrders,Association[(#->Get[#])&/@FileNames["border",folder<>"/AMFlowWork",Infinity]],<||>];
@@ -25,7 +26,7 @@ cacheIndex=<||>;
 If[Length[args]===5&&args[[5]]==="CachedSystems",
  cacheIndex=FeynFacetAMFlowRuntime`Private`indexCompletedAMFlowSystems[folder<>"/AMFlowWork"];
  Print["INDEXED ",cacheIndex];request["ReuseCompletedAMFlowSystems"]=True];
-Block[{$ContextPath={"System`"}},Put[request,folder<>"/request.wl"]];
+FeynFacetRecords`WriteRecord[request,folder<>"/request.wl"];
 initialLinks=Links[];
 execution=FeynFacet`Private`runIsolatedWolframScript[root<>"/Scripts/Transport/evaluate_masters_with_amflow.wls",
  {folder<>"/request.wl",folder<>"/reference.wxf"},folder<>"/amflow.log"];

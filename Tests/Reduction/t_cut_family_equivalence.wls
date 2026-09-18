@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
@@ -76,4 +77,21 @@ FTTest`FTAssert["direct basis changes use the same exact polynomial and cut-deri
  KeySort[feDirect["IntegralImages"][feB2]]===KeySort[feExpected2]];
 FTTest`FTAssert["an auxiliary-basis change cannot alter a positive ordinary prescription",
  FailureQ[FeynFacet`MapIntegralFamilyCoordinates[{feB1},feDifferent,feA]]];
-FTTest`FTReport[];
+
+feSystem=<|"KinematicVariables"->{feX},"DimensionalRegulator"->feEpsilon,
+ "DimensionRule"->D->4-2feEpsilon,"MasterIntegralBasis"->{feA0,feB0},
+ "Families"->{feA,feDifferent},"ConnectionMatrices"->{ConstantArray[0,{2,2}]},
+ "Reduction"-><|"Masters"->{feA0,feB0},"Rules"->{},"Families"->{feA,feDifferent}|>|>;
+feStrictSystem=FeynFacet`ReduceEquivalentMasterIntegrals[feSystem,<||>];
+feCertifiedSystem=FeynFacet`ReduceEquivalentMasterIntegrals[feSystem,
+ <|"OrdinaryPrescriptionGeometry"-><|"ExternalKinematicConditions"->feS>0&&0<feX<1|>|>];
+FTTest`FTAssert["master preparation preserves prescriptions unless individual certification is requested",
+ AssociationQ[feStrictSystem]&&Length[feStrictSystem["MasterIntegralBasis"]]===2&&
+ AssociationQ[feCertifiedSystem]&&Length[feCertifiedSystem["MasterIntegralBasis"]]===1];
+FTTest`FTAssert["certified master reduction retains original definitions and generic scope",
+ AssociationQ[feCertifiedSystem]&&
+ feCertifiedSystem["IntegralEquivalences"]["OriginalIntegralDefinitions"]==={feA,feDifferent}&&
+ feCertifiedSystem["IntegralEquivalences"]["OrdinaryPrescriptionEqualityScope"]==="GenericKinematics"&&
+ feCertifiedSystem["ExternalEndpointUniformityEstablished"]===False];
+
+Print["AFFINE REGRESSION COMPLETE"];FTTest`FTReport[];

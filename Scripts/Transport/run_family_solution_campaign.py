@@ -91,7 +91,13 @@ def ensure_inputs(spec, output):
         raise ValueError("Existing campaign specification differs; use another output directory")
     source_dir = output / "source-inputs"
     source_dir.mkdir(parents=True, exist_ok=True)
-    for index, source in enumerate(input_files(spec)):
+    sources = []
+    for source in input_files(spec):
+        sources.append(source)
+        companion = Path(str(source) + ".meta.wxf")
+        if companion.is_file():
+            sources.append(str(companion))
+    for index, source in enumerate(sources):
         source = Path(source)
         if not source.is_file():
             raise ValueError(f"Missing source input: {source}")

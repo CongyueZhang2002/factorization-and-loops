@@ -7,10 +7,10 @@ arguments=Rest[$ScriptCommandLine];
 If[Length[arguments]=!=4,
  Print["Usage: prepare_current_differential_system.wls PROJECT ORDER CHANNEL CONTRIBUTION.COMPONENT"];Exit[2]];
 {projectName,orderName,channelName,contributionName}=arguments;
-directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
+directory=root<>"/Projects/"<>projectName<>"/Raw/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contributionName];
 If[!AssociationQ[card],Print[card];Exit[1]];
-outputDirectory=FileNameJoin[{card["Directory"],"Results",card["ContributionPath"]}]<>
+outputDirectory=card["WorkDirectory"]<>
  If[StringContainsQ[contributionName,"."],"","/MasterIntegrals"];
 input=FeynFacet`FamilyArtifactRead[outputDirectory<>"/DifferentialSystem.wl"];
 If[!AssociationQ[input]||!MemberQ[{"CutMasterDifferentialSystem","GlobalMasterDifferentialSystem"},Lookup[input,"DataType",None]],

@@ -12,7 +12,7 @@ from wolfram import ROOT, atomic_json, run_wolfram, select_cpus
 
 
 def run_project(project, points, cpus, cancel):
-    folder = ROOT / "Projects" / project / "NNLO/q-q/Results/Validation"
+    folder = ROOT / "Projects" / project / "Results/NNLO/q-q/Validation"
     outcomes = []
     for point in points:
         outcome = run_wolfram(ROOT / "Scripts/Validation/check_sidis_nnlo.wls",

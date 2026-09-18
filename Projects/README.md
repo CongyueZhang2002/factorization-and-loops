@@ -1,61 +1,51 @@
 # Calculation projects
 
-Start with [WORKFLOW.md](../WORKFLOW.md) for execution directions and
-[STATUS.md](../STATUS.md) for accepted results and current limits.
+Use [WORKFLOW.md](../WORKFLOW.md) and the [card contract](../Design/ProjectCardsAndResults.md).
 
 ```text
 Projects/PROJECT/
-  card.wl
-  LO/CHANNEL/Cards/Born.wl
-  LO/CHANNEL/Results/Result.wl
-  NLO/CHANNEL/Cards/{Real,Virtual,Counterterm}.wl
-  NLO/CHANNEL/Results/Result.wl
-  NNLO/CHANNEL/{Cards,Results,Kira}/...
+  Common-Card.wl
+  Raw/ORDER/CHANNEL/CONTRIBUTION/{Card.wl, Results.wl, Work/}
+  Results/ORDER/CHANNEL/{Result_Card.wl, Results.wl, RunReport.wl}
 ```
 
-Counterterm cards declare lower-order dependencies and required epsilon ranges.
-See [the card/result contract](../Design/ProjectCardsAndResults.md) for path
-resolution, inheritance and common result format. General algorithms belong
-in FeynFacet; reference coefficients are validation inputs, never production
-formulas.
+Physics project names identify process and polarization; orders belong inside Raw
+and Results. Antiquarks use qb/qpb (explicit flavors ub/db). The former NLO outputs and their archived copies have been deleted.
 
-## Project selection
+The [fresh regeneration campaign](../Reports/2026-09-16/NNLOImprovementsAndRegeneration.md) covers these declared NLO channels:
 
-The table inventories retained NLO Result.wl files on this installation.
-It is not by itself a verification report; use the selected project guide
-for the physical channel, polarization, reference availability and scope.
+| Project | NLO channels |
+|---|---|
+| [DrellYan_UU](DrellYan_UU/README.md) | g-q, g-qb, q-g, q-qb, qb-g, qb-q |
+| [SIDIS_LL](SIDIS_LL/README.md) | g-q, g-qb, q-g, q-q, qb-g, qb-qb |
+| [SIDIS_UU](SIDIS_UU/README.md) | g-q, g-qb, q-g, q-q, qb-g, qb-qb |
+| [ppHX_LL](ppHX_LL/README.md) | qg-qg, qqb-qpqpb, qqp-qqp, u-g_g-u |
+| [ppHX_LL_SpinTransfer](ppHX_LL_SpinTransfer/README.md) | qqp-qqp |
+| [ppHX_TT](ppHX_TT/README.md) | qqp-qqp |
+| [ppHX_TT_SpinTransfer](ppHX_TT_SpinTransfer/README.md) | qqp-qqp |
+| [ppHX_UU](ppHX_UU/README.md) | qg-qg, qqb-qpqpb, qqp-qqp, u-g_g-u |
 
-| Project | Polarization | Retained NLO result channels |
-|---|---|---|
-| [ppHX_UU_NNLO](ppHX_UU_NNLO/README.md) | Unpolarized | qg-qg, qqbar-qpqpbar, qqp-qqp, u-g_g-u |
-| [ppHX_LL_NLO](ppHX_LL_NLO/README.md) | Both incoming longitudinal | qg-qg, qqbar-qpqpbar, qqp-qqp, u-g_g-u |
-| [ppHX_TT_NLO](ppHX_TT_NLO/README.md) | Both incoming transverse | qqp-qqp |
-| [ppHX_LL_SpinTransfer_NLO](ppHX_LL_SpinTransfer_NLO/README.md) | Incoming A to observed quark, longitudinal | qqp-qqp |
-| [ppHX_TT_SpinTransfer_NLO](ppHX_TT_SpinTransfer_NLO/README.md) | Incoming A to observed quark, transverse | qqp-qqp |
-| [DrellYan_UU_NLO](DrellYan_UU_NLO/README.md) | Unpolarized | g-q, g-qbar, q-g, q-qbar, qbar-g, qbar-q |
-| [SIDIS_UU_NNLO](SIDIS_UU_NNLO/README.md) | Unpolarized | g-q, g-qbar, q-g, q-q, qbar-g, qbar-qbar |
-| [SIDIS_LL_NNLO](SIDIS_LL_NNLO/README.md) | Longitudinal; unpolarized FF | g-q, g-qbar, q-g, q-q, qbar-g, qbar-qbar |
+All prior NLO/NNLO output and saved masters were deleted on 16 September.
+The fresh campaign rebuilds NLO for all listed projects and SIDIS UU/LL NNLO,
+one project at a time. ppHX NNLO declarations remain, but that order is excluded
+from regeneration. Follow [STATUS.md](../STATUS.md) and the dated campaign report
+for actual completion; the older NNLO input trees no longer exist.
+All 29 fresh NLO channels are now complete; see the
+[one-page report](../Reports/2026-09-16/calculation_status.pdf) and
+[completion record](../Reports/2026-09-16/NLOCompletion.md). All timing cells are
+filled. SIDIS NNLO remains paused; the user requested stopping after NLO.
 
-## NNLO
+All real, virtual and counterterm raw results use the common partonic schema.
+References are validation inputs, never production formulas.
+Counterterms belong to their underlying perturbative source channel, and
+result cards select the needed OutputChannel across raw channel directories.
+For example Raw/NLO/qqp-qqp/Counter-PDFB can contribute to a qg-qg result.
 
-- [ppHX UU qq' -> qq' workflow](ppHX_UU_NNLO/NNLO/qqp-qqp/README.md):
-  current two-gluon double-real contribution with ghost subtraction,
-  explicit higher endpoint distributions and an executable replay map.
-  The remaining NNLO cuts and counterterms are outside that result.
-- [SIDIS UU](SIDIS_UU_NNLO/NNLO/README.md) and
-  [SIDIS LL](SIDIS_LL_NNLO/NNLO/README.md): 13 complete electromagnetic channels
-  each, including real/virtual, UV and PDF/FF terms and the LL finite
-  helicity-scheme conversion, with independent NNLO comparisons.
 
-Existing NNLO final-assembly replays reuse solved physical profiles. A fresh
-arbitrary-process NNLO calculation still needs supported integral, DE and
-physical-boundary specifications; do not interpret retained result presence
-as a universal one-card execution guarantee.
+Only physics projects belong in this directory. Status tables and accepted
+campaign reports live in ../Reports/YYYY-MM-DD/. One-off run scripts and old
+attempt logs are retained under ../Archive/Runs/.
 
-All current output stays with the owning project/order/channel. Git includes
-the 86 compact final Result.wl files (5,956,712 bytes in total, each below 1 MB)
-and the explicitly requested 76,125,796-byte ppHX double-real WXF result linked
-above. Intermediate reconstruction, reduction and solution files remain local.
-These sizes describe the accepted files on 2026-09-11. Dated
-dependencies can remain current when explicitly bound by accepted requests.
-Archive/ProjectLayouts and other retired paths are historical.
+## Energy correlators
+
+[EE_EEC](EE_EEC/README.md) reproduces the full massless vector-current EEC through order alpha_s, including both angular endpoints. The six native-cut masters, generated virtual amplitude and exact reference/moment tests use the general quadratic-measurement workflow. Its Raw/NLO folder corresponds to conventional LO EEC.

@@ -82,18 +82,7 @@ FindCutIBPPredecessorSeeds[family_Association,frontier:{__FeynCalc`GLI},existing
   searchFrontier=Union[searchFrontier,neighbors],
  {depth}];
  operators=cutIBPOperators[family];indices=Table[Unique["integralPower"],{count}];
- zero=ConstantArray[0,count];
- shiftRows=Table[
-  raw={zero->operator["Divergence"]};
-  Do[
-   If[operator["DenominatorDerivatives"][[i,1]]=!=0,
-    AppendTo[raw,UnitVector[count,i]->(-indices[[i]]operator["DenominatorDerivatives"][[i,1]])]];
-   Do[If[operator["DenominatorDerivatives"][[i,j+1]]=!=0,
-    AppendTo[raw,(UnitVector[count,i]-UnitVector[count,j])->
-      (-indices[[i]]operator["DenominatorDerivatives"][[i,j+1]])]],{j,count}],
-  {i,count}];
-  Normal[Select[Cancel[Together[#]]&/@Merge[raw,Total],#=!=0&]],
- {operator,operators}];
+ shiftRows=cutIBPShiftRows[family,operators,indices];
  shifts=GroupBy[Flatten[shiftRows,1],First->Last];
  known=AssociationThread[existing,ConstantArray[True,Length[existing]]];
  candidates=Reap[Do[

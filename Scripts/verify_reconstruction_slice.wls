@@ -53,7 +53,7 @@ If[! FileExistsQ[artifactFile],
 ];
 Print["Reading ", artifactFile, " (",
   tenth[FileByteCount[artifactFile]/2.^20], " MB)"];
-{seconds, artifact} = AbsoluteTiming[Get[artifactFile]];
+{seconds, artifact} = AbsoluteTiming[FeynFacetRecords`ReadRecord[artifactFile]];
 If[! AssociationQ[artifact] ||
     artifact["Format"] =!= "FeynFacet-AssembledCoefficients",
   Print["Not an assembled-coefficient artifact: ", artifactFile];

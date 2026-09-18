@@ -55,7 +55,9 @@ def check():
         errors.append("The default symbolic profile includes epsilon-form code.")
     reader = profiles.get("SolutionData", []) + profiles.get("Solution", [])
     for path in reader:
-        if not path.startswith(("Solutions/", "Functions/", "Numerics/")):
+        # The shared rational-function and analytic-limit primitives are usable by both
+        # the standalone reader and symbolic construction; it has no FeynCalc dependency.
+        if path not in {"Core/RecordFormat.wl", "Algebra/RationalFunctions.wl", "Algebra/RegularLimits.wl"} and not path.startswith(("Solutions/", "Functions/", "Numerics/")):
             errors.append(f"Reader imports another subsystem: {path}")
         body = (PACKAGE / path).read_text()
         if "FeynCalc" + chr(96) in body or re.search(r'Get\[.*(?:EpsilonForm|FeynFacet\.m)', body):

@@ -1,5 +1,6 @@
+Get[DirectoryName[ExpandFileName[$InputFileName],3]<>"/FeynFacet/Core/RecordFormat.wl"];
 (* File and coefficient handling for the two validation drivers. *)
-readValidationFile[path_] := If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]];
+readValidationFile[path_] := If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 validationPath[base_,path_] := ExpandFileName[If[StringStartsQ[path,"/"],path,FileNameJoin[{base,path}]]];
 writeValidationFile[path_,data_] := Module[{tmp=path<>".tmp"},
  If[!DirectoryQ[DirectoryName[path]],CreateDirectory[DirectoryName[path],CreateIntermediateDirectories->True]];

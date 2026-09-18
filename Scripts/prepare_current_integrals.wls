@@ -8,7 +8,7 @@ If[!MemberQ[{4,5},Length[arguments]],Print["Usage: prepare_current_integrals.wls
 {projectName,orderName,channelName,contributionName}=Take[arguments,4];
 mode=If[Length[arguments]===5,Last[arguments],"all"];
 If[!MemberQ[{"all","prepare","decompose","finish"},mode],Print["Invalid preparation mode"];Exit[2]];
-directory=root<>"/Projects/"<>projectName<>"/"<>orderName<>"/"<>channelName;
+directory=root<>"/Projects/"<>projectName<>"/Raw/"<>orderName<>"/"<>channelName;
 card=FeynFacet`ReadContributionCard[directory,contributionName];
 setup=FeynFacet`ReadProcessCard[card];
 If[!AssociationQ[card]||!AssociationQ[setup],Print[{card,setup}];Exit[1]];
@@ -21,7 +21,7 @@ definition=FeynFacet`CreateMeasuredPhaseSpaceDefinition[Join[geometry,<|
  "ExternalMomenta"->average["PhysicalMomenta"],"KinematicRules"->average["KinematicRules"],
  "TaggedMomentum"->First[Last[setup["PartonMomentum"]]],"Assumptions"->average["Assumptions"]|>]];
 If[!AssociationQ[definition],Print[definition];Exit[1]];
-outputDirectory=FileNameJoin[{card["Directory"],"Results",card["ContributionPath"]}];
+outputDirectory=card["WorkDirectory"];
 source=FeynFacet`FamilyArtifactRead[outputDirectory<>"/Integrands.wl"];
 If[!AssociationQ[source]||Lookup[source,"Format",None]=!="FeynFacet-CurrentIntegrands",
  Print["Generated scalar current integrands are required"];Exit[1]];

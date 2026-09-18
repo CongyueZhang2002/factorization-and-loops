@@ -71,12 +71,88 @@ FeynFacet`RequireOrdinaryPrescriptionCertificate[data_Association,scope_String]:
     TrueQ[c["JointMeasureHasNoEndpointAtoms"]]&&TrueQ[c["CommonConvergenceDomainExists"]],True,
    True,Failure["OrdinaryPrescriptionCertificateRequired",<|"Scope"->scope,"Certificate"->c|>]]
 ];
+(* Pair polynomial measurements with test functions before using the same
+   compact-cut convergence proof. The denominator factors are additional
+   majorants, not extra physical propagators or prescriptions. *)
+polynomialMeasuredPrescriptionCertificate[input_,master_,request_]:=Module[
+ {family,top,records,variables,conditions,nu,slots,keep,cuts,descriptors,parent,
+  coordinates,formal,replace,restore,rows,slot,z,g,slope,a,factors,external,
+  factorRows={},powers={},orders,normalOrder,bound,certificate,pairings={},extra},
+ family=FeynFacet`CreateCutIntegralDefinition[input];
+ If[!AssociationQ[family],epsOrderFail["TypedPolynomialMeasuredFamilyRequired"]];
+ top=family["Topology"];records=Lookup[family,"MeasurementDefinitions",{}];
+ slots=family["MeasurementCutIndices"];variables=Lookup[records,"Variable",{}];
+ conditions=Lookup[request,"ExternalKinematicConditions",Lookup[family,"ExternalKinematicConditions",None]];
+ If[!MatchQ[records,{__Association}]||Sort[Lookup[records,"CutIndex"]]=!=Sort[slots]||
+   !DuplicateFreeQ[variables]||!MatchQ[variables,{__Symbol}]||conditions===None||
+   !FreeQ[conditions,Alternatives@@Join[variables,top[[3]]]]||
+   !MatchQ[master,FeynCalc`GLI[_,{__Integer}]]||validateCutGLIs[{master},{family}]=!=True,
+  epsOrderFail["IndependentPolynomialMeasurementMetadataRequired"]];
+ nu=master[[2]];keep=Complement[Range[Length[nu]],slots];
+ If[!FreeQ[{family["InversePropagators"][[keep]],family["MeasurePrefactor"],top[[5]]},Alternatives@@variables],
+  epsOrderFail["MeasurementDependenceOutsideCutsRequiresSeparateProof"]];
+ cuts=Select[family["Cuts"],#["Type"]==="Particle"&];
+ normalOrder=Total[nu[[family["ParticleCutIndices"]]]-1];
+ coordinates=family["LoopScalarProducts"];formal=Table[Unique["measurementCoordinate$"],{Length[coordinates]}];
+ replace=Thread[coordinates->formal];restore=Reverse/@replace;
+ Do[
+  slot=row["CutIndex"];z=row["Variable"];g=family["InversePropagators"][[slot]];
+  If[!PolynomialQ[g,z]||Exponent[g,z]=!=1||
+    !FreeQ[g,Alternatives@@DeleteCases[variables,z]],epsOrderFail["SeparateAffineMeasurementVariablesRequired"]];
+  slope=Factor[Coefficient[g,z]];a=Expand[slope z-g];
+  If[!PolynomialQ[a/.replace,formal]||!PolynomialQ[slope/.replace,formal]||
+    !FreeQ[{a,slope},Lookup[request,"DimensionalRegulator",Global`Epsilon]],
+   epsOrderFail["RegulatorIndependentPolynomialMeasurementRequired"]];
+  If[!cutConvergenceProve[Element[Values[CoefficientRules[a/.replace,formal]],Reals],conditions],
+   epsOrderFail["RealPolynomialMeasurementCoefficientsRequired"]];
+  factors=FactorList[slope/.replace];external=1;
+  (* Every normal derivative adds at most two powers of B. This deliberately
+     conservative bound uses only bounded polynomial coefficients and bounded
+     derivatives of the test function; it never assumes A/B stays bounded. *)
+  bound=nu[[slot]]+2normalOrder;
+  Do[
+   If[FreeQ[First[factor],Alternatives@@formal],external*=First[factor]^Last[factor],
+    If[!AllTrue[First/@CoefficientRules[First[factor],formal],Total[#]<=1&],
+     epsOrderFail["AffineMeasurementDenominatorFactorsRequired"]];
+    AppendTo[factorRows,First[factor]/.restore];AppendTo[powers,Last[factor]bound]],
+  {factor,factors}];
+  If[!cutConvergenceProve[external!=0&&Element[external,Reals],conditions],
+   epsOrderFail["NonzeroExternalMeasurementDenominatorRequired"]];
+  AppendTo[pairings,<|"Variable"->z,"CutIndex"->slot,"CutPower"->nu[[slot]],
+   "Observable"->a/slope,"Slope"->slope,
+   "TestFunctionDerivativeOrder"->nu[[slot]]-1,
+   "TestFunctionCoefficient"->1/(Abs[slope]slope^(nu[[slot]]-1)(nu[[slot]]-1)!),
+   "DenominatorPowerBound"->bound|>],
+ {row,records}];
+ descriptors=propagatorDescriptor/@top[[2,keep]];
+ parent=<|"LoopMomenta"->top[[3]],"ExternalMomenta"->top[[4]],
+  "InversePropagators"->Join[family["InversePropagators"][[keep]],factorRows],
+  "PropagatorMomenta"->Join[Lookup[descriptors,"Momentum",Missing["NotQuadratic"]],
+    ConstantArray[Missing["AffineMajorant"],Length[factorRows]]],
+  "PropagatorPowers"->Join[nu[[keep]],powers],
+  "CutIndices"->(First[FirstPosition[keep,#]]&/@family["ParticleCutIndices"]),
+  "OrientedCutMomenta"->(Lookup[cuts,"Momentum"]Lookup[cuts,"EnergyDirection"]),
+  "VirtualLoopCount"->0,"KinematicRules"->top[[5]],"KinematicConditions"->conditions,
+  "TimeDirection"->family["TimeDirection"],"Dimension"->D,
+  "DimensionalRegulator"->Lookup[request,"DimensionalRegulator",Global`Epsilon]|>;
+ certificate=cutIntegralConvergenceCertificate[parent];
+ Join[certificate,<|"Scope"->"Fixed external kinematics; meromorphic distribution in all declared measurement variables.",
+  "MeasurementPairings"->pairings,"MeasurementCutIndicesInSource"->slots,
+  "ParticleNormalDerivativeOrder"->normalOrder,
+  "MeasurementDenominatorMajorants"->Thread[factorRows->powers],
+  "MeasurementCutRemovedFromDefinition"->False,
+  "EndpointDistributionStatus"->"Measurement distribution certified by parent domination; external endpoints require a separate uniform proof.",
+  "EndpointCoefficientsComputed"->False,
+  "MeasurementDominationArgument"->"Pair each cut with a smooth compactly supported test function before the ordinary eta limit. Derivatives through total particle normal order r have a bounded numerator over at most B^(m+2r). Every affine B-factor has its zero set on the parent Gram boundary throughout nonnegative particle-mass increments, as checked by the same convergence certificate. A sufficiently high Gram power controls these finite additional losses. Unique meromorphic distributional continuation retains contacts at critical values and soft boundaries; no endpoint coefficient is inferred from the interior DE."|>]
+];
 measuredOrdinaryPrescriptionCertificate[input_,master_,request_]:=Module[
  {family,top,z,reference,tagged,conditions,cuts,measurement,nu,slot,polynomial,jacobian,
   total,observable,ordinary,keep,parentCuts,descriptors,parent,certificate,coordinates,
   variables,compiled,particleCuts,normalOrders,referenceCoordinates},
  family=FeynFacet`CreateCutIntegralDefinition[input];
  If[!AssociationQ[family],epsOrderFail["TypedMeasuredCutFamilyRequired"]];
+ If[KeyExistsQ[family,"MeasurementDefinitions"],
+  Return[polynomialMeasuredPrescriptionCertificate[family,master,request]]];
  If[!ContainsAll[Keys[request],{"MeasurementVariable","ReferenceMomentum","TaggedMomentum","ExternalKinematicConditions"}],
   epsOrderFail["MeasuredPrescriptionGeometryRequired"]];
  {z,reference,tagged,conditions}=Lookup[request,
@@ -149,12 +225,23 @@ measuredOrdinaryPrescriptionCertificate[input_,master_,request_]:=Module[
    the compact cut domain. The coefficient denominator is cleared structurally. *)
 FeynFacet`CertifyOrdinaryPrescriptionRemoval[prepared_Association,Automatic,request_Association]/;
  Lookup[prepared,"Format",None]==="FeynFacet-MeasuredCutIntegrand":=Module[
- {source=prepared["SourceDefinition"],variables,numerators,external,common,master,result,powers},
+ {source=prepared["SourceDefinition"],variables,numerators,external,common,master,result,powers,domain,rules,t,time,kin,total,sp,assum},
  variables=prepared["FreeScalarProductVariables"];numerators=Lookup[prepared["Terms"],"Numerator"];
  If[!AllTrue[numerators,PolynomialQ[#,variables]&],
   Return[Failure["PolynomialPreparedSourceNumeratorsRequired",<||>]]];
- external=Join[Keys[request["JointExternalDomain"]["ExternalIntervals"]],{request["MeasurementVariable"]}];
- common=FeynFacet`CommonKinematicDenominator[numerators,external];
+ If[KeyExistsQ[request,"AngularEndpointDomain"],
+  domain=request["AngularEndpointDomain"];rules=domain["CoordinateRules"];t=domain["Variable"];
+  time=Lookup[domain,"TimeDirection",None];assum=domain["Assumptions"];
+  If[time===None,Return[Failure["UniformTimelikeReferenceForPolynomialNumeratorsRequired",<||>]]];
+  kin=source["Topology"][[5]];
+  total=Expand[Total[(#["EnergyDirection"]#["Momentum"])&/@source["Cuts"]]];
+  sp[a_,b_]:=Factor[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[FeynCalc`SPD[a,b]]]/.kin/.rules];
+  If[!cutConvergenceProve[sp[time,time]>0&&sp[time,total]>0,assum&&0<=t<1],
+   Return[Failure["UniformFutureTimelikeNumeratorFrameNotEstablished",<||>]]];
+  external=DeleteDuplicates[Append[Lookup[domain,"TangentialVariables",{}],t]];
+  common=FeynFacet`CommonKinematicDenominator[numerators/.rules,external],
+  external=Join[Keys[request["JointExternalDomain"]["ExternalIntervals"]],{request["MeasurementVariable"]}];
+  common=FeynFacet`CommonKinematicDenominator[numerators,external]];
  If[!AssociationQ[common],Return[common]];
  powers=Join[prepared["CutPowers"],prepared["OrdinaryPowerBounds"]];
  master=FeynCalc`GLI[source["Topology"][[1]],powers];
@@ -169,7 +256,22 @@ FeynFacet`CertifyOrdinaryPrescriptionRemoval[prepared_Association,Automatic,requ
    "PartialFractionsUsedForCertification"->False|>|>]
 ];
 FeynFacet`CertifyOrdinaryPrescriptionRemoval[input_Association,master_,request_Association:<||>]:=
- Catch[Module[{s,def,e,family,measured},
+ Catch[Module[{s,def,e,family,measured,generic},
+ If[MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[input,"Format",None]]&&
+   MatchQ[master,FeynCalc`GLI[_,{__Integer}]]&&
+   master[[1]]===input["Topology"][[1]]&&Length[master[[2]]]===Length[input["Topology"][[2]]]&&
+   validateCutGLIs[{master},{input}]===True&&
+   AllTrue[master[[2,Complement[Range[Length[master[[2]]]],input["CutIndices"]]]],#<=0&],
+  Return[<|"Status"->"NoOrdinaryDenominators","OrdinaryPrescriptionRemoved"->False,
+    "CutPrescriptionsRemoved"->False,"EndpointDistributionStatus"->"NoOrdinaryPrescriptionLimitRequired"|>,Module]];
+ If[KeyExistsQ[request,"AngularEndpointDomain"],
+  family=FeynFacet`CreateCutIntegralDefinition[input];
+  If[!AssociationQ[family],epsOrderFail["TypedAngularEndpointDefinitionRequired"]];
+  generic=FeynFacet`CertifyOrdinaryPrescriptionRemoval[family,master,
+    Join[KeyDrop[request,{"AngularEndpointDomain","PrescriptionScope"}],<|"PrescriptionScope"->"GenericKinematics"|>]];
+  If[!AssociationQ[generic]||FeynFacet`RequireOrdinaryPrescriptionCertificate[generic,"GenericKinematics"]=!=True,
+   epsOrderFail["GenericAngularPrescriptionProofRequired",<|"Cause"->generic|>]];
+  Return[cutAngularEndpointCertificate[family,master,request,generic],Module]];
  If[KeyExistsQ[request,"JointExternalDomain"],
   family=FeynFacet`CreateCutIntegralDefinition[input];
   If[!AssociationQ[family],epsOrderFail["TypedJointCutDefinitionRequired"]];

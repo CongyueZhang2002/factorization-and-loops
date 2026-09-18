@@ -1,13 +1,15 @@
-
+Print["FEYNFACET DRIVER ENTERED"];
 (* Independent comparison only: hep-ph/0507061v3 equation (10).
    Production uses generated graphs, IBP rules and section-2 scalar values. *)
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
-dir=root<>"/Projects/SIDIS_UU_NNLO/NNLO/q-q/Results/DoubleVirtual/TwoLoopInterference";
+dir=root<>"/Projects/SIDIS_UU/NNLO/q-q/Results/DoubleVirtual/TwoLoopInterference";
 a=FeynFacet`FamilyArtifactRead[dir<>"/IntegratedScalarCoefficients.wl"];
-born=FeynFacet`FamilyArtifactRead[root<>"/Projects/SIDIS_UU_NNLO/LO/q-q/Results/Result.wl"];
+bornCard=FeynFacet`ReadContributionCard[root<>"/Projects/SIDIS_UU/Raw/LO/q-q","Born"];
+bornRun=FeynFacet`EvaluateBareContribution[bornCard,"all"];
+If[!AssociationQ[bornRun],Print[bornRun];Exit[1]];born=bornRun["Result"];
 e=Global`Epsilon;d=4-2e;n=FeynCalc`CA;nf=nU+nD;
 reference=<|
  "A2Squared"->-(n^2-1)/n (d^2-7d+16)^2/(4(d-4)^2),

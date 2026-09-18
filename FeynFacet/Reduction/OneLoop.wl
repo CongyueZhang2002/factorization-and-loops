@@ -3,6 +3,7 @@
 BeginPackage["FeynFacet`"];
 ReduceMeasuredOneLoopIntegrands::usage=
  "ReduceMeasuredOneLoopIntegrands[values,geometry,request] reduces full-D scalar one-loop numerators at a declared two-particle measurement to scalar B0/C0/D0 functions. Request supplies LoopMomentum. It retains the virtual causal prescription and restores all caller scalar-product settings.";
+ReduceOneLoopIntegrands::usage="ReduceOneLoopIntegrands[values,kinematics,request] reduces full-D scalar loop numerators with arbitrary declared external scalar products to B0/C0/D0 functions. Kinematics gives ExternalMomenta, KinematicRules, Assumptions and DimensionalRegulator. Optional MomentumRules are applied before reduction. It retains prescribed external factors separately from their nonzero interior values.";
 Begin["`Private`"];
 (* Install the external Gram matrix before tensor reduction, including at
    on-shell kinematics. Substitution only after TID can create spurious 0/0.
@@ -24,24 +25,43 @@ withOneLoopKinematics[body_,rules_List]:=Module[{fullRules=rules},
  ]]
 ];
 
-ReduceMeasuredOneLoopIntegrands[values_Association,geometry_Association,
+ReduceMeasuredOneLoopIntegrands[values_Association,geometry_Association,request_Association]:=Module[
+ {momenta,kinematics,result},
+ If[Lookup[geometry,"Geometry",None]=!="TwoParticleMeasurement"||
+   Dimensions[Lookup[geometry,"FullDimensionalScalarProductMatrix",None]]=!={4,4},
+  Return[Failure["ExplicitMeasuredScalarProductMatrixRequired",<||>]]];
+ momenta=geometry["Momenta"];
+ kinematics=<|"ExternalMomenta"->momenta,
+  "KinematicRules"->Flatten[Table[FeynCalc`SPD[momenta[[i]],momenta[[j]]]->geometry["FullDimensionalScalarProductMatrix"][[i,j]],
+   {i,4},{j,i,4}]],
+  "MomentumRules"->Join[{momenta[[4]]->momenta[[2]]-momenta[[3]]},geometry["MomentumRules"]],
+  "Assumptions"->geometry["Assumptions"],"DimensionalRegulator"->geometry["DimensionalRegulator"]|>;
+ result=ReduceOneLoopIntegrands[values,kinematics,request];
+ If[AssociationQ[result],Join[result,<|"Format"->"FeynFacet-MeasuredOneLoopIntegrands","Measurement"->geometry|>],result]
+];
+
+ReduceOneLoopIntegrands[values_Association,geometry_Association,
  request_Association]:=Catch[Module[
  {loop=Lookup[request,"LoopMomentum",None],limit=Lookup[request,"TimeLimit",300],
-  momenta,fullRules,momentumRules,result=<||>,interior=<||>,externalRecords=<||>,timings=<||>,scalar,reduced,seconds,objects,externalObjects,externalRules,externalValues},
- If[!MatchQ[loop,_Symbol]||Lookup[geometry,"Geometry",None]=!="TwoParticleMeasurement"||
-  values===<||>||!NumericQ[limit]||limit<=0,
-  Throw[Failure["MeasuredOneLoopReductionInputRequired",<||>],"MeasuredOneLoop"]];
- momenta=geometry["Momenta"];
- If[MemberQ[momenta,loop],Throw[Failure["IndependentVirtualLoopMomentumRequired",<||>],"MeasuredOneLoop"]];
- If[Dimensions[Lookup[geometry,"FullDimensionalScalarProductMatrix",None]]=!={4,4},
-  Throw[Failure["ExplicitMeasuredScalarProductMatrixRequired",<||>],"MeasuredOneLoop"]];
- fullRules=Flatten[Table[{momenta[[i]],momenta[[j]],geometry["FullDimensionalScalarProductMatrix"][[i,j]]},
-  {i,4},{j,i,4}],1];
- momentumRules=Join[{momenta[[4]]->momenta[[2]]-momenta[[3]]},geometry["MomentumRules"]];
+  momenta,gram,fullRules,momentumRules,result=<||>,interior=<||>,externalRecords=<||>,timings=<||>,scalar,reduced,seconds,objects,externalObjects,externalRules,externalValues},
+ If[!MatchQ[loop,_Symbol]||!ContainsAll[Keys[geometry],
+   {"ExternalMomenta","KinematicRules","Assumptions","DimensionalRegulator"}]||
+   values===<||>||!NumericQ[limit]||limit<=0,
+  Throw[Failure["OneLoopReductionKinematicsRequired",<||>],"MeasuredOneLoop"]];
+ momenta=geometry["ExternalMomenta"];
+ If[!MatchQ[momenta,{__Symbol}]||!DuplicateFreeQ[Prepend[momenta,loop]],
+  Throw[Failure["IndependentVirtualLoopMomentumRequired",<||>],"MeasuredOneLoop"]];
+ gram=Factor[FeynCalc`FCI[Outer[FeynCalc`SPD,momenta,momenta]]/.FeynCalc`FCI[geometry["KinematicRules"]]];
+ If[!FreeQ[gram,_FeynCalc`Pair|_Failure|_Missing],
+  Throw[Failure["CompleteExternalScalarProductsRequired",<||>],"MeasuredOneLoop"]];
+ fullRules=Flatten[Table[{momenta[[i]],momenta[[j]],gram[[i,j]]},
+  {i,Length[momenta]},{j,i,Length[momenta]}],1];
+ momentumRules=Lookup[geometry,"MomentumRules",{}];
  withOneLoopKinematics[
   Do[
    {seconds,reduced}=AbsoluteTiming[TimeConstrained[
-    scalar=Factor[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[values[name]]/.momentumRules]];
+    scalar=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[values[name]]/.momentumRules];
+    If[TrueQ[Lookup[request,"FactorInput",True]],scalar=Factor[scalar]];
     If[!FreeQ[scalar,FeynCalc`Momentum[_]|FeynCalc`Momentum[_,4]|
        FeynCalc`Momentum[_,D-4]|_FeynCalc`Eps|_FeynCalc`LorentzIndex|_FeynCalc`DiracGamma|_FeynCalc`DiracTrace],
      Throw[Failure["FullDimensionalScalarLoopNumeratorRequired",<|"Structure"->name|>],"MeasuredOneLoop"]];
@@ -66,10 +86,10 @@ ReduceMeasuredOneLoopIntegrands[values_Association,geometry_Association,
    If[TrueQ[Lookup[request,"PrintTimings",False]],
     Print["MEASURED LOOP REDUCTION ",name," SECONDS ",seconds," SCALAR FUNCTIONS ",Length[objects]]],
   {name,Keys[values]}],fullRules];
- <|"Format"->"FeynFacet-MeasuredOneLoopIntegrands","FormatVersion"->1,
+ <|"Format"->"FeynFacet-OneLoopIntegrands","FormatVersion"->1,
   "Values"->result,"InteriorValues"->interior,"ExternalPropagatorInteriorValues"->externalRecords,
   "ExternalPropagatorScope"->"The original prescribed external factors remain in Values. InteriorValues uses their ordinary nonzero values on the declared open domain; it does not authorize endpoint distribution limits.",
-  "Measurement"->geometry,"TensorReductionSeconds"->timings,
+  "Kinematics"->geometry,"TensorReductionSeconds"->timings,
   "DimensionalRegulator"->geometry["DimensionalRegulator"],
   "DimensionRule"->(D->4-2geometry["DimensionalRegulator"]),
   "ScalarFunctionConvention"->"FeynCalc PaVe, normalized by 1/(i pi^2).",

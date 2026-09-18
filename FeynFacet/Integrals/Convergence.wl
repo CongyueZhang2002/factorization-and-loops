@@ -345,6 +345,32 @@ cutConvergenceZeroContainment[d_,g_,core_,seconds_] := Module[
    "Decision"->False|>,None]
 ];
 
+(* If q and q-P are spacelike, q-r is spacelike for every r in
+   the future causal interval 0 <= r <= P. Otherwise q-r would be future
+   causal, making q future causal, or past causal, making P-q future causal.
+   The argument includes nonnegative cut masses and therefore their jets. *)
+cutOrderSpacelikeShiftCertificate[original_,d_,g_]:=Module[
+ {cuts=d["OrientedCutMomenta"],loops=d["LoopMomenta"],total,vector,cut,coordinates,
+  position,scale,shift,squares,answer=None},
+ If[MissingQ[original]||!FreeQ[original,Complex],Return[None]];
+ total=Expand[Total[cuts]];vector=Expand[original];
+ Do[
+  cut=Expand[Total[cuts[[subset]]]];coordinates=Coefficient[cut,#]&/@loops;
+  position=SelectFirst[Range[Length[loops]],coordinates[[#]]=!=0&,None];
+  If[position===None,Continue[]];
+  scale=Cancel[Coefficient[vector,loops[[position]]]/coordinates[[position]]];
+  If[!MatchQ[scale,_Integer|_Rational]||scale===0,Continue[]];
+  shift=Expand[vector-scale cut];If[!FreeQ[shift,Alternatives@@loops],Continue[]];
+  squares=(Factor[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[FeynCalc`SPD[#]]]/.d["KinematicRules"]]&)/@
+    {shift,Expand[shift+scale total]};
+  If[!cutConvergenceProve[And@@Thread[squares<0],d["KinematicConditions"]],Continue[]];
+  answer=<|"Method"->"SpacelikeShiftOfForwardCutSubset","CutSubset"->subset,
+   "Scale"->scale,"ExternalShift"->shift,"EndpointSquares"->squares,
+   "Reason"->"A difference from a point in the future causal interval cannot be causal when both external endpoint differences are spacelike. Transitivity of the future cone excludes a zero or timelike inverse propagator throughout nonnegative cut-mass increments."|>;
+  Break[],{subset,Subsets[Range[Length[cuts]],{1,Length[cuts]-1}]}];
+ answer
+];
+
 cutOrderSingularityCertificates[d_,g_,seconds_] := Module[
  {certificates=<||>,active,core,proof},
  active=Select[Range[Length[d["PropagatorPowers"]]],
@@ -359,7 +385,8 @@ cutOrderSingularityCertificates[d_,g_,seconds_] := Module[
   proof=None;
   If[epsOrderZero[g["PropagatorMassSquared"][[j]]] &&
     !MissingQ[g["PropagatorMomenta"][[j]]],
-   proof=cutOrderQuadraticCertificate[g["PropagatorMomenta"][[j]],g]];
+   proof=cutOrderSpacelikeShiftCertificate[d["PropagatorMomenta"][[j]],d,g];
+   If[!AssociationQ[proof],proof=cutOrderQuadraticCertificate[g["PropagatorMomenta"][[j]],g]]];
   If[!AssociationQ[proof] && MissingQ[g["PropagatorMassSquared"][[j]]],
    proof=cutOrderBilinearCertificate[core,d,g]];
   If[!AssociationQ[proof],proof=cutConvergenceZeroContainment[d,g,core,seconds]];
@@ -569,6 +596,85 @@ cutIntegralJointConvergenceCertificate[d_,generic_,request_] := Module[
   "EndpointDistributionStatus"->"CertifiedJointEndpointDistributions",
   "JointContinuationArgument"->"Every spatial divisor zero lies on the unscaled Gram boundary. Compact semialgebraic Lojasiewicz inequalities give finite Gram losses; sufficiently large Re(D) dominates all of them. Ordinary eta limits hold in joint L1 on a common open dimension domain. The atom-free equality there has a unique meromorphic distributional continuation.",
   "AdditionalEndpointOrdersDetermined"->False,"EndpointCoefficientsComputed"->False|>]
+];
+
+
+(* Two-body specialization of the same ordinary-prescription proof. The
+   external recoil mass may vanish; Holder supplies an angular L1 bound even
+   when null directions coalesce. No additional endpoint atom is assumed. *)
+cutAngularEndpointValuation[expression_,t_,e_,assum_,nonzero_:False]:=Module[
+ {q=Cancel[Together[expression]],num,den,order,normalized,leading,factors},
+ If[q===0,If[TrueQ[nonzero],epsOrderFail["NonzeroEndpointScaleRequired"],Return[0]]];
+ num=Numerator[q];den=Denominator[q];
+ If[!PolynomialQ[num,t]||!PolynomialQ[den,t],epsOrderFail["RationalEndpointCoefficientRequired"]];
+ factors=First/@Rest[FactorList[den]];
+ If[AnyTrue[factors,!FreeQ[#,t]&&!FreeQ[#,e]&],epsOrderFail["MixedEndpointDimensionalDivisorRequiresUniformProof"]];
+ order=Exponent[num,t,Min]-Exponent[den,t,Min];
+ If[!IntegerQ[order],epsOrderFail["IntegerEndpointValuationRequired"]];
+ normalized=Cancel[q/t^order];
+ leading=Cancel[normalized/.t->0];
+ If[!FreeQ[leading,_DirectedInfinity|Indeterminate]||
+   (TrueQ[nonzero]&&!cutConvergenceProve[Element[leading,Reals]&&leading!=0,assum]),
+  epsOrderFail["UniformNonzeroEndpointScaleNotEstablished",<|"LeadingCoefficient"->leading|>]];
+ (* Dimensional-only factors have isolated poles, excluded from the common
+    open complex-epsilon domain; spatial factors must be continuous. *)
+ Do[If[!FreeQ[factor,t]&&(!cutConvergenceProve[(Cancel[factor/t^Exponent[factor,t,Min]]/.t->0)!=0,assum]||
+     !cutConvergenceProve[factor!=0,assum&&0<t<1])||
+    (FreeQ[factor,t|e]&&!cutConvergenceProve[factor!=0,assum]),
+   epsOrderFail["UniformEndpointCoefficientDivisorNotEstablished",<|"Divisor"->factor|>]],{factor,factors}];
+ order
+];
+cutAngularEndpointCertificate[family_,master_,request_,generic_]:=Module[
+ {domain=request["AngularEndpointDomain"],t,e,rules,assum,geometry,nu,indices,scales,gram,
+  coefficients,scaleOrders,positive,totalPower,loss=0,b,upper,m2,h,order,gi,extra,endpointGeneric},
+ {t,rules,assum}=Lookup[domain,{"Variable","CoordinateRules","Assumptions"},None];
+ e=Lookup[request,"DimensionalRegulator",Global`Epsilon];
+ If[!MatchQ[t,_Symbol]||t===e||!ListQ[rules]||assum===None||!FreeQ[assum,t|e],
+  epsOrderFail["ExternalAngularEndpointDomainRequired"]];
+ geometry=FeynFacet`ConstructTwoBodyAngularGeometry[family,e];
+ If[!AssociationQ[geometry],epsOrderFail["TwoBodyAngularEndpointGeometryRequired",<|"Cause"->geometry|>]];
+ nu=master[[2]];indices=geometry["AngularIndices"];
+ If[nu[[family["CutIndices"]]]=!=ConstantArray[1,Length[family["CutIndices"]]],
+  epsOrderFail["AngularEndpointProofRequiresUnitCuts"]];
+ If[!cutConvergenceProve[geometry["Assumptions"]/.rules,assum&&0<t<1],
+  epsOrderFail["AngularEndpointInteriorConditionsNotEstablished"]];
+ m2=Cancel[geometry["InvariantMassSquared"]/.rules];h=Cancel[m2/t];
+ If[!FreeQ[h,t]||!cutConvergenceProve[h>0,assum]||!FreeQ[family["MeasurePrefactor"]/.rules,t],
+  epsOrderFail["LinearPositiveRecoilMassAndConstantMeasureRequired"]];
+ scales=Cancel[#/.rules]&/@geometry["DenominatorScales"];
+ gram=Map[Cancel[#/.rules]&,geometry["BetaGram"],{2}];
+ scaleOrders=ConstantArray[0,Length[indices]];
+ Do[
+  If[nu[[indices[[i]]]]===0,Continue[]];
+  scaleOrders[[i]]=cutAngularEndpointValuation[scales[[i]],t,e,assum,True];
+  gi=gram[[i,i]];
+  If[!cutConvergenceProve[gi>=0,assum&&0<t<1],epsOrderFail["RealAngularDirectionRequired"]];
+  If[nu[[indices[[i]]]]>0,
+   If[!cutConvergenceProve[Factor[1-gi]>=0,assum&&0<t<1],
+    epsOrderFail["AngularDenominatorCrossesZero",<|"PropagatorIndex"->indices[[i]]|>]],
+   order=If[gi===0,0,cutAngularEndpointValuation[gi,t,e,assum]];
+   loss+=(-nu[[indices[[i]]]])Ceiling[Max[0,-order]/2]],
+ {i,Length[indices]}];
+ coefficients=Lookup[request,"ScalarCoefficients",{1}]/.D->4-2e/.rules;
+ If[!ListQ[coefficients],epsOrderFail["ScalarEndpointCoefficientListRequired"]];
+ extra=Max[Prepend[-cutAngularEndpointValuation[#,t,e,assum]&/@coefficients,0]];
+ positive=Max[#,0]&/@nu[[indices]];totalPower=Total[positive];
+ b=extra+loss+nu[[indices]].scaleOrders;upper=Min[0,1-totalPower,1-b];
+ Join[generic,<|"Status"->"CertifiedJointEndpointDistributions",
+  "Method"->"CompactCutAngularDomination","EndpointDistributionStatus"->"CertifiedJointEndpointDistributions",
+  "Scope"->"Joint threshold distributions, locally uniformly on compact tangential subsets",
+  "AngularEndpointDomain"->domain,"AngularGeometry"->geometry,
+  "ScaleValuations"->scaleOrders,"NumeratorAngularPowerLoss"->loss,
+  "ExternalCoefficientPowerLoss"->extra,"JointEndpointPowerBound"->b,
+  "TotalPositiveAngularPower"->totalPower,"EpsilonRealPartUpperBound"->upper,
+  "CommonConvergenceDomainExists"->True,"ExplicitDimensionThresholdKnown"->True,
+  "JointMeasureHasNoEndpointAtoms"->True,"AdditionalPrescriptionDependentEndpointAtoms"->False,
+  "ExternalEndpointUniformityEstablished"->True,"JointL1PrescriptionConvergenceEstablished"->True,
+  "JointMeasureArgument"->"In the open convergence domain the ordinary density is absolutely integrable in the recoil-mass coordinate and angular ball measure. Its unique meromorphic continuation fixes all dimensional delta and plus terms; no prescription-dependent endpoint measure can be added.",
+  "UniformBoundArgument"->"On compact tangential sets the checked normalized scales are bounded away from zero. Holder bounds all positive angular powers by the null moment of their total power, including coalescing directions. Polynomial numerators and external rational divisors have the recorded finite endpoint loss. The phase volume contributes t^(-epsilon).",
+  "ConvergenceDomain"->(Re[e]<upper),
+  "Proof"->"Take ordinary eta limits by dominated convergence in the common open complex-epsilon domain, then use unique meromorphic distributional continuation. Cut prescriptions are unchanged.",
+  "CutPrescriptionsRemoved"->False,"EndpointCoefficientsComputed"->False|>]
 ];
 
 End[];

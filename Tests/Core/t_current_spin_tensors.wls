@@ -1,11 +1,11 @@
 (* Exact-D tensor algebra and the absolute single-helicity Born sign. *)
-$HistoryLength=0;
+$HistoryLength=0;Print["FEYNFACET DRIVER ENTERED"];
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 ctQuark=<|"Role"->"PDF","Species"->{"q","u"},"Polarization"->"U","Momentum"->ctp,"MomentumSpace"->"Physical4"|>;
 ctU=FeynFacet`PartonicSpinDensity[ctQuark];
 ctL=FeynFacet`PartonicSpinDensity[Join[ctQuark,<|"Polarization"->"L"|>]];
-ctAntiL=FeynFacet`PartonicSpinDensity[Join[ctQuark,<|"Species"->{"qbar","u"},"Polarization"->"L"|>]];
+ctAntiL=FeynFacet`PartonicSpinDensity[Join[ctQuark,<|"Species"->{"qb","u"},"Polarization"->"L"|>]];
 ctOut=FeynFacet`PartonicSpinDensity[Join[ctQuark,<|"Role"->"FF","Momentum"->ctk,"MomentumSpace"->"IntegratedD"|>]];
 FTTest`FTAssert["incoming quarks are averaged and outgoing tagged cuts are summed",
  ctU["SpinDensity"]===FeynCalc`GS[ctp]/2&&ctU["ColorAverage"]===1/FeynCalc`CA&&
@@ -52,4 +52,17 @@ FTTest`FTAssert["the Born current satisfies its Ward identity",
 ctGluonOnly=<|"Incoming"->{<|"HadronMomentum"->ctp,"Parton"->FeynArts`V[5],"Momentum"->ctk|>},"Outgoing"->{}|>;
 FTTest`FTAssert["pure-gluon amplitudes have an empty quark spin-tag map",
  FeynFacet`Private`externalSpinTags[ctGluonOnly]===<||>];
+ctTLeg=Join[ctQuark,<|"Polarization"->"T","SpinVector"->ctS|>];
+ctT=FeynFacet`PartonicSpinDensity[ctTLeg];
+ctTF=FeynFacet`PartonicSpinDensity[Join[ctTLeg,<|"Role"->"FF"|>]];
+ctTA=FeynFacet`PartonicSpinDensity[Join[ctTLeg,<|"Species"->{"qb","u"}|>]];
+ctOperator=FeynFacet`Private`twist2Correlator[ctFraction,0,ctS,ctp,{ctf,ctg,cth},1]/.{ctf[ctFraction]->0,cth[ctFraction]->1};
+ctCompare=FeynCalc`DiracSimplify[FeynCalc`DiracOrder[FeynCalc`FCI[ctOperator-ctT["SpinDensity"]]]]/.
+ FeynCalc`FCI[FeynCalc`SP[ctp,ctS]->0];
+FTTest`FTAssert["physical transversity insertion equals the twist-two operator, including antiquark sign",
+ ctCompare===0&&ctTA["SpinDensity"]===ctT["SpinDensity"]&&ctTF["SpinDensity"]===2ctT["SpinDensity"]];
+FTTest`FTAssert["polarized integrated cuts and missing transverse directions fail explicitly",
+ FailureQ[FeynFacet`PartonicSpinDensity[Join[ctTLeg,<|"Role"->"FF","MomentumSpace"->"IntegratedD"|>]]]&&
+ FailureQ[FeynFacet`PartonicSpinDensity[KeyDrop[ctTLeg,"SpinVector"]]]];
+Print["CURRENT SPIN TENSORS COMPLETE"];
 FTTest`FTReport[];

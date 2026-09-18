@@ -7,7 +7,17 @@ Begin["`Private`"];
    coefficient-variable list instead means that the entire expression is scalar. *)
 PolynomialCoefficientRules[expression_,{}]:=If[expression===0,{},{{}->expression}];
 PolynomialCoefficientRules[expression_,variables_List]:=Catch[Module[
- {objects={},aliases=<||>,encode,compiled,terms},
+ {objects={},aliases=<||>,encode,compiled,terms,factors,scalar,dependent},
+ (* A common scalar factor belongs outside coefficient extraction. Encoding
+    it as an independent variable and then restoring it repeats a large
+    rational denominator in every monomial of a coefficient sum. *)
+ If[Head[expression]===Times,
+  factors=List@@expression;
+  scalar=Select[factors,FreeQ[#,Alternatives@@variables]&];
+  dependent=Select[factors,!FreeQ[#,Alternatives@@variables]&];
+  If[scalar=!={},
+   terms=FeynFacet`PolynomialCoefficientRules[Times@@dependent,variables];
+   Return[If[FailureQ[terms],terms,(First[#]->(Times@@scalar)Last[#])&/@terms],Module]]];
  encode[value_]:=Which[
   MemberQ[variables,value]||NumberQ[value],value,
   FreeQ[value,Alternatives@@variables],

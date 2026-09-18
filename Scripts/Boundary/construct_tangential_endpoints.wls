@@ -9,7 +9,7 @@ If[Length[DownValues[FeynFacet`ConstructTangentialEndpointSystem]]===0,
  Get[root<>"/FeynFacet/Boundary/TangentialSystem.wl"]];
 args=Rest[$ScriptCommandLine];
 If[Length[args]=!=2,Print["Expected INPUT.wl OUTPUT_DIRECTORY"];Exit[2]];
-read[path_String]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],Get[path]];
+read[path_String]:=If[ToLowerCase[FileExtension[path]]==="wxf",Import[path,"WXF"],FeynFacetRecords`ReadRecord[path]];
 read[value_]:=value;
 output=ExpandFileName[args[[2]]];
 If[!DirectoryQ[output],CreateDirectory[output,CreateIntermediateDirectories->True]];

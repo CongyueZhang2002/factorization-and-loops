@@ -10,7 +10,7 @@ positiveLogarithmConstant[x_]:=Which[
  True,Log[x]];
 FeynFacetSolution`ExpandPositiveLogarithms[expression_,assumptions_]:=Catch[Module[{logs,rules,expand},
  expand[arg_]:=Module[{rat,num,den,factors,constant=1,terms={},base,n,sign},
-  rat=Cancel[arg];
+  rat=Cancel[Refine[arg,assumptions]];
   If[!TrueQ[FullSimplify[rat>0,assumptions]],Throw[Failure["PositiveLogarithmArgumentNotEstablished",<|"Argument"->arg|>],"PositiveLogarithms"]];
   {num,den}={FactorList[Numerator[rat]],FactorList[Denominator[rat]]};
   constant=First[num][[1]]/First[den][[1]];
@@ -25,12 +25,17 @@ FeynFacetSolution`ExpandPositiveLogarithms[expression_,assumptions_]:=Catch[Modu
  rules=(#->expand[First[#]]& /@ logs);expression/.rules
  ],"PositiveLogarithms"];
 
-FeynFacetSolution`RealPartOnPhysicalDomain::usage="RealPartOnPhysicalDomain[expression,assumptions] takes a real part after proving the logarithms have positive arguments and every algebraic parameter is real. Logarithms are temporarily independent real symbols, avoiding expensive trigonometric branch expansions.";
+FeynFacetSolution`RealPartOnPhysicalDomain::usage="RealPartOnPhysicalDomain[expression,assumptions] takes a real part after proving positive logarithm arguments, real classical polylogarithms on their real branch, and real algebraic parameters. Proven real transcendental values are temporarily independent real symbols.";
 FeynFacetSolution`RealPartOnPhysicalDomain[expression_,assumptions_]:=Module[
- {expanded,atoms,temporary,rules,algebraic,variables,unknown,result},
+ {expanded,atoms,polylogs,temporary,rules,algebraic,variables,unknown,result},
  expanded=FeynFacetSolution`ExpandPositiveLogarithms[expression,assumptions];
  If[FailureQ[expanded],Return[expanded]];
- atoms=DeleteDuplicates[Cases[expanded,_Log,{0,Infinity}]];temporary=Table[Unique["realLog"],{Length[atoms]}];
+ polylogs=Select[DeleteDuplicates[Cases[expanded,_PolyLog,{0,Infinity}]],
+   MatchQ[# ,PolyLog[_Integer?Positive,_]]&&
+    TrueQ[FullSimplify[Element[#[[2]],Reals]&&
+      If[First[#]===1,#[[2]]<1,#[[2]]<=1],Assumptions->assumptions]]&];
+ atoms=Join[DeleteDuplicates[Cases[expanded,_Log,{0,Infinity}]],polylogs];
+ temporary=Table[Unique["realTranscendental"],{Length[atoms]}];
  rules=Thread[atoms->temporary];algebraic=expanded/.rules;
  variables=Complement[Variables[Together[algebraic]],temporary];
  unknown=Select[variables,!TrueQ[FullSimplify[Element[#,Reals],assumptions]]&];

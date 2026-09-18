@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Get[root<>"/FeynFacet/Solution.m"];
@@ -11,4 +12,8 @@ Do[
  {glCase,glCases}];
 FTTest`FTAssert["a genuinely divergent logarithmic endpoint remains rejected",
  FailureQ[FeynFacetSolution`IntegrateGPL[Log[glT]/glT,{glT,0,glS}]]];
+radicalZero=(Sqrt[(1+zz)^2]-1-zz)(Sqrt[(1+zz)^2]+1+zz);
+radicalAnswer=FeynFacetSolution`IntegrateGPL[1+radicalZero/glT,{glT,0,glS}];
+FTTest`FTAssert["factored conjugate radicals do not leave a false endpoint divergence",
+ !FailureQ[radicalAnswer]&&Expand[radicalAnswer-glS]===0];
 FTTest`FTReport[];
