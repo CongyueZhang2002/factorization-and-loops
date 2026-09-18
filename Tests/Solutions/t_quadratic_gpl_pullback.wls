@@ -129,4 +129,15 @@ FTTest`FTAssert["symbolic root scales require the declared positive real domain"
  MatchQ[FeynFacetSolution`IntegrateGPL[
   Sqrt[aa+aa t]/Sqrt[1+t]+1/(Sqrt[1+2t]Sqrt[2+4t]),{t,0,s}],
   Failure["RationalSquareRootChartNotConstructed",_]]];
+FTTest`FTAssert["symbolic charts retain their nonramified validity condition",
+ TrueQ[FullSimplify[chart["ValidityConditions"]]]&&
+ !TrueQ[FeynFacetSolution`QuadraticRootChart[cc+t,t,v]["ValidityConditions"]]];
+FTTest`FTAssert["assumptions that ramify a symbolic basepoint are rejected before division",
+ MatchQ[FeynFacetSolution`QuadraticRootChart[aa+t,t,v,"Assumptions"->aa==0],
+  Failure["NonzeroQuadraticRootBasePointRequired",_]]&&
+ MatchQ[FeynFacetSolution`IntegrateGPL[1/Sqrt[aa+t],{t,0,s},"Assumptions"->aa==0],
+  Failure["NonzeroQuadraticRootBasePointRequired",_]]&&
+ MatchQ[Block[{FeynFacetSolution`Private`$gplAssumptions=aa==0},
+  FeynFacetSolution`Private`gplLinearRootPairChart[{aa+t,1+2t},t,v]],
+  Failure["NonzeroQuadraticRootBasePointRequired",_]]];
 Print["QUADRATIC GPL PULLBACK TEST COMPLETE"];FTTest`FTReport[];

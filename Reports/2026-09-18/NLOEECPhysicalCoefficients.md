@@ -356,3 +356,38 @@ that demand. The finite integral definitions are explicitly stored in
 FiniteEvolutionThroughOrder1.wxf. This demonstrates construction up to initial
 constants at these fundamental-matrix orders, not sufficient original-master
 orders or physically fixed coefficients. A bounded GPL conversion pass follows.
+
+
+## Continuation: explicit GPL representation and partial physical orders
+
+The successful 42-coordinate finite preparation remains unchanged. Conversion
+of U^(0), U^(1) now covers418/437 integral definitions. Positive proportional
+radicands are merged only after proof of a positive integration-variable-independent
+ratio, with branches retained. Collecting word coefficients before applying the
+unchanged size bound solves three further expressions. Latest incremental pass:
+76.128194379s including startup and reuse of415 earlier GPL definitions. Remaining:
+6 per-definition10s timeouts,1 rational partial-fraction refusal,12 dependencies.
+The first/root-scale passes cost31.684s/55.799s separately. No complete physical
+coefficient or sufficient epsilon coverage is asserted.
+
+A separate code omission was fixed: the differential consequence constructor now
+extends a master that already has partial epsilon data. It excludes the solved
+column from the RHS even when that column has old data, retains accepted old
+coefficients, and uses the existing omitted-tail audit.10 tests pass3.316426820s.
+A replay on the actual identical-quark records took4.203063809s and found no new
+sufficient orders;7 of41 source requests remain covered,34 unmet. No redundant
+physical provider integrations were rerun.
+
+Pro31 reviewed25b643f1134775fbfbd439d7c9a2ad72f496fecc and accepted positive-scale
+root merging, including imaginary initial branches. Its inherited basepoint
+finding is addressed by explicit chart validity conditions and assumption-aware
+zero-basepoint rejection;26 tests pass1.633170317s. The reviewed algebraic-period
+pole theorem requires common absolute convergence for the complete fixed-z fiber.
+The existing parent distribution certificate alone does not establish the sharper
+four-dimensional bound. No guessed -4 bound or deeper evolution cutoff was added.
+
+The user's broader PSLQ proposal was tested on actual DE entries with identical
+support supplied to both reconstruction methods. See PSLQBoundaryStrategy.md for
+all costs and failed trials. This was a recognition benchmark with a saved-formula
+oracle, not numerical IBP sampling or an end-to-end FireFly comparison. Production
+finite-field reconstruction has not been replaced.

@@ -43,7 +43,7 @@ ExtendMasterValuesUsingDifferentialEquations[system_Association,known_Associatio
 ],"CutFamily"];
 ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,known_Association,upperOrders_Association]:=Catch[Module[
  {basis,variables,matrices,n,e,values=known,derived={},pending={},changed=True,indices,missing,j,
-  ratios,records,derivative,low,high,lowers,uppers,vector,matrix,result,one,offset,derivativeFunction,valid,knownIndices},
+  ratios,records,derivative,low,high,lowers,uppers,vector,matrix,result,one,offset,derivativeFunction,valid,knownIndices,oldRecord,oldLow,oldHigh},
  basis=system["MasterIntegralBasis"];variables=system["KinematicVariables"];e=system["DimensionalRegulator"];
  matrices=cutConnectionMatrices[system]/.system["DimensionRule"];n=Length[basis];
  valid[row_]:=AssociationQ[row]&&IntegerQ[Lookup[row,"LaurentLowerBound",None]]&&
@@ -58,12 +58,17 @@ ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,kno
    FeynFacetSolution`DifferentiateGPLExpression[value,variable]];
  While[changed,changed=False;indices=Select[Range[n],KeyExistsQ[values,basis[[#]]]&];
   Do[
-   missing=Select[Range[n],matrices[[axis,i,#]]=!=0&&!KeyExistsQ[values,basis[[#]]]&];
-   If[Length[missing]=!=1||!KeyExistsQ[upperOrders,basis[[First[missing]]]],Continue[]];
-   j=First[missing];high=upperOrders[basis[[j]]];
+   (* A physical record may exist while lacking the requested epsilon tail.
+      Try each unmet target with all other row entries known, and exclude the
+      solved column from the right-hand side even when it has partial data. *)
+   missing=Select[Range[n],matrices[[axis,i,#]]=!=0&&KeyExistsQ[upperOrders,basis[[#]]]&&
+     (!KeyExistsQ[values,basis[[#]]]||values[basis[[#]]]["KnownThroughOrder"]<upperOrders[basis[[#]]])&];
+   Do[
+   If[AnyTrue[Range[n],#=!=j&&matrices[[axis,i,#]]=!=0&&!KeyExistsQ[values,basis[[#]]]&],Continue[]];
+   high=upperOrders[basis[[j]]];
    (* values grows during this pass. A newly derived coefficient must already
       contribute to every later row, although the outer source-row list is fixed. *)
-   knownIndices=Select[Range[n],KeyExistsQ[values,basis[[#]]]&];
+   knownIndices=Select[Range[n],#=!=j&&KeyExistsQ[values,basis[[#]]]&];
    ratios=Prepend[(-matrices[[axis,i,#]]/matrices[[axis,i,j]]&/@knownIndices),1/matrices[[axis,i,j]]];
    ratios=Cancel[Together[#]]&/@ratios;
    derivative=Join[values[basis[[i]]],<|"Coefficients"->Map[derivativeFunction[#,variables[[axis]]]&,values[basis[[i]]]["Coefficients"]]|>];
@@ -83,10 +88,18 @@ ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,kno
     "LaurentLowerBound"->low,"KnownThroughOrder"->high,"ExactTail"->False,
     "OrderCoverageVerified"->result["OrderCoverageVerified"],
     "Method"->"AuditedDifferentialConsequencesOfPhysicalLaurentCoefficients"|>;
+   If[KeyExistsQ[values,basis[[j]]],
+    oldRecord=values[basis[[j]]];oldLow=oldRecord["LaurentLowerBound"];oldHigh=oldRecord["KnownThroughOrder"];
+    (* Keep the accepted coefficients and their physical lower bound. The
+       newly derived expression supplies only the previously unknown tail. *)
+    one=Join[oldRecord,one,<|"LaurentLowerBound"->oldLow,
+      "Coefficients"->Join[oldRecord["Coefficients"],Association@Table[
+        k->Lookup[one["Coefficients"],k,0],{k,oldHigh+1,high}]]|>]];
    AssociateTo[values,basis[[j]]->one];changed=True;
    AppendTo[derived,<|"Integral"->basis[[j]],"DifferentiatedIntegral"->basis[[i]],
     "Variable"->variables[[axis]],"SolvedCoefficientValuation"->FeynFacet`DetermineLaurentValuation[matrices[[axis,i,j]],e],
-    "StoredOrderRange"->{low,high},"OrderCoverageVerified"->result["OrderCoverageVerified"]|>],
+    "StoredOrderRange"->{one["LaurentLowerBound"],high},"OrderCoverageVerified"->result["OrderCoverageVerified"]|>],
+   {j,missing}],
   {axis,Length[variables]},{i,indices}]];
  <|"Format"->"FeynFacet-DifferentialConsequencesOfMasterCoefficients","Values"->values,
   "Derivations"->derived,"UnresolvedRequests"->KeySelect[upperOrders,

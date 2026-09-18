@@ -84,7 +84,8 @@ gplRationalDecomposition[r_,t_]:=gplRationalDecomposition[r,t]=Module[
   If[FreeQ[den,t],primitive+=integratePolynomial[num/den];Continue[]];
   factors=Rest[FactorList[den]];
   variableFactors=Select[factors,!FreeQ[#[[1]],t]&];
-  If[Length[variableFactors]=!=1,gplFail["RationalPartialFractionsNotSeparated"]];
+  If[Length[variableFactors]=!=1,gplFail["RationalPartialFractionsNotSeparated",
+    <|"Term"->term,"IntegrationVariable"->t,"VariableFactors"->variableFactors|>]];
   {fac,m}=First[variableFactors];a=Cancel[num/(den/fac^m)];
   If[m>1,
    extended=PolynomialExtendedGCD[fac,D[fac,t],t];

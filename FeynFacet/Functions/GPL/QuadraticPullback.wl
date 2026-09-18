@@ -6,12 +6,16 @@
    choices or finite-part subtraction prescriptions are introduced. *)
 FeynFacetSolution`QuadraticRootChart::usage="QuadraticRootChart[q,t,v] gives the exact rational parametrization t=R(v), sqrt(q)=W(v), normalized by R(0)=0 and R'(0)=1, with W(0)=sqrt(q(0)). The inverse follows this branch. The basepoint must be nonzero; the chart is continued along the original path.";
 FeynFacetSolution`PullbackGPL::usage="PullbackGPL[expression,{t->R(v),v}] expresses GPLs and rational logarithms under a rational map with R(0)=0 in standard GPLs of v. It includes map poles, multiplicities and all-zero-tail normalization. It preserves analytic continuation from the original path.";
-FeynFacetSolution`QuadraticRootChart[q_,t_Symbol,v_Symbol]:=Catch[Module[
- {polynomial=Cancel[q],a,b,c,delta,den,r,w,inverse},
+Options[FeynFacetSolution`QuadraticRootChart]={"Assumptions"->True};
+FeynFacetSolution`QuadraticRootChart[q_,t_Symbol,v_Symbol,OptionsPattern[]]:=Catch[Module[
+ {polynomial=Cancel[q],a,b,c,delta,den,r,w,inverse,conditions},
  If[t===v||!FreeQ[polynomial,v]||!PolynomialQ[polynomial,t]||Exponent[polynomial,t]>2,
   gplFail["QuadraticRadicandRequired"]];
  {c,b,a}=Table[Coefficient[polynomial,t,i],{i,0,2}];
- If[TrueQ[c===0],gplFail["NonzeroQuadraticRootBasePointRequired"]];
+ If[!FreeQ[{a,b,c},Indeterminate|_DirectedInfinity],gplFail["FiniteRadicandCoefficientsRequired"]];
+ If[TrueQ[Quiet[Refine[c==0,OptionValue["Assumptions"]]]],
+  gplFail["NonzeroQuadraticRootBasePointRequired"]];
+ conditions=Refine[Element[{a,b,c},Complexes]&&c!=0,OptionValue["Assumptions"]];
  If[a===0,
   (* A linear radicand needs a polynomial map. The general conic map
      introduces avoidable coordinate poles in this degenerate case. *)
@@ -26,7 +30,7 @@ FeynFacetSolution`QuadraticRootChart[q_,t_Symbol,v_Symbol]:=Catch[Module[
  <|"OriginalVariable"->t,"Parameter"->v,"Radicand"->polynomial,
   "OriginalVariableExpression"->r,"SquareRootExpression"->w,
   "ParameterExpression"->inverse,"Jacobian"->Factor[D[r,v]],
-  "BasePointRoot"->Sqrt[c],"UnitTangent"->True,
+  "BasePointRoot"->Sqrt[c],"UnitTangent"->True,"ValidityConditions"->conditions,
   "BranchConvention"->"Continue W(0)=sqrt(q(0)) along the original path; chart poles and source singularities retain their original continuation.",
   "Scope"->"Nonzero root at the basepoint; ordinary convergent integrals, with no change of finite-part prescriptions."|>
 ],"GPLIntegration"];
@@ -72,7 +76,10 @@ gplLinearRootPairChart[radicands_List,t_,v_]:=Module[
  If[Length[radicands]=!=2||!AllTrue[radicands,PolynomialQ[#,t]&&Exponent[#,t]===1&],
   Return[Failure["TwoAffineRadicandsRequired",<||>]]];
  c=(#/.t->0)&/@radicands;b=Coefficient[#,t,1]&/@radicands;
- If[MemberQ[c,0],Return[Failure["NonzeroQuadraticRootBasePointRequired",<||>]]];
+ If[!FreeQ[{c,b},Indeterminate|_DirectedInfinity],
+  Return[Failure["FiniteRadicandCoefficientsRequired",<||>]]];
+ If[AnyTrue[c,TrueQ[Quiet[Refine[#==0,If[ValueQ[$gplAssumptions],$gplAssumptions,True]]]]&],
+  Return[Failure["NonzeroQuadraticRootBasePointRequired",<||>]]];
  {aa,bb}=Cancel/@(b/c);eta=Factor[bb(bb-aa)/16];
  den=1-bb v/2+eta v^2;
  r=v(den+aa v/4)/den^2;initialRoots=Sqrt/@c;
@@ -87,7 +94,9 @@ gplLinearRootPairChart[radicands_List,t_,v_]:=Module[
    Cancel[Together[4r/((1+roots[[2]]/initialRoots[[2]])Total[roots/initialRoots])-v]]=!=0,
   Return[Failure["LinearRootPairChartIdentityFailed",<||>]]];
  <|"OriginalVariableExpression"->r,"SquareRootExpressions"->roots,
-   "ParameterExpression"->inverse,"Jacobian"->jacobian|>
+   "ParameterExpression"->inverse,"Jacobian"->jacobian,
+   "ValidityConditions"->Refine[Element[Join[c,b],Complexes]&&And@@(#!=0&/@c),
+     If[ValueQ[$gplAssumptions],$gplAssumptions,True]]|>
 ];
 gplPositiveRootScale[radicands_,t_]:=Module[{candidates},
  If[Length[radicands]=!=2||!ValueQ[$gplAssumptions],Return[1]];
@@ -114,7 +123,7 @@ gplIntegrateQuadraticRoot[expression_,t_,s_]:=Module[
  {q,sourceRadicands}];
  chart=Which[
   Length[radicands]===1,
-   q=First[radicands];FeynFacetSolution`QuadraticRootChart[q,t,v],
+   q=First[radicands];FeynFacetSolution`QuadraticRootChart[q,t,v,"Assumptions"->$gplAssumptions],
   Length[radicands]===2&&AllTrue[radicands,PolynomialQ[#,t]&&Exponent[#,t]===1&],
    gplLinearRootPairChart[radicands,t,v],
   True,gplFail["RationalSquareRootChartNotConstructed",<|"Radicands"->radicands|>]];
@@ -128,7 +137,10 @@ gplIntegrateQuadraticRoot[expression_,t_,s_]:=Module[
    Module[{image=Lookup[rootImages,Key[Factor[base]],Missing["Root"]]},
     If[MissingQ[image],gplFail["RootOutsideRationalizedField"],(image[[2]] roots[[image[[1]]]])^(2power)]];
  body=gplRefineConstantRadicals[(replaced/.t->r)jacobian,v];
- body=gplNormalizeRationalIntegrand[body,v];gplBound[body];
+ (* Use the same bound as the rational path: first collect each GPL word's
+    rational coefficient, then bound that compact expression. A pullback may
+    create large sums which cancel before any integration is necessary. *)
+ body=gplNormalizeRationalIntegrand[body,v];
  answer=gplRationalIntegral[body,v,v];
  answer=gplCollectCoefficients[answer/.v->(inverse/.t->s)];
  gplBound[answer];answer

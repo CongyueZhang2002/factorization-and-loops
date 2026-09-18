@@ -37,4 +37,20 @@ chain=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[chainS
 FTTest`FTAssert["a value derived earlier in the same pass is included in later subtractions",
  AssociationQ[chain]&&chain["Values"][chainBasis[[3]]]["Coefficients"][0]===1&&
  Factor[chain["Values"][chainBasis[[4]]]["Coefficients"][0]-(x-1)]===0];
+partial=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
+ <|basis[[1]]-><|"Coefficients"-><|0->1,1->x,2->x^2|>,
+     "LaurentLowerBound"->0,"KnownThroughOrder"->2,"ExactTail"->False|>,
+   basis[[2]]->Join[record[1],<|"PhysicalConvention"->"RetainedInput"|>]|>,<|basis[[2]]->1|>];
+FTTest`FTAssert["a partially known target is extended without subtracting its own old value",
+ AssociationQ[partial]&&partial["UnresolvedRequests"]===<||>&&
+ partial["Values"][basis[[2]]]["Coefficients"]===<|0->1,1->2x|>&&
+ partial["Values"][basis[[2]]]["PhysicalConvention"]==="RetainedInput"];
+partialShort=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
+ <|basis[[1]]-><|"Coefficients"-><|0->1,1->x|>,
+     "LaurentLowerBound"->0,"KnownThroughOrder"->1,"ExactTail"->False|>,
+   basis[[2]]->record[1]|>,<|basis[[2]]->1|>];
+FTTest`FTAssert["an existing partial target still requires adequate source orders",
+ AssociationQ[partialShort]&&partialShort["Values"][basis[[2]]]===record[1]&&
+ KeyExistsQ[partialShort["UnresolvedRequests"],basis[[2]]]&&
+ partialShort["Derivations"]==={}];
 Print["DIFFERENTIAL MASTER VALUES TEST COMPLETE"];FTTest`FTReport[];

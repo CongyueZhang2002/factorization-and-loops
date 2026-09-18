@@ -1,7 +1,7 @@
-# PSLQ as a possible physical-boundary method
+# Numerical integer-relation reconstruction for coefficients and boundaries
 
 The user suggested high-precision numerical PSLQ as a potential speedup. No
-production reconstruction method has been replaced and no speedup is yet measured.
+production reconstruction method has been replaced and no end-to-end speedup has been measured.
 Actual GPT-6 Pro review29 completed against pushed f688f4596f0e184fc81e45031ea6049e6bcde80e.
 The user clarified the intended broader target is reconstruction in a known
 coefficient/function basis throughout reduction and DE calculations; review30
@@ -11,7 +11,7 @@ Three different tasks must be distinguished:
 
 | Object | Current or proposed approach | Assessment |
 |---|---|---|
-| Rational functions of kinematics and dimension in IBP/DE relations | Kira/FireFly finite-field interpolation and rational reconstruction | Retain; floating-point PSLQ would still need functional support and adequate precision for rational recovery. |
+| Rational functions of kinematics and dimension in IBP/DE relations | Kira/FireFly finite-field interpolation and rational reconstruction | Compare a small known-ansatz numerical pilot; retain modular production until total-time evidence supports a change. |
 | Physical boundary Laurent coefficients | Direct physical periods or continued moment constraints, possibly followed by PSLQ | Useful candidate for a bounded pilot. |
 | The entire measured function | A previously established GPL/function basis and numerical coefficient fitting | Requires an independently derived alphabet, prefactors, weights and branches; not a shortcut supplied by PSLQ itself. |
 

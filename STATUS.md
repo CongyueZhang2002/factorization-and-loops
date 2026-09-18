@@ -6,8 +6,10 @@ Preserve healthy jobs, dirty/private files, accepted lower orders and read-only
 ~/FACET. Do not read/compare a published measured NLO EEC coefficient until our
 complete result is derived and saved. Identified universal scalar inputs are allowed.
 
-Latest pushed revision:fe2f0205 (documentation; production code f688f4596f0e184fc81e45031ea6049e6bcde80e).
-Actual GPT-6 Pro23-28 reviews are saved. Pro28 confirms the signed unit-cut
+Latest prior pushed revision:25b643f1134775fbfbd439d7c9a2ad72f496fecc.
+The current continuation adds partial-order DE extension and explicit symbolic
+root-chart domains; consult git log for the subsequent recorded revision.
+Actual GPT-6 Pro23-31 reviews are saved. Pro28 confirms the signed unit-cut
 Jacobian and exact moment-combination algebra. Its all-coefficient exactness
 and retained-reduction findings are repaired;10 assertions pass2.966s.
 
@@ -63,9 +65,28 @@ Finite evolution coefficients U^(0),U^(1) for all42 coordinates have now been
 constructed with the existing solver,10.870s, using connection terms through
 order3 as derived by its basis-convolution planner. They are saved in
 Work/FiniteEvolutionThroughOrder1.wxf. Physical boundary values and complete
-source-order coverage remain explicitly unestablished. A bounded120s GPL
-conversion pass is active; inspect Archive/Runs/2026-09-18/NLOEECChecks/
-IdenticalFiniteEvolutionGPL.log and its actual processes before launching.
+source-order coverage remain explicitly unestablished. GPL conversion now covers
+418/437 finite definitions. The latest incremental pass took76.128s including
+startup, reusing415 prior conversions. Six timeouts, one rational partial-fraction
+failure and twelve dependent definitions remain. No limit was raised: rational
+coefficients are collected before the existing expression-size bound is applied.
+Inspect actual jobs before launching; prior conversion supervisors have completed.
+
+A permanent DE-consequence repair allows extension of already-known but too-short
+master expansions, excluding the solved column from the subtraction and retaining
+accepted coefficients. Ten tests pass3.316s. The actual identical-quark replay
+4.203s finds no additional sufficient coefficients: still7/41 requests covered.
+This repairs a general omission but does not fix missing physical constants.
+Symbolic root charts now retain validity conditions and reject basepoints proved
+zero under supplied assumptions.26 assertions pass1.633s. Pro31 confirms the
+positive-scale branch rule; its proposed dimension-based pole bound remains
+conditional on a fixed-fiber convergence certificate and is NOT installed.
+
+PSLQ on actual DE rational entries with supplied sparse support recovers4/8/16
+numerator coefficients.80 digits produced a false16-term candidate, rejected by
+exact comparison;160 digits with a higher iteration limit recovers it. Numerical
+samples came from saved formulas, so this is not an end-to-end speed claim.
+See Reports/2026-09-18/PSLQBoundaryStrategy.md; production remains unchanged.
 
 Previous supervisor559162 was stopped by the memory guard after244.556s while
 reloading/rebuilding the same large exact input. Scoped single-snapshot reuse
@@ -138,8 +159,8 @@ Hidden lower-pole rate2 assertions pass16.574s; cold/warm scalar provenance25
 assertions pass19.676s. Pro22 recommendations on deeper predecessor shells and
 sector-local numerators are implemented.
 
-Next: monitor the controlled DE; obtain closed DE/physical
-values for IdenticalQuarks and Gluons; complete original-source RR endpoint proof
+Next: complete physical values for the closed identical-quark DE; obtain the
+measured gluon DE/physical values; complete original-source RR endpoint proof
 and full distributions; only then literature comparison. Cut-compatible code
 and snapshot/search repairs were pushed and reviewed at66be3cfe. Never git add .
 Read Reports/2026-09-18/NLOEECPhysicalCoefficients.md for the running record.
