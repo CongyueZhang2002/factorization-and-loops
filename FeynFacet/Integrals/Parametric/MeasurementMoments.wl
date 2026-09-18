@@ -1,0 +1,88 @@
+(* Moments of polynomial measurement cuts. The measured and unmeasured sides
+   retain the same labeled particle measure. No physical constants are supplied. *)
+BeginPackage["FeynFacet`"];
+ConstructPolynomialMeasurementMoment::usage="ConstructPolynomialMeasurementMoment[family,integral,coordinates,{p,q},N,request] constructs the exact moment with weight z^p (1-z)^q of the integral with numerator F^(N+1), for a unit cut z F-G and N>=p+q. It proves positive F and support in (0,1) in compatible physical coordinates, retains the common compact-cut convergence proof, and returns measured and unmeasured GLI combinations with unchanged particle measure. Request supplies ExternalKinematicConditions and DimensionalRegulator. It does not reduce the inserted integrals, evaluate the moment, determine epsilon orders or fix DE constants.";
+Begin["`Private`"];
+ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
+ coordinates_Association,{p_Integer,q_Integer},n_Integer,request_Association]:=Catch[Module[
+ {family,top,powers,slots,slot,z,e,conditions,keep,cuts,pure,push,polynomial,f,g,
+  rules,domain,slope,observable,proof,certificate,unmeasured,name,measuredValue,
+  unmeasuredValue,insertion,parameterVariables,nonempty,baseRequest},
+ If[Min[p,q,n]<0||n<p+q,cutFamilyFail["NonnegativePolynomialMomentDegreesRequired"]];
+ family=FeynFacet`CreateCutIntegralFamily[input];
+ If[!AssociationQ[family],Throw[family,"CutFamily"]];
+ top=family["Topology"];powers=integral[[2]];slots=family["CutIndices"];
+ If[integral[[1]]=!=First[top]||Length[powers]=!=Length[top[[2]]]||
+   !VectorQ[powers,IntegerQ]||powers[[slots]]=!=ConstantArray[1,Length[slots]]||
+   Length[family["MeasurementCutIndices"]]=!=1||
+   Length[Lookup[family,"MeasurementDefinitions",{}]]=!=1,
+  cutFamilyFail["SinglePolynomialMeasurementWithUnitCutsRequired"]];
+ slot=First[family["MeasurementCutIndices"]];
+ z=First[family["MeasurementDefinitions"]]["Variable"];
+ e=Lookup[request,"DimensionalRegulator",None];
+ conditions=Lookup[request,"ExternalKinematicConditions",None];
+ If[!MatchQ[z,_Symbol]||!MatchQ[e,_Symbol]||conditions===None||
+   !FreeQ[conditions,Alternatives@@Join[{z,e},top[[3]],coordinates["Parameters"]]],
+  cutFamilyFail["IndependentMomentParameterConditionsRequired"]];
+ parameterVariables=DeleteDuplicates[Cases[conditions,
+   s_Symbol/;Context[s]=!="System`",{0,Infinity}]];
+ nonempty=If[parameterVariables==={},conditions,With[{vv=parameterVariables,cc=conditions},
+   TimeConstrained[Resolve[Exists[vv,cc],Reals],10,False]]];
+ If[nonempty=!=True,cutFamilyFail["NonemptyMomentParameterDomainRequired"]];
+ keep=DeleteCases[Range[Length[powers]],slot];
+ If[!FreeQ[{family["InversePropagators"][[keep]],family["MeasurePrefactor"],top[[5]]},z],
+  cutFamilyFail["MeasurementDependenceOutsideCutNotSupported"]];
+ polynomial=family["InversePropagators"][[slot]];
+ If[!PolynomialQ[polynomial,z]||Exponent[polynomial,z]=!=1||!FreeQ[polynomial,e],
+  cutFamilyFail["RegulatorIndependentAffineMeasurementVariableRequired"]];
+ f=Coefficient[polynomial,z];g=-polynomial/.z->0;
+ (* Validate the chart against the actual particle cuts and dimensional measure. *)
+ cuts=Map[Join[#,<|"Index"->First@FirstPosition[slots,#["Index"]]|>]&,family["Cuts"]];
+ pure=FeynFacet`CreateCutIntegralDefinition[Join[family,<|"Topology"->ReplacePart[top,2->top[[2,slots]]],
+   "Cuts"->cuts,"MeasurementNumerator"->1|>]];
+ push=FeynFacet`ConstructPhaseSpaceMeasurementPushforward[pure,coordinates];
+ If[!AssociationQ[push],cutFamilyFail["CompatiblePhysicalMomentChartRequired",<|"Cause"->push|>]];
+ rules=coordinates["ScalarProductRules"];domain=conditions&&coordinates["PhysicalDomain"];
+ slope=Cancel[Together[f/.rules]];observable=Cancel[Together[(g/f)/.rules]];
+ proof[claim_]:=TrueQ[TimeConstrained[FullSimplify[claim,Assumptions->domain],10,False]];
+ If[!FreeQ[{slope,observable},_FeynCalc`Pair|_FeynCalc`Momentum]||
+   !proof[slope>0&&Element[slope,Reals]&&0<observable<1]||
+   !proof[family["Assumptions"]/.z->observable],
+  cutFamilyFail["PositiveMeasurementSlopeAndFullSupportRequired"]];
+ (* Use the existing parent Gram-domination proof also when no ordinary
+    denominator is present: the measurement Jacobian still needs a proof. *)
+ certificate=Catch[polynomialMeasuredPrescriptionCertificate[family,integral,request],"EpsilonOrders"];
+ If[!AssociationQ[certificate]||!TrueQ[Lookup[certificate,"EventualHighDimensionHolomorphy",False]],
+  cutFamilyFail["CommonMeasurementMomentConvergenceRequired",<|"Cause"->certificate|>]];
+ name=Symbol["FeynFacet`IntegralFamilies`InclusiveMoment"<>
+   If[StringQ[First[top]],First[top],SymbolName[First[top]]]];
+ cuts=Map[Join[#,<|"Index"->First@FirstPosition[keep,#["Index"]]|>] &,
+   Select[family["Cuts"],#["Type"]==="Particle"&]];
+ baseRequest=KeyTake[family,{"Dimension","MeasurePrefactor","TimeDirection","FinalMomenta",
+   "MomentumConservationRules","CutConvention","Normalization","MomentumSpaceConvention",
+   "MasterIntegralPrefactor","BranchPrescription"}];
+ unmeasured=FeynFacet`CreateCutIntegralFamily[Join[baseRequest,<|
+   "Topology"->ReplacePart[top,{1->name,2->top[[2,keep]]}],"Cuts"->cuts,
+   "Assumptions"->conditions|>]];
+ If[!AssociationQ[unmeasured],cutFamilyFail["CompleteUnmeasuredMomentFamilyRequired",<|"Cause"->unmeasured|>]];
+ insertion=Expand[f^(n-p-q)g^p(f-g)^q];
+ measuredValue=FeynFacet`MultiplyCutIntegral[family,integral,Expand[f^(n+1)]];
+ unmeasuredValue=FeynFacet`MultiplyCutIntegral[unmeasured,FeynCalc`GLI[name,powers[[keep]]],insertion];
+ If[FailureQ[measuredValue]||FailureQ[unmeasuredValue],cutFamilyFail["PolynomialMomentInsertionRequired"]];
+ <|"Format"->"FeynFacet-PolynomialMeasurementMoment","Variable"->z,
+   "DimensionalRegulator"->e,"Interval"->{0,1},"Weight"->z^p(1-z)^q,
+   "Degrees"->{p,q},"JacobianInsertionDegree"->n+1,"SourceIntegral"->integral,
+   "MeasurementPolynomial"->polynomial,"MeasurementSlope"->f,"MeasurementNumerator"->g,
+   "MeasuredFamily"->family,"MeasuredIntegrals"->measuredValue,
+   "UnmeasuredFamily"->unmeasured,"UnmeasuredIntegrals"->unmeasuredValue,
+   "UnmeasuredNumeratorInsertion"->insertion,"ParameterConditions"->conditions,
+   "PhysicalChart"->coordinates,"PhysicalObservable"->observable,
+   "OriginalConvergenceCertificate"->certificate,"CommonConvergenceDomainExists"->True,
+   "Continuation"->"Equality first on the common high-dimension convergence domain, then as meromorphic dimensional distributions paired with the complete polynomial weight on the physical support.",
+   "MeasureUnchanged"->True,"OriginalParticleLabelsRetained"->True,
+   "MomentEvaluated"->False,"InsertedIntegralsReduced"->False,
+   "PhysicalBoundaryConstantsFixed"->False,"EndpointCoefficientsComputed"->False,
+   "Identity"->"Integral_0^1 dz z^p (1-z)^q J_R,N = Integral dPhi R F^(N-p-q) G^p (F-G)^q; J_R,N has numerator R F^(N+1) and the original cut delta(z F-G)."|>
+],"CutFamily"];
+ConstructPolynomialMeasurementMoment[___]:=Failure["TypedPolynomialMomentArgumentsRequired",<||>];
+End[];EndPackage[];

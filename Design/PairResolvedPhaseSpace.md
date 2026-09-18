@@ -113,3 +113,30 @@ exact-function consequence routine. Differentiation includes moving GPL letters;
 the coefficient valuation and omitted-tail audit control any lost epsilon orders.
 An unresolved order remains unresolved. None of these operations determines
 measurement endpoint contacts from interior values alone.
+
+## Inclusive moments for physical constants
+
+`ConstructPolynomialMeasurementMoment` constructs moment equations from the
+actual typed integral. For its unit measurement cut `z F-G`, with positive `F`
+and support `0<G/F<1`, inserting `F^(N+1)` gives
+
+    integral dz z^p (1-z)^q J_R,N(z)
+      = integral dPhi R F^(N-p-q) G^p (F-G)^q,   N >= p+q.
+
+The factor of `F` compensates the delta Jacobian. The operation retains the
+same labeled particle measure, ordinary prescriptions and dimension on both
+sides. It checks the support in compatible physical coordinates and uses the
+existing compact-cut Gram-domination proof for a common initial convergence
+domain. Equality is then continued meromorphically. Dotted cuts, insufficient
+insertion degree, restricted observable coverage and measurement-dependent
+normalizations are rejected by this unit-cut interface.
+
+The output contains explicit measured and unmeasured GLI combinations, with
+their definitions. It is a constraint to reduce and evaluate, not a solved
+moment or a boundary value. Numerator insertions can require integrals outside
+the existing DE span. Their reduction, scalar epsilon coverage, continued
+endpoint pairing and exact rank on the unresolved homogeneous solutions must
+all be established before they fix constants. This does not determine the
+complete observable's endpoint contact order. Mathematical review25 is retained
+under `External/ChatGPT/Records/2026-09-18`; the regression driver is
+`Tests/Integrals/t_polynomial_measurement_moments.wls`.

@@ -138,6 +138,7 @@
     "Integrals/Evaluations/ComplementMassPeriods.wl", "Integrals/Evaluations/InclusiveFourParticle.wl",
     "Integrals/Parametric/InvariantPhaseSpace.wl",
     "Integrals/Parametric/MeasurementPushforward.wl",
+    "Integrals/Parametric/MeasurementMoments.wl",
     "Integrals/Parametric/OneLoopMeasurement.wl",
     "Integrals/Parametric/MeasuredPhaseSpace.wl",
     "Integrals/Evaluations/AngularAverages.wl",
