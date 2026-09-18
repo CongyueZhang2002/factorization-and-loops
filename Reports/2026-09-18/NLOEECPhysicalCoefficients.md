@@ -243,3 +243,17 @@ Pro25 recommends Jacobian-corrected inclusive moments as a bounded method for
 remaining physical constants, with exact rank on unresolved DE modes, meromorphic
 endpoint continuation and valuation-aware epsilon coverage. The complete advice
 is retained; no moment-based physical constants have yet been claimed.
+
+
+The bounded search now generates ordinary and compatible-vector equations in
+small seed batches using the existing managed symbolic pool. Operators are built
+on the caller; workers receive exact tables. At most256 seeds are in one job,
+limiting transient worker memory. The card path allocates up to its Kira CPU budget
+for generation; single-job searches remain serial. Two actual workers reproduce
+the serial3842-equation set exactly (128 real seeds;26.618s including loading and
+worker startup). The bounded quadratic-DE regression passes5 assertions15.473s.
+This is an execution change, not a claim of an eightfold full-run speedup.
+
+The preserved live derivative search has progressed to33977 seeds/1083829 rows,
+reducing313 sampled remainder columns to1. Iteration3 adds121 seeds (1087863 rows).
+It still requires exact rational acceptance and physical master integration.

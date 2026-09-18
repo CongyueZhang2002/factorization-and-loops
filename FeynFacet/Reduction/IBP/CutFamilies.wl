@@ -228,7 +228,10 @@ cutGenerateIBPBatch[jobs_List,workers_Integer]:=Module[{answer,preparedJobs},
  preparedJobs=Catch[Map[Function[job,
   If[!AssociationQ[job]||!AssociationQ[Lookup[job,"Family",None]]||
     !AssociationQ[Lookup[job,"Plan",None]],cutFamilyFail["TypedIBPGenerationJobRequired"]];
-  Join[job,<|"Operators"->cutIBPOperators[job["Family"]]|>]],jobs],"CutFamily"];
+   If[KeyExistsQ[job,"Operators"],
+    If[!ListQ[job["Operators"]]||!AllTrue[job["Operators"],AssociationQ],
+      cutFamilyFail["PreparedIBPOperatorRecordsRequired"]];job,
+    Join[job,<|"Operators"->cutIBPOperators[job["Family"]]|>]]],jobs],"CutFamily"];
  If[!ListQ[preparedJobs],Return[preparedJobs]];
  answer=facetWithSymbolicWorkers[
   facetSymbolicMap[FeynFacet`Private`cutGenerateIBPJob,preparedJobs],Min[workers,Max[1,Length[jobs]]]];

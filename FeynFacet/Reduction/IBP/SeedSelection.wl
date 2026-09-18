@@ -148,11 +148,13 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
   added,more,iteration,history={},exact,images,unmatched,allSeeds,preferred=Union[candidates],
   name,depth,record,byName,trialDepth,tangentVectors=<||>,tangent,
   vectorMethod=Lookup[request,"IBPVectorMethod","Ordinary"],
-  protection=Lookup[request,"CutProtection","All"],searchDefinition},
+  protection=Lookup[request,"CutProtection","All"],searchDefinition,jobs,operators,
+  workers=Lookup[request,"GenerationKernels",1]},
  work=Lookup[request,"WorkingDirectory",None];points=Lookup[request,"SamplingPoints",None];
  limit=Lookup[request,"MaximumSeedIterations",5];seedLimit=Lookup[request,"MaximumSeeds",100000];
  If[!StringQ[work]||!MatchQ[points,{{(_Rule)..}..}]||!IntegerQ[limit]||limit<1||
    !MemberQ[{"Ordinary","CutCompatible","Mixed"},vectorMethod]||!MemberQ[{"All","Particle"},protection]||
+   !IntegerQ[workers]||!Between[workers,{1,8}]||
    !IntegerQ[seedLimit]||seedLimit<1,cutFamilyFail["BoundedSampledBasisSearchRequestRequired"]];
  searchDefinition=<|"Format"->"FeynFacet-BoundedIntegralBasisSearch",
   "Families"->(KeyTake[#,{"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"}]&/@families),
@@ -177,14 +179,17 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
  added=seeds;
  Do[
   If[Total[Length/@Values[seeds]]>seedLimit,cutFamilyFail["BasisSearchSeedLimit",<|"History"->history|>]];
-  Do[name=family["Topology"][[1]];If[added[name]==={},Continue[]];
-   generated=If[vectorMethod==="CutCompatible",<|"Rows"->{}|>,FeynFacet`GenerateCutIBPEquations[family,added[name]]];
-   If[!AssociationQ[generated],cutFamilyFail["BasisSearchExactEquationsRequired",<|"Cause"->generated|>]];
-   rows=Join[rows,generated["Rows"]];
-   If[vectorMethod=!="Ordinary",
-    tangent=FeynFacet`GenerateCutCompatibleIBPEquations[family,added[name],tangentVectors[name]];
-    If[!AssociationQ[tangent],cutFamilyFail["CutCompatibleBasisEquationsRequired",<|"Cause"->tangent|>]];
-    rows=Join[rows,tangent["Rows"]]],{family,families}];
+  jobs=Flatten[Table[name=family["Topology"][[1]];
+    operators=If[vectorMethod==="CutCompatible",{},cutIBPOperators[family]];
+    If[vectorMethod=!="Ordinary",operators=Join[operators,tangentVectors[name]["Operators"]]];
+    Table[<|"Family"->family,"Plan"-><|"Seeds"->chunk|>,"Operators"->operators,
+      "PrintTimings"->Lookup[request,"PrintTimings",False]|>,
+     {chunk,Partition[added[name],UpTo[256]]}],{family,families}],1];
+  generated=cutGenerateIBPBatch[jobs,workers];
+  If[!ListQ[generated]||!AllTrue[generated,AssociationQ],
+   cutFamilyFail["BasisSearchExactEquationsRequired",<|"Cause"->generated|>]];
+  rows=Join[rows,Flatten[Lookup[generated,"Rows",{}],1]];
+  Clear[generated,jobs];
   If[iteration===1,rows=Join[rows,Lookup[request,"ExtraEquations",{}]]];
   Print["BASIS SEED SEARCH ",iteration," SEEDS ",Total[Length/@Values[seeds]]," ROWS ",Length[rows]];
   samples=FeynFacet`SampleCutIBPEquations[rows,targets,families,<|

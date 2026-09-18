@@ -118,7 +118,8 @@ PrepareMeasuredContributionReduction[card_Association,merged_Association]:=Catch
    Join[initial,KeyTake[ibpCloseReductionRules[initial["Rules"],merged["Targets"]],{"Rules","Masters"}],
      <|"ReusedSolvedReduction"->True|>],
   FeynFacet`ReduceCutIntegralsToBasis[merged["Families"],merged["Targets"],preferred,
-   Join[<|"Threads"->card["Execution"]["KiraThreads"],"IBPVectorMethod"->"Mixed",
+   Join[<|"Threads"->card["Execution"]["KiraThreads"],
+    "GenerationKernels"->card["Execution"]["KiraThreads"],"IBPVectorMethod"->"Mixed",
     "HomogeneousScale"->card["Assembly"]["Scale"],"RationalSolver"->"FireFly"|>,request,<|
     "WorkingDirectory"->path<>"/UnitCutReduction","SamplingPoints"->measuredBasisSamplingPoints[card],
     "ExtraEquations"->Join[Lookup[request,"ExtraEquations",{}],rows]|>]]]];
@@ -139,6 +140,7 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
  request=Lookup[card["Assembly"],"Reduction",<||>];
  {seconds,system}=facetElapsedTiming[FeynFacet`ConstructCutDifferentialSystem[merged["Families"],merged["Targets"],variables,
    Join[<|"WorkingDirectory"->path<>"/DifferentialEquations","Threads"->execution["KiraThreads"],
+    "GenerationKernels"->execution["KiraThreads"],
     "SeedPolicy"->"TargetDownsets","PrintTimings"->True,"IBPVectorMethod"->"Mixed","CutProtection"->"Particle",
     "RationalSolver"->"FireFly","SamplingPoints"->measuredBasisSamplingPoints[card],
     "NewWorkspaceForChangedInputs"->True|>,
