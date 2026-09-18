@@ -33,6 +33,9 @@ FTTest`FTAssert["bounded derivative search closes the measured quadratic family 
  AssociationQ[qsystem]&&qsystem["MasterIntegralBasis"]==={qi}];
 If[AssociationQ[qsystem],FTTest`FTAssert["closed derivative agrees with the independently integrated two-root density",
  Cancel[Together[qsystem["ConnectionMatrices"][[1,1,1]]+1/(2qz)+(D-4)/(2(1-qz))]]===0]];
+replayed=FeynFacet`ConstructCutDifferentialSystem[{qf},{qi},{qz},Join[request,<|"GenerationKernels"->1|>]];
+FTTest`FTAssert["a retained exact attempt resumes without regenerating seed shells",
+ AssociationQ[replayed]&&replayed["ConnectionMatrices"]===qsystem["ConnectionMatrices"]];
 failed=FeynFacet`ConstructCutDifferentialSystem[{qf},{qi},{qz},Join[request,
  <|"WorkingDirectory"->qwork<>"/Insufficient","MaximumSeeds"->1|>]];
 FTTest`FTAssert["an insufficient bounded search preserves its derivative frontier and refuses promotion",

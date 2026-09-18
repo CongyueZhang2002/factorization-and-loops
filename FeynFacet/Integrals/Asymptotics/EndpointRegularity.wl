@@ -24,43 +24,12 @@ VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
   If[!IntegerQ[order],Return[False]];
   unit=Coefficient[den,e,order];
   AllTrue[First/@Rest[FactorList[unit]],prove[#!=0]&]];
- finiteConstant[value_]:=finiteConstant[value]=Which[
-  !FreeQ[value,Indeterminate|_DirectedInfinity],False,
-  NumericQ[value]||MatchQ[value,_Symbol],True,
-  MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,finiteConstant],
-  Head[value]===Power,finiteConstant[value[[1]]]&&finiteConstant[value[[2]]]&&
-    (IntegerQ[value[[2]]]&&value[[2]]>=0||prove[value[[1]]!=0]),
-  Head[value]===Log,finiteConstant[value[[1]]]&&prove[value[[1]]!=0],
-  Head[value]===Gamma,finiteConstant[value[[1]]]&&prove[value[[1]]>0],
-  MemberQ[{Sin,Cos},Head[value]],finiteConstant[value[[1]]],
-  MemberQ[{Tan,Sec},Head[value]],finiteConstant[value[[1]]]&&prove[Cos[value[[1]]]!=0],
-  MemberQ[{Cot,Csc},Head[value]],finiteConstant[value[[1]]]&&prove[Sin[value[[1]]]!=0],
-  True,False];
+ finiteConstant[value_]:=finiteConstant[value]=normalizationFiniteConstantQ[value,conditions];
  regularPolynomial[value_,degree_:Infinity]:=FreeQ[value,Alternatives@@xs]&&PolynomialQ[value,e]&&
   Exponent[value,e]<=degree&&AllTrue[CoefficientList[value,e],finiteConstant];
- nonzeroGerm[value_]:=Module[{lower,leading},
-  lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[value,e];
-  If[!IntegerQ[lower],Return[False]];
-  leading=TimeConstrained[Quiet[SeriesCoefficient[value,{e,0,lower}]],10,$Failed];
-  FreeQ[leading,e|$Failed|_SeriesCoefficient]&&finiteConstant[leading]&&prove[leading!=0]];
- (* Coordinate-independent factors still need a finite Laurent principal
-    part. In particular Exp[1/epsilon] cannot be cleared by a finite pole. *)
- meromorphic[value_]:=meromorphic[value]=Which[
-  !FreeQ[value,Indeterminate|_DirectedInfinity],False,
-  FreeQ[value,e],finiteConstant[value],
-  MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,meromorphic],
-  Head[value]===Power&&IntegerQ[value[[2]]],meromorphic[value[[1]]]&&(value[[2]]>=0||nonzeroGerm[value[[1]]]),
-  Head[value]===Power&&value[[1]]===E,PolynomialQ[value[[2]],e]&&AllTrue[CoefficientList[value[[2]],e],finiteConstant],
-  Head[value]===Power&&FreeQ[value[[1]],e]&&PolynomialQ[value[[2]],e],finiteConstant[value[[1]]]&&
-    AllTrue[CoefficientList[value[[2]],e],finiteConstant]&&prove[value[[1]]!=0],
-  Head[value]===Gamma&&PolynomialQ[value[[1]],e]&&Exponent[value[[1]],e]<=1,
-   VectorQ[CoefficientList[value[[1]],e],MatchQ[#,_Integer|_Rational]&],
-  MemberQ[{Sin,Cos,Tan,Cot,Sec,Csc},Head[value]],PolynomialQ[value[[1]],e]&&
-    AllTrue[CoefficientList[value[[1]],e],finiteConstant]&&
-    If[MemberQ[{Tan,Sec},Head[value]],nonzeroGerm[Cos[value[[1]]]],
-      If[MemberQ[{Cot,Csc},Head[value]],nonzeroGerm[Sin[value[[1]]]],True]],
-  rational[value],True,
-  True,False];
+ nonzeroGerm[value_]:=normalizationNonzeroGermQ[value,e,conditions];
+ (* The same normalization-domain checker is used by physical moment inputs. *)
+ meromorphic[value_]:=meromorphic[value]=normalizationMeromorphicQ[value,e,conditions]||rational[value];
  gauss[value_]:=Module[{tests},
   tests=<|"ParametersIndependentOfCoordinates"->FreeQ[Take[List@@value,3],Alternatives@@xs],
     "AffineRegulatorParameters"->AllTrue[Take[List@@value,3],regularPolynomial[#,1]&],

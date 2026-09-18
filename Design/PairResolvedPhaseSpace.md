@@ -140,3 +140,12 @@ all be established before they fix constants. This does not determine the
 complete observable's endpoint contact order. Mathematical review25 is retained
 under `External/ChatGPT/Records/2026-09-18`; the regression driver is
 `Tests/Integrals/t_polynomial_measurement_moments.wls`.
+
+`ReduceMeasurementMomentCombinations` selects combinations of these insertions
+covered by retained exact rules. It treats every other GLI as an independent
+remainder and equates all powers of the measurement variable after clearing
+rational denominators. The combination coefficients are independent of that
+variable, so the inclusive right sides combine with the same coefficients.
+This can provide valid moment rows even when individual insertions are not
+fully reduced. It does not multiply an integrated IBP identity by a loop
+polynomial or infer the rank of constraints on physical constants.

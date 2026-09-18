@@ -341,13 +341,13 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
      residualIsZero=elimination["ResidualColumnCount"]===0];
    unknowns=cachedIdentifiers["IndexedIntegrals"];head=cachedIdentifiers["IdentifierHead"];
    If[scale=!=None&&!residualIsZero,
-    scaleNormalization=FamilyArtifactRead[directory<>"/EquationScaleNormalization.wl"];
+     scaleNormalization=FamilyArtifactRead[SelectFirst[
+       {directory<>"/EquationScaleNormalization.wxf",directory<>"/EquationScaleNormalization.wl"},FileExistsQ]];
     If[!AssociationQ[scaleNormalization]||Lookup[scaleNormalization,"Scale",None]=!=scale,
      cutFamilyFail["SavedIntegralEquationScaleNormalizationRequired"]]];
    idMap=AssociationThread[unknowns,Range[Length[unknowns]]];
    project=Join[cachedIdentifiers,<|"Directory"->directory,"Runtime"->ibpRuntime[],
-    "Manifest"->{<|"Name"->head|>},"EquationSource"->"TypedIBP",
-    "InputFingerprint"->reductionFingerprint[definition],"IntegralIndex"->idMap|>];
+    "Manifest"->{<|"Name"->head|>},"EquationSource"->"TypedIBP","IntegralIndex"->idMap|>];
    If[residualIsZero,Return[finish[{},solveTargets,0,elimination["OriginalEquationCount"],
      Missing["RetainedEquationFile"],0]]];
    {seconds,imported}=AbsoluteTiming[
@@ -410,13 +410,16 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
    If[AssociationQ[scaleNormalization],
    equations=scaleNormalization["Rows"];
   scaleNormalization=KeyDrop[scaleNormalization,{"Rows","OriginalRowScaleDegrees"}];
-  If[FamilyArtifactWrite[scaleNormalization,directory<>"/EquationScaleNormalization.wl",Compression->Automatic]===$Failed,
+  If[FamilyArtifactWrite[scaleNormalization,directory<>"/EquationScaleNormalization"<>
+    If[ByteCount[scaleNormalization]>2^20,".wxf",".wl"],Compression->Automatic]===$Failed,
     cutFamilyFail["IntegralEquationScaleNormalizationWriteFailed"]];
    Print["Removed equation scale ",scale," by a verified change of integral unknowns"]]];
   project=cutKiraPrepareEquationSystem[records,solveTargets,equations,directory,
    Lookup[request,"PreferredMasterIntegrals",{}]];
  Clear[equations];
- project=Join[project,<|"InputFingerprint"->reductionFingerprint[definition]|>];
+  (* The complete typed input has already been compared structurally by the
+     workspace validator. Hashing a million-row request here adds no check
+     and can allocate another representation of the entire equation system. *)
   unknowns=project["IndexedIntegrals"];head=project["IdentifierHead"];
   If[residualIsZero,Return[finish[{},solveTargets,0,totalEquationCount,familySeedCounts,generationSeconds]]];
  Export[FileNameJoin[{directory,"jobs.yaml"}],cutKiraEquationJob[solver],"String"];

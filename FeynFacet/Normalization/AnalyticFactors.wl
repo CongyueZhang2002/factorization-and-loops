@@ -1,0 +1,59 @@
+(* Shared finite-parameter and meromorphic-regulator checks. These establish
+   analytic normalization domains, not any endpoint or prescription theorem. *)
+BeginPackage["FeynFacet`"];
+VerifyMeromorphicNormalization::usage="VerifyMeromorphicNormalization[factors,epsilon,conditions] checks supported coordinate-independent normalization factors for finite external coefficients and a finite Laurent principal part in epsilon. Conditions are independent of epsilon and must be nonempty. Unsupported factors fail; this is not an endpoint or causal-prescription certificate.";
+Begin["`Private`"];
+normalizationProve[claim_,conditions_]:=TrueQ[TimeConstrained[
+ FullSimplify[claim,Assumptions->conditions],10,False]];
+normalizationFiniteConstantQ[value_,conditions_]:=Which[
+ !FreeQ[value,Indeterminate|_DirectedInfinity],False,
+ NumericQ[value]||MatchQ[value,_Symbol],True,
+ MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,normalizationFiniteConstantQ[#,conditions]&],
+ Head[value]===Power,normalizationFiniteConstantQ[value[[1]],conditions]&&
+  normalizationFiniteConstantQ[value[[2]],conditions]&&
+  (IntegerQ[value[[2]]]&&value[[2]]>=0||normalizationProve[value[[1]]!=0,conditions]),
+ Head[value]===Log,normalizationFiniteConstantQ[value[[1]],conditions]&&normalizationProve[value[[1]]!=0,conditions],
+ Head[value]===Gamma,normalizationFiniteConstantQ[value[[1]],conditions]&&normalizationProve[value[[1]]>0,conditions],
+ MemberQ[{Sin,Cos},Head[value]],normalizationFiniteConstantQ[value[[1]],conditions],
+ MemberQ[{Tan,Sec},Head[value]],normalizationFiniteConstantQ[value[[1]],conditions]&&normalizationProve[Cos[value[[1]]]!=0,conditions],
+ MemberQ[{Cot,Csc},Head[value]],normalizationFiniteConstantQ[value[[1]],conditions]&&normalizationProve[Sin[value[[1]]]!=0,conditions],
+ True,False];
+normalizationNonzeroGermQ[value_,e_,conditions_]:=Module[{lower,leading},
+ lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[value,e];
+ If[!IntegerQ[lower],Return[False]];
+ leading=TimeConstrained[Quiet[SeriesCoefficient[value,{e,0,lower}]],10,$Failed];
+ FreeQ[leading,e|$Failed|_SeriesCoefficient]&&normalizationFiniteConstantQ[leading,conditions]&&
+  normalizationProve[leading!=0,conditions]
+];
+normalizationMeromorphicQ[value_,e_,conditions_]:=Which[
+ !FreeQ[value,Indeterminate|_DirectedInfinity],False,
+ FreeQ[value,e],normalizationFiniteConstantQ[value,conditions],
+ MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,normalizationMeromorphicQ[#,e,conditions]&],
+ Head[value]===Power&&IntegerQ[value[[2]]],normalizationMeromorphicQ[value[[1]],e,conditions]&&
+  (value[[2]]>=0||normalizationNonzeroGermQ[value[[1]],e,conditions]),
+ Head[value]===Power&&value[[1]]===E,PolynomialQ[value[[2]],e]&&
+  AllTrue[CoefficientList[value[[2]],e],normalizationFiniteConstantQ[#,conditions]&],
+ Head[value]===Power&&FreeQ[value[[1]],e]&&PolynomialQ[value[[2]],e],
+  normalizationFiniteConstantQ[value[[1]],conditions]&&
+  AllTrue[CoefficientList[value[[2]],e],normalizationFiniteConstantQ[#,conditions]&]&&
+  normalizationProve[value[[1]]!=0,conditions],
+ Head[value]===Gamma&&PolynomialQ[value[[1]],e]&&Exponent[value[[1]],e]<=1,
+  VectorQ[CoefficientList[value[[1]],e],MatchQ[#,_Integer|_Rational]&],
+ MemberQ[{Sin,Cos,Tan,Cot,Sec,Csc},Head[value]],PolynomialQ[value[[1]],e]&&
+  AllTrue[CoefficientList[value[[1]],e],normalizationFiniteConstantQ[#,conditions]&]&&
+  Which[MemberQ[{Tan,Sec},Head[value]],normalizationNonzeroGermQ[Cos[value[[1]]],e,conditions],
+   MemberQ[{Cot,Csc},Head[value]],normalizationNonzeroGermQ[Sin[value[[1]]],e,conditions],True,True],
+ True,False];
+VerifyMeromorphicNormalization[factors_List,e_Symbol,conditions_:True]:=Module[{variables,nonempty},
+ If[!FreeQ[conditions,e],Return[Failure["RegulatorIndependentNormalizationConditionsRequired",<||>]]];
+ variables=DeleteDuplicates[Cases[conditions,s_Symbol/;Context[s]=!="System`",{0,Infinity}]];
+ nonempty=If[variables==={},conditions,With[{vv=variables,cc=conditions},
+  TimeConstrained[Resolve[Exists[vv,cc],Reals],10,False]]];
+ If[nonempty=!=True,Return[Failure["NonemptyNormalizationParameterDomainRequired",<||>]]];
+ If[!AllTrue[factors,normalizationMeromorphicQ[#,e,conditions]&],
+  Return[Failure["FiniteMeromorphicNormalizationNotEstablished",<|"Factors"->factors|>]]];
+ <|"Format"->"FeynFacet-MeromorphicNormalizationVerification","Factors"->factors,
+  "DimensionalRegulator"->e,"ParameterConditions"->conditions,"FiniteLaurentPrincipalPart"->True,
+  "Scope"->"Supported meromorphic dimensional normalization with finite external coefficients on the stated domain; isolated dimensional poles are excluded from the initial integration domain."|>
+];
+End[];EndPackage[];

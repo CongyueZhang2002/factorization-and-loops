@@ -7,7 +7,7 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  coordinates_Association,{p_Integer,q_Integer},n_Integer,request_Association]:=Catch[Module[
  {family,top,powers,slots,slot,z,e,conditions,keep,cuts,pure,push,polynomial,f,g,
   rules,domain,slope,observable,proof,certificate,unmeasured,name,measuredValue,
-  unmeasuredValue,insertion,parameterVariables,nonempty,baseRequest},
+  unmeasuredValue,insertion,parameterVariables,nonempty,baseRequest,normalization},
  If[Min[p,q,n]<0||n<p+q,cutFamilyFail["NonnegativePolynomialMomentDegreesRequired"]];
  family=FeynFacet`CreateCutIntegralFamily[input];
  If[!AssociationQ[family],Throw[family,"CutFamily"]];
@@ -24,11 +24,17 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  If[!MatchQ[z,_Symbol]||!MatchQ[e,_Symbol]||conditions===None||
    !FreeQ[conditions,Alternatives@@Join[{z,e},top[[3]],coordinates["Parameters"]]],
   cutFamilyFail["IndependentMomentParameterConditionsRequired"]];
+ If[Lookup[coordinates,"DimensionalRegulator",None]=!=e||
+   Cancel[(Lookup[family,"Dimension",D]/.D->4-2e)-(4-2e)]=!=0,
+  cutFamilyFail["ConsistentMomentDimensionalRegulatorRequired"]];
  parameterVariables=DeleteDuplicates[Cases[conditions,
    s_Symbol/;Context[s]=!="System`",{0,Infinity}]];
  nonempty=If[parameterVariables==={},conditions,With[{vv=parameterVariables,cc=conditions},
    TimeConstrained[Resolve[Exists[vv,cc],Reals],10,False]]];
  If[nonempty=!=True,cutFamilyFail["NonemptyMomentParameterDomainRequired"]];
+ normalization=FeynFacet`VerifyMeromorphicNormalization[
+   Values[KeyTake[family,{"MeasurePrefactor","MasterIntegralPrefactor"}]]/.D->4-2e,e,conditions];
+ If[!AssociationQ[normalization],cutFamilyFail["MomentNormalizationDomainRequired",<|"Cause"->normalization|>]];
  keep=DeleteCases[Range[Length[powers]],slot];
  If[!FreeQ[{family["InversePropagators"][[keep]],family["MeasurePrefactor"],top[[5]]},z],
   cutFamilyFail["MeasurementDependenceOutsideCutNotSupported"]];
@@ -54,8 +60,8 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  certificate=Catch[polynomialMeasuredPrescriptionCertificate[family,integral,request],"EpsilonOrders"];
  If[!AssociationQ[certificate]||!TrueQ[Lookup[certificate,"EventualHighDimensionHolomorphy",False]],
   cutFamilyFail["CommonMeasurementMomentConvergenceRequired",<|"Cause"->certificate|>]];
- name=Symbol["FeynFacet`IntegralFamilies`InclusiveMoment"<>
-   If[StringQ[First[top]],First[top],SymbolName[First[top]]]];
+ name=With[{source=First[top]},If[StringQ[source],"InclusiveMoment["<>source<>"]",
+   Symbol[Context[source]<>"InclusiveMoment`"<>SymbolName[source]]]];
  cuts=Map[Join[#,<|"Index"->First@FirstPosition[keep,#["Index"]]|>] &,
    Select[family["Cuts"],#["Type"]==="Particle"&]];
  baseRequest=KeyTake[family,{"Dimension","MeasurePrefactor","TimeDirection","FinalMomenta",
@@ -72,9 +78,11 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  <|"Format"->"FeynFacet-PolynomialMeasurementMoment","Variable"->z,
    "DimensionalRegulator"->e,"Interval"->{0,1},"Weight"->z^p(1-z)^q,
    "Degrees"->{p,q},"JacobianInsertionDegree"->n+1,"SourceIntegral"->integral,
-   "MeasurementPolynomial"->polynomial,"MeasurementSlope"->f,"MeasurementNumerator"->g,
+   "MeasurementPolynomial"->polynomial,"MeasurementSlope"->f,"ObservableNumerator"->g,
    "MeasuredFamily"->family,"MeasuredIntegrals"->measuredValue,
    "UnmeasuredFamily"->unmeasured,"UnmeasuredIntegrals"->unmeasuredValue,
+   "SourceToUnmeasuredSlots"->AssociationThread[keep,Range[Length[keep]]],
+   "NormalizationVerification"->normalization,
    "UnmeasuredNumeratorInsertion"->insertion,"ParameterConditions"->conditions,
    "PhysicalChart"->coordinates,"PhysicalObservable"->observable,
    "OriginalConvergenceCertificate"->certificate,"CommonConvergenceDomainExists"->True,

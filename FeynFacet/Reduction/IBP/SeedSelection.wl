@@ -149,6 +149,7 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
   name,depth,record,byName,trialDepth,tangentVectors=<||>,tangent,
   vectorMethod=Lookup[request,"IBPVectorMethod","Ordinary"],
   protection=Lookup[request,"CutProtection","All"],searchDefinition,jobs,operators,
+  savedAttempts,savedDefinition,savedWork,savedPhysics,
   workers=Lookup[request,"GenerationKernels",1]},
  work=Lookup[request,"WorkingDirectory",None];points=Lookup[request,"SamplingPoints",None];
  limit=Lookup[request,"MaximumSeedIterations",5];seedLimit=Lookup[request,"MaximumSeeds",100000];
@@ -159,10 +160,41 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
  searchDefinition=<|"Format"->"FeynFacet-BoundedIntegralBasisSearch",
   "Families"->(KeyTake[#,{"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"}]&/@families),
   "Targets"->targets,"Candidates"->candidates,
-  "Request"->KeyDrop[request,{"WorkingDirectory","NewWorkspaceForChangedInputs","PrintTimings","Threads"}]|>;
+  "Request"->KeyDrop[request,{"WorkingDirectory","NewWorkspaceForChangedInputs","PrintTimings","Threads","GenerationKernels"}]|>;
  work=cutKiraSelectWorkspace[work<>"/Search",searchDefinition,
    Lookup[request,"NewWorkspaceForChangedInputs",False]];
  cutKiraWorkspaceDefinition[work,searchDefinition];
+ (* A sampled search may finish long before its exact reconstruction. Its
+    retained exact request already contains every generated equation. Resume
+    that request instead of regenerating and sampling the same seed shells. *)
+ savedAttempts=Reverse[Sort[Select[FileNames["Exact*",work],
+   DirectoryQ[#]&&StringMatchQ[FileNameTake[#],"Exact"~~DigitCharacter..]&]]];
+ If[savedAttempts=!={},
+  savedWork=First[savedAttempts];savedDefinition=cutKiraReadDefinition[savedWork];
+  savedPhysics=KeyTake[request,{"HomogeneousScale","RationalSolver"}];
+  If[!AssociationQ[savedDefinition]||
+    Lookup[savedDefinition,"Format",None]=!="FeynFacet-KiraCutFamilyInput"||
+    Lookup[savedDefinition,"Families",None]=!=searchDefinition["Families"]||
+    Lookup[savedDefinition,"Targets",None]=!=Sort[DeleteDuplicates[targets]]||
+    Lookup[savedDefinition,"PreferredMasterIntegrals",None]=!=preferred||
+    Lookup[savedDefinition,"SeedIntegrals",None]=!={}||
+    KeyTake[savedDefinition,Keys[savedPhysics]]=!=savedPhysics||
+    !MatchQ[Lookup[savedDefinition,"ExtraEquations",None],{__Association}],
+   cutFamilyFail["RetainedExactBasisSearchDefinitionMismatch",<|"Directory"->savedWork|>]];
+  Print["Resuming retained exact basis-search equations from ",savedWork];
+  exact=FeynFacet`KiraReduction[families,targets,Join[
+    KeyTake[request,{"Threads","HomogeneousScale","RationalSolver","PrintTimings"}],
+    KeyTake[savedDefinition,{"SeedIntegrals","ExtraEquations","PreferredMasterIntegrals"}],
+    <|"WorkingDirectory"->savedWork|>]];
+  If[!AssociationQ[exact],cutFamilyFail["ExactCandidateBasisReductionRequired",<|"Cause"->exact|>]];
+  images=ibpCanonicalIntegralImages[targets/.Dispatch[exact["Rules"]]];
+  unmatched=Complement[DeleteDuplicates[Cases[images,_FeynCalc`GLI,{0,Infinity}]],preferred];
+  If[unmatched=!={},cutFamilyFail["RetainedExactCandidateSpanNotClosed",<|
+    "UnmatchedIntegrals"->unmatched,"RetainedReduction"->exact|>]];
+  Return[Join[exact,<|"CandidateMasterBasis"->preferred,"TargetSpanVerifiedExactly"->True,
+    "ReusedExactAttemptInput"->True,"SeedSearchHistory"->Missing["NotRetainedInExactAttempt"],
+    "ExactAttemptDirectory"->savedWork|>],Module]
+ ];
  byName=Association[(#["Topology"][[1]]->#)&/@families];
  If[!DuplicateFreeQ[First[#["Topology"]]&/@families]||
    !ContainsAll[Keys[byName],First/@Join[targets,preferred]],cutFamilyFail["DistinctKnownBasisFamiliesRequired"]];

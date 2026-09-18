@@ -21,7 +21,7 @@ FTTest`FTAssert["zeroth Jacobian-corrected moment is the original unmeasured vol
  moment["UnmeasuredNumeratorInsertion"]===1&&
  moment["UnmeasuredIntegrals"]===FeynCalc`GLI[moment["UnmeasuredFamily"]["Topology"][[1]],
   Join[ConstantArray[1,4],ConstantArray[0,5]]]];
-f=moment["MeasurementSlope"];g=moment["MeasurementNumerator"];
+f=moment["MeasurementSlope"];g=moment["ObservableNumerator"];
 FTTest`FTAssert["the polynomial cut Jacobian is compensated once",
  FullSimplify[(f/.coordinates["ScalarProductRules"])/
   (Coefficient[moment["MeasurementPolynomial"],zz]/.coordinates["ScalarProductRules"]),
@@ -46,4 +46,20 @@ FTTest`FTAssert["measurement-dependent normalization cannot be pulled outside th
   "MeasurePrefactor"->zz family["MeasurePrefactor"]|>],master,coordinates,{0,0},0,request]]];
 FTTest`FTAssert["a scaled observable outside the interval is rejected",
  FailureQ[FeynFacet`ConstructPolynomialMeasurementMoment[make[2observable],master,coordinates,{0,0},0,request]]];
+FTTest`FTAssert["the requested regulator must agree with the physical chart",
+ FailureQ[FeynFacet`ConstructPolynomialMeasurementMoment[family,master,coordinates,{0,0},0,
+  Join[request,<|"DimensionalRegulator"->otherEpsilon|>]]]];
+FTTest`FTAssert["singular external normalizations and essential regulator singularities are rejected",
+ FailureQ[FeynFacet`ConstructPolynomialMeasurementMoment[Join[family,<|"MeasurePrefactor"->
+  family["MeasurePrefactor"]/(alpha-beta)|>],master,coordinates,{0,0},0,
+  Join[request,<|"ExternalKinematicConditions"->ss>0&&alpha==beta|>]]]&&
+ FailureQ[FeynFacet`ConstructPolynomialMeasurementMoment[Join[family,<|"MeasurePrefactor"->
+  family["MeasurePrefactor"]Exp[1/ee]|>],master,coordinates,{0,0},0,request]]];
+renamed=Join[family,<|"Topology"->ReplacePart[family["Topology"],1->OtherMomentContext`MomentTest]|>];
+other=FeynFacet`ConstructPolynomialMeasurementMoment[renamed,ReplacePart[master,1->OtherMomentContext`MomentTest],
+ coordinates,{0,0},0,request];
+FTTest`FTAssert["unmeasured family identities retain source contexts and slot maps",
+ AssociationQ[other]&&other["UnmeasuredFamily"]["Topology"][[1]]=!=moment["UnmeasuredFamily"]["Topology"][[1]]&&
+ With[{id=other["UnmeasuredFamily"]["Topology"][[1]]},Context[id]]==="OtherMomentContext`InclusiveMoment`"&&
+ Values[moment["SourceToUnmeasuredSlots"]]===Range[9]];
 Print["POLYNOMIAL MEASUREMENT MOMENTS TEST COMPLETE"];FTTest`FTReport[];
