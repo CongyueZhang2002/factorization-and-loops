@@ -4,6 +4,13 @@ BeginPackage["FeynFacet`"];
 ConstructPolynomialMeasurementMoment::usage="ConstructPolynomialMeasurementMoment[family,integral,coordinates,{p,q},N,request] constructs the exact moment with weight z^p (1-z)^q of the integral with numerator F^(N+1), for a unit cut z F-G and N>=p+q. It proves positive F and support in (0,1) in compatible physical coordinates, retains the common compact-cut convergence proof, and returns measured and unmeasured GLI combinations with unchanged particle measure. Request supplies ExternalKinematicConditions and DimensionalRegulator. It does not reduce the inserted integrals, evaluate the moment, determine epsilon orders or fix DE constants.";
 Begin["`Private`"];
 ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
+ Automatic,degrees:{_Integer,_Integer},n_Integer,request_Association]:=Catch[Module[{e,data},
+ e=Lookup[request,"DimensionalRegulator",None];
+ If[!MatchQ[e,_Symbol],cutFamilyFail["MomentDimensionalRegulatorRequired"]];
+ data=pairMeasurementIntegralCharts[input,integral,e];
+ ConstructPolynomialMeasurementMoment[input,integral,First[data["Charts"]]["Coordinates"],degrees,n,request]
+],"CutFamily"];
+ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  coordinates_Association,{p_Integer,q_Integer},n_Integer,request_Association]:=Catch[Module[
  {family,top,powers,slots,slot,z,e,conditions,keep,cuts,pure,push,polynomial,f,g,
   rules,domain,slope,observable,proof,certificate,unmeasured,name,measuredValue,

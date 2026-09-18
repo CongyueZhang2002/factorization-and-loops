@@ -4,11 +4,11 @@ Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 geometry=<|"Name"->MomentTest,"FinalMomenta"->{k1,k2,k3,k4},"TotalMomentum"->qq,
  "ExternalMomenta"->{qq},"KinematicRules"->{FeynCalc`SPD[qq]->ss},"Assumptions"->ss>0|>;
 observable=ss FeynCalc`SPD[ka,kb]/(2FeynCalc`SPD[qq,ka]FeynCalc`SPD[qq,kb]);
-make[obs_]:=Module[{records,pure,top},
+make[obs_,tuple_:{1,2}]:=Module[{records,pure,top},
  records=FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,<|"Arguments"->{ka,kb},
   "Observable"->obs,"Weight"->1,"Variable"->zz,
   "Tuples"-><|"Ordered"->True,"IncludeRepeated"->False|>|>];
- pure=SelectFirst[records,MemberQ[#["ParticleTuples"],{1,2}]&]["Definition"];top=pure["Topology"];
+ pure=SelectFirst[records,MemberQ[#["ParticleTuples"],tuple]&]["Definition"];top=pure["Topology"];
  FeynFacet`CreateCutIntegralFamily[Join[pure,<|"Topology"->ReplacePart[top,2->Join[top[[2]],
   FeynCalc`FCI[FeynCalc`SFAD/@{k1+k2,k1+k3,k2+k3,qq-k1,qq-k2}]]]|>]]];
 family=make[observable];If[!AssociationQ[family],Print[InputForm[family]];Exit[1]];
@@ -62,4 +62,20 @@ FTTest`FTAssert["unmeasured family identities retain source contexts and slot ma
  AssociationQ[other]&&other["UnmeasuredFamily"]["Topology"][[1]]=!=moment["UnmeasuredFamily"]["Topology"][[1]]&&
  With[{id=other["UnmeasuredFamily"]["Topology"][[1]]},Context[id]]==="OtherMomentContext`InclusiveMoment`"&&
  Values[moment["SourceToUnmeasuredSlots"]]===Range[9]];
+automatic=FeynFacet`ConstructPolynomialMeasurementMoment[family,master,Automatic,{0,0},0,request];
+If[!AssociationQ[automatic],Print["AUTOMATIC MOMENT FAILURE ",InputForm[automatic]]];
+FTTest`FTAssert["automatic pair-chart selection preserves the same exact moment",
+ AssociationQ[automatic]&&automatic["MeasuredIntegrals"]===moment["MeasuredIntegrals"]&&
+ automatic["UnmeasuredIntegrals"]===moment["UnmeasuredIntegrals"]];
+momentBasis=Union[Cases[moment["MeasuredIntegrals"],_FeynCalc`GLI,{0,Infinity}]];
+selected=FeynFacet`ReduceMeasurementMomentCombinations[{moment},
+ <|"Masters"->momentBasis,"Rules"->{},"Families"->{family}|>];
+FTTest`FTAssert["a physical moment retains its family definitions through the linear selector",
+ AssociationQ[selected]&&Length[selected["MomentRows"]]===1&&
+ First[selected["MomentRows"]]["UnmeasuredIntegrals"]===moment["UnmeasuredIntegrals"]];
+otherPairFamily=make[observable,{1,3}];
+otherPair=FeynFacet`ConstructPolynomialMeasurementMoment[otherPairFamily,
+ ReplacePart[master,1->otherPairFamily["Topology"][[1]]],Automatic,{0,0},0,request];
+FTTest`FTAssert["the chart is selected from the actual measured pair rather than its position",
+ AssociationQ[otherPair]&&otherPair["PhysicalChart"]["ResolvedPair"]==={k1,k3}];
 Print["POLYNOMIAL MEASUREMENT MOMENTS TEST COMPLETE"];FTTest`FTReport[];

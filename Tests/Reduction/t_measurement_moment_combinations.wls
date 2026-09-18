@@ -2,12 +2,16 @@ Print["FEYNFACET DRIVER ENTERED"];$HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 {i1,i2,ix,u1,u2,u3}=FeynCalc`GLI[MomentRelations,{#}]&/@Range[6];
+(* This fixture tests the linear selector, not a physical convergence proof. *)
+fixture=<|"Topology"->FeynCalc`FCTopology[MomentRelations,{FeynCalc`SFAD[ell]},
+  {ell},{},{},{}],"Cuts"->{},"MeasurePrefactor"->1|>;
 make[expr_,inclusive_]:=<|"Format"->"FeynFacet-PolynomialMeasurementMoment",
  "CommonConvergenceDomainExists"->True,"Variable"->z,"DimensionalRegulator"->e,
  "Interval"->{0,1},"ParameterConditions"->s>0,"Weight"->1,
- "MeasuredIntegrals"->expr,"UnmeasuredIntegrals"->inclusive|>;
+ "MeasuredIntegrals"->expr,"UnmeasuredIntegrals"->inclusive,
+ "MeasuredFamily"->fixture,"UnmeasuredFamily"->fixture|>;
 records={make[i1+z ix,u1],make[i2+2z ix,u2],make[z i1+ix,u3]};
-reduction=<|"Masters"->{i1,i2},"Rules"->{}|>;
+reduction=<|"Masters"->{i1,i2},"Rules"->{},"Families"->{fixture}|>;
 result=FeynFacet`ReduceMeasurementMomentCombinations[records,reduction];
 If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
 FTTest`FTAssert["only measurement-independent cancellations of uncovered integrals survive",
@@ -31,4 +35,7 @@ FTTest`FTAssert["inconsistent intervals and incomplete exact reduction rules are
  FailureQ[FeynFacet`ReduceMeasurementMomentCombinations[records,Join[reduction,<|"Rules"->{u3->i1+ix}|>]]]];
 FTTest`FTAssert["integral identities do not assert solved moments or physical-constant rank",
  !result["MomentValuesEvaluated"]&&!result["PhysicalConstantRankEstablished"]&&!result["NewIBPEquationsGenerated"]];
+FTTest`FTAssert["identical integral names cannot hide different physical definitions",
+ FailureQ[FeynFacet`ReduceMeasurementMomentCombinations[records,
+  Join[reduction,<|"Families"->{Join[fixture,<|"MeasurePrefactor"->2|>]}|>]]]];
 Print["MEASUREMENT MOMENT COMBINATIONS TEST COMPLETE"];FTTest`FTReport[];

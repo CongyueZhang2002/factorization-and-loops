@@ -7,7 +7,8 @@ EvaluatePairMeasurementEulerMaster::usage="EvaluatePairMeasurementEulerMaster[fa
 PreparePairMeasurementRecoilIntegration::usage="PreparePairMeasurementRecoilIntegration[family,integral,epsilon] integrates the recoil angles of a unit-cut four-particle pair-measurement master with the shared two-body angular solver. It certifies the original ordinary prescription, derives the recoil frame from actual particle labels and restores the exact dimensional measure. The resulting two-energy integral is an intermediate representation, not a solved master or endpoint distribution.";
 Begin["`Private`"];
 pairMeasurementIntegralCharts[family_,integral_,e_]:=Module[
- {definition,top,powers,slots,ordinary,pure,cuts,particles,total,s,parameters,orders,coordinates,push,branch,charts={}},
+ {definition,top,powers,slots,ordinary,pure,cuts,particles,total,s,parameters,orders,coordinates,push,branch,charts={},
+  particleSlots,particleDefinition,unit,z,polynomial,f,g,observable,matchedPairs={},pair,pairMomenta},
  definition=FeynFacet`CreateCutIntegralDefinition[family];
  If[!AssociationQ[definition],Throw[definition,"CutFamily"]];
  top=definition["Topology"];powers=integral[[2]];slots=definition["CutIndices"];
@@ -23,6 +24,30 @@ pairMeasurementIntegralCharts[family_,integral_,e_]:=Module[
  If[!AssociationQ[pure],Throw[pure,"CutFamily"]];
  parameters=Table[Unique["pairIntegration$"],{5}];
  orders=Map[Join[#,Complement[Range[4],#]]&,Permutations[Range[4],{2}]];
+ (* Identify an actual rest-frame pair angle on the particle cuts before
+    trying coordinate roots. This exact identity selects the two useful
+    label orders; a different observable retains the general chart search. *)
+ z=First[definition["MeasurementVariables"]];
+ polynomial=definition["InversePropagators"][[First[definition["MeasurementCutIndices"]]]];
+ If[PolynomialQ[polynomial,z]&&Exponent[polynomial,z]===1,
+  f=Coefficient[polynomial,z];g=-polynomial/.z->0;
+  particleSlots=definition["ParticleCutIndices"];
+  cuts=Map[Join[#,<|"Index"->First@FirstPosition[particleSlots,#["Index"]]|>] &,
+    Select[definition["Cuts"],#["Type"]==="Particle"&]];
+  particleDefinition=FeynFacet`CreateCutIntegralDefinition[Join[definition,<|
+    "Topology"->ReplacePart[top,2->top[[2,particleSlots]]],"Cuts"->cuts|>]];
+  unit=FeynFacet`UnitCutScalarProductRules[particleDefinition];
+  If[ListQ[unit],Do[
+   pairMomenta=particles[[pair]];
+   observable=FeynCalc`FCI[s FeynCalc`SPD[pairMomenta[[1]],pairMomenta[[2]]]/
+     (2FeynCalc`SPD[total,pairMomenta[[1]]]FeynCalc`SPD[total,pairMomenta[[2]]])];
+   observable=FeynCalc`ExpandScalarProduct[observable/.
+     Lookup[definition,"MomentumConservationRules",{}]]/.top[[5]];
+   If[Cancel[Together[(g-f observable)/.unit]]===0,AppendTo[matchedPairs,pair]],
+   {pair,Subsets[Range[4],{2}]}]];
+  If[matchedPairs=!={},orders=Map[Join[#,Complement[Range[4],#]] &,
+    Flatten[({#,Reverse[#]}&/@matchedPairs),1]]]
+ ];
  Do[
   coordinates=FeynFacet`MasslessPairPhaseSpaceCoordinates[particles[[order]],total,s,e,parameters];
   push=FeynFacet`ConstructPhaseSpaceMeasurementPushforward[pure,coordinates];
@@ -33,7 +58,8 @@ pairMeasurementIntegralCharts[family_,integral_,e_]:=Module[
  {order,orders}];
  If[charts==={},cutFamilyFail["IndependentPairAngleMeasurementChartRequired"]];
  <|"Definition"->definition,"PureCutDefinition"->pure,"OrdinaryIndices"->ordinary,
-   "Scale"->s,"Parameters"->parameters,"Charts"->charts|>
+   "Scale"->s,"Parameters"->parameters,"Charts"->charts,
+   "ExactlyIdentifiedParticlePairs"->matchedPairs|>
 ];
 EvaluatePairMeasurementEulerMaster[family_Association,integral_FeynCalc`GLI,e_Symbol]:=Catch[Module[
  {data,definition,powers,ordinary,pure,s,parameters,r,x,y,a,b,coordinates,push,branch,root,

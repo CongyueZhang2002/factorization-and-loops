@@ -182,10 +182,14 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
     !MatchQ[Lookup[savedDefinition,"ExtraEquations",None],{__Association}],
    cutFamilyFail["RetainedExactBasisSearchDefinitionMismatch",<|"Directory"->savedWork|>]];
   Print["Resuming retained exact basis-search equations from ",savedWork];
-  exact=FeynFacet`KiraReduction[families,targets,Join[
+  (* The immutable owned snapshot has just been read and checked. Reuse that
+     value during nested workspace validation instead of deserializing a
+     second multi-GB copy. This cache is local to this exact resume call. *)
+  exact=Block[{$cutKiraReadCache=<|ExpandFileName[savedWork]->savedDefinition|>},
+   FeynFacet`KiraReduction[families,targets,Join[
     KeyTake[request,{"Threads","HomogeneousScale","RationalSolver","PrintTimings"}],
     KeyTake[savedDefinition,{"SeedIntegrals","ExtraEquations","PreferredMasterIntegrals"}],
-    <|"WorkingDirectory"->savedWork|>]];
+    <|"WorkingDirectory"->savedWork|>]]];
   If[!AssociationQ[exact],cutFamilyFail["ExactCandidateBasisReductionRequired",<|"Cause"->exact|>]];
   images=ibpCanonicalIntegralImages[targets/.Dispatch[exact["Rules"]]];
   unmatched=Complement[DeleteDuplicates[Cases[images,_FeynCalc`GLI,{0,Infinity}]],preferred];

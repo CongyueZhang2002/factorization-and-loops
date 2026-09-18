@@ -5,7 +5,7 @@ ReduceMeasurementMomentCombinations::usage="ReduceMeasurementMomentCombinations[
 Begin["`Private`"];
 ReduceMeasurementMomentCombinations[moments:{__Association},reduction_Association]:=Catch[Module[
  {z,e,basis,rules,images,parsed,outside,coefficientRows,matrixRows={},denominator,polynomials,
-  degree,kernel,results={},coefficients,image,inclusive,terms,rows,unit,matrices},
+  degree,kernel,results={},coefficients,image,inclusive,terms,rows,families,signature,groups},
  If[!AllTrue[moments,Lookup[#,"Format",None]==="FeynFacet-PolynomialMeasurementMoment"&&
     TrueQ[Lookup[#,"CommonConvergenceDomainExists",False]]&],
   cutFamilyFail["VerifiedPolynomialMeasurementMomentsRequired"]];
@@ -16,6 +16,21 @@ ReduceMeasurementMomentCombinations[moments:{__Association},reduction_Associatio
  basis=Lookup[reduction,"Masters",None];rules=Lookup[reduction,"Rules",None];
  If[!MatchQ[basis,{__FeynCalc`GLI}]||!DuplicateFreeQ[basis]||!MatchQ[rules,{(_Rule)...}]||
    !DuplicateFreeQ[First/@rules],cutFamilyFail["ExactMomentReductionAndBasisRequired"]];
+ families=Join[Lookup[reduction,"Families",{}],Lookup[moments,"MeasuredFamily",{}],
+   Lookup[moments,"UnmeasuredFamily",{}]];
+ If[!MatchQ[Lookup[reduction,"Families",{}],{__Association}]||
+   !AllTrue[moments,AssociationQ[Lookup[#,"MeasuredFamily",None]]&&AssociationQ[Lookup[#,"UnmeasuredFamily",None]]&]||
+   !AllTrue[families,ContainsAll[Keys[#],{"Topology","Cuts","MeasurePrefactor"}]&&
+     MatchQ[#["Topology"],_FeynCalc`FCTopology]&],
+  cutFamilyFail["MomentAndReductionFamilyDefinitionsRequired"]];
+ signature[family_]:={Rest[List@@family["Topology"]],cutDefinitionConventions[family],
+   family["Cuts"],Lookup[family,"OrdinaryPropagatorPrescriptions",None]};
+ groups=GatherBy[families,First[#["Topology"]]&];
+ If[!AllTrue[groups,Length[DeleteDuplicates[signature/@#]]===1&],
+  cutFamilyFail["MomentReductionFamilyDefinitionMismatch"]];
+ If[!ContainsAll[First[#["Topology"]]&/@families,
+    Union[First/@Cases[Join[Lookup[moments,"MeasuredIntegrals"],Lookup[moments,"UnmeasuredIntegrals"],basis,rules],
+      _FeynCalc`GLI,{0,Infinity}]]],cutFamilyFail["EveryMomentIntegralFamilyMustBeDeclared"]];
  If[rules=!={},parsed=linearIntegralSum/@(Last/@rules);
   If[!AllTrue[parsed,linearIntegralSumQ[#]&&Cancel[Together[#["Remainder"]]]===0&&
     ContainsAll[basis,Keys[#["Terms"]]]&],cutFamilyFail["ClosedMomentReductionRulesRequired"]]];

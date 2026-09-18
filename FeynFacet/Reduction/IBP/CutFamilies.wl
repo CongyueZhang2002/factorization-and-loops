@@ -103,10 +103,18 @@ cutIBPSeeds[family_,targets_,extension_]:=Module[
 (* Reevaluate exact mathematical entries after held topology substitutions.
    Saving/reading already does this; a literal 1*x must not invalidate a
    matching definition while a changed polynomial still must. *)
+(* Sparse rows are ordinary evaluated Associations of GLIs and rational
+   coefficients. Rebuilding every node duplicates a multi-GB equation system.
+   Only the surrounding held topology/definition data need reevaluation. *)
+cutKiraDefinitionCanonical[definition_Association]:=Association@KeyValueMap[
+  #1->If[MemberQ[{"Equations","ExtraEquations"},#1],#2,cutKiraDefinitionCanonical[#2]]&,definition];
+cutKiraDefinitionCanonical[definition_List]:=cutKiraDefinitionCanonical/@definition;
 cutKiraDefinitionCanonical[definition_]:=Map[Identity,definition,{0,Infinity}];
 cutKiraDefinitionFile[directory_]:=SelectFirst[
  {directory<>"/InputDefinition.wxf",directory<>"/InputDefinition.wl"},FileExistsQ,directory<>"/InputDefinition.wl"];
-cutKiraReadDefinition[directory_]:=With[{file=cutKiraDefinitionFile[directory]},
+cutKiraReadDefinition[directory_]:=Module[{file=cutKiraDefinitionFile[directory],key=ExpandFileName[directory]},
+ If[AssociationQ[$cutKiraReadCache]&&KeyExistsQ[$cutKiraReadCache,key],
+  Return[$cutKiraReadCache[key]]];
  If[FileExistsQ[file],FamilyArtifactRead[file],Missing["UnverifiedWorkspace"]]];
 cutKiraSelectWorkspace[directory_,definition_,allowNew_]:=Module[{candidate=directory,index=1,old},
  If[!MemberQ[{True,False},allowNew],cutFamilyFail["BooleanChangedInputWorkspacePolicyRequired"]];
