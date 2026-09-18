@@ -2,7 +2,10 @@
 
 The user suggested high-precision numerical PSLQ as a potential speedup. No
 production reconstruction method has been replaced and no speedup is yet measured.
-Actual GPT-6 Pro review is pending against pushed f688f4596f0e184fc81e45031ea6049e6bcde80e.
+Actual GPT-6 Pro review29 completed against pushed f688f4596f0e184fc81e45031ea6049e6bcde80e.
+The user clarified the intended broader target is reconstruction in a known
+coefficient/function basis throughout reduction and DE calculations; review30
+completed and explicitly endorses testing small known ansätze beyond boundaries.
 
 Three different tasks must be distinguished:
 
@@ -43,3 +46,44 @@ Primary sources checked:
 - [Lee, Smirnov and Smirnov on high-precision DE expansions](https://arxiv.org/abs/1709.07525).
 
 No measured NLO EEC reference coefficient was opened for this assessment.
+
+## Known rational-ansatz pilot after the user's clarification
+
+The broader proposal is legitimate. If the denominator and numerator monomials
+are known, numerical reconstruction only needs their rational constant
+coefficients. Multi-point lattice reduction can trade additional samples for
+lower precision. This is distinct from knowing only the master-integral basis,
+which does not specify the rational-function ansatz for its coefficients.
+See [Barrera et al., arXiv:2507.17815](https://arxiv.org/abs/2507.17815).
+
+A small actual-DE test uses selected entries of the saved identical-quark system,
+sets Q2=1, and supplies the exact denominator and sparse numerator support to
+both algorithms. The numerical oracle evaluates the saved rational expression;
+it does not run numerical IBP or evaluate any physical integral. Truth coefficients
+are withheld from PSLQ and checked exactly after reconstruction. The modular
+baseline interpolates the same support using one61-bit prime, justified here by
+the declared integer numerator coefficient bound10^9. It is a simple known-support
+Python interpolation, not a full Kira/FireFly benchmark.
+
+| Numerator terms | PSLQ time | Precision | Modular interpolation time | Exact recovery |
+|---:|---:|---:|---:|---|
+|4|0.000789s|80 requested digits|0.0000252s|Both|
+|8|0.0357s|80 requested digits|0.0000701s|Both|
+|16|1.852s|160 requested digits|0.000359s|Both|
+
+Oracle evaluation, common support extraction and Python startup are excluded
+from these algorithm timings. This is not a production speed comparison. At16
+terms,80 requested digits produced a spurious relation rejected by exact checking.
+At160 digits/3000 iterations no relation was found; increasing the iteration cap
+to12000 recovered the correct relation.320 digits/12000 iterations also recovered
+it in3.172s. The last two changes are recorded separately; higher precision alone
+is not credited for fixing an iteration-limit failure.
+
+The benchmark establishes feasibility on real coefficient data, not an end-to-end
+speed advantage. PSLQ used one high-precision sample; the modular method used as
+many samples as supplied monomials. Actual black-box evaluation costs can therefore
+change the conclusion. Multi-point LLL and coefficient/DE-ansatz reconstruction
+from expensive numerical solves remain unbenchmarked. Production is unchanged.
+
+Records: `IdenticalQuarks/Work/CoefficientReconstructionBenchmark.json`;
+driver: `Archive/Runs/2026-09-18/NLOEECChecks/benchmark_pslq_coefficients.py`.

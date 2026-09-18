@@ -6,7 +6,7 @@ Preserve healthy jobs, dirty/private files, accepted lower orders and read-only
 ~/FACET. Do not read/compare a published measured NLO EEC coefficient until our
 complete result is derived and saved. Identified universal scalar inputs are allowed.
 
-Latest pushed revision:f688f4596f0e184fc81e45031ea6049e6bcde80e.
+Latest pushed revision:fe2f0205 (documentation; production code f688f4596f0e184fc81e45031ea6049e6bcde80e).
 Actual GPT-6 Pro23-28 reviews are saved. Pro28 confirms the signed unit-cut
 Jacobian and exact moment-combination algebra. Its all-coefficient exactness
 and retained-reduction findings are repaired;10 assertions pass2.966s.
@@ -47,10 +47,25 @@ NLOEECChecks/ControlledDECompleted.log. Previous equation preparation and failur
 separate costs. Supervisor559791/PGID559792 has completed. The second derivative
 closure used56840 equations after the retained first exact search.
 
-ACTIVE: permanent-card IdenticalQuarks physical-basis/master evaluation,
-supervisor563305/PGID563306/Wolfram563337. The42-coordinate affine equivalence
-check has no further identifications. Inspect PhysicalMastersState.json and PhysicalMasters.log under its component
-owner. Eight CPUs; no other main computation is running. Do not duplicate it.
+Physical-basis/provider evaluation finished465.697s with a truthful partial
+result:42 coordinates,12 records with some coefficients,34 unmet source order
+requests. Thus7 of41 directly requested integrals have sufficient coverage.
+PartialMasterValues.wl retains these values and pending epsilon requirements.
+No physical master result or identical-quark interior is yet complete.
+
+The physical-mode inventory took128.191s. Ten moment rows also close in the
+selected DE basis. Exact epsilon rescaling succeeds; zero-order blocks have
+size at most2. Existing general finite-integration preparation then completed
+in124.323s with AllTransformationsVerified->True. Its source/preparation are
+saved in Work/FiniteIntegrationPreparation.wxf. This is an exact basis/DE
+preparation, not evaluated physical constants or endpoint completion.
+Finite evolution coefficients U^(0),U^(1) for all42 coordinates have now been
+constructed with the existing solver,10.870s, using connection terms through
+order3 as derived by its basis-convolution planner. They are saved in
+Work/FiniteEvolutionThroughOrder1.wxf. Physical boundary values and complete
+source-order coverage remain explicitly unestablished. A bounded120s GPL
+conversion pass is active; inspect Archive/Runs/2026-09-18/NLOEECChecks/
+IdenticalFiniteEvolutionGPL.log and its actual processes before launching.
 
 Previous supervisor559162 was stopped by the memory guard after244.556s while
 reloading/rebuilding the same large exact input. Scoped single-snapshot reuse

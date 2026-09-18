@@ -330,3 +330,29 @@ interior, with every relevant homogeneous constant fixed and an independent
 check. The gluon measured sector and original-source endpoint/contact proof remain
 separate obligations. The complete NLO EEC result has not been compared with a
 published measured coefficient.
+
+
+## Physical coverage and finite-integration preparation
+
+The first physical-basis/provider stage finished465.697s and intentionally
+returned PhysicalMasterCoefficientsStillRequired. The42-coordinate selected
+basis has12 partial/complete value records and34 unresolved source demands;
+7 of41 directly needed integrals currently have sufficient depth. This is a
+partial result, preserved in PartialMasterValues.wl, not a failed native DE.
+
+A128.191s inventory retains the block structure, all required/known upper
+orders and pending derivative order losses. Ten source moments also reduce
+exactly into the selected DE basis. Epsilon rescaling removes negative entry
+valuations; the zero-order diagonal blocks have size at most2. The existing
+general finite-integration preparation succeeds in124.323s with every basis
+transformation verified. Work/FiniteIntegrationPreparation.wxf retains it.
+No unknown physical constants or complete interior are thereby claimed.
+
+
+The existing finite-solution constructor builds U^(0) and U^(1) for all42
+coordinates in10.870s including startup. Basis convolution requires connection
+coefficients through order3,480 matrix coefficients; the shared planner derives
+that demand. The finite integral definitions are explicitly stored in
+FiniteEvolutionThroughOrder1.wxf. This demonstrates construction up to initial
+constants at these fundamental-matrix orders, not sufficient original-master
+orders or physically fixed coefficients. A bounded GPL conversion pass follows.

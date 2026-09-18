@@ -96,9 +96,22 @@ gplPositiveRootScale[radicands_,t_]:=Module[{candidates},
  SelectFirst[SortBy[candidates,LeafCount],TrueQ[Quiet[Refine[#>0,$gplAssumptions]]]&,1]
 ];
 gplIntegrateQuadraticRoot[expression_,t_,s_]:=Module[
- {radicands,q,v=Unique["conicParameter"],chart,r,roots,replaced,index,body,answer,scale,jacobian,inverse},
- radicands=DeleteDuplicates[Cases[expression,
+ {radicands={},sourceRadicands,rootImages=<||>,q,v=Unique["conicParameter"],chart,r,roots,
+  replaced,body,answer,scale,jacobian,inverse,ratio,matched},
+ sourceRadicands=DeleteDuplicates[Cases[expression,
   Power[base_,power_Rational]/;Denominator[power]===2&&!FreeQ[base,t]:>Factor[base],{0,Infinity}]];
+ (* Positive real constants do not define a new root extension and preserve
+    the principal root and its continuation. Unproved or negative scales
+    remain separate; never use PowerExpand to merge their branches. *)
+ Do[
+  matched=False;
+  Do[
+   ratio=Cancel[Together[q/radicands[[j]]]];
+   If[FreeQ[ratio,t]&&TrueQ[Quiet[Refine[ratio>0,$gplAssumptions]]],
+    AssociateTo[rootImages,q->{j,Sqrt[ratio]}];matched=True;Break[]],
+   {j,Length[radicands]}];
+  If[!matched,AppendTo[radicands,q];AssociateTo[rootImages,q->{Length[radicands],1}]],
+ {q,sourceRadicands}];
  chart=Which[
   Length[radicands]===1,
    q=First[radicands];FeynFacetSolution`QuadraticRootChart[q,t,v],
@@ -112,9 +125,8 @@ gplIntegrateQuadraticRoot[expression_,t_,s_]:=Module[
  jacobian=(chart["Jacobian"]/.v->v/scale)/scale;
  inverse=scale chart["ParameterExpression"];
  replaced=expression/.Power[base_,power_Rational]/;Denominator[power]===2&&!FreeQ[base,t]:>
-   Module[{index=SelectFirst[Range[Length[radicands]],
-     Cancel[Together[base-radicands[[#]]]]===0&,Missing["Root"]]},
-    If[MissingQ[index],gplFail["RootOutsideRationalizedField"],roots[[index]]^(2power)]];
+   Module[{image=Lookup[rootImages,Key[Factor[base]],Missing["Root"]]},
+    If[MissingQ[image],gplFail["RootOutsideRationalizedField"],(image[[2]] roots[[image[[1]]]])^(2power)]];
  body=gplRefineConstantRadicals[(replaced/.t->r)jacobian,v];
  body=gplNormalizeRationalIntegrand[body,v];gplBound[body];
  answer=gplRationalIntegral[body,v,v];

@@ -67,7 +67,7 @@ classicalR=classicalChart["OriginalVariableExpression"];
 classicalV=classicalChart["ParameterExpression"]/.t->s;
 expectedRoot=FeynFacetSolution`IntegrateGPL[PolyLog[2,v/(v+4)],{v,0,classicalV}];
 FTTest`FTAssert["root-containing classical polylogs use the ordinary normalization pipeline",
- !FailureQ[classicalRoot]&&!FailureQ[expectedRoot]&&Expand[classicalRoot-expectedRoot]===0];
+ !FailureQ[classicalRoot]&&!FailureQ[expectedRoot]&&Cancel[Together[classicalRoot-expectedRoot]]===0];
 rationalDerivative=FeynFacetSolution`IntegrateGPL[(1-t^2)/(1+t+t^2)^2,{t,0,s}];
 FTTest`FTAssert["compact exact rational derivatives do not introduce cancelling algebraic GPLs",
  FreeQ[rationalDerivative,_FeynFacetSolution`G]&&
@@ -115,4 +115,18 @@ identityIntegral=FeynFacetSolution`IntegrateGPL[
 FTTest`FTAssert["rational arguments that cancel to the identity are actually normalized",
  identityPullback===FeynFacetSolution`G[{-1,0},v]&&
  identityIntegral===FeynFacetSolution`G[{-1,-1},s]];
-FTTest`FTReport[];
+redundantRoots=FeynFacetSolution`IntegrateGPL[
+ Sqrt[1/3+t/3]/Sqrt[1+t]+1/(Sqrt[1+2t]Sqrt[2+4t]),{t,0,s}];
+FTTest`FTAssert["positive proportional radicands share the existing root chart",
+ !FailureQ[redundantRoots]&&FullSimplify[
+  D[redundantRoots,s]-1/Sqrt[3]-1/(Sqrt[2](1+2s)),Assumptions->0<s<1/2]===0&&
+ (redundantRoots/.s->0/.FeynFacetSolution`G[letters_List,0]/;AllTrue[letters,#=!=0&]:>0)===0];
+positiveRoots=FeynFacetSolution`IntegrateGPL[
+ Sqrt[aa+aa t]/Sqrt[1+t]+1/(Sqrt[1+2t]Sqrt[2+4t]),{t,0,s},"Assumptions"->aa>0];
+FTTest`FTAssert["symbolic root scales require the declared positive real domain",
+ !FailureQ[positiveRoots]&&FullSimplify[
+  D[positiveRoots,s]-Sqrt[aa]-1/(Sqrt[2](1+2s)),Assumptions->aa>0&&0<s<1/2]===0&&
+ MatchQ[FeynFacetSolution`IntegrateGPL[
+  Sqrt[aa+aa t]/Sqrt[1+t]+1/(Sqrt[1+2t]Sqrt[2+4t]),{t,0,s}],
+  Failure["RationalSquareRootChartNotConstructed",_]]];
+Print["QUADRATIC GPL PULLBACK TEST COMPLETE"];FTTest`FTReport[];
