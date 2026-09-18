@@ -524,8 +524,11 @@ ReduceEquivalentCutIntegralTargets[data_Association,request_Association:<||>]:=C
     Map[coefficient #&,images[integral]]],source];If[rows==={},<||>,Select[Merge[rows,Total],#=!=0&]]],data["Coefficients"]];
  targets=Union[Flatten[Keys/@Values[coefficients],1]];names=DeleteDuplicates[First/@targets];
  sourceData=Join[data,<|"Coefficients"->coefficients,"Targets"->targets,
-   "Families"->Select[data["Families"],MemberQ[names,#["Topology"][[1]]]&]|>];
- If[targets==={},Return[Join[sourceData,<|"FamilyMaps"->familyMaps|>],Module]];
+   "Families"->Select[data["Families"],MemberQ[names,#["Topology"][[1]]]&],
+   "FamilyMaps"->familyMaps,"CoefficientGroups"->groups,
+   "ExceptionalDivisors"->DeleteDuplicates[Join[Lookup[data,"ExceptionalDivisors",{}],familyMaps["ExceptionalDivisors"]]]|>];
+ If[targets==={},Return[Join[sourceData,<|"Coefficients"->AssociationThread[
+   DeleteDuplicates[Values[groups]],ConstantArray[<||>,Length[DeleteDuplicates[Values[groups]]]]]|>],Module]];
  equivalences=FeynFacet`FindCutIntegralEquivalences[sourceData["Targets"],sourceData["Families"],
    "Normalization"->"DeclaredTypedCutMeasures"];
  If[!AssociationQ[equivalences],measuredIntegrandFail["ExactCutIntegralEquivalencesRequired",<|"Cause"->equivalences|>]];

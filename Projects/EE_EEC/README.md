@@ -148,3 +148,19 @@ independent one-loop form-factor product checks the square through its finite
 coefficient. Four-body physical master integration and measured real-virtual
 integration are still required for the complete result. See the campaign record
 for timing, reuse and the current DE job.
+
+The one-loop three-particle source can now be generated from its card with
+`Scripts/run_measured_contribution.wls Raw/NNLO/q-qb/RealVirtual/Card.wl loop all`
+(use the repository-relative full card path when launching from the repository).
+It writes `Work/PreparedScalarLoopDensity.wl`: exact causal B0/D0 combinations
+after triangle reduction, with the derived measurement roots, Jacobians and
+dimensional measure. Self contacts remain separate inclusive integrals. This is
+an integration input, not the real-virtual result. Scalar integration, regulated
+endpoint completion and Hermitian completion are still required.
+
+Typed Kira reductions accept `RationalSolver -> "FireFly"` for finite-field
+rational reconstruction, or `"Fermat"` for direct symbolic elimination. An
+optional `HomogeneousScale` removes a dimensionful variable by verifying a
+change of unknowns on every generated equation, including the quadratic cut's
+actual degree, and restores the units in the returned rules. Neither option
+changes the integral definitions or asserts master minimality.

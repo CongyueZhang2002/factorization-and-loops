@@ -61,44 +61,20 @@ IntegrateMasslessInvariantMoments[prepared_Association,e_Symbol]:=Catch[Module[
    "Definition"->"Initially convergent Dirichlet moments, uniquely continued meromorphically in epsilon."|>
 ],"CutFamily"];
 EvaluateThreeParticleMeasurementInterior[prepared_Association,request_Association]:=Catch[Module[
- {data,d,s,particles,order,parameters,x,y,z,assumptions,rules,expression,g,slot,roots,selected={},
-  root,inside,outside,slope,jacobian,density,normalization,result,time,e,gram,euler,dimension},
- data=invariantPhaseSpaceData[prepared];d=data["Definition"];s=data["Scale"];particles=data["Particles"];
- If[Length[particles]=!=3||Length[d["MeasurementCutIndices"]]=!=1,
-  cutFamilyFail["ThreeParticleSingleMeasurementRequired"]];
- order=Lookup[request,"ParticleOrder",Range[3]];
- If[Sort[order]=!={1,2,3},cutFamilyFail["ParticlePermutationRequired"]];particles=particles[[order]];
- parameters=Lookup[request,"Parameters",{Unique["energyFraction$"],Unique["energyFraction$"]}];
- If[!MatchQ[parameters,{_Symbol,_Symbol}]||!DuplicateFreeQ[parameters],cutFamilyFail["TwoIndependentPhaseSpaceParametersRequired"]];
- {x,y}=parameters;z=First[d["MeasurementVariables"]];
- assumptions=Lookup[request,"Assumptions",data["Assumptions"]&&0<z<1];
- rules=invariantParticleRules[particles,data["TotalMomentum"],s,{s(x+y-1),s(1-y),s(1-x)}];
- slot=First[d["MeasurementCutIndices"]];g=Factor[d["InversePropagators"][[slot]]/.rules];
- e=Lookup[request,"DimensionalRegulator",None];
- If[e=!=None&&!MatchQ[e,_Symbol],cutFamilyFail["SymbolicDimensionalRegulatorRequired"]];
- dimension=If[e===None,4,4-2e];
- expression=Cancel[Together[preparedInvariantExpression[prepared]/.rules/.D->dimension]];
- If[!FreeQ[{g,expression},_FeynCalc`Pair|_FeynCalc`Momentum|_Failure|_Missing]||
-   !PolynomialQ[g,y]||!MemberQ[{1,2},Exponent[g,y]],cutFamilyFail["PolynomialRootAndRationalScalarDensityRequired"]];
- roots=DeleteDuplicates[y/.Solve[g==0,y]];
- Do[
-  inside=TrueQ[FullSimplify[Element[root,Reals]&&1-x<root<1,Assumptions->assumptions&&0<x<1]];
-  outside=TrueQ[FullSimplify[!Element[root,Reals]||root<=1-x||root>=1,Assumptions->assumptions&&0<x<1]];
-  If[!inside&&!outside,cutFamilyFail["MeasurementRootDomainPartitionRequired",<|"Root"->root|>]];
-  If[inside,
-   slope=Factor[D[g,y]/.y->root];
-   If[!TrueQ[FullSimplify[slope!=0,Assumptions->assumptions&&0<x<1]],cutFamilyFail["SimpleInteriorMeasurementRootsRequired"]];
-   jacobian=FullSimplify[1/Abs[slope],Assumptions->assumptions&&0<x<1];
-   density=Cancel[(expression/.y->root)jacobian];
+ {data,pushforward,x,z,assumptions,expression,selected={},density,normalization,result,time,e,euler,dimension},
+ data=invariantPhaseSpaceData[prepared];
+ pushforward=FeynFacet`ConstructThreeParticleMeasurementPushforward[data["Definition"],request];
+ If[!AssociationQ[pushforward],Throw[pushforward,"CutFamily"]];
+ {x,z,e,dimension,assumptions,normalization}=Lookup[pushforward,
+  {"IntegrationVariable","Variable","DimensionalRegulator","Dimension","Domain","Normalization"}];
+ expression=Cancel[Together[preparedInvariantExpression[prepared]/.pushforward["ScalarProductRules"]/.D->dimension]];
+ If[!FreeQ[expression,_FeynCalc`Pair|_FeynCalc`Momentum|_Failure|_Missing],cutFamilyFail["RationalScalarDensityRequired"]];
+ Do[density=Cancel[(expression/.branch["EliminationRule"])branch["Jacobian"]];
    If[e=!=None,
-    gram=Factor[(1-x)(1-y)(x+y-1)/.y->root];
-    euler=FeynFacet`IntegrateUnivariateEulerProduct[density,{{gram,-e}},{x,0,1},assumptions];
+    euler=FeynFacet`IntegrateUnivariateEulerProduct[density,{{branch["GramPolynomial"],-e}},{x,0,1},assumptions];
     If[!AssociationQ[euler],cutFamilyFail["MeasuredEulerIntegralFailed",<|"Cause"->euler|>]]];
-   AppendTo[selected,Join[<|"Root"->root,"Jacobian"->jacobian,"Density"->density|>,
-     If[e===None,<||>,<|"ExactIntegral"->euler["Value"]|>]]]],
- {root,roots}];
- normalization=(d["MeasurePrefactor"]/data["StandardMeasure"]/.D->dimension)*
-   If[e===None,s/(128Pi^3),s^(1-2e)(4Pi)^(2e)/(128Pi^3 Gamma[2-2e])];
+   AppendTo[selected,Join[KeyTake[branch,{"Root","Jacobian"}],<|"Density"->density|>,
+     If[e===None,<||>,<|"ExactIntegral"->euler["Value"]|>]]],{branch,pushforward["Branches"]}];
  density=normalization Total[Lookup[selected,"Density",{}]];
  time=Lookup[request,"TimeLimit",120];
  result=If[e===None,
@@ -108,7 +84,7 @@ EvaluateThreeParticleMeasurementInterior[prepared_Association,request_Associatio
   cutFamilyFail["ExplicitInteriorMeasurementIntegralRequired",<|"Cause"->result|>]];
  <|"Value"->If[e===None,FullSimplify[result,Assumptions->assumptions],result],
   "DimensionalRegulator"->e,"Dimension"->dimension,"ExactInRegulator"->(e=!=None),
-  "Variable"->z,"Domain"->assumptions,"ParticleOrder"->order,"Roots"->(KeyDrop[#,"Density"]&/@selected),
+  "Variable"->z,"Domain"->assumptions,"ParticleOrder"->pushforward["ParticleOrder"],"Roots"->(KeyDrop[#,"Density"]&/@selected),
   "Method"->"DirectNativePolynomialCutIntegration","EndpointDistributionIncluded"->False,
   "Scope"->"Open measured interval only; all regulator dependence is retained when a DimensionalRegulator is supplied. No endpoint distribution is inferred."|>
 ],"CutFamily"];

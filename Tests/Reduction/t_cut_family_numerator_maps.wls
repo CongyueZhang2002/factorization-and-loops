@@ -36,5 +36,12 @@ flipped=family[OppositePrescription,{prop[kk],prop[qq-kk],measurement,prop[kk+3q
 separate=FeynFacet`FindCutIntegralFamilyMaps[{ri,FeynCalc`GLI[OppositePrescription,si[[2]]]},{rep,flipped}];
 FTTest`FTAssert["opposite ordinary prescriptions cannot reuse a family map",
  AssociationQ[separate]&&separate["RepresentativeFamilyCount"]===2];
+combined=<|"Format"->"FeynFacet-CombinedCutIntegralDecompositions","Families"->{rep,src},
+ "Targets"->{ri,si},"Coefficients"-><|"BeforeGrouping"-><|ri->-2ss,si->1|>|>,"ExceptionalDivisors"->{zz}|>;
+zero=FeynFacet`ReduceEquivalentCutIntegralTargets[combined,
+ <|"CoefficientGroups"-><|"BeforeGrouping"->"Scalar"|>|>];
+FTTest`FTAssert["exact zero after family mapping retains coefficient groups and exceptional loci",
+ AssociationQ[zero]&&zero["Targets"]==={}&&zero["Coefficients"]===<|"Scalar"-><||>|>&&
+ zero["CoefficientGroups"]===<|"BeforeGrouping"->"Scalar"|>&&zero["ExceptionalDivisors"]==={zz}];
 Print["CUT FAMILY NUMERATOR MAP TEST COMPLETE"];
 FTTest`FTReport[];

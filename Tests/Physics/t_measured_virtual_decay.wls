@@ -51,5 +51,19 @@ Do[
  {point,{{2,3},{5,7}}}];
 FTTest`FTAssert["two-body ordered measurements have equal endpoint weights",
  square["ContactIntegrals"]["Scalar1"]["Value"]===square["ContactIntegrals"]["Scalar2"]["Value"]];
+Do[
+ temporary=CreateDirectory[];originalCard=entry[[1]];originalResult=entry[[2]];
+ Do[file=originalCard["WorkDirectory"]<>"/"<>name<>".wl";
+  If[FileExistsQ[file],FeynFacet`FamilyArtifactWrite[FeynFacet`FamilyArtifactRead[file],temporary<>"/"<>name<>".wl",Compression->Automatic]],
+  {name,{"Integrands","Reduction","VirtualIntegration"}}];
+ changedCard=Join[originalCard,<|"WorkDirectory"->temporary,
+   "FlavorMultiplicity"->2originalCard["FlavorMultiplicity"]|>];
+ changed=FeynFacet`IntegrateMeasuredCurrentVirtual[changedCard,"resume"];
+ FTTest`FTAssert["changing the derived flavor multiplicity invalidates the normalized cache for "<>ToString[originalCard["AmplitudeLoops"]],
+  AssociationQ[changed]&&!TrueQ[changed["Reused"]]&&
+  FeynFacet`CancelRationalCoefficients[{changed["ContactIntegrals"]["Scalar1"]["Value"]-
+    2originalResult["ContactIntegrals"]["Scalar1"]["Value"]}]==={0}];
+ If[StringStartsQ[ExpandFileName[temporary],ExpandFileName[$TemporaryDirectory]<>"/"],DeleteDirectory[temporary,DeleteContents->True]],
+ {entry,{{oneCard,one},{squareCard,square}}}];
 Print["MEASURED VIRTUAL DECAY TEST COMPLETE"];
 FTTest`FTReport[];

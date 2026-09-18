@@ -62,14 +62,15 @@ cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:
    "CoefficientVariables","CoefficientAliases"}],directory<>"/IntegralIdentifiers.wxf",Compression->Automatic];
  project
 ];
-cutKiraEquationJob[mode_,pointFile_:"points",inputFile_:"equations.kira"]:=StringRiffle[Join[{
+cutKiraEquationJob[mode_,pointFile_:"points",inputFile_:"equations.kira",targetFile_:"targets"]:=StringRiffle[Join[{
  "jobs:","  - reduce_user_defined_system:",
  "      input_system: {files: ["<>ToString[inputFile,InputForm]<>"], config: false}",
  "      select_integrals:","        select_mandatory_list:",
- "          - [FeynFacetIBP, targets]","      run_initiate: true"},
- If[mode==="Sample",{"      numerical_points: "<>pointFile},{
- "      run_triangular: true","      run_back_substitution: true",
- "  - kira2math:","      target:","        - [FeynFacetIBP, targets]"}]],"\n"]<>"\n";
+ "          - [FeynFacetIBP, "<>targetFile<>"]","      run_initiate: true"},
+ If[mode==="Sample",{"      numerical_points: "<>pointFile},Join[
+ If[mode==="FireFly",{"      run_firefly: true"},
+  {"      run_triangular: true","      run_back_substitution: true"}],
+ {"  - kira2math:","      target:","        - [FeynFacetIBP, "<>targetFile<>"]"}]]],"\n"]<>"\n";
 SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Association},
  request_Association]:=Catch[Catch[Module[
  {directory,preferred,points,prime,variables,text,values,project,process,files,raw,samples={},
@@ -182,28 +183,32 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
   "Scope"->"Generic finite-field diagnostics for equation selection; exact target identities remain required."|>
 ],"CutFamily"],$ibpFailure];
 NormalizeIntegralEquationScale[rows_List,weights_Association,scale_Symbol]:=Catch[Module[
- {columns,zeroRows,output,coefficients,degrees,rowDegree,normalized,proofs={},w,variables},
+ {columns,output,coefficients,degrees,rowDegree,normalized,proofs,w,degree,unit,rowIndex=0},
  If[rows==={}||!AllTrue[rows,AssociationQ]||!AllTrue[Values[weights],IntegerQ],
   Throw[Failure["RationalIntegralRowsAndIntegerScaleWeightsRequired",<||>]]];
  columns=Union[Flatten[Keys/@rows]];
  If[!ContainsAll[Keys[weights],columns]||!AllTrue[columns,MatchQ[#,_FeynCalc`GLI]&],
   Throw[Failure["CompleteIntegralScaleWeightsRequired",<||>]]];
+ degree[value_]:=degree[value]=Cancel[Together[scale D[value,scale]/value]];
+ unit[value_,power_]:=unit[value,power]=Cancel[Together[value scale^power]];
+ proofs=ConstantArray[0,Length[rows]];
  output=Map[Function[row,
+  rowIndex++;
   coefficients=Normal[Select[row,#=!=0&]];
   If[coefficients==={},Return[<||>,Function]];
   degrees=Map[Function[term,
    w=weights[First[term]];
-   normalized=Cancel[Together[scale D[Last[term],scale]/Last[term]]];
+   normalized=degree[Last[term]];
    If[!IntegerQ[normalized],Throw[Failure["NonmonomialEquationScaleDependence",<|"Term"->term|>]]];
    w+normalized],coefficients];
   rowDegree=First[degrees];
   If[!AllTrue[degrees,#===rowDegree&],
    Throw[Failure["IntegralEquationScaleWeightsNotHomogeneous",<|"Degrees"->degrees|>]]];
   normalized=Association@Map[Function[term,First[term]->
-   Cancel[Together[Last[term]scale^(weights[First[term]]-rowDegree)]]],coefficients];
+   unit[Last[term],weights[First[term]]-rowDegree]],coefficients];
   If[!FreeQ[Values[normalized],scale],
    Throw[Failure["EquationScaleRemovalNotExact",<||>]]];
-  AppendTo[proofs,rowDegree];normalized],rows];
+  proofs[[rowIndex]]=rowDegree;normalized],rows];
  <|"Format"->"FeynFacet-HomogeneousIntegralEquationSystem","Rows"->output,
   "Scale"->scale,"IntegralWeights"->weights,"OriginalRowScaleDegrees"->proofs,
   "ExactChangeOfUnknownsEstablished"->True,

@@ -83,7 +83,9 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
  {seconds,system}=facetElapsedTiming[FeynFacet`ConstructCutDifferentialSystem[merged["Families"],merged["Targets"],variables,
    Join[<|"WorkingDirectory"->path<>"/DifferentialEquations","Threads"->execution["KiraThreads"],
     "SeedPolicy"->"TargetDownsets","PrintTimings"->True,
-    "NewWorkspaceForChangedInputs"->True|>,Lookup[card["Assembly"],"Reduction",<||>]]]];
+    "NewWorkspaceForChangedInputs"->True|>,
+    If[MatchQ[card["Assembly"]["Scale"],_Symbol],<|"HomogeneousScale"->card["Assembly"]["Scale"]|>,<||>],
+    Lookup[card["Assembly"],"Reduction",<||>]]]];
  system=projectCheck[system,"PolynomialMeasurementDifferentialSystemFailed"];
  output=<|"DifferentialSystem"->system,"IntegralDecomposition"->merged,
   "ContactTerms"->prepared["ContactTerms"],"CalculationDefinition"->prepared["CalculationDefinition"],
@@ -206,7 +208,8 @@ IntegrateMeasuredCurrentVirtual[card_Association,mode_String:"resume"]:=Catch[Mo
  geometry=Join[card["Assembly"]["PhaseSpace"],<|"Name"->measuredVirtualPhaseSpace,
   "FinalMomenta"->Take[card["FinalMomenta"],2]|>];
  definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
-  "FinalStateMeasurement"->card["Assembly"]["FinalStateMeasurement"]|>;
+   "FinalStateMeasurement"->card["Assembly"]["FinalStateMeasurement"],
+   "SymmetryFactor"->card["SymmetryFactor"],"FlavorMultiplicity"->card["FlavorMultiplicity"]|>;
  If[mode==="resume"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
   If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition,
    Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
@@ -264,7 +267,8 @@ measuredCurrentTwoLoopVirtual[card_,setup_,mode_]:=Module[
  geometry=Join[card["Assembly"]["PhaseSpace"],<|"Name"->measuredVirtualPhaseSpace,
    "FinalMomenta"->Take[card["FinalMomenta"],2]|>];
  definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
-   "FinalStateMeasurement"->card["Assembly"]["FinalStateMeasurement"],"EpsilonRange"->range|>;
+   "FinalStateMeasurement"->card["Assembly"]["FinalStateMeasurement"],"EpsilonRange"->range,
+   "SymmetryFactor"->card["SymmetryFactor"],"FlavorMultiplicity"->card["FlavorMultiplicity"]|>;
  If[mode==="resume"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
   If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition,
    Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];

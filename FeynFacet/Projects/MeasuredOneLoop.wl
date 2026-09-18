@@ -1,0 +1,72 @@
+(* Card-owned one-loop radiative densities. Scalar loop reduction precedes
+   the measurement; endpoints and Hermitian completion remain explicit. *)
+BeginPackage["FeynFacet`"];
+PrepareMeasuredCurrentOneLoopContribution::usage="PrepareMeasuredCurrentOneLoopContribution[card,mode] generates a one-loop/tree current interference, reduces the virtual loop, and inserts the card's tuple measurement into physical three-particle phase space. It stores causal scalar integration representations and separate inclusive contacts in the contribution Work directory. This preparation does not write an accepted Results.wl.";
+Begin["`Private`"];
+PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]:=Catch[Module[
+ {setup,request,geometry,specification,definition,path,file,saved,source,coordinates,kin,
+  reduced,normalized,terms,noncontact={},contacts={},one,weight,e=Global`Epsilon,
+  total,s,particles,prefactor,seconds,timings=<||>,output},
+ If[!MemberQ[{"all","resume"},mode]||Lookup[card["Assembly"],"IntegrationMethod",None]=!="PolynomialMeasurement",
+  projectFail["MeasuredOneLoopPreparationRequestRequired"]];
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"MeasuredCurrentProcessRequired"];
+ particles=Take[card["FinalMomenta"],Length[card["UnobservedPartons"]]];
+ If[{setup["ForwardAmplitudes"]["LoopOrder"],setup["ConjugateAmplitudes"]["LoopOrder"]}=!={1,0}||
+   Length[particles]=!=3||Lookup[card,"IncomingPartons",{}]=!={}||
+   Lookup[card["Channels"][card["Channel"]],"Observed",None]=!=None,
+  projectFail["ThreeParticleOneLoopTreeDecayRequired"]];
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"MeasuredCurrentAssemblyRequired"];
+ geometry=Join[card["Assembly"]["PhaseSpace"],<|"Name"->measuredOneLoopPhaseSpace,"FinalMomenta"->particles|>];
+ specification=card["Assembly"]["FinalStateMeasurement"];path=card["WorkDirectory"];
+ definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
+  "FinalStateMeasurement"->specification,"SymmetryFactor"->Lookup[card,"SymmetryFactor",1],
+  "FlavorMultiplicity"->Lookup[card,"FlavorMultiplicity",1]|>;
+ file=path<>"/PreparedScalarLoopDensity.wl";
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition,
+   Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
+ {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
+  <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
+ source=projectCheck[source,"MeasuredCurrentGenerationFailed"];
+ AssociateTo[timings,"AmplitudeGenerationAndContraction"->seconds];projectWrite[source,path<>"/Integrands.wl"];
+ If[!TrueQ[Lookup[source,"FullDimensionScalarProducts",False]],projectFail["FullDimensionalMeasurementNumeratorRequired"]];
+ total=geometry["TotalMomentum"];s=FeynCalc`FCI[FeynCalc`SPD[total]]/.FeynCalc`FCI[geometry["KinematicRules"]];
+ coordinates=projectCheck[FeynFacet`MasslessInvariantPhaseSpaceCoordinates[particles,total,s,e,
+   {measuredLoopFraction1,measuredLoopFraction2}],"MeasuredLoopPhysicalCoordinatesRequired"];
+ kin=<|"ExternalMomenta"->particles,"MomentumRules"->{total->Total[particles]},
+  "KinematicRules"->coordinates["ScalarProductRules"],"Assumptions"->coordinates["PhysicalDomain"],"DimensionalRegulator"->e|>;
+ {seconds,reduced}=facetElapsedTiming[FeynFacet`ReduceOneLoopIntegrands[source["Values"],kin,
+  <|"LoopMomentum"->First[setup["ForwardAmplitudes"]["LoopMomenta"]],"PrintTimings"->True|>]];
+ reduced=projectCheck[reduced,"MeasuredLoopScalarReductionFailed"];
+ AssociateTo[timings,"ScalarLoopReduction"->seconds];
+ projectWrite[Join[reduced,<|"ProcessDefinition"->setup,"InvariantCoordinates"->coordinates|>],path<>"/MeasuredScalarLoopIntegrals.wl"];
+ normalized=Join[reduced,<|"InteriorValues"->Map[
+   FeynFacet`SubstituteScalarPowers[#/.D->4-2e,request["BareCouplingRules"]]&,reduced["InteriorValues"]]|>];
+ prefactor=(request["CurrentNormalization"]Lookup[card,"SymmetryFactor",1]Lookup[card,"FlavorMultiplicity",1])/.D->4-2e;
+ {seconds,terms}=facetElapsedTiming[FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,specification]];
+ If[!ListQ[terms],projectFail["MeasuredLoopTupleDefinitionsRequired",<|"Cause"->terms|>]];
+ AssociateTo[timings,"MeasurementDefinitions"->seconds];
+ {seconds,one}=facetElapsedTiming[Do[
+  If[term["Definition"]["ContactMeasurements"]==={},
+   one=projectCheck[FeynFacet`ConstructOneLoopMeasurementDensity[normalized,coordinates,term["Definition"],
+     <|"Parameters"->{measuredLoopEnergy1,measuredLoopEnergy2},"Weight"->term["Weight"],
+       "ParticleOrder"->Join[DeleteDuplicates[First[term["ParticleTuples"]]],
+          Complement[Range[Length[particles]],First[term["ParticleTuples"]]]],
+       "DensityPrefactor"->prefactor,"Assumptions"->geometry["Assumptions"]&&
+          And@@(0<#<1&/@card["Assembly"]["Variables"])|>],"MeasuredScalarLoopPushforwardFailed"];
+   AppendTo[noncontact,Join[one,<|"ParticleTuples"->term["ParticleTuples"]|>]],
+   weight=Factor[term["Weight"]/.coordinates["ScalarProductRules"]];
+   If[!FreeQ[weight,_FeynCalc`Pair|_FeynCalc`Momentum],projectFail["InclusiveScalarLoopWeightRequired"]];
+   AppendTo[contacts,Join[term,<|"Values"->Map[# weight prefactor coordinates["Density"]&,normalized["InteriorValues"]],
+    "InvariantCoordinates"->coordinates,"PhysicalDomain"->coordinates["PhysicalDomain"],
+    "ExternalPropagatorInteriorValues"->reduced["ExternalPropagatorInteriorValues"],
+    "VirtualPrescriptionRemoved"->False,"EndpointContinuationRequired"->True,"IntegralEvaluated"->False|>]]],
+ {term,terms}];Null];
+ AssociateTo[timings,"ScalarMeasurementPushforwards"->seconds];
+ output=<|"Format"->"FeynFacet-PreparedMeasuredOneLoopContribution","CalculationDefinition"->definition,
+  "NoncontactTerms"->noncontact,"ContactTerms"->contacts,"StageSeconds"->timings,
+  "Reused"->False,"ConjugateInterferenceAdded"->False,"EndpointDistributionsSolved"->False,
+  "Scope"->"One causal amplitude orientation, before integration and addition of its complex conjugate. All tuple weights and generated state factors are included. No accepted hard coefficient is supplied by this representation."|>;
+ projectWrite[output,file];output
+],"ProjectCards"];
+End[];EndPackage[];

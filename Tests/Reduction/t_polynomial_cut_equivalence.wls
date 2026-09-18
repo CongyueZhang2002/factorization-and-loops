@@ -35,6 +35,10 @@ reduced=FeynFacet`ReduceEquivalentCutIntegralTargets[combined];
 FTTest`FTAssert["equivalent integral coefficients combine before IBP without losing exceptional points",
  AssociationQ[reduced]&&Length[reduced["Targets"]]===1&&Length[reduced["Families"]]===1&&
  Total[Values[reduced["Coefficients"]["Scalar"]]]===pd&&reduced["ExceptionalDivisors"]==={pz}];
+FTTest`FTAssert["the family numerator mapper verifies a nontrivial particle-cut frame permutation",
+ AnyTrue[reduced["FamilyMaps"]["Mappings"],
+  TrueQ[#["OffShellPropagatorsAndDirectedCutsVerified"]]&&
+   AnyTrue[#["LoopMomentumRules"],Expand[First[#]-Last[#]]=!=0&]&]];
 grouped=FeynFacet`ReduceEquivalentCutIntegralTargets[Join[combined,<|"Coefficients"->
  <|"First"-><|integral->pc|>,"Second"-><|other->pd-pc|>|>|>],
  <|"CoefficientGroups"-><|"First"->"Scalar","Second"->"Scalar"|>|>];

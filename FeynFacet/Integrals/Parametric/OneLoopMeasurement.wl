@@ -1,0 +1,78 @@
+(* Insert a scalar loop density into an independently derived physical
+   measurement chart. This preserves loop functions and their prescriptions;
+   it does not claim that an interior Laurent expansion determines contacts. *)
+BeginPackage["FeynFacet`"];
+ConstructOneLoopMeasurementDensity::usage="ConstructOneLoopMeasurementDensity[reduced,coordinates,definition,request] maps an exact scalar one-loop reduction to a three-particle measurement pushforward. It derives and verifies the coordinate substitution, retains the causal scalar functions and original prescribed external factors, and includes the dimensional phase-space measure and measurement numerator once. Request may supply Weight, DensityPrefactor, Parameters and Assumptions. The output is an integration representation on the open interval, not an evaluated coefficient or an endpoint distribution.";
+Begin["`Private`"];
+ConstructOneLoopMeasurementDensity[reduced_Association,coordinates_Association,
+ definition_Association,request_Association:<||>]:=Catch[Module[
+ {e,kin,parameters,geometry,x,z,conditions,sourceRules,targetRules,products,equations,
+  changes,change,values,functions,coefficients,weight,prefactor,branches={},mapped,
+  scalarRules,branchCoefficients,constant,unit},
+ If[Lookup[reduced,"Format",None]=!="FeynFacet-OneLoopIntegrands"||
+   Lookup[coordinates,"Format",None]=!="FeynFacet-InvariantPhaseSpaceCoordinates"||
+   !TrueQ[Lookup[reduced,"VirtualPrescriptionRemoved",True]===False]||
+   !TrueQ[Lookup[reduced,"PhaseSpaceDensityIncluded",True]===False]||
+   !ContainsAll[Keys[reduced],{"Kinematics","InteriorValues","ExternalPropagatorInteriorValues"}],
+  cutFamilyFail["UnintegratedCausalOneLoopDensityRequired"]];
+ kin=reduced["Kinematics"];e=reduced["DimensionalRegulator"];parameters=coordinates["Parameters"];
+ If[Length[parameters]=!=2||coordinates["DimensionalRegulator"]=!=e||
+   kin["ExternalMomenta"]=!=coordinates["FinalMomenta"],
+  cutFamilyFail["CompatibleThreeParticleLoopCoordinatesRequired"]];
+ geometry=FeynFacet`ConstructThreeParticleMeasurementPushforward[definition,
+  Join[KeyTake[request,{"ParticleOrder","Parameters","Assumptions"}],<|"DimensionalRegulator"->e|>]];
+ If[!AssociationQ[geometry],Throw[geometry,"CutFamily"]];
+ {x,z,conditions}=Lookup[geometry,{"IntegrationVariable","Variable","Domain"}];
+ If[!FreeQ[{definition,Lookup[request,"Weight",1]},Alternatives@@parameters]||
+   Intersection[parameters,{x,geometry["EliminatedVariable"],z,e}]=!={},
+  cutFamilyFail["IndependentSourceAndMeasurementCoordinatesRequired"]];
+ sourceRules=FeynCalc`FCI[kin["KinematicRules"]];targetRules=geometry["ScalarProductRules"];
+ products=DeleteDuplicates[Flatten[FeynCalc`FCI[Outer[FeynCalc`SPD,kin["ExternalMomenta"],kin["ExternalMomenta"]]]]];
+ If[!AllTrue[products,Factor[(#/.sourceRules)-(#/.coordinates["ScalarProductRules"])]===0&],
+  cutFamilyFail["LoopReductionAndPhaseSpaceGramMismatch"]];
+ equations=Thread[(products/.sourceRules)==(products/.targetRules)];
+ changes=Solve[equations,parameters];
+ If[!MatchQ[changes,{{(_Rule)..}}]||!ContainsAll[First/@First[changes],parameters],
+  cutFamilyFail["UniqueMeasurementCoordinateMapRequired"]];
+ change=First[changes];
+ If[!AllTrue[products,Factor[(#/.sourceRules/.change)-(#/.targetRules)]===0&],
+  cutFamilyFail["ExactMeasurementGramMapRequired"]];
+ values=Map[FeynFacet`ReduceMasslessScalarTriangles[#/.D->4-2e,e,kin["Assumptions"]]&,reduced["InteriorValues"]];
+ If[!FreeQ[values,_Failure|_FeynCalc`C0],cutFamilyFail["ScalarTriangleReductionRequired"]];
+ functions=DeleteDuplicates[Cases[values,_FeynCalc`B0|_FeynCalc`D0,Infinity]];
+ coefficients=Map[Function[value,Association@Append[
+   (#->Factor[Coefficient[Expand[value],#]])&/@functions,
+   1->Factor[value/.Thread[functions->0]]]],values];
+ If[!AllTrue[Values[coefficients],FreeQ[Values[#],_FeynCalc`B0|_FeynCalc`C0|_FeynCalc`D0]&],
+  cutFamilyFail["LinearScalarLoopFunctionCombinationRequired"]];
+ weight=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[Lookup[request,"Weight",1]]];
+ prefactor=Lookup[request,"DensityPrefactor",1]/.D->4-2e;
+ Do[
+  scalarRules=Map[#->Factor[#/.change/.branch["EliminationRule"]]&,parameters];
+  If[!TrueQ[FullSimplify[kin["Assumptions"]/.scalarRules,Assumptions->conditions&&0<x<1]],
+   cutFamilyFail["PhysicalLoopDomainAfterMeasurementRequired"]];
+  mapped=AssociationThread[functions,(#/.scalarRules)&/@functions];
+  unit=Factor[weight/.branch["ScalarProductRules"]];
+  If[!FreeQ[unit,_FeynCalc`Pair|_FeynCalc`Momentum],cutFamilyFail["ScalarMeasurementWeightRequired"]];
+  branchCoefficients=Map[Function[row,Association@KeyValueMap[
+    Function[{function,coefficient},function->Factor[(coefficient/.scalarRules)unit*
+      branch["Jacobian"]branch["MeasurementNumerator"]]],row]],coefficients];
+  AppendTo[branches,<|"CoordinateRules"->scalarRules,"ScalarFunctions"->mapped,
+    "Coefficients"->branchCoefficients,"GramPolynomial"->branch["GramPolynomial"],
+    "Prefactor"->prefactor geometry["Normalization"],
+    "RegulatorFactors"->{{branch["GramPolynomial"],-e}},
+    "PhysicalDomain"->(conditions&&0<x<1),"Root"->branch["Root"]|>],
+ {branch,geometry["Branches"]}];
+ <|"Format"->"FeynFacet-OneLoopMeasurementDensity","Branches"->branches,
+  "MeasurementGeometry"->geometry,"LoopKinematics"->kin,
+  "ExternalPropagatorInteriorValues"->reduced["ExternalPropagatorInteriorValues"],
+  "ScalarFunctionConvention"->reduced["ScalarFunctionConvention"],
+  "NormalizedLoopConversion"->Pi^-e,"LoopPrescription"->1,
+  "DimensionalRegulator"->e,"IntegrationVariable"->x,"Variable"->z,
+  "Interval"->{0,1},"Weight"->weight,"DensityPrefactor"->prefactor,
+  "VirtualPrescriptionRemoved"->False,"PhaseSpaceDensityIncluded"->True,
+  "ConjugateInterferenceAdded"->reduced["ConjugateInterferenceAdded"],
+  "ExactInRegulator"->True,"IntegralEvaluated"->False,"EndpointDistributionIncluded"->False,
+  "Scope"->"Exact scalar-loop integration representation on the proved open physical domain. The loop functions retain their Feynman prescription. Regulated endpoint regions and scalar integration remain to be evaluated."|>
+],"CutFamily"];
+End[];EndPackage[];

@@ -247,3 +247,58 @@ DifferentialSystem.json; the old reduction tree is retained as
 Work/BeforeFamilyMapsDifferentialEquations. Inspect the actual job before
 relaunching. Full four-body physical masters and real-virtual integration remain
 unfinished, so the complete order-alpha_s-squared result does not yet exist.
+
+## Real-virtual preparation and rational reconstruction
+
+The preceding unscaled distinct-flavor DE attempt timed out after 1802.16 s.
+Its first derivative-seed refinement generated 563,199 equations with 475,421
+integral identifiers; the exact reduction did not finish. Kira's intermediate
+37-master rank diagnostic is not a verified final count or a closed DE.
+
+Removing Q2 by a verified change of equation unknowns did not suffice: the
+four-core comparison timed out after 1203.00 s, still in symbolic elimination.
+The equation and identifier files are retained. The scale-removal step also
+contained repeated list growth; it now preallocates the per-row degree array.
+Six checks pass in 14.17 s: exact agreement with unscaled reduction, restored
+cached units, the quadratic measurement's degree two, reconstruction of each
+original polynomial-cut equation, and agreement between FireFly and Fermat.
+The native FireFly benchmark now uses the retained scale-independent equations
+in `DifferentQuarks/Work/DifferentialEquations/FireFlyDerivativeSeedRefinement1`.
+This benchmark excludes equation generation and is not a cold DE solve.
+Its supervised log/receipt are the component's `FireFlyRefinement.*` files.
+See the final receipt before reporting completion. The method uses Kira's
+documented support for user-defined systems and finite-field reconstruction:
+https://arxiv.org/abs/2008.06494, sections 3.1 and 3.2.
+
+Actual Pro's source review of a4a8b9bf is retained in record 06. It found a real
+reuse defect: the virtual integration cache omitted the derived flavor and
+symmetry multiplicities. Both one- and two-loop paths now include them; a
+changed flavor sum regenerates the integration even if its representative
+amplitude is unchanged. Seven checks pass in 33.87 s. The zero output of a
+family map now retains coefficient groups and exceptional divisors; seven
+numerator-map checks and six polynomial-equivalence checks pass (5.47/5.07 s),
+including a nontrivial particle permutation.
+
+The physical three-body measurement map is now shared by tree integration and
+loop-first integration. Six new bubble/pushforward checks pass in 5.52 s; seven
+existing exact invariant-integration checks pass in 7.04 s. A separate generated
+loop-density test passes five assertions in 5.27 s, checking the Gram map, the
+loop measure, causal metadata and rejection of incompatible coordinates.
+
+The full generated real-virtual source reduces to four B0 functions, six C0
+functions and three one-mass boxes. Exact triangle identities leave B0/D0
+combinations. The general card-owned `loop` preparation stage generates the
+source, reduces the loop, selects particle coordinates from the card's tuples,
+and writes all noncontact integration densities plus separate self contacts to
+`RealVirtual/Work/PreparedScalarLoopDensity.wl`. The successful ordered-chart
+attempt took 42.59 s including kernel startup. A preceding attempt stopped
+after 39.94 s on an unsupported root partition and wrote no accepted density.
+The scalar reduction alone took 31.82 s by AbsoluteTiming. Internal stage clocks
+are diagnostic and are not substituted for the supervised total.
+
+Record 07 contains Pro's mathematical review of moment completion. Inclusive
+moments can determine ordinary contacts only after a physical contact-order
+bound excludes hidden delta derivatives. Finite interior behavior alone is
+insufficient. The proposed bound and inclusive-master route are not implemented
+or assumed here. Full RR master integration, RV scalar integration and endpoint
+completion remain; no published NLO EEC coefficient has been compared.
