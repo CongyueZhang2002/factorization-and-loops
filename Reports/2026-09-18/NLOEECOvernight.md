@@ -81,3 +81,19 @@ component `Work` directory. Earlier interrupted/failed attempts are retained
 alongside the launch log; they are not successful production timings. Inspect
 the receipt and process list before starting another attempt. No measured DE
 or order-alpha_s-squared coefficient has yet completed.
+
+The distinct-flavor four-quark component subsequently completed preparation in
+222.42 s including startup on CPU 7. Its six noncontact decompositions and one
+self-pair contact are saved in the component's `Work/MeasuredIntegrands.wl` pair.
+Its `DifferentialSystem.log` now tracks DE construction on CPUs 4..7. The active
+gluon preparation was restricted to CPUs 0..3, including its already-created
+threads, before that launch. Thus the two current main kernels share eight cores.
+
+The universal massless vertex provider now also derives timelike phases from
+each connected loop component's scale degree and causal prescription. Opposite
+causal disconnected bubbles retain their complex modulus and loop-measure sign;
+connected mixed prescriptions are rejected by this continuation method. Eleven
+internal branch and Laurent-truncation checks passed in 17.32 s. This supplies
+scalar integral values, not generated two-loop form-factor coefficients and not
+the missing measured virtual assembly. The four-body implementation at revision
+`f126f874` has been pushed and sent to Pro for a focused static review.
