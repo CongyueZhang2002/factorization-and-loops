@@ -2,6 +2,7 @@
    the measurement; endpoints and Hermitian completion remain explicit. *)
 BeginPackage["FeynFacet`"];
 PrepareMeasuredCurrentOneLoopContribution::usage="PrepareMeasuredCurrentOneLoopContribution[card,mode] generates a one-loop/tree current interference, reduces the virtual loop, and inserts the card's tuple measurement into physical three-particle phase space. It stores causal scalar integration representations and separate inclusive contacts in the contribution Work directory. This preparation does not write an accepted Results.wl.";
+IntegrateMeasuredCurrentOneLoopInterior::usage="IntegrateMeasuredCurrentOneLoopInterior[card,mode] prepares the card-owned one-loop radiative density, verifies its energy endpoint integrability including original external causal factors, and integrates every noncontact tuple group through the requested Laurent range. It stores explicit GPL coefficients in Work/MeasuredOneLoopInterior.wl, before Hermitian completion and measurement-variable endpoint distributions. Compatible row records may be reused in resume mode.";
 Begin["`Private`"];
 PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]:=Catch[Module[
  {setup,request,geometry,specification,definition,path,file,saved,source,coordinates,kin,
@@ -9,11 +10,13 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
   total,s,particles,prefactor,seconds,timings=<||>,output},
  If[!MemberQ[{"all","resume"},mode]||Lookup[card["Assembly"],"IntegrationMethod",None]=!="PolynomialMeasurement",
   projectFail["MeasuredOneLoopPreparationRequestRequired"]];
- setup=projectCheck[FeynFacet`ReadProcessCard[card],"MeasuredCurrentProcessRequired"];
  particles=Take[card["FinalMomenta"],Length[card["UnobservedPartons"]]];
- If[{setup["ForwardAmplitudes"]["LoopOrder"],setup["ConjugateAmplitudes"]["LoopOrder"]}=!={1,0}||
-   Length[particles]=!=3||Lookup[card,"IncomingPartons",{}]=!={}||
+ If[Length[particles]=!=3||Lookup[card["Channels"][card["Channel"]],"Incoming",{}]=!={}||
+   Lookup[card,"IncomingMomenta",{}]=!={}||
    Lookup[card["Channels"][card["Channel"]],"Observed",None]=!=None,
+  projectFail["ThreeParticleOneLoopTreeDecayRequired"]];
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"MeasuredCurrentProcessRequired"];
+ If[{setup["ForwardAmplitudes"]["LoopOrder"],setup["ConjugateAmplitudes"]["LoopOrder"]}=!={1,0},
   projectFail["ThreeParticleOneLoopTreeDecayRequired"]];
  request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"MeasuredCurrentAssemblyRequired"];
  geometry=Join[card["Assembly"]["PhaseSpace"],<|"Name"->measuredOneLoopPhaseSpace,"FinalMomenta"->particles|>];
@@ -40,8 +43,8 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
  reduced=projectCheck[reduced,"MeasuredLoopScalarReductionFailed"];
  AssociateTo[timings,"ScalarLoopReduction"->seconds];
  projectWrite[Join[reduced,<|"ProcessDefinition"->setup,"InvariantCoordinates"->coordinates|>],path<>"/MeasuredScalarLoopIntegrals.wl"];
- normalized=Join[reduced,<|"InteriorValues"->Map[
-   FeynFacet`SubstituteScalarPowers[#/.D->4-2e,request["BareCouplingRules"]]&,reduced["InteriorValues"]]|>];
+ normalized=Join[reduced,Association@Table[key->Map[
+   FeynFacet`SubstituteScalarPowers[#/.D->4-2e,request["BareCouplingRules"]]&,reduced[key]],{key,{"Values","InteriorValues"}}]];
  prefactor=(request["CurrentNormalization"]Lookup[card,"SymmetryFactor",1]Lookup[card,"FlavorMultiplicity",1])/.D->4-2e;
  {seconds,terms}=facetElapsedTiming[FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,specification]];
  If[!ListQ[terms],projectFail["MeasuredLoopTupleDefinitionsRequired",<|"Cause"->terms|>]];
@@ -68,5 +71,35 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
   "Reused"->False,"ConjugateInterferenceAdded"->False,"EndpointDistributionsSolved"->False,
   "Scope"->"One causal amplitude orientation, before integration and addition of its complex conjugate. All tuple weights and generated state factors are included. No accepted hard coefficient is supplied by this representation."|>;
  projectWrite[output,file];output
+],"ProjectCards"];
+IntegrateMeasuredCurrentOneLoopInterior[card_Association,mode_String:"resume"]:=Catch[Module[
+ {prepared,path,range,rows={},row,file,saved,definition,seconds,timings={},output,coefficients,labels=None},
+ prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopContribution[card,mode],"PreparedMeasuredLoopContributionRequired"];
+ path=card["WorkDirectory"];range=card["EpsilonRange"];
+ Do[
+  definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],
+   "ParticleTuples"->prepared["NoncontactTerms"][[i]]["ParticleTuples"],"EpsilonRange"->range|>;
+  file=path<>"/IntegratedScalarLoopRow"<>ToString[i]<>".wl";saved=None;
+  If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file]];
+  If[AssociationQ[saved]&&Lookup[saved,"IntegrationDefinition",None]===definition,
+   row=saved;seconds=0,
+   {seconds,row}=AbsoluteTiming[FeynFacet`IntegrateOneLoopMeasurementInterior[prepared["NoncontactTerms"][[i]],range,
+     <|"TimeLimit"->180,"PrintTimings"->True|>]];
+   row=projectCheck[row,"MeasuredLoopInteriorIntegrationFailed"];
+   row=Join[row,<|"IntegrationDefinition"->definition,"ParticleTuples"->definition["ParticleTuples"],"TotalSeconds"->seconds|>];
+   projectWrite[row,file]];
+  If[labels===None,labels=row["StructureFunctions"]];
+  If[labels=!=row["StructureFunctions"],projectFail["CommonMeasuredLoopStructuresRequired"]];
+  AppendTo[rows,row["Coefficients"]];AppendTo[timings,<|"Row"->i,"Seconds"->seconds,"Record"->file,
+    "Reused"->(seconds===0)|>],{i,Length[prepared["NoncontactTerms"]]}];
+ coefficients=If[rows==={},<||>,Merge[rows,Total]];
+ output=<|"Format"->"FeynFacet-MeasuredCurrentOneLoopInterior","Coefficients"->coefficients,
+  "StructureFunctions"->If[labels===None,card["StructureFunctions"],labels],
+  "DimensionalRegulator"->Global`Epsilon,"EpsilonRange"->range,
+  "Variables"->card["Assembly"]["Variables"],"CalculationDefinition"->prepared["CalculationDefinition"],
+  "PreparationTimings"->prepared["StageSeconds"],"IntegrationTimings"->timings,
+  "ConjugateInterferenceAdded"->False,"EndpointDistributionIncluded"->False,
+  "Scope"->"Explicit Laurent coefficients on the open measurement domain for one causal amplitude orientation. Self contacts and measurement-variable endpoint distributions remain separate, as does Hermitian completion."|>;
+ projectWrite[output,path<>"/MeasuredOneLoopInterior.wl"];output
 ],"ProjectCards"];
 End[];EndPackage[];

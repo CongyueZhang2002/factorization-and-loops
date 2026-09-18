@@ -26,7 +26,7 @@ ConstructThreeParticleMeasurementPushforward[input_Association,request_Associati
  {x,y}=parameters;z=First[definition["MeasurementVariables"]];e=Lookup[request,"DimensionalRegulator",None];
  If[(e=!=None&&!MatchQ[e,_Symbol])||!DuplicateFreeQ[Join[parameters,{z},If[e===None,{}, {e}]]]||
     !FreeQ[s,Alternatives@@parameters],cutFamilyFail["IndependentMeasurementCoordinatesRequired"]];
- assumptions=Lookup[request,"Assumptions",definition["Assumptions"]&&0<z<1];
+ assumptions=definition["Assumptions"]&&Lookup[request,"Assumptions",0<z<1];
  rules=invariantParticleRules[particles,total,s,{s(x+y-1),s(1-y),s(1-x)}];
  g=Factor[definition["InversePropagators"][[First[definition["MeasurementCutIndices"]]]]/.rules];
  numerator=Factor[FeynCalc`ExpandScalarProduct[FeynCalc`FCI[Lookup[definition,"MeasurementNumerator",1]]]/.rules];

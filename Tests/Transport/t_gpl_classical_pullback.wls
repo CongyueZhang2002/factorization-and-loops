@@ -14,6 +14,16 @@ Do[
   NumericQ[cpValue]&&Abs[cpValue-N[cpExpected,45]]<10^-32],
  {cpR,{cpT/(1+cpT),(1+cpT)/2,1-cpT}}];
 cpAnswer=FeynFacetSolution`IntegrateGPL[PolyLog[3,1-cpT]/(1+cpT),{cpT,0,cpZ}];
+Do[
+ cpInverted=FeynFacetSolution`IntegrateGPL[PolyLog[cpN,-1/cpT],{cpT,0,cpZ},
+  "Assumptions"->0<cpT<1];
+ cpInvertedValue=If[FailureQ[cpInverted],cpInverted,
+  FeynFacetSolution`EvaluateGPLExpression[cpInverted,{cpZ->1/5},"WorkingPrecision"->45]];
+ cpInvertedReference=NIntegrate[PolyLog[cpN,-1/cpT],{cpT,0,1/5},
+  WorkingPrecision->45,AccuracyGoal->34,PrecisionGoal->34];
+ FTTest`FTAssert["negative-real polylogarithm inversion retains the full branch polynomial, weight "<>ToString[cpN],
+  NumberQ[cpInvertedValue]&&Abs[cpInvertedValue-cpInvertedReference]<10^-30],
+ {cpN,{2,3}}];
 cpValue=If[FailureQ[cpAnswer],cpAnswer,
  FeynFacetSolution`EvaluateGPLExpression[cpAnswer,{cpZ->1/5},"WorkingPrecision"->45]];
 cpExpected=NIntegrate[PolyLog[3,1-cpT]/(1+cpT),{cpT,0,1/5},
@@ -60,4 +70,5 @@ cpExpected=NIntegrate[Evaluate[cpBody/.cpPoint],{cpT,0,1/5},
  WorkingPrecision->45,AccuracyGoal->35,PrecisionGoal->35];
 FTTest`FTAssert["preexisting and pulled-back polylog basepoints share canonical rational arguments",
  NumericQ[cpValue]&&Abs[cpValue-cpExpected]<10^-30];
+Print["GPL CLASSICAL PULLBACK TEST COMPLETE"];
 FTTest`FTReport[];

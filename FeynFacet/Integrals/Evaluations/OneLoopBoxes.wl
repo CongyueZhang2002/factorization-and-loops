@@ -12,7 +12,10 @@ boxSign[invariant_,conditions_]:=Which[
  TrueQ[FullSimplify[invariant>0,Assumptions->conditions]],1,
  TrueQ[FullSimplify[invariant<0,Assumptions->conditions]],-1,
  True,boxFail["NonzeroRealBoxInvariantSignRequired",<|"Invariant"->invariant|>]];
-boxLogAbs[x_,conditions_]:=Log[FullSimplify[Abs[x],Assumptions->conditions]];
+boxLogAbs[x_,conditions_]:=Log[Which[
+ TrueQ[FullSimplify[x>0,Assumptions->conditions]],Factor[x],
+ TrueQ[FullSimplify[x<0,Assumptions->conditions]],Factor[-x],
+ True,FullSimplify[Abs[x],Assumptions->conditions]]];
 boxWeightedLog[coefficient_,x_,conditions_]:=If[coefficient===0,0,
  coefficient boxLogAbs[x,conditions]];
 (* The n>=2 continuous single-valued combination is expanded into ordinary

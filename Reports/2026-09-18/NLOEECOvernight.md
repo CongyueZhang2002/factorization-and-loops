@@ -302,3 +302,67 @@ bound excludes hidden delta derivatives. Finite interior behavior alone is
 insufficient. The proposed bound and inclusive-master route are not implemented
 or assumed here. Full RR master integration, RV scalar integration and endpoint
 completion remain; no published NLO EEC coefficient has been compared.
+
+
+## Explicit real-virtual energy integration
+
+All three noncontact pair groups now have explicit GPL coefficients through
+finite order in `RealVirtual/Work/IntegratedScalarLoopRow{1,2,3}.wl`, with paired
+metadata. This is one causal orientation at fixed interior z. It does not yet
+include self contacts, measured-angle endpoint distributions or the conjugate
+interference, so it is not an accepted real-virtual result.
+
+The successful supervised integration took 140.75 s. A separate check compares
+each finite coefficient with direct integration of its generated scalar Laurent
+density at z=1/3, Q2=2, muR2=3 and physical color/coupling values. All three agree
+to at least 30 decimal digits; the supervised check took 33.54 s. Earlier checks
+failed because their script left the coupling symbolic; no coefficient was
+changed to obtain this agreement. This check verifies integration, not an
+independent loop-amplitude provider or the published EEC coefficient.
+
+The exact endpoint test now decomposes the original prescribed external products
+and verifies integrability separately for each product before removing its i0.
+It uses the elementary modulus bound for each real external denominator and
+retains the virtual scalar functions' causal prescriptions. It only allows
+coefficientwise energy integration when the resolved integer powers at both
+energy endpoints are nonnegative. Harder inputs fail pending explicit regulated
+subtractions. This supplies no claim about measured-angle endpoints.
+
+Negative-real polylogarithms whose argument tends to infinity are inverted with
+the complete Bernoulli-polynomial identity after proving their sign. GPL size
+limits are checked after shuffle/coefficient collection: the actual RV input
+otherwise exceeded the limit before its exact cancellations. All three rows
+now integrate under the unchanged expression limit. Standalone GPL loading no
+longer creates a Global GLI symbol that shadows FeynCalc.
+
+Focused checks: fourteen scalar-measurement assertions (5.77 s), thirteen GPL
+pullback assertions (1.46 s), seven box-endpoint assertions (5.32 s), ten resumed
+DE assertions (10.32 s), and seven scale/export-closure assertions (16.77 s).
+The generated source with original prescriptions took 61.89 s to prepare.
+These are supervised totals; internal AbsoluteTiming diagnostics are separate.
+
+The retained scale-normalized FireFly benchmark completed in 240.71 s including
+startup and import (native solve 215.10 s), versus the symbolic timeout at
+1203.00 s. Its 152 surviving integrals include targets outside the requested
+source and are not a final master count. Generic DE resumption keeps all exact
+relations but restricts its evolving basis to the original requested targets
+and derivatives; it starts with 57 spanning integrals. The distinct-flavor
+resumed run is still working toward differential closure. A full alpha_s-squared
+coefficient has not been obtained and has not been compared with literature.
+
+
+The production `loop-interior resume` invocation completed in 145.71 s with all
+three rows newly integrated from the existing prepared density. Its subsequent
+resume took 6.22 s including startup and reused all three exact row definitions.
+The initial resumed four-body DE reached its 1803.36 s supervised timeout during
+its second derivative-closure reconstruction. A longer supervised continuation
+now reuses the verified native equation files, in addition to completed reduction
+rules. The new eight-assertion native-resumption/scale/selection test passes in
+19.08 s; it deliberately removes a test export and prevents equation regeneration.
+The current receipt/log prefix is `DifferentQuarks/ResumedDifferentialSystemLong`.
+
+The DE convention regression passes ten assertions in 11.09 s. One preceding
+invocation had a wrong supervisor completion prefix despite ten passing assertions;
+another failed earlier in input preparation. The test now diagnoses preparation
+failures explicitly; the subsequent diagnostic run passed. That transient's cause
+has not been established, and its receipt remains unsuccessful.

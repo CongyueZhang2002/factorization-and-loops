@@ -8,12 +8,13 @@ ConstructOneLoopMeasurementDensity[reduced_Association,coordinates_Association,
  definition_Association,request_Association:<||>]:=Catch[Module[
  {e,kin,parameters,geometry,x,z,conditions,sourceRules,targetRules,products,equations,
   changes,change,values,functions,coefficients,weight,prefactor,branches={},mapped,
-  scalarRules,branchCoefficients,constant,unit},
+  scalarRules,branchCoefficients,unit,aliases,polynomials,prescribed,externalObjects,
+  externalAliases,externalRows,descriptors,externalValues,components},
  If[Lookup[reduced,"Format",None]=!="FeynFacet-OneLoopIntegrands"||
    Lookup[coordinates,"Format",None]=!="FeynFacet-InvariantPhaseSpaceCoordinates"||
    !TrueQ[Lookup[reduced,"VirtualPrescriptionRemoved",True]===False]||
    !TrueQ[Lookup[reduced,"PhaseSpaceDensityIncluded",True]===False]||
-   !ContainsAll[Keys[reduced],{"Kinematics","InteriorValues","ExternalPropagatorInteriorValues"}],
+   !ContainsAll[Keys[reduced],{"Kinematics","Values","InteriorValues","ExternalPropagatorInteriorValues"}],
   cutFamilyFail["UnintegratedCausalOneLoopDensityRequired"]];
  kin=reduced["Kinematics"];e=reduced["DimensionalRegulator"];parameters=coordinates["Parameters"];
  If[Length[parameters]=!=2||coordinates["DimensionalRegulator"]=!=e||
@@ -40,11 +41,29 @@ ConstructOneLoopMeasurementDensity[reduced_Association,coordinates_Association,
  values=Map[FeynFacet`ReduceMasslessScalarTriangles[#/.D->4-2e,e,kin["Assumptions"]]&,reduced["InteriorValues"]];
  If[!FreeQ[values,_Failure|_FeynCalc`C0],cutFamilyFail["ScalarTriangleReductionRequired"]];
  functions=DeleteDuplicates[Cases[values,_FeynCalc`B0|_FeynCalc`D0,Infinity]];
- coefficients=Map[Function[value,Association@Append[
-   (#->Factor[Coefficient[Expand[value],#]])&/@functions,
-   1->Factor[value/.Thread[functions->0]]]],values];
+ aliases=Unique["scalarLoopFunction"]&/@functions;
+ polynomials=Map[FeynFacet`PolynomialCoefficientRules[#/.Thread[functions->aliases],aliases]&,values];
+ If[AnyTrue[Values[polynomials],FailureQ]||
+   !AllTrue[Flatten[(First/@#)&/@Values[polynomials],1],Total[#]<=1&],
+  cutFamilyFail["LinearScalarLoopFunctionCombinationRequired"]];
+ coefficients=Map[Function[rows,Association@Append[
+   Table[functions[[j]]->Factor[Lookup[Association[rows],Key[UnitVector[Length[functions],j]],0]],
+    {j,Length[functions]}],1->Factor[Lookup[Association[rows],Key[ConstantArray[0,Length[functions]]],0]]]],polynomials];
  If[!AllTrue[Values[coefficients],FreeQ[Values[#],_FeynCalc`B0|_FeynCalc`C0|_FeynCalc`D0]&],
   cutFamilyFail["LinearScalarLoopFunctionCombinationRequired"]];
+ prescribed=Map[FeynFacet`ReduceMasslessScalarTriangles[#/.D->4-2e,e,kin["Assumptions"]]&,reduced["Values"]];
+ externalObjects=DeleteDuplicates[Cases[prescribed,_FeynCalc`FeynAmpDenominator,Infinity]];
+ externalAliases=Unique["externalPropagator"]&/@externalObjects;
+ descriptors=Map[Function[object,propagatorDescriptor[#,sourceRules/.D->4-2e]&/@List@@object],externalObjects];
+ If[!AllTrue[Flatten[descriptors],AssociationQ]||
+   !AllTrue[Flatten[descriptors],TrueQ[FullSimplify[Element[#["UnitCore"],Reals]&&#["UnitCore"]!=0,
+      Assumptions->kin["Assumptions"]]]&],cutFamilyFail["RealNonzeroExternalCausalFactorsRequired",
+       <|"Descriptors"->descriptors,"Conditions"->kin["Assumptions"]|>]];
+ externalValues=Times@@(#["UnitCore"]^-#["Power"]&/@#)&/@descriptors;
+ externalRows=Map[FeynFacet`PolynomialCoefficientRules[#/.Thread[externalObjects->externalAliases],externalAliases]&,prescribed];
+ If[AnyTrue[Values[externalRows],FailureQ],cutFamilyFail["PolynomialExternalPropagatorProductsRequired"]];
+ If[!AllTrue[Keys[values],Factor[Total[(Last[#]Times@@MapThread[Power,{externalValues,First[#]}])&/@externalRows[#]]-values[#]]===0&],
+  cutFamilyFail["PrescribedAndInteriorScalarLoopDensitiesMustAgree"]];
  weight=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[Lookup[request,"Weight",1]]];
  prefactor=Lookup[request,"DensityPrefactor",1]/.D->4-2e;
  Do[
@@ -57,11 +76,17 @@ ConstructOneLoopMeasurementDensity[reduced_Association,coordinates_Association,
   branchCoefficients=Map[Function[row,Association@KeyValueMap[
     Function[{function,coefficient},function->Factor[(coefficient/.scalarRules)unit*
       branch["Jacobian"]branch["MeasurementNumerator"]]],row]],coefficients];
+  components=Association@Flatten[KeyValueMap[Function[{structure,rows},MapIndexed[
+    Function[{term,position},{structure,First[position]}-><|
+      "OriginalPrescribedProduct"->Times@@MapThread[Power,{externalObjects,First[term]}],
+      "ScalarCoefficient"->Factor[(Last[term]/.scalarRules)unit branch["Jacobian"]branch["MeasurementNumerator"]],
+      "InteriorExternalProduct"->Factor[(Times@@MapThread[Power,{externalValues,First[term]}])/.scalarRules]|>],rows]],externalRows],1];
   AppendTo[branches,<|"CoordinateRules"->scalarRules,"ScalarFunctions"->mapped,
     "Coefficients"->branchCoefficients,"GramPolynomial"->branch["GramPolynomial"],
     "Prefactor"->prefactor geometry["Normalization"],
     "RegulatorFactors"->{{branch["GramPolynomial"],-e}},
-    "PhysicalDomain"->(conditions&&0<x<1),"Root"->branch["Root"]|>],
+    "PhysicalDomain"->(conditions&&0<x<1),"Root"->branch["Root"],
+    "ExternalPrescriptionComponents"->components,"ExternalFactorModulusBoundsEstablished"->True|>],
  {branch,geometry["Branches"]}];
  <|"Format"->"FeynFacet-OneLoopMeasurementDensity","Branches"->branches,
   "MeasurementGeometry"->geometry,"LoopKinematics"->kin,

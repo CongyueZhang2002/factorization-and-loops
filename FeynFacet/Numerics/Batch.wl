@@ -15,7 +15,7 @@ FeynFacetSolution`EvaluateMasterIntegralSolutionRequest[data_Association,request
    True,Throw[Failure["NumericalReferenceCoordinatesMismatch",<||>]]]];
  options=Lookup[request,"EvaluationOptions",{}];
  boundary=If[KeyExistsQ[request,"BoundaryDataFile"],readNumericalFile[request["BoundaryDataFile"]],None];
- normalizeBasis[z_] := z/.s_Symbol /;SymbolName[s]==="GLI":>Global`GLI;
+ normalizeBasis[z_] := z/.s_Symbol /;SymbolName[s]==="GLI":>basisIntegral;
  If[boundary=!=None,
  boundaryBasis=normalizeBasis[boundary["OriginalMasterIntegralBasis"]];
  If[boundaryBasis=!=normalizeBasis[data["OriginalMasterIntegralBasis"]]||

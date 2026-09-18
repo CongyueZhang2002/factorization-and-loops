@@ -31,8 +31,8 @@ FeynFacetSolution`QuadraticRootChart[q_,t_Symbol,v_Symbol]:=Catch[Module[
   "Scope"->"Nonzero root at the basepoint; ordinary convergent integrals, with no change of finite-part prescriptions."|>
 ],"GPLIntegration"];
 gplRationalPrimitive[expression_,t_]:=Module[{normalized,words},
- normalized=gplEndpointScalars[gplNormalizeLogs[expression,t]];gplBound[normalized];
- words=gplWords[normalized,t];
+ normalized=gplEndpointScalars[gplNormalizeLogs[expression,t]];
+ words=gplWords[normalized,t];gplBound[words];
  gplPrimitiveSum[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]]
 ];
 gplRationalIntegral[expression_,t_,s_]:=Module[{primitive,lower},

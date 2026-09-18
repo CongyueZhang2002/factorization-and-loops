@@ -52,7 +52,7 @@ The standard public `RunProjectResult` dispatches on the integration geometry,
 not on the project name. `Scripts/run_measured_result.wls` exposes the same
 measured calculation directly. Individual development stages are available
 through `Scripts/run_measured_contribution.wls` (prepare, de, masters,
-interior, check, virtual). The complete calculation uses the result card.
+interior, check, virtual, loop, loop-interior). The complete calculation uses the result card.
 
 ## Perturbative naming
 
@@ -155,8 +155,13 @@ The one-loop three-particle source can now be generated from its card with
 It writes `Work/PreparedScalarLoopDensity.wl`: exact causal B0/D0 combinations
 after triangle reduction, with the derived measurement roots, Jacobians and
 dimensional measure. Self contacts remain separate inclusive integrals. This is
-an integration input, not the real-virtual result. Scalar integration, regulated
-endpoint completion and Hermitian completion are still required.
+an integration input, not the real-virtual result. The card-driven `loop-interior resume` stage now verifies energy endpoints and
+integrates all noncontact groups through the requested Laurent range, saving
+explicit GPL coefficients in `Work/MeasuredOneLoopInterior.wl`. It reuses only
+rows with a matching calculation definition, tuple group and epsilon range.
+These coefficients agree with direct scalar-density integration at an internal
+point. Self contacts, regulated measured-angle endpoint completion and Hermitian
+completion are still required; neither stage writes an accepted Results.wl.
 
 Typed Kira reductions accept `RationalSolver -> "FireFly"` for finite-field
 rational reconstruction, or `"Fermat"` for direct symbolic elimination. An

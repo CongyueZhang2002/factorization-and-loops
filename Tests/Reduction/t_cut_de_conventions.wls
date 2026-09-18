@@ -9,7 +9,10 @@ geometry=FeynFacet`CreateMeasuredPhaseSpaceDefinition[<|"Name"->conventionSource
  "MeasurementVariable"->cZ,"Assumptions"->cS>0&&0<cX<1&&0<cZ<1|>];
 prepared=FeynFacet`PrepareMeasuredCutIntegrand[FeynCalc`FCI[FeynCalc`SFAD[cP-ck2]],geometry,
  <|"ExternalKinematicConditions"->cS>0&&0<cX<1|>];
-family=First[FeynFacet`DecomposeMeasuredCutIntegrand[prepared]["Families"]];
+decomposition=FeynFacet`DecomposeMeasuredCutIntegrand[prepared];
+If[!AllTrue[{geometry,prepared,decomposition},AssociationQ],
+ Print["Cut-DE test input preparation failed: ",InputForm[{geometry,prepared,decomposition}]];Exit[1]];
+family=First[decomposition["Families"]];
 name=family["Topology"][[1]];unit=FeynCalc`GLI[name,{1,1,1,1,0,0,0}];
 work=CreateDirectory[];
 moving=<|cX-><|cP->-cP/cX,cQ->0|>|>;
@@ -23,6 +26,19 @@ FTTest`FTAssert["the mathematical reduction does not duplicate the native integr
 FTTest`FTAssert["physical phase-volume constructor retains its derivative operators",
  AssociationQ[system]&&system["MomentumDerivatives"]===moving&&system["MasterIntegralBasis"]==={unit}];
 If[!AssociationQ[system],Print[system];FTTest`FTReport[]];
+resumed=FeynFacet`ConstructCutDifferentialSystem[{family},{unit},{cX,cZ},
+ <|"WorkingDirectory"->work<>"/Resumed","Threads"->1,"MomentumDerivatives"->moving,
+  "InitialReduction"->system["Reduction"],"RationalSolver"->"FireFly",
+  "ValidationPoints"->{{cX->2/7,cZ->3/8,cS->1,D->11/5}}|>];
+FTTest`FTAssert["retained reductions resume the same physical DE without repeating the solve",
+ AssociationQ[resumed]&&resumed["InitialReductionReused"]&&
+ resumed["MasterIntegralBasis"]===system["MasterIntegralBasis"]&&
+ resumed["ConnectionMatrices"]===system["ConnectionMatrices"]];
+changedFamily=Join[family,<|"MeasurePrefactor"->2family["MeasurePrefactor"]|>];
+FTTest`FTAssert["a retained reduction with a different physical measure is rejected",
+ MatchQ[FeynFacet`ConstructCutDifferentialSystem[{changedFamily},{unit},{cX,cZ},
+  <|"WorkingDirectory"->work<>"/Incompatible","InitialReduction"->system["Reduction"]|>],
+  Failure["CompatibleInitialCutReductionRequired",_]]];
 reduced=FeynFacet`ReduceMasterDifferentialSystem[system,<|"Masters"->{unit},"Rules"->{}|>];
 FTTest`FTAssert["fresh constructor output is consumed directly by the subset reducer",AssociationQ[reduced]];
 stored=FeynFacet`IntegralRelationsFromCutDifferentialSystem[system];

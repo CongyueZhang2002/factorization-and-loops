@@ -38,7 +38,10 @@ ResolveMasslessBoxEndpointPowers[{s_,t_,mass_},e_Symbol,variables:{__Symbol},con
  invariantSigns=boxSign[#,conditions]&/@{s,t,mass};
  args=Factor/@{-u/s,-u/t,-u mass/(s t)};
  phases=If[#===1,Exp[I Pi e],1]&/@invariantSigns;
- scales=FullSimplify[Abs[#],Assumptions->conditions]&/@{t,s,mass};
+ (* Reuse the proved signs. Simplifying Abs of a factored rational function
+    can leave an opaque Abs even when the corresponding inequality is proved,
+    obscuring its normal-coordinate valuation. *)
+ scales=MapThread[Factor[#1 #2]&,{invariantSigns[[{2,1,3}]],{t,s,mass}}];
  rGamma=Gamma[1+e]Gamma[1-e]^2/Gamma[1-2e];
  make[rational_,prefactor_,scale_,exponent_,analytic_]:=Module[{rf,sf},
   If[TrueQ[prefactor===0]||TrueQ[rational===0],Return[Null]];
@@ -70,7 +73,7 @@ ResolveMasslessBoxEndpointPowers[{s_,t_,mass_},e_Symbol,variables:{__Symbol},con
    phases[[1]]If[signs[[2]]===1,Pi e Cot[Pi e],Pi e Csc[Pi e]]-
    phases[[3]]If[signs[[3]]===1,Pi e Cot[Pi e],Pi e Csc[Pi e]];
   make[2/(s t),rGamma constant/e^2,
-   FullSimplify[Abs[u/(s t)],Assumptions->conditions],e,1];
+   Factor[boxSign[u/(s t),conditions]u/(s t)],e,1];
   Do[coefficient={phases[[2]],phases[[1]],-phases[[3]]}[[i]];
    make[2inverses[[i]]/(s t),-rGamma coefficient/(e(1+e)),scales[[i]],-e,
     Hypergeometric2F1[1,1+e,2+e,inverses[[i]]]],{i,3}];

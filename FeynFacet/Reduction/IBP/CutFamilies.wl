@@ -250,7 +250,7 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
   If[AssociationQ[cachedResult]&&Lookup[cachedResult,"Format",None]==="FeynFacet-CutFamilyReduction",
    Return[Join[cachedResult,<|"ReusedSolvedReduction"->True|>]]]];
  If[TrueQ[Lookup[request,"ReuseSavedReduction",True]]&&
-   AllTrue[{"IntegralIdentifiers.wxf","equations.kira","results/FeynFacetIBP/kira_targets.m"},
+   AllTrue[{"IntegralIdentifiers.wxf","equations.kira","targets"},
     FileExistsQ[FileNameJoin[{directory,#}]]&],
   cachedIdentifiers=FamilyArtifactRead[FileNameJoin[{directory,"IntegralIdentifiers.wxf"}]];
   If[AssociationQ[cachedIdentifiers]&&ContainsAll[Keys[cachedIdentifiers],
@@ -264,7 +264,12 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
    project=Join[cachedIdentifiers,<|"Directory"->directory,"Runtime"->ibpRuntime[],
     "Manifest"->{<|"Name"->head|>},"EquationSource"->"TypedIBP",
     "InputFingerprint"->reductionFingerprint[definition],"IntegralIndex"->idMap|>];
-   {seconds,imported}=AbsoluteTiming[ibpDecodeProjectIntegrals[project,
+   {seconds,imported}=AbsoluteTiming[
+    If[!FileExistsQ[directory<>"/results/FeynFacetIBP/kira_targets.m"],
+     Print["Resuming the native solve from verified typed IBP equation files"];
+     Export[directory<>"/jobs.yaml",cutKiraEquationJob[solver],"String"];
+     ibpRunKira[project,Lookup[request,"Threads",1]]];
+    ibpDecodeProjectIntegrals[project,
      ibpImportRuleTable[head,FileNameJoin[{directory,"results","FeynFacetIBP","kira_targets.m"}]]]];
    declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project,cutKiraIdentityTargets[project,imported,targets]]];
    Print["Reusing the existing typed IBP equations and initial reduction"];

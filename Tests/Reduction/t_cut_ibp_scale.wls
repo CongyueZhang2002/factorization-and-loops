@@ -43,6 +43,37 @@ reconstructed=FeynFacet`KiraReduction[{family},targets,Join[request,<|"WorkingDi
 FTTest`FTAssert["finite-field reconstruction agrees with direct rational reduction",
  AssociationQ[reconstructed]&&reconstructed["RationalSolver"]==="FireFly"&&
  AllTrue[Factor/@((targets/.original["Rules"])-(targets/.reconstructed["Rules"])),#===0&]];
+(* A valid but partial native export forces the selected-pivot closure path.
+   Express one symmetric dotted target through the other, omitting the latter
+   export. The original equation system and declared masters are unchanged. *)
+ffDirectory=directory<>"/Reconstructed";
+ffIds=FeynFacet`FamilyArtifactRead[ffDirectory<>"/IntegralIdentifiers.wxf"];
+ffObjects=FeynCalc`GLI[Global`FeynFacetIBP,{First@FirstPosition[ffIds["IndexedIntegrals"],#]}]&/@targets;
+ffFile=ffDirectory<>"/results/FeynFacetIBP/kira_targets.m";
+equationTime=FileDate[ffDirectory<>"/equations.kira"];
+DeleteFile[ffFile];FeynFacet`FamilyArtifactDelete[ffDirectory<>"/Reduction.wl"];
+nativeResumed=Block[{FeynFacet`Private`cutGenerateIBPBatch},
+ FeynFacet`Private`cutGenerateIBPBatch[___]:=Failure["UnexpectedEquationRegeneration",<||>];
+ FeynFacet`KiraReduction[{family},targets,Join[request,<|"WorkingDirectory"->ffDirectory,
+  "HomogeneousScale"->ss,"RationalSolver"->"FireFly"|>]]];
+FTTest`FTAssert["unfinished native exports resume without regenerating the verified equation system",
+ AssociationQ[nativeResumed]&&FileDate[ffDirectory<>"/equations.kira"]===equationTime&&
+ AllTrue[Factor/@((targets/.original["Rules"])-(targets/.nativeResumed["Rules"])),#===0&]];
+ffRules=FeynFacet`Private`ibpImportRuleTable[Global`FeynFacetIBP,ffFile];
+ffImages=Rest[ffObjects]/.ffRules;
+ffRatio=Factor[ffImages[[1]]/ffImages[[2]]];
+If[!FreeQ[ffRatio,_FeynCalc`GLI],Print["Explicit dotted-target ratio required"];Exit[1]];
+ffPartial=Join[Select[ffRules,!MemberQ[Rest[ffObjects],First[#]]&],{ffObjects[[2]]->ffRatio ffObjects[[3]]}];
+Export[ffFile<>".partial",Block[{$Context="Global`",$ContextPath={"System`","Global`"}},
+ ToString[ffPartial/.FeynCalc`GLI[Global`FeynFacetIBP,{j_Integer}]:>Global`FeynFacetIBP[j],
+  InputForm,PageWidth->Infinity]],"String"];
+RenameFile[ffFile<>".partial",ffFile,OverwriteTarget->True];
+FeynFacet`FamilyArtifactDelete[ffDirectory<>"/Reduction.wl"];
+closedImport=FeynFacet`KiraReduction[{family},targets,Join[request,<|"WorkingDirectory"->ffDirectory,
+ "HomogeneousScale"->ss,"RationalSolver"->"FireFly"|>]];
+FTTest`FTAssert["partial native exports close in normalized units and restore the scale only once",
+ AssociationQ[closedImport]&&closedImport["SelectionClosure"]["Iterations"]=!={}&&
+ AllTrue[Factor/@((targets/.original["Rules"])-(targets/.closedImport["Rules"])),#===0&]];
 If[StringStartsQ[ExpandFileName[directory],ExpandFileName[$TemporaryDirectory]<>"/"],DeleteDirectory[directory,DeleteContents->True]];
 Print["CUT IBP SCALE TEST COMPLETE"];
 FTTest`FTReport[];

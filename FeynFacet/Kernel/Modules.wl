@@ -144,6 +144,7 @@
     "Integrals/Asymptotics/OneLoopBoxes.wl",
     "Integrals/Asymptotics/OneLoopCombinations.wl",
     "Integrals/Evaluations/OneLoopExpansion.wl",
+    "Integrals/Evaluations/OneLoopMeasurements.wl",
     "Integrals/Evaluations/MasslessVertices.wl",
     "Integrals/Evaluations/VirtualCombinations.wl",
     "Integrals/Asymptotics/PhaseSpace.wl",

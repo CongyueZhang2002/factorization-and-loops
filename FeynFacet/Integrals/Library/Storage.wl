@@ -15,10 +15,9 @@ masterLibraryRead[file_]:=Module[{result},
   StringEndsQ[file,"Index.wl"],"SectorIndexReads",
   StringEndsQ[file,"Relations.wl"],"RelationReads",True,"ValueReads"]];result
 ];
-masterLibraryWrite[value_,file_]:=(
- If[FeynFacet`FamilyArtifactWrite[value,file]=!=file,
-  masterLibraryFail["MasterLibraryWriteFailed",<|"File"->file|>]];
- If[AssociationQ[$masterLibraryReadCache],AssociateTo[$masterLibraryReadCache,file->value]];file);
+masterLibraryWrite[value_,file_]:=Module[{written=FeynFacet`FamilyArtifactWrite[value,file]},
+ If[written=!=file,masterLibraryFail["MasterLibraryWriteFailed",<|"File"->file,"Cause"->written|>]];
+ If[AssociationQ[$masterLibraryReadCache],AssociateTo[$masterLibraryReadCache,file->value]];file];
 masterLibraryCatalogFile[dir_,c_]:=dir<>"/Families/"<>c["Bucket"]<>"/Catalog.wl";
 masterLibraryCatalog[file_]:=Module[{r},
  If[!FileExistsQ[file],Return[<|"DataType"->"IntegralFamilyCatalog","SchemaVersion"->2,

@@ -253,9 +253,12 @@ gplUpperValue[primitive_,t_,s_]:=Module[{value=primitive/.t->s},
   gplFail["RegularGPLUpperPointRequired",<|"UpperPoint"->s|>]];
  value
 ];
-gplNormalizeLogs[expression_,t_]:=expression/.Log[r_]/;!FreeQ[r,t]:>Module[{v0,derivative,p,q,num,den,order},
- If[!gplRationalQ[r,t],gplFail["NonRationalLogarithmArgument"]];
- q=Cancel[Together[r]];{num,den}=NumeratorDenominator[q];
+gplNormalizeLogs[expression_,t_]:=expression/.Log[r_]/;!FreeQ[r,t]:>Module[{v0,derivative,p,q,num,den,order,argument=r},
+ If[ValueQ[$gplAssumptions],argument=argument/.Abs[a_]:>Which[
+   TrueQ[FullSimplify[a>=0,Assumptions->$gplAssumptions]],a,
+   TrueQ[FullSimplify[a<=0,Assumptions->$gplAssumptions]],-a,True,Abs[a]]];
+ If[!gplRationalQ[argument,t],gplFail["NonRationalLogarithmArgument",<|"Argument"->argument|>]];
+ q=Cancel[Together[argument]];{num,den}=NumeratorDenominator[q];
  If[num===0,gplFail["ZeroLogarithmArgument"]];
  order=Exponent[num,t,Min]-Exponent[den,t,Min];
  If[!IntegerQ[order],gplFail["IntegerLogarithmEndpointOrderRequired"]];
@@ -276,12 +279,19 @@ gplNormalizeLogs[expression_,t_]:=expression/.Log[r_]/;!FreeQ[r,t]:>Module[{v0,d
    analytic continuation and are never inferred by PowerExpand. *)
 gplNormalizeClassicalPolylogs[expression_,t_]:=Module[{objects,pull,rules},
  pull[1,r_]:=-gplNormalizeLogs[Log[1-r],t];
- pull[n_Integer,r_]/;n>1:=pull[n,r]=Module[{base,derivative,primitive},
+ pull[n_Integer,r_]/;n>1:=pull[n,r]=Module[{base,derivative,primitive,inversion},
   If[!gplRationalQ[r,t],gplFail["RationalClassicalPolylogarithmArgumentRequired"]];
   base=Quiet[Cancel[Cancel[r]/.t->0]];
   If[!FreeQ[base,Indeterminate|_DirectedInfinity],
    base=Quiet[Limit[r,t->0,Direction->"FromAbove"]]];
   If[!FreeQ[base,Indeterminate|_DirectedInfinity|_Limit],
+   (* Jonquiere inversion on the proved negative real axis has no cut
+      ambiguity. The reciprocal argument has a finite zero basepoint;
+      retain the complete Bernoulli/logarithm polynomial. *)
+   If[ValueQ[$gplAssumptions]&&TrueQ[FullSimplify[r<0,Assumptions->$gplAssumptions]],
+    inversion=Expand[-(2Pi I)^n/Factorial[n]*
+      BernoulliB[n,1/2+gplNormalizeLogs[Log[-r],t]/(2Pi I)]];
+    Return[inversion-(-1)^n pull[n,Cancel[1/r]],Module]];
    gplFail["FiniteClassicalPolylogarithmBasePointRequired",<|"Argument"->r|>]];
   derivative=Cancel[D[r,t]/r]pull[n-1,r];
   primitive=gplRationalPrimitive[derivative,t];
@@ -348,8 +358,8 @@ FeynFacetSolution`IntegrateGPL[expression_,{t_Symbol,0,s_},OptionsPattern[]]:=
   (* All memoization is confined to this conversion, with the current bounds. *)
   If[!FreeQ[expression,Power[base_,power_Rational]/;Denominator[power]===2&&!FreeQ[base,t]],
    Return[gplIntegrateQuadraticRoot[expression,t,s],Module]];
-  normalized=gplNormalizeRationalIntegrand[expression,t];gplBound[normalized];
-  words=gplWords[normalized,t];
+  normalized=gplNormalizeRationalIntegrand[expression,t];
+  words=gplWords[normalized,t];gplBound[words];
   primitive=gplPrimitiveSum[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]];
   lower=gplAtZero[primitive,t];
   result=gplCollectCoefficients[gplUpperValue[primitive,t,s]-lower];gplBound[result];result

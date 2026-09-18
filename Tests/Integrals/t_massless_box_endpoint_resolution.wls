@@ -1,4 +1,5 @@
 
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];
@@ -55,4 +56,10 @@ faceErrors=Flatten[Table[
  Abs[(val-ref)/ref],{i,3},{j,2}]];
 FTTest`FTAssert["edge jets agree with exact boxes at finite tangential coordinates",
  Max[faceErrors]<10^-10];
+decayInvariants=qs*{rz rx(1-rx)/(1-rz rx),rx(1-rz)/(1-rz rx),1-rx};
+decay=FeynFacet`ResolveMasslessBoxEndpointPowers[Append[decayInvariants[[#]],qs],ep,{rx},
+ qs>0&&0<rx<1&&0<rz<1]&/@{{1,2},{1,3},{2,3}};
+FTTest`FTAssert["timelike rational decay invariants retain explicit endpoint valuations",
+ AllTrue[decay,AssociationQ]&&FreeQ[Lookup[decay,"Terms"],_Abs]];
+Print["MASSLESS BOX ENDPOINT TEST COMPLETE"];
 FTTest`FTReport[];
