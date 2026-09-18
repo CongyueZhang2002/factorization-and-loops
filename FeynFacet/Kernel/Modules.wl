@@ -133,6 +133,7 @@
     "Integrals/Evaluations/PhaseSpace.wl",
     "Integrals/Evaluations/TwoParticleMeasurements.wl",
     "Integrals/Evaluations/PhaseSpaceVolumes.wl", "Integrals/Evaluations/InvariantPhaseSpace.wl",
+    "Integrals/Parametric/InvariantPhaseSpace.wl",
     "Integrals/Parametric/MeasuredPhaseSpace.wl",
     "Integrals/Evaluations/AngularAverages.wl",
     "Integrals/Evaluations/OneLoop.wl",

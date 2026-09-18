@@ -30,14 +30,34 @@ UnitCutScalarProductRules[input_Association,preserved_List:{}]:=Catch[Module[
  Thread[basis[[pivots]]->(solution/.Thread[coordinates->basis])]
 ],"MeasuredIntegrand"];
 PrepareFinalStateMeasurementIntegrands[expression_,geometry_Association,specification_Association,request_Association:<||>]:=
- Catch[Module[{rows,result={},prepared,settings},
+  Catch[Module[{rows,result={},prepared,settings,inclusive,base,reduced,ordinary,index=0,seconds,started},
  rows=FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,specification];
  If[!ListQ[rows],measuredIntegrandFail["FinalStateMeasurementDefinitionsRequired",<|"Cause"->rows|>]];
- settings=Join[<|"ExternalKinematicConditions"->geometry["Assumptions"]|>,request];
- Do[
-  prepared=FeynFacet`PrepareCutIntegrand[expression row["Weight"],row["Definition"],settings];
-  If[!AssociationQ[prepared],measuredIntegrandFail["FinalStateMeasurementPreparationFailed",<|"Cause"->prepared|>]];
-  AppendTo[result,Join[KeyDrop[row,"Definition"],<|"PreparedIntegrand"->prepared,
+  settings=Join[<|"ExternalKinematicConditions"->geometry["Assumptions"]|>,request];
+  (* The amplitude and its unit particle-cut relations do not depend on which
+     tuple is measured. Cancel that common density once, before multiplying
+     by the different measurement weights and Jacobians. The reconstructed
+     rational expression is used only after its original causal product has
+     passed the ordinary-prescription certificate. Each measured family still
+     receives its own unrestricted off-shell definition. *)
+  inclusive=FeynFacet`CreateMasslessPhaseSpaceDefinition[KeyDrop[geometry,"Measurements"]];
+  If[!AssociationQ[inclusive],measuredIntegrandFail["UnmeasuredPhaseSpaceDefinitionRequired",<|"Cause"->inclusive|>]];
+  If[TrueQ[Lookup[settings,"PrintTimings",False]],Print["PREPARING COMMON UNMEASURED DENSITY"]];
+  started=facetElapsedClock[];
+  base=FeynFacet`PrepareCutIntegrand[expression,inclusive,settings];
+  If[!AssociationQ[base],measuredIntegrandFail["UnmeasuredSourcePreparationFailed",<|"Cause"->base|>]];
+  ordinary=base["SourceDefinition"]["Topology"][[2,Complement[
+    Range[Length[base["SourceDefinition"]["Topology"][[2]]]],base["SourceDefinition"]["CutIndices"]]]];
+  reduced=Total[Map[#["Numerator"]Times@@MapThread[Power,
+    {ordinary,#["Powers"]}]&,base["Terms"]]]/.base["ScalarProductVariables"];
+  seconds=facetElapsedClock[]-started;
+  If[TrueQ[Lookup[settings,"PrintTimings",False]],Print["COMMON UNMEASURED DENSITY SECONDS ",seconds," BYTES ",ByteCount[reduced]]];
+  Do[
+   index++;If[TrueQ[Lookup[settings,"PrintTimings",False]],Print["PREPARING MEASUREMENT ",index,"/",Length[rows]]];
+   prepared=FeynFacet`PrepareCutIntegrand[reduced row["Weight"],row["Definition"],settings];
+   If[!AssociationQ[prepared],measuredIntegrandFail["FinalStateMeasurementPreparationFailed",<|"Cause"->prepared|>]];
+   AppendTo[result,Join[KeyDrop[row,"Definition"],<|"PreparedIntegrand"->prepared,
+    "UnmeasuredPreparation"-><|"Seconds"->seconds,"OrdinaryPrescriptionCertificate"->base["OrdinaryPrescriptionCertificate"]|>,
    "ContactMeasurements"->row["Definition"]["ContactMeasurements"]|>]],{row,rows}];
  result
  ],"MeasuredIntegrand"];
@@ -146,12 +166,18 @@ CancelMeasuredCutIntegrandDenominators[prepared_Association,request_Association:
   {terms=prepared["Terms"],variables=prepared["FreeScalarProductVariables"],polynomials,
    numerators,spectators,denominatorFactors,commonCoefficientDenominator,coefficientRules,
    monomials,sectorNumerators,expression,reduced,denominator,powers,numerator,variable,
-   output={},inputPowers,outputPowers,cancelled,shiftedSymbols,coefficient},
+    output={},inputPowers,outputPowers,cancelled,shiftedSymbols,coefficient,nonalgebraic},
   polynomials=Expand/@prepared["OrdinaryUnitCutPolynomials"];
   If[terms==={},Return[prepared,Module]];
   numerators=Lookup[terms,"Numerator"];
-  spectators=Complement[DeleteDuplicates[Cases[numerators,_Symbol,Infinity]],
-   DeleteDuplicates[Cases[polynomials,_Symbol,Infinity]]];
+   (* Dimensional scale powers and Gamma factors are scalar coefficients,
+      not polynomial indeterminates. Including their argument symbols in the
+      coefficient ring makes an otherwise rational cancellation fail. *)
+   nonalgebraic=Cases[numerators,item:h_[___]/;
+     (!MemberQ[{List,Plus,Times,Power},h]||(h===Power&&!IntegerQ[item[[2]]])):>item,Infinity];
+   spectators=Complement[DeleteDuplicates[Cases[numerators,_Symbol,Infinity]],
+    DeleteDuplicates[Cases[polynomials,_Symbol,Infinity]],
+    DeleteDuplicates[Cases[nonalgebraic,_Symbol,Infinity]]];
   If[TrueQ[Lookup[request,"PrintTimings",False]],Print["RATIONAL COEFFICIENT VARIABLES ",spectators]];
   coefficient=FeynFacet`RationalCoefficientRules[numerators,spectators];
   If[FailureQ[coefficient],Throw[coefficient,"MeasuredCancellation"]];

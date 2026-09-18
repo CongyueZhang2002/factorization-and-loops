@@ -2,9 +2,13 @@
   "Project" -> "EE_EEC",
   "Observable" -> "EnergyEnergyCorrelation",
   "StructureFunctions" -> {"Scalar"},
-  "Orders" -> <|"LO" -> {"q-qb"}, "NLO" -> {"q-qb"}|>,
+  "Orders" -> <|"LO" -> {"q-qb"}, "NLO" -> {"q-qb"}, "NNLO" -> {"q-qb"}|>,
   "Channels" -> <|"q-qb" -> <|"Incoming" -> {}|>|>,
-  "SpeciesMap" -> <|"q" -> FeynArts`F[3, {1}], "qb" -> -FeynArts`F[3, {1}], "g" -> FeynArts`V[5]|>,
+  "SpeciesMap" -> <|
+    {"q", "u"} -> FeynArts`F[3, {1}], {"qb", "u"} -> -FeynArts`F[3, {1}],
+    {"q", "c"} -> FeynArts`F[3, {2}], {"qb", "c"} -> -FeynArts`F[3, {2}],
+    "g" -> FeynArts`V[5]
+  |>,
   "Current" -> <|
     "Field" -> FeynArts`V[1], "Side" -> "Incoming", "Momentum" -> q, "MomentumSpace" -> "IntegratedD",
     "Indices" -> <|"Conjugate" -> mu, "Amplitude" -> nu|>, "Coupling" -> FeynCalc`SMP["e"]
@@ -15,13 +19,13 @@
     "Model" -> "SMQCD", "InsertionLevel" -> {FeynArts`Classes},
     "ExcludeTopologies" -> {FeynArts`Tadpoles, FeynArts`WFCorrections},
     "ExcludeParticles" -> {FeynArts`S[_], FeynArts`V[1], FeynArts`V[2], FeynArts`V[3]},
-    "MasslessQuarkFlavors" -> <|"UpType" -> nU, "DownType" -> nD|>,
+    "MasslessQuarkFlavors" -> <|"UpType" -> nf, "DownType" -> 0|>,
     "ElectromagneticCharges" -> <|"UpType" -> 1, "DownType" -> 1|>
   |>,
   "Kinematics" -> <|"BornConditions" -> Q2 > 0, "RadiativeConditions" -> Q2 > 0 && 0 < z < 1|>,
   "Assembly" -> <|
     "IntegrationMethod" -> "PolynomialMeasurement", "MeasurementInterval" -> {0, 1},
-    "Variables" -> {z}, "Scale" -> Q2, "Assumptions" -> Q2 > 0 && muR2 > 0 && FeynCalc`CA > 1 && FeynCalc`CF > 0,
+    "Variables" -> {z}, "Scale" -> Q2, "Assumptions" -> Q2 > 0 && muR2 > 0 && nf > 0 && FeynCalc`CA > 1 && FeynCalc`CF > 0,
     "CurrentProjectors" -> <|"Scalar" -> FeynFacet`VectorCurrentPolarizationSum[q, {mu, nu}]|>,
     "KinematicRules" -> {FeynCalc`SPD[q] -> Q2},
     "PhaseSpace" -> <|
@@ -41,7 +45,7 @@
     "BareCouplingFactor" -> (4 Pi)^(-Global`Epsilon) Exp[EulerGamma Global`Epsilon],
     "Coupling" -> FeynFacet`\[Alpha]s, "RenormalizationScaleSquared" -> muR2,
     "FactorizationScalesSquared" -> <||>, "Schemes" -> <||>,
-    "KernelParameters" -> <|"CA" -> FeynCalc`CA, "CF" -> FeynCalc`CF, "TR" -> 1/2, "FlavorCount" -> nU + nD|>
+    "KernelParameters" -> <|"CA" -> FeynCalc`CA, "CF" -> FeynCalc`CF, "TR" -> 1/2, "FlavorCount" -> nf|>
   |>,
   "ColorRules" -> {}, "BornCouplingPower" -> 0,
   "Execution" -> <|"Kernels" -> 1, "KiraThreads" -> 8, "ReconstructionThreads" -> 8|>

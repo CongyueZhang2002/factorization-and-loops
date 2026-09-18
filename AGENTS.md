@@ -62,6 +62,10 @@ for a future agent.
 ## Tips
 
 - If you feel getting stuck, ask chatgpt pro through `External/ChatGPT`, along with latest github link. It has higher reasoning budget. You can also ask it for review of plan/code/result.
+- Before an implementation-specific Pro question, push the relevant current code
+  and supply the GitHub repository, exact commit and relevant paths. Confirm
+  whether Pro actually inspected the source; a mathematical discussion is not
+  a code review.
 
 ## Traps (each one cost real time)
 

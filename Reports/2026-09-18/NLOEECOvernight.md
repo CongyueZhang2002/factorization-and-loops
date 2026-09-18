@@ -36,3 +36,48 @@ provide the GitHub repository plus exact commit and relevant source links.
 At this initial assessment no new NLO EEC contribution has been calculated and
 no computational kernel has been launched. The completed normalization tests
 are documented separately in [DerivedNormalizations.md](DerivedNormalizations.md).
+
+## Development progress
+
+The framework baseline was pushed as `77953eca` and supplied to actual GPT-6 Pro.
+Pro completed the mathematical review and then confirmed inspection of that
+exact public revision. Its assessment distinguishes existing general cut
+definitions from the missing physical integrations and NNLO orchestration.
+See [the review summary](../../External/ChatGPT/Records/2026-09-18/02_nlo_eec_strategy.md).
+
+The user further requires obtaining and saving our own complete coefficient
+before comparing with published EEC coefficients. No such comparison has been
+performed for the new order. Keep this order of work in subsequent follow-ups.
+
+Implemented general two-, three- and four-body invariant phase-space coordinates
+in `FeynFacet/Integrals/Parametric/InvariantPhaseSpace.wl`. The four-body chart uses
+two cluster decays with dimensional angular measures. Fifteen checks passed,
+including absolute volume and a nonconstant moment at epsilon=0 and -1/2
+(84.45 s including startup). This is physical integration geometry, not a solved
+measured master or a final result. High precision quadrature emitted convergence
+warnings while resolving these checks beyond their required tolerance.
+
+Tuple preparation now simplifies the common unmeasured density before attaching
+each weight and cut Jacobian. It preserves original off-shell ordinary
+propagators and checks their prescriptions. Rational coefficient collection
+treats dimensional scale powers as coefficients, avoiding a silent failure of
+the optional numerator cancellation. The existing three-body integration check
+passes (18.52 s), and sixteen four-body direct/shared-density and causal checks
+pass (18.94 s). These are internal checks, not published NLO coefficient tests.
+
+Cards now enumerate the unit-charge current over nf degenerate flavors, with
+qqbgg, identical four-quark and distinct four-quark state sums. Born/real/virtual
+cards share that flavor definition. NNLO real-virtual and both two-body virtual
+amplitude orders are declared; their new integrations are still unimplemented.
+Six state-counting and card checks passed in 15.47 s, including the automatically
+derived nf, nf/4 and nf(nf-1)/2 contributions before the appropriate gluon factor.
+
+The current owned production attempt is the qqbgg preparation:
+`Raw/NNLO/q-qb/DoubleReal/Work/Components/Gluons/Prepare.log` and `Prepare.json`.
+It uses CPU indices 0..6, reserving CPU 7 for small independent development checks.
+The driver is `Scripts/run_measured_contribution.wls`, stage `prepare`, with
+compiled component `DoubleReal.Gluons`. Its actual files live in the nested
+component `Work` directory. Earlier interrupted/failed attempts are retained
+alongside the launch log; they are not successful production timings. Inspect
+the receipt and process list before starting another attempt. No measured DE
+or order-alpha_s-squared coefficient has yet completed.

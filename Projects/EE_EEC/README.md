@@ -64,7 +64,22 @@ The project folders count relative to the two-quark Born process:
 - `Results/NLO/q-qb`: their order-alpha_s sum, normalized to the generated Born rate.
 
 This last order is conventionally called **LO EEC** at nonzero opening angle.
-The order-alpha_s^2 EEC (conventional NLO EEC) has not been calculated here.
+The order-alpha_s^2 EEC (conventional NLO EEC) is being developed in `Raw/NNLO`.
+No complete result at that order has been obtained yet. Follow the
+[campaign record](../../Reports/2026-09-18/NLOEECOvernight.md).
+
+The current cards sum a unit-charge vector current over `nf` massless flavors.
+All are represented by one degenerate model flavor class; `u` and `c` are
+distinct dummy labels, not independently counted primary-current attachments.
+The four-parton components are qqbgg, identical four-quark states, and distinct
+four-quark states. The shared counting code supplies the state factorials and
+flavor multiplicities; all photon attachments are generated within each state.
+The Born denominator uses the same flavor sum. Lower-order stored raw definitions
+from the former fixed-flavor cards therefore require regeneration before reuse.
+
+For this campaign, derive and save the full new coefficient before comparing it
+with published EEC coefficients. Internal consistency checks and universal scalar
+integral inputs remain separate from that final comparison.
 
 ## Read the answer
 

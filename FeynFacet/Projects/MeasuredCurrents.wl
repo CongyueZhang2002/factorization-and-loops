@@ -43,7 +43,8 @@ PrepareMeasuredCurrentContribution[card_Association,mode_String:"resume"]:=Catch
   values=Map[FeynFacet`SubstituteScalarPowers[# request["CurrentNormalization"] Lookup[card,"SymmetryFactor",1]Lookup[card,"FlavorMultiplicity",1],
    request["BareCouplingRules"]]&,source["Values"]];
  Do[
-  {seconds,rows}=facetElapsedTiming[FeynFacet`PrepareFinalStateMeasurementIntegrands[values[name],geometry,specification]];
+  {seconds,rows}=facetElapsedTiming[FeynFacet`PrepareFinalStateMeasurementIntegrands[values[name],geometry,specification,
+    <|"PrintTimings"->True|>]];
   If[!ListQ[rows],projectFail["MeasuredCurrentPreparationFailed",<|"Cause"->rows|>]];
   AssociateTo[timings,name<>"MeasurementPreparation"->seconds];
   index=0;
@@ -52,7 +53,7 @@ PrepareMeasuredCurrentContribution[card_Association,mode_String:"resume"]:=Catch
     {seconds,one}=facetElapsedTiming[FeynFacet`DecomposeMeasuredCutIntegrand[row["PreparedIntegrand"],<|
       "FamilyNamePrefix"->label,"Assumptions"->geometry["Assumptions"],
       "ExternalKinematicConditions"->geometry["Assumptions"],
-      "CoefficientWorkers"->Lookup[card["Execution"],"ReconstructionThreads",1]|>]];
+      "CoefficientWorkers"->Lookup[card["Execution"],"ReconstructionThreads",1],"PrintTimings"->True|>]];
     one=projectCheck[one,"PolynomialMeasurementDecompositionFailed"];
     AssociateTo[timings,label<>"IntegralDecomposition"->seconds];
     AssociateTo[decompositions,label->Join[row,<|"Decomposition"->one|>]]],{row,rows}],
