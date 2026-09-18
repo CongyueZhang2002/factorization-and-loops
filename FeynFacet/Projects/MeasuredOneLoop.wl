@@ -19,7 +19,15 @@ measuredLoopNormalizeSource[reduced_,card_,request_,e_]:=<|
 measuredLoopSourceCompatibleQ[source_,definition_]:=AssociationQ[source]&&
  Lookup[source,"Format",None]==="FeynFacet-OneLoopIntegrands"&&
  Lookup[source,"CalculationDefinition",None]===definition&&
- AssociationQ[Lookup[source,"InvariantCoordinates",None]];
+ AssociationQ[Lookup[source,"InvariantCoordinates",None]]&&
+ AssociationQ[Lookup[source,"Values",None]]&&AssociationQ[Lookup[source,"InteriorValues",None]]&&
+ AssociationQ[Lookup[Lookup[source,"InputCompanions",<||>],"SourceValues",None]];
+measuredLoopPreparedSourceCompatibleQ[prepared_,source_,definition_]:=AssociationQ[prepared]&&
+ Lookup[prepared,"CalculationDefinition",None]===definition&&measuredLoopSourceCompatibleQ[source,definition]&&
+ Lookup[Lookup[prepared,"InputCompanions",<||>],"ScalarLoopSource",None]===source;
+measuredLoopEndpointContactSupportQ[prepared_]:=ListQ[Lookup[prepared,"ContactTerms",None]]&&
+ AllTrue[prepared["ContactTerms"],With[{contacts=Lookup[Lookup[#,"Definition",<||>],"ContactMeasurements",None]},
+   MatchQ[contacts,{_Association}]&&MemberQ[{0,1},Lookup[First[contacts],"Observable",None]]]&];
 
 measuredLoopInteriorReusableQ[row_,definition_,density_]:=Module[{range,labels,keys},
  If[!AssociationQ[row]||Lookup[row,"Format",None]=!="FeynFacet-OneLoopMeasuredInterior"||
@@ -39,7 +47,7 @@ measuredLoopInteriorReusableQ[row_,definition_,density_]:=Module[{range,labels,k
 PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]:=Catch[Module[
  {setup,request,geometry,specification,definition,path,file,saved,source,coordinates,kin,
   reduced,normalized,terms,noncontact={},contacts={},one,weight,e=Global`Epsilon,
-  total,s,particles,prefactor,seconds,timings=<||>,output},
+  total,s,particles,prefactor,seconds,timings=<||>,output,scalarRecord},
  If[!MemberQ[{"all","resume"},mode]||Lookup[card["Assembly"],"IntegrationMethod",None]=!="PolynomialMeasurement",
   projectFail["MeasuredOneLoopPreparationRequestRequired"]];
  particles=Take[card["FinalMomenta"],Length[card["UnobservedPartons"]]];
@@ -59,9 +67,11 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
  file=path<>"/PreparedScalarLoopDensity.wl";
  If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
   source=FeynFacet`FamilyArtifactRead[path<>"/MeasuredScalarLoopIntegrals.wl"];
-  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition&&
-    measuredLoopSourceCompatibleQ[source,definition],
+  If[measuredLoopPreparedSourceCompatibleQ[saved,source,definition],
    Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
+ If[mode=!="all"&&measuredLoopSourceCompatibleQ[source,definition],
+  scalarRecord=source;coordinates=source["InvariantCoordinates"];
+  reduced=KeyDrop[source,{"ProcessDefinition","CalculationDefinition","InvariantCoordinates","InputCompanions"}],
  {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
   <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
  source=projectCheck[source,"MeasuredCurrentGenerationFailed"];
@@ -76,9 +86,9 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
   <|"LoopMomentum"->First[setup["ForwardAmplitudes"]["LoopMomenta"]],"PrintTimings"->True|>]];
  reduced=projectCheck[reduced,"MeasuredLoopScalarReductionFailed"];
  AssociateTo[timings,"ScalarLoopReduction"->seconds];
- projectWrite[Join[reduced,<|"ProcessDefinition"->setup,"CalculationDefinition"->definition,
-   "InvariantCoordinates"->coordinates,"InputCompanions"-><|"SourceValues"->source["Values"]|>|>],
-   path<>"/MeasuredScalarLoopIntegrals.wl"];
+ scalarRecord=Join[reduced,<|"ProcessDefinition"->setup,"CalculationDefinition"->definition,
+   "InvariantCoordinates"->coordinates,"InputCompanions"-><|"SourceValues"->source["Values"]|>|>];
+ projectWrite[scalarRecord,path<>"/MeasuredScalarLoopIntegrals.wl"]];
  {normalized,prefactor}=Lookup[measuredLoopNormalizeSource[reduced,card,request,e],{"Source","Prefactor"}];
  {seconds,terms}=facetElapsedTiming[FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,specification]];
  If[!ListQ[terms],projectFail["MeasuredLoopTupleDefinitionsRequired",<|"Cause"->terms|>]];
@@ -101,6 +111,7 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
  {term,terms}];Null];
  AssociateTo[timings,"ScalarMeasurementPushforwards"->seconds];
  output=<|"Format"->"FeynFacet-PreparedMeasuredOneLoopContribution","CalculationDefinition"->definition,
+  "InputCompanions"-><|"ScalarLoopSource"->scalarRecord|>,
   "NoncontactTerms"->noncontact,"ContactTerms"->contacts,"StageSeconds"->timings,
   "Reused"->False,"ConjugateInterferenceAdded"->False,"EndpointDistributionsSolved"->False,
   "Scope"->"One causal amplitude orientation, before integration and addition of its complex conjugate. All tuple weights and generated state factors are included. No accepted hard coefficient is supplied by this representation."|>;
@@ -135,6 +146,8 @@ IntegrateMeasuredCurrentOneLoopInterior[card_Association,mode_String:"resume"]:=
     "Reused"->(seconds===0)|>],{i,Length[prepared["NoncontactTerms"]]}];
  coefficients=If[rows==={},<||>,Merge[rows,Total]];
  output=<|"Format"->"FeynFacet-MeasuredCurrentOneLoopInterior","Coefficients"->coefficients,
+  "InputCompanions"-><|"ScalarLoopSource"->prepared["InputCompanions"]["ScalarLoopSource"],
+    "Densities"->prepared["NoncontactTerms"]|>,
   "StructureFunctions"->If[labels===None,card["StructureFunctions"],labels],
   "DimensionalRegulator"->Global`Epsilon,"EpsilonRange"->range,
   "Variables"->card["Assembly"]["Variables"],"CalculationDefinition"->prepared["CalculationDefinition"],
@@ -160,8 +173,9 @@ VerifyMeasuredCurrentOneLoopContactOrder[card_Association,mode_String:"resume"]:
     Length[Lookup[saved,"Rows",{}]]===Length[inputs]&&
     AllTrue[Lookup[saved,"Rows",{}],TrueQ[Lookup[#["Proof"],"CompleteEnergyMeasurementCoverVerified",False]]&&
       Lookup[#["Proof"],"ContactDerivativeOrderBound",None]===0&],
-   output=Join[saved,<|"MeasurementMoments"->moments,"Reused"->True|>];
-   If[Lookup[saved,"MeasurementMoments",None]=!=moments,projectWrite[output,file]];
+   output=Join[saved,<|"MeasurementMoments"->moments,"Reused"->True,
+     "InputCompanions"-><|"Densities"->inputs,"ScalarLoopSource"->prepared["InputCompanions"]["ScalarLoopSource"]|>|>];
+   If[output=!=saved,projectWrite[output,file]];
    Return[output,Module]]];
  Do[
   rowFile=card["WorkDirectory"]<>"/ContactOrderRows/Row"<>ToString[i]<>".wl";
@@ -180,7 +194,7 @@ VerifyMeasuredCurrentOneLoopContactOrder[card_Association,mode_String:"resume"]:
     "Proof"->proof,"Seconds"->seconds|>],{i,Length[inputs]}];
  output=<|"Format"->"FeynFacet-MeasuredCurrentContactOrder","CalculationDefinition"->definition,
   "ContactDerivativeOrderBound"->0,"Rows"->rows,"MeasurementMoments"->moments,"Reused"->False,
-  "InputCompanions"-><|"Densities"->inputs|>,"ContactCoefficientsDetermined"->False,
+  "InputCompanions"-><|"Densities"->inputs,"ScalarLoopSource"->prepared["InputCompanions"]["ScalarLoopSource"]|>,"ContactCoefficientsDetermined"->False,
   "Scope"->"Every noncontact tuple group has only ordinary endpoint contact ambiguities after extending its computed interior. Its conjugate obeys the same bound. Explicit self pairs retain their separately declared contact support; they must not be counted twice in subsequent moment completion."|>;
  projectWrite[output,file];output
 ],"ProjectCards"];
@@ -315,7 +329,7 @@ ReduceMeasuredCurrentOneLoopInclusiveSource[card_Association,mode_String:"resume
  output=<|"Format"->"FeynFacet-InclusiveCutLoopReduction","CalculationDefinition"->source["CalculationDefinition"],
    "Reduction"->reduction,"MasterCoefficients"->coefficients,"IntegralEquivalences"->equivalences,"Seconds"->seconds,
    "DimensionalRegulator"->Global`Epsilon,"DimensionRule"->(D->4-2Global`Epsilon),
-   "InputCompanions"-><|"IntegralDecomposition"->data|>,"IntegralEvaluated"->False,
+   "InputCompanions"-><|"IntegralDecomposition"->data,"SourceValues"->source["InputCompanions"]["SourceValues"]|>,"IntegralEvaluated"->False,
    "ConjugateInterferenceAdded"->False|>;
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterReduction.wl"];output
 ],"ProjectCards"];
@@ -348,6 +362,7 @@ EvaluateMeasuredCurrentOneLoopInclusiveMasters[card_Association,mode_String:"res
   Print["INCLUSIVE SCALAR EVALUATION ",i," / ",Length[masters]," ",If[AssociationQ[record],"COMPLETE","UNRESOLVED"],
     " SECONDS ",seconds],{i,Length[masters]},{master,{masters[[i]]}}];
  output=<|"Format"->"FeynFacet-InclusiveScalarMasterValues","CalculationDefinition"->reduced["CalculationDefinition"],
+   "InputCompanions"-><|"SourceValues"->reduced["InputCompanions"]["SourceValues"]|>,
    "Values"->values,"Unresolved"->unresolved,"RequiredUpperOrders"->demands,
    "DimensionalRegulator"->e,"MasterCoefficients"->coefficients,"AllMasterValuesEvaluated"->(unresolved===<||>),
    "UniversalScalarSources"->"Causal massless bubble Gamma formulas, normalized Dirichlet moments, and the separately derived inclusive one-mass scalar box when an exact momentum map and sufficient Laurent coverage exist; no measured hard-function input.",
@@ -379,17 +394,25 @@ IntegrateMeasuredCurrentOneLoopInclusiveRate[card_Association,mode_String:"resum
    "InclusiveRateEvaluated"->True,"EndpointDistributionIncluded"->False,
    "UniversalScalarSources"->masters["UniversalScalarSources"],"ContractionSeconds"->seconds,
    "EpsilonRemainderAudit"->audit["EpsilonRemainderAudit"],
-   "InputCompanions"-><|"MasterCoefficients"->masters["MasterCoefficients"],"ScalarValues"->masters["Values"]|>|>];
+   "InputCompanions"-><|"MasterCoefficients"->masters["MasterCoefficients"],"ScalarValues"->masters["Values"],
+     "SourceValues"->masters["InputCompanions"]["SourceValues"]|>|>];
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveOneLoopRate.wl"];output
 ],"ProjectCards"];
 CompleteMeasuredCurrentOneLoopDistribution[card_Association,mode_String:"resume"]:=Catch[Module[
- {interior,proof,rate,definition,moments,weights,proofs,completed,rows=<||>,range,e,z,labels,output},
- interior=projectCheck[FeynFacet`IntegrateMeasuredCurrentOneLoopInterior[card,mode],"ExplicitMeasuredLoopInteriorRequired"];
+ {prepared,interior,proof,rate,definition,moments,weights,proofs,completed,rows=<||>,range,e,z,labels,output},
+ prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopContribution[card,mode],"PreparedMeasuredLoopContributionRequired"];
+ If[!measuredLoopEndpointContactSupportQ[prepared],projectFail["AdditionalMeasurementContactPointsNotRepresented"]];
+ interior=projectCheck[FeynFacet`IntegrateMeasuredCurrentOneLoopInterior[card,"resume"],"ExplicitMeasuredLoopInteriorRequired"];
  proof=projectCheck[FeynFacet`VerifyMeasuredCurrentOneLoopContactOrder[card,"resume"],"UniformMeasuredContactProofRequired"];
  rate=projectCheck[FeynFacet`IntegrateMeasuredCurrentOneLoopInclusiveRate[card,"resume"],"GeneratedInclusiveLoopRateRequired"];
  definition=interior["CalculationDefinition"];range=card["EpsilonRange"];e=interior["DimensionalRegulator"];
  z=First[card["Assembly"]["Variables"]];labels=interior["StructureFunctions"];
  If[rate["CalculationDefinition"]=!=definition||proof["CalculationDefinition"]["CalculationDefinition"]=!=definition||
+   interior["InputCompanions"]["ScalarLoopSource"]=!=proof["InputCompanions"]["ScalarLoopSource"]||
+   interior["InputCompanions"]["Densities"]=!=proof["InputCompanions"]["Densities"]||
+   interior["InputCompanions"]["Densities"]=!=prepared["NoncontactTerms"]||
+   interior["InputCompanions"]["ScalarLoopSource"]=!=prepared["InputCompanions"]["ScalarLoopSource"]||
+   interior["InputCompanions"]["ScalarLoopSource"]["InputCompanions"]["SourceValues"]=!=rate["InputCompanions"]["SourceValues"]||
    rate["StructureFunctions"]=!=labels||!TrueQ[rate["ConjugateInterferenceAdded"]]||
    !TrueQ[interior["ConjugateInterferenceAdded"]]||Length[card["Assembly"]["Variables"]]=!=1,
   projectFail["CommonPhysicalInclusiveAndMeasuredSourcesRequired"]];
@@ -410,6 +433,8 @@ CompleteMeasuredCurrentOneLoopDistribution[card_Association,mode_String:"resume"
    "MomentWeights"->weights,"ContactProofRecord"->card["WorkDirectory"]<>"/MeasuredContactOrder.wl",
    "InclusiveRateRecord"->card["WorkDirectory"]<>"/InclusiveOneLoopRate.wl",
    "ConjugateInterferenceAdded"->True,"EpsilonRemainderAudit"->rate["EpsilonRemainderAudit"],
+   "SourceBindingSchema"->3,"InputCompanions"-><|"Interior"->interior,"ContactProof"->proof,
+     "InclusiveRate"->rate,"ExplicitContactTerms"->prepared["ContactTerms"]|>,
    "Scope"->"Complete real-virtual distribution in the explicitly defined interpolation finite-part convention. Ordinary self contacts are already fixed by the inclusive moments. This is not a sum with other perturbative contributions or a conventional logarithmic-plus decomposition."|>];
  projectWrite[output,card["WorkDirectory"]<>"/MeasuredOneLoopDistribution.wl"];output
 ],"ProjectCards"];

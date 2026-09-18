@@ -665,3 +665,51 @@ RealVirtual/Work/MeasuredRawContinuation.json and log MeasuredRawCompletion.log.
 The RR native job retains CPUs0..6 during this run and restores0..7 afterward.
 The full NLO result is still incomplete; no new measured literature coefficient
 has been read or compared.
+
+### Accepted complete real-virtual distribution (15:48 UTC)
+
+Actual Pro review15 is complete and retained. It confirms scalar materialization,
+contraction, direct momentum witnesses and the finite-part algebra. It required
+stronger exact-source links and the existing explicit-contact support guard in
+the new RV path. Both are implemented and tested. Prepared densities bind the
+actual scalar source; aggregate interior and proof retain the same exact density
+inventory, and the inclusive rate retains the same original amplitude. The
+completed distribution and raw result keep these accepted inputs in binary
+companions; mutable file paths are only navigation. Contacts outside{0,1} fail.
+The acceptance schema is3. All35 measured-density/binding/contact assertions pass
+in20.517s. A fresh-kernel read verifies that the unchanged card can reuse the
+prepared source and that its exact scalar companion survives serialization.
+
+The complete RV raw artifact is now Raw/NNLO/q-qb/RealVirtual/Results.wl with its
+paired metadata:456771 and704797 bytes. It contains explicit GPL kernels and
+delta coefficients at both endpoints in the declared interpolation convention.
+Eight actual-result assertions pass in19.128s: common exact inputs, generated
+zeroth/first moments, the omitted-order audit, cancellation of conservative extra
+poles, explicit integral-free coefficients, and prepared-source/card reuse.
+The current tuple inventory has four noncontact groups containing all six
+ordered unequal pairs, and a contact group containing all three self pairs.
+No self term is added a second time during moment completion.
+
+Timing receipts remain separate: first complete raw379.561s; source-binding
+migration924.338s (rebuilt interiors and proofs); final acceptance replay305.374s.
+These reuse already computed amplitudes, reductions and physical scalar values.
+They are NOT fresh whole-RV or complete-NLO timings. The earlier605.010s timeout
+remains a failed attempt. The finite-part/common-format tests12, prior final-result
+tests28 and scalar/geometry/library/routing checks retain their earlier receipts.
+
+The RR continuation reached its7200s cap and preserved native reconstruction
+state. A supervised SAME-input continuation is now owned by PGID382629, kernel
+382661 and Kira383276 (inspect fresh PIDs). State is DifferentQuarks/
+NativeDependencyContinuation2.json, log NativeDependencyClosureResumed2.log,
+supervisor session55898. It continues the203-dependency/420-coefficient step;
+399 coefficients had reconstructed before the second-prime tail. The supervisor
+reserves CPU7 while another main Wolfram kernel runs and otherwise restores
+affinity0..7. This Kira invocation began with7 workers; the affinity change does
+not claim to increase an already-running native worker count. No new equations,
+selection or factor-scan option was attached to its saved state.
+
+Pro recommends exact elimination of already accepted rows before FUTURE residual
+solves and a bounded factor-scan benchmark in a NEW workspace. Those optimizations
+are not implemented or benchmarked; preserve the healthy current reconstruction.
+The complete NLO coefficient is still unfinished, and no measured NLO literature
+coefficient has been opened or compared.

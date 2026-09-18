@@ -376,6 +376,7 @@ RunMeasuredRawContribution[card_Association,mode_String:"resume"]:=Catch[Module[
  If[MemberQ[{"resume","assemble"},mode]&&FileExistsQ[card["ResultFile"]],
   saved=FeynFacet`ReadPartonicResult[card["ResultFile"],<|"RawDefinition"->definition,"EpsilonRange"->card["EpsilonRange"]|>];
   If[AssociationQ[saved]&&Lookup[saved,"RenormalizationStage",None]==="Bare"&&
+    (card["Contribution"]=!="RealVirtual"||Lookup[saved,"SourceBindingSchema",None]===3)&&
     Lookup[saved,"CouplingNormalization",None]===card["Counterterms"]["CouplingNormalization"],
    Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
  If[mode==="assemble",projectFail["MatchingComputedMeasuredContributionRequired",<|"Card"->card["CardFile"]|>]];
@@ -423,6 +424,8 @@ runMeasuredRawContribution[card_Association,mode_String]:=Catch[Module[
     <|"DistributionBasis"-><|"Representation"->"UnitIntervalFinitePart","Variable"->z,
        "Interval"->{0,1},"Endpoints"->{0,1}|>,"EndpointDistributionsSolved"->True,
       "MomentWeights"->source["MomentWeights"],"SelfContactsIncludedThroughMoments"->True,
+      "SourceBindingSchema"->source["SourceBindingSchema"],
+      "InputCompanions"-><|"MeasuredDistribution"->source|>,
       "StageSeconds"-><|"MeasuredOneLoopDistribution"->seconds|>,
       "ScalarContractionRemainderAudit"->source["EpsilonRemainderAudit"],"CalculationCard"->card["CardFile"]|>]],
     "MeasuredCommonFinitePartResultRequired"];

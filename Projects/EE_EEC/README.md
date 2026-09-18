@@ -229,5 +229,16 @@ raw-card driver now supports RealVirtual through this general path. Its complete
 result uses `UnitIntervalFinitePart`, defined in Design/IntervalFiniteParts.md;
 it must never be read as an ordinary regular density. Result assembly converts
 other completed interval contributions by preserving their original moments.
-The actual raw RV regeneration is currently running; see the dated report and
-Work/MeasuredRawContinuation.json before launching another kernel.
+The raw RV result is now accepted at `Raw/NNLO/q-qb/RealVirtual/Results.wl`,
+with its metadata companion. All Laurent coefficients and both endpoint contacts
+are explicit. The exact accepted interior, contact proof and inclusive source
+are retained in the companion. `Work/MeasuredRawAcceptanceAudit.json` records
+eight passing actual-result checks. Double-real DE/master work remains running;
+this is not a completed full order-alpha_s-squared result.
+
+Source binding compares actual scalar inputs, the complete tuple/density
+inventory, and the original inclusive amplitude, in addition to the producing
+card definition. Corrected or interrupted source regeneration cannot pair stale
+interiors with a new rate. Explicit contacts outside the declared endpoints are
+rejected. The NNLO result card now selects DoubleReal, RealVirtual, Virtual and
+Counter-UV, but must not be assembled as complete until DoubleReal is solved.

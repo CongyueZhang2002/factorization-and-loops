@@ -131,11 +131,31 @@ FTTest`FTAssert["exact row inputs round-trip in binary metadata without duplicat
 FeynFacet`FamilyArtifactDelete[cacheFile];DeleteDirectory[cacheDirectory];
 sourceDefinition=<|"Process"->"test","Measurement"->1|>;
 boundSource=<|"Format"->"FeynFacet-OneLoopIntegrands","CalculationDefinition"->sourceDefinition,
- "InvariantCoordinates"-><|"Parameters"->{cx,cy}|>|>;
+ "InvariantCoordinates"-><|"Parameters"->{cx,cy}|>,"Values"-><|"Scalar"->cx|>,"InteriorValues"-><|"Scalar"->cx|>,
+ "InputCompanions"-><|"SourceValues"-><|"Scalar"->sourceAmplitude|>|>|>;
 FTTest`FTAssert["a scalar source is reusable only for its exact producing calculation",
  FeynFacet`Private`measuredLoopSourceCompatibleQ[boundSource,sourceDefinition]&&
  !FeynFacet`Private`measuredLoopSourceCompatibleQ[boundSource,Join[sourceDefinition,<|"Measurement"->2|>]]];
 FTTest`FTAssert["unbound scalar sources are rejected rather than paired with an older prepared record",
  !FeynFacet`Private`measuredLoopSourceCompatibleQ[KeyDrop[boundSource,"CalculationDefinition"],sourceDefinition]];
+preparedSource=<|"CalculationDefinition"->sourceDefinition,"InputCompanions"-><|"ScalarLoopSource"->boundSource|>|>;
+FTTest`FTAssert["prepared measurement densities bind the exact scalar source, not only its card definition",
+ FeynFacet`Private`measuredLoopPreparedSourceCompatibleQ[preparedSource,boundSource,sourceDefinition]&&
+ !FeynFacet`Private`measuredLoopPreparedSourceCompatibleQ[preparedSource,
+   Join[boundSource,<|"InteriorValues"-><|"Scalar"->2cx|>|>],sourceDefinition]];
+FTTest`FTAssert["changed original amplitudes and missing source companions prevent prepared-source reuse",
+ !FeynFacet`Private`measuredLoopPreparedSourceCompatibleQ[preparedSource,
+   Join[boundSource,<|"InputCompanions"-><|"SourceValues"-><|"Scalar"->2sourceAmplitude|>|>|>],sourceDefinition]&&
+ !FeynFacet`Private`measuredLoopPreparedSourceCompatibleQ[KeyDrop[preparedSource,"InputCompanions"],boundSource,sourceDefinition]&&
+ !FeynFacet`Private`measuredLoopSourceCompatibleQ[KeyDrop[boundSource,"InputCompanions"],sourceDefinition]];
+FTTest`FTAssert["moment completion accepts only explicitly generated endpoint contacts",
+ FeynFacet`Private`measuredLoopEndpointContactSupportQ[<|"ContactTerms"->{}|>]&&
+ FeynFacet`Private`measuredLoopEndpointContactSupportQ[<|"ContactTerms"->{
+   <|"Definition"-><|"ContactMeasurements"->{<|"Observable"->0|>}|>|>,
+   <|"Definition"-><|"ContactMeasurements"->{<|"Observable"->1|>}|>|>}|>]];
+FTTest`FTAssert["an interior or malformed explicit contact cannot be relocated to the endpoints",
+ !FeynFacet`Private`measuredLoopEndpointContactSupportQ[<|"ContactTerms"->{
+   <|"Definition"-><|"ContactMeasurements"->{<|"Observable"->1/2|>}|>|>}|>]&&
+ !FeynFacet`Private`measuredLoopEndpointContactSupportQ[<|"ContactTerms"->{<||>}|>]];
 Print["ONE LOOP MEASUREMENT DENSITY TEST COMPLETE"];
 FTTest`FTReport[];

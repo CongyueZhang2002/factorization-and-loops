@@ -2,7 +2,7 @@ Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 args=Rest[$ScriptCommandLine];
-If[Length[args]<2,Print["Usage: run_measured_contribution.wls CARD {prepare|de|masters|interior|check|virtual|loop|loop-interior|loop-contact-order|loop-inclusive-prepare|loop-inclusive-subtract|loop-inclusive-decompose|loop-inclusive-reduce|loop-inclusive-masters} [all|resume]"];Exit[2]];
+If[Length[args]<2,Print["Usage: run_measured_contribution.wls CARD {prepare|de|masters|interior|check|virtual|loop|loop-interior|loop-contact-order|loop-inclusive-prepare|loop-inclusive-subtract|loop-inclusive-decompose|loop-inclusive-reduce|loop-inclusive-masters|loop-inclusive-rate|loop-distribution} [all|resume]"];Exit[2]];
 path=ExpandFileName[args[[1]]];stage=args[[2]];mode=If[Length[args]>=3,args[[3]],"resume"];
 card=FeynFacet`ReadContributionCard[DirectoryName[path,2],FileNameTake[DirectoryName[path]]];
 If[!AssociationQ[card],Print[InputForm[card]];Exit[1]];
