@@ -328,3 +328,21 @@ explicit interior coefficients. Full raw acceptance still additionally needs the
 source-bound endpoint proof and generated moments. Formal measurement-aware
 Taylor subtraction records alone are not an endpoint certificate. No full new
 order-alpha_s-squared result or published hard-coefficient comparison is claimed.
+
+
+### Current measured reduction route (18 September)
+
+The permanent `run_measured_contribution.wls CARD reduce resume COMPONENT` stage
+constructs an exact unit-cut source span and saves `Work/UnitCutReduction.wl`.
+`de` resumes the same verified source definition, differentiates its reduced
+basis, and performs a bounded exact derivative-span search before promoting new
+basis elements. Numerical samples guide equation selection only. Rational
+coefficients are collected and cancelled before any terminal integral is counted.
+The source map remains available without reseeding all original targets at every
+DE iteration. `Assembly.Reduction` can declare sampling points, candidate bounds,
+seed limits, and cut protection; no process-specific package branch is used.
+
+The identical-quark source currently reduces4234 targets to an exact43-integral
+unit-cut spanning set. This is not a minimal-master claim or a solved physical
+result. DifferentQuarks has a solved interior; the other measured RR channels,
+physical endpoints and complete alpha_s^2 distribution remain unfinished.

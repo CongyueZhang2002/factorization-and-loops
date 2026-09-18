@@ -142,12 +142,19 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
   added,more,iteration,history={},exact,images,unmatched,allSeeds,preferred=Union[candidates],
   name,depth,record,byName,trialDepth,tangentVectors=<||>,tangent,
   vectorMethod=Lookup[request,"IBPVectorMethod","Ordinary"],
-  protection=Lookup[request,"CutProtection","All"]},
+  protection=Lookup[request,"CutProtection","All"],searchDefinition},
  work=Lookup[request,"WorkingDirectory",None];points=Lookup[request,"SamplingPoints",None];
  limit=Lookup[request,"MaximumSeedIterations",5];seedLimit=Lookup[request,"MaximumSeeds",100000];
  If[!StringQ[work]||!MatchQ[points,{{(_Rule)..}..}]||!IntegerQ[limit]||limit<1||
    !MemberQ[{"Ordinary","CutCompatible","Mixed"},vectorMethod]||!MemberQ[{"All","Particle"},protection]||
    !IntegerQ[seedLimit]||seedLimit<1,cutFamilyFail["BoundedSampledBasisSearchRequestRequired"]];
+ searchDefinition=<|"Format"->"FeynFacet-BoundedIntegralBasisSearch",
+  "Families"->(KeyTake[#,{"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"}]&/@families),
+  "Targets"->targets,"Candidates"->candidates,
+  "Request"->KeyDrop[request,{"WorkingDirectory","NewWorkspaceForChangedInputs","PrintTimings","Threads"}]|>;
+ work=cutKiraSelectWorkspace[work<>"/Search",searchDefinition,
+   Lookup[request,"NewWorkspaceForChangedInputs",False]];
+ cutKiraWorkspaceDefinition[work,searchDefinition];
  byName=Association[(#["Topology"][[1]]->#)&/@families];
  If[!DuplicateFreeQ[First[#["Topology"]]&/@families]||
    !ContainsAll[Keys[byName],First/@Join[targets,preferred]],cutFamilyFail["DistinctKnownBasisFamiliesRequired"]];

@@ -14,4 +14,11 @@ FTTest`FTAssert["exactly vanishing target has an empty terminal basis",
 r=FeynFacet`Private`ibpCloseReductionRules[{a->(x-y)c},{a}];
 FTTest`FTAssert["generic nonzero coefficients survive even if a sample vanishes",
  r["Masters"]==={c}&&Cancel[Last[First[r["Rules"]]]-(x-y)c]===0];
+composed=FeynFacet`Private`cutComposeIntegralReduction[
+ <|"Targets"->{a,b},"Masters"->{b},"Rules"->{a->(x+1)b}|>,
+ {b->(x-1)/(x^2-1)a,c->y a},{a}];
+FTTest`FTAssert["a previously reduced source can become the new master without a rewrite cycle",
+ AssociationQ[composed]&&composed["Masters"]==={a}&&
+ !MemberQ[First/@composed["Rules"],a]&&
+ FeynFacet`Private`ibpCloseReductionRules[composed["Rules"],{a,b,c}]["Masters"]==={a}];
 Print["RATIONAL REDUCTION CLOSURE TEST COMPLETE"];FTTest`FTReport[];

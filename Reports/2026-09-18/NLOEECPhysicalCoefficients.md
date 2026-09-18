@@ -203,3 +203,14 @@ verified identical-quark solve is adopted only after checking identical typed
 families and original target inventory. No physical constant was supplied by hand.
 All stated times are Python monotonic elapsed times including startup; none is
 a complete cold NLO EEC timing. The measured RR endpoints and full EEC remain open.
+
+
+Pro24 inspectedc7cd6749 and confirmed the coefficient cancellation. Three further
+repairs now compose source maps rather than union cyclic rewrite rules, retain all
+candidate affine-equivalence equations for derivative searches, and select a new
+bounded-search workspace when its exact definition changes. A representative-change
+regression raises the closure test to4 assertions (2.866s); the5-assertion quadratic
+DE test passes6.005s. The first card DE attempt stopped after588.876s because it
+lacked the candidate cross-family equations. Its completed61904-row Sample001
+checkpoint is retained; completed log/receipt moved to Archive/Runs/2026-09-18/
+NLOEECChecks/ControlledDEAttempt1.*. A repaired permanent-card attempt is running.

@@ -100,7 +100,8 @@ PrepareMeasuredContributionReduction[card_Association,merged_Association]:=Catch
     Sort[initial["Targets"]]===Sort[merged["Targets"]]&&
     (definition/@initial["Families"])===(definition/@merged["Families"]),
    closed=ibpCloseReductionRules[initial["Rules"],merged["Targets"]];
-   If[Complement[closed["Masters"],initial["CandidateMasterBasis"]]==={},
+   If[Complement[closed["Masters"],initial["CandidateMasterBasis"]]==={}&&
+     ListQ[Lookup[initial,"CandidateEquations",None]],
     Return[Join[initial,KeyTake[closed,{"Rules","Masters"}],<|"ReusedSolvedReduction"->True|>],Module]]]];
  {seconds,initial}=facetElapsedTiming[
   plan=projectCheck[FeynFacet`ConstructUnitCutMasterCandidates[merged["Families"],merged["Targets"],
@@ -110,13 +111,20 @@ PrepareMeasuredContributionReduction[card_Association,merged_Association]:=Catch
   rows=DeleteCases[(Select[Merge[{#["Source"]->1,#["Representative"]->(-#["Factor"])},Total],#=!=0&]&/@equiv["Mappings"]),<||>];
   preferred=DeleteDuplicates[Lookup[equiv["Mappings"],"Representative"]];
   projectWrite[<|"Candidates"->plan,"Equivalences"->equiv|>,path<>"/UnitCutCandidates.wl"];
+  If[AssociationQ[initial]&&TrueQ[Lookup[initial,"TargetSpanVerifiedExactly",False]]&&
+    Sort[initial["Targets"]]===Sort[merged["Targets"]]&&
+    (definition/@initial["Families"])===(definition/@merged["Families"])&&
+    Complement[ibpCloseReductionRules[initial["Rules"],merged["Targets"]]["Masters"],preferred]==={},
+   Join[initial,KeyTake[ibpCloseReductionRules[initial["Rules"],merged["Targets"]],{"Rules","Masters"}],
+     <|"ReusedSolvedReduction"->True|>],
   FeynFacet`ReduceCutIntegralsToBasis[merged["Families"],merged["Targets"],preferred,
    Join[<|"Threads"->card["Execution"]["KiraThreads"],"IBPVectorMethod"->"Mixed",
     "HomogeneousScale"->card["Assembly"]["Scale"],"RationalSolver"->"FireFly"|>,request,<|
     "WorkingDirectory"->path<>"/UnitCutReduction","SamplingPoints"->measuredBasisSamplingPoints[card],
-    "ExtraEquations"->Join[Lookup[request,"ExtraEquations",{}],rows]|>]]];
+    "ExtraEquations"->Join[Lookup[request,"ExtraEquations",{}],rows]|>]]]];
  initial=projectCheck[initial,"ExactMeasuredSourceBasisRequired"];
- initial=Join[initial,<|"StageSeconds"-><|"UnitCutSourceReduction"->seconds|>|>];
+ initial=Join[initial,<|"CandidateEquations"->rows,
+   "StageSeconds"-><|"UnitCutSourceReduction"->seconds|>|>];
  projectWrite[initial,path<>"/UnitCutReduction.wl"];initial
 ],"ProjectCards"];
 ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Association]:=Catch[Module[
@@ -135,7 +143,8 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
     "RationalSolver"->"FireFly","SamplingPoints"->measuredBasisSamplingPoints[card],
     "NewWorkspaceForChangedInputs"->True|>,
     If[MatchQ[card["Assembly"]["Scale"],_Symbol],<|"HomogeneousScale"->card["Assembly"]["Scale"]|>,<||>],
-    request,<|"InitialReduction"->initial,"CandidateMasterBasis"->initial["CandidateMasterBasis"]|>]]];
+    request,<|"InitialReduction"->initial,"CandidateMasterBasis"->initial["CandidateMasterBasis"],
+     "ExtraEquations"->Join[Lookup[request,"ExtraEquations",{}],initial["CandidateEquations"]]|>]]];
  system=projectCheck[system,"PolynomialMeasurementDifferentialSystemFailed"];
  output=<|"DifferentialSystem"->system,"IntegralDecomposition"->merged,
   "ContactTerms"->prepared["ContactTerms"],"CalculationDefinition"->prepared["CalculationDefinition"],

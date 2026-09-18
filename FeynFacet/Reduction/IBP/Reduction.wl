@@ -1253,10 +1253,9 @@ ibpDeclaredMasters[project_Association, identityTargets_:Automatic, masterFile_S
   masters
 ];
 
-ibpCloseReductionRules[rules_List, targets_List] := Module[
+ibpCanonicalIntegralImages[expressions_List] := Module[
   {
-    uniqueRules, leftSides, dispatch, current, next,
-    converged = False, unresolved, closedRules, masters, parsed,
+    parsed,
     coefficient, cache=<||>, cacheBytes=0, canonical
   },
   coefficient[value_] := If[KeyExistsQ[cache,value],cache[value],Module[{result},
@@ -1270,6 +1269,10 @@ ibpCloseReductionRules[rules_List, targets_List] := Module[
       ibpFail["Kira rule closure","homogeneous linear integral expressions are required"]];
     terms=Select[Map[coefficient,parsed["Terms"]],#=!=0&];
     Total[KeyValueMap[Times,terms]]];
+  canonical/@expressions
+];
+ibpCloseReductionRules[rules_List, targets_List] := Module[
+  {uniqueRules,leftSides,dispatch,current,next,converged=False,unresolved,closedRules,masters},
   uniqueRules = rules;
   leftSides = First /@ uniqueRules;
   dispatch = Dispatch[uniqueRules];
@@ -1287,7 +1290,7 @@ ibpCloseReductionRules[rules_List, targets_List] := Module[
      coefficients in uncollected sums. Cancel coefficient-wise before counting
      terminal integrals; otherwise these false columns seed unnecessary IBPs
      and, more seriously, become provisional differential-equation masters. *)
-  current=canonical/@current;
+  current=ibpCanonicalIntegralImages[current];
   unresolved = Intersection[
     DeleteDuplicates @ Cases[current, _FeynCalc`GLI, {0, Infinity}],
     leftSides,

@@ -140,7 +140,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   seedRefinement,seedPlans,seeds,frontier,local,extra,added,refinementHistory={},
   initial=Lookup[request,"InitialReduction",None],definition,initialRelations,restrictedTargets,restricted,
    eliminateKnown=Lookup[request,"EliminateKnownRules",False],knownRequest,suppliedKnown,
-   candidateBasis=Lookup[request,"CandidateMasterBasis",None],accepted,priorRules,mergedRules,
+   candidateBasis=Lookup[request,"CandidateMasterBasis",None],accepted,priorRules,composed,
    basisRequest,acceptedClosure},
  If[!DuplicateFreeQ[parameters]||!StringQ[Lookup[request,"WorkingDirectory",None]],
   cutFamilyFail["DistinctDEParametersAndWorkingDirectoryRequired"]];
@@ -210,17 +210,17 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
    priorRules=reduction["Rules"];
    basisRequest=Join[KeyDrop[baseRequest,{"KnownIntegralRules","SeedIntegrals"}],<|
      "WorkingDirectory"->FileNameJoin[{directory,"DerivativeBasisSearch"<>ToString[iteration]}],
-     "ExtraEquations"->Join[Lookup[baseRequest,"ExtraEquations",{}],
-       cutRetainedIntegralRuleEquations[priorRules]]|>];
+     "ExtraEquations"->DeleteDuplicates[Join[Lookup[baseRequest,"ExtraEquations",{}],
+       cutRetainedIntegralRuleEquations[priorRules]]]|>];
    accepted=FeynFacet`ReduceCutIntegralsToBasis[records,newTargets,candidateBasis,basisRequest];
    If[!AssociationQ[accepted]||!TrueQ[Lookup[accepted,"TargetSpanVerifiedExactly",False]],
     cutFamilyFail["DerivativeCandidateSpanNotEstablished",<|"InputBasis"->basis,
      "DerivativeTargets"->newTargets,"CandidateMasterBasis"->candidateBasis,
      "Cause"->accepted,"RetainedSourceReduction"->reduction,
      "ProvisionalIntegralsPromoted"->False|>]];
-   mergedRules=Join[Select[priorRules,!MemberQ[First/@accepted["Rules"],First[#]]&],accepted["Rules"]];
+   composed=cutComposeIntegralReduction[reduction,accepted["Rules"],accepted["Masters"]];
    allTargets=Union[allTargets,newTargets];
-   acceptedClosure=ibpCloseReductionRules[mergedRules,allTargets];
+   acceptedClosure=ibpCloseReductionRules[composed["Rules"],allTargets];
    reduction=Join[accepted,<|"Targets"->allTargets,"Rules"->acceptedClosure["Rules"],
      "Masters"->acceptedClosure["Masters"]|>],
   If[!SubsetQ[reduction["Targets"],newTargets],
@@ -496,6 +496,7 @@ cutComposeIntegralReduction[reduction_Association,mapping_List,masters_List]:=Mo
  images=Thread[reduction["Masters"]->(reduction["Masters"]/.replacement)];
  rules=Normal[Association[Join[
    (First[#]->(Last[#]/.replacement))&/@oldRules,images,mapping]]];
+ rules=Thread[(First/@rules)->ibpCanonicalIntegralImages[Last/@rules]];
  rules=Select[rules,First[#]=!=Last[#]&];
  required=Union[Lookup[reduction,"Targets",{}],First/@oldRules,reduction["Masters"],First/@mapping];
  If[!ContainsAll[Join[First/@rules,masters],required]||
