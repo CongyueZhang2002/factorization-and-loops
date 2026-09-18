@@ -410,6 +410,23 @@ runMeasuredRawContribution[card_Association,mode_String]:=Catch[Module[
  If[Length[card["Assembly"]["Variables"]]=!=1||Lookup[card["Assembly"],"MeasurementInterval",None]=!={0,1},
   projectFail["OneDeclaredUnitMeasurementIntervalRequired"]];
  z=First[card["Assembly"]["Variables"]];
+ If[card["Contribution"]==="RealVirtual",
+  {seconds,source}=facetElapsedTiming[FeynFacet`CompleteMeasuredCurrentOneLoopDistribution[card,mode]];
+  source=projectCheck[source,"CompleteMeasuredOneLoopDistributionRequired"];
+  range=source["EpsilonRange"];
+  rows=Association@Table[n->If[Length[source["StructureFunctions"]]===1,source["Coefficients"][{1,n}],
+    <|"Variable"->z,"FinitePartKernel"->Table[source["Coefficients"][{i,n}]["FinitePartKernel"],
+      {i,Length[source["StructureFunctions"]]}],
+      "DeltaCoefficients"->Association@Table[p->Table[source["Coefficients"][{i,n}]["DeltaCoefficients"][p],
+        {i,Length[source["StructureFunctions"]]}],{p,{0,1}}]|>],{n,First[range],Last[range]}];
+  partonic=projectCheck[FeynFacet`CreatePartonicResult[rows,Join[measuredCurrentPartonicMetadata[card,range],
+    <|"DistributionBasis"-><|"Representation"->"UnitIntervalFinitePart","Variable"->z,
+       "Interval"->{0,1},"Endpoints"->{0,1}|>,"EndpointDistributionsSolved"->True,
+      "MomentWeights"->source["MomentWeights"],"SelfContactsIncludedThroughMoments"->True,
+      "StageSeconds"-><|"MeasuredOneLoopDistribution"->seconds|>,
+      "ScalarContractionRemainderAudit"->source["EpsilonRemainderAudit"],"CalculationCard"->card["CardFile"]|>]],
+    "MeasuredCommonFinitePartResultRequired"];
+  Return[partonic,Module]];
  If[card["Contribution"]==="Virtual",
   source=projectCheck[FeynFacet`IntegrateMeasuredCurrentVirtual[card,mode],"MeasuredVirtualIntegrationRequired"];
   contacts=source["ContactIntegrals"];exact=AssociationThread[card["StructureFunctions"],0&/@card["StructureFunctions"]];
@@ -499,6 +516,9 @@ RunMeasuredProjectResult[file_String,mode_String:"resume"]:=Catch[Module[
  If[!FreeQ[norm,_Integrate|_Failure]||!TrueQ[FullSimplify[norm!=0,Assumptions->bornCard["Assembly"]["Assumptions"]]],
   projectFail["ExplicitNonzeroGeneratedBornIntegralRequired",<|"Integral"->norm|>]];
  {seconds,combined}=facetElapsedTiming[
+  If[AnyTrue[Values[raw],Lookup[#["DistributionBasis"],"Representation",None]==="UnitIntervalFinitePart"&],
+   raw=Map[projectCheck[FeynFacet`ConvertUnitIntervalResultToFinitePart[#,
+     bornCard["Assembly"]["Assumptions"]],"CommonMeasuredFinitePartConventionRequired"]&,raw]];
   combined=projectCheck[FeynFacet`CombinePartonicResults[raw,<|"Contribution"->"Sum"|>],"MeasuredContributionSumFailed"];
   rows=Map[partonicMap[FullSimplify[#/norm,Assumptions->bornCard["Assembly"]["Assumptions"]]&,#]&,combined["Coefficients"]];
   failures=Select[KeySelect[rows,#<0&],!partonicZeroTreeQ[#]&];

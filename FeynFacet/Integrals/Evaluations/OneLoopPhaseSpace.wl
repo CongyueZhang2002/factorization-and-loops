@@ -5,6 +5,11 @@ IntegrateSimplexLaurentMonomials::usage="IntegrateSimplexLaurentMonomials[ration
 EvaluateOneLoopPhaseSpaceBubble::usage="EvaluateOneLoopPhaseSpaceBubble[family,integral,epsilon] evaluates a recognized causal one-loop bubble insertion on unit massless three-particle cuts. Full-D tensor reduction precedes exact affine-epsilon Dirichlet moments; the family measure is converted once to standard phase space and the raw virtual-loop measure. Nonbubble functions, non-monomial outer kernels and dotted particle cuts return Failure. No measured hard coefficient enters.";
 EvaluateOneLoopPhaseSpaceBox::usage="EvaluateOneLoopPhaseSpaceBox[family,integral,epsilon,{low,high}] identifies a unit-power one-mass box with an inverse complementary pair invariant, integrated over labeled massless three-body phase space, by exact prescribed momentum maps. It supplies the independently derived universal scalar Laurent expansion through its finite term, converting the declared measure once. Orders not covered after normalization return Failure; no measured hard function is supplied.";
 Begin["`Private`"];
+oneLoopUnitThreeParticleGeometryQ[family_,particles_,total_]:=Length[particles]===3&&
+ DuplicateFreeQ[particles]&&AllTrue[particles,MatchQ[#,_Symbol]&]&&
+ MemberQ[{None,{},True},Lookup[family,"AdditionalAcceptanceBoundaries",None]]&&
+ Sort[Expand/@Lookup[family["Cuts"],"Momentum"]]===
+  Sort[Join[Most[particles],{Expand[total-Total[Most[particles]]]}]];
 IntegrateSimplexLaurentMonomials[expression_,variables:{__Symbol},parameters_List]:=Catch[Module[
  {value,canonical,den,powers,rows,orders},
  If[Length[variables]=!=Length[parameters]||!DuplicateFreeQ[variables]||
@@ -35,9 +40,11 @@ EvaluateOneLoopPhaseSpaceBubble[input_Association,integral_FeynCalc`GLI,e_Symbol
  family=FeynFacet`CreateCutIntegralFamily[input];
  If[!AssociationQ[family],cutFamilyFail["TypedCutLoopFamilyRequired"]];
  top=family["Topology"];particles=Lookup[family,"FinalMomenta",{}];total=family["TimeDirection"];
+ If[Factor[(family["Dimension"]/.D->4-2e)-(4-2e)]=!=0,
+  cutFamilyFail["FourMinusTwoEpsilonScalarDimensionRequired"]];
  powers=integral[[2]];cuts=family["CutIndices"];
  If[integral[[1]]=!=top[[1]]||Length[powers]=!=Length[top[[2]]]||!VectorQ[powers,IntegerQ]||
-   Length[particles]=!=3||family["MeasurementCutIndices"]=!={}||Length[cuts]=!=3||
+   !oneLoopUnitThreeParticleGeometryQ[family,particles,total]||family["MeasurementCutIndices"]=!={}||Length[cuts]=!=3||
    powers[[cuts]]=!={1,1,1}||top[[4]]=!={total}||
    !AllTrue[family["Cuts"],#["Type"]==="Particle"&&#["MassSquared"]===0&&#["EnergyDirection"]===1&],
   cutFamilyFail["UnitMasslessThreeParticleCutsRequired"]];

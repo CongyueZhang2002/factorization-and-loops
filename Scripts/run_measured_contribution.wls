@@ -6,6 +6,13 @@ If[Length[args]<2,Print["Usage: run_measured_contribution.wls CARD {prepare|de|m
 path=ExpandFileName[args[[1]]];stage=args[[2]];mode=If[Length[args]>=3,args[[3]],"resume"];
 card=FeynFacet`ReadContributionCard[DirectoryName[path,2],FileNameTake[DirectoryName[path]]];
 If[!AssociationQ[card],Print[InputForm[card]];Exit[1]];
+If[stage==="loop-distribution",result=FeynFacet`CompleteMeasuredCurrentOneLoopDistribution[card,mode];
+ If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
+ Print["MEASURED CONTRIBUTION STAGE COMPLETE loop-distribution"];Exit[0]];
+If[stage==="loop-inclusive-rate",result=FeynFacet`IntegrateMeasuredCurrentOneLoopInclusiveRate[card,mode];
+ If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
+ Print["INCLUSIVE RATE ORDERS ",InputForm[result["OutputEpsilonRanges"]]];
+ Print["MEASURED CONTRIBUTION STAGE COMPLETE loop-inclusive-rate"];Exit[0]];
 If[stage==="loop-inclusive-masters",result=FeynFacet`EvaluateMeasuredCurrentOneLoopInclusiveMasters[card,mode];
  If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
  Print["INCLUSIVE SCALAR COVERAGE ",Length[result["Values"]]," EVALUATED; ",Length[result["Unresolved"]]," UNRESOLVED"];

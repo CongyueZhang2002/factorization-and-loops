@@ -3,7 +3,7 @@ $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
 Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 Module[{phase,prop,source,decomposition,family,master,result,pair,pairResult,moment,
- expected,prefactor,point,numerator,numeratorResult,dotted,values},
+ expected,prefactor,point,numerator,numeratorResult,dotted,values,rescaledCut},
  phase=FeynFacet`CreateMasslessPhaseSpaceDefinition[<|"Name"->phaseBubbleTest,
   "FinalMomenta"->{bp1,bp2,bp3},"TotalMomentum"->bq,"ExternalMomenta"->{bq},
   "KinematicRules"->{FeynCalc`SPD[bq]->bs},"Assumptions"->bs>0|>];
@@ -35,6 +35,20 @@ Module[{phase,prop,source,decomposition,family,master,result,pair,pairResult,mom
  dotted=ReplacePart[master,{2,First[family["CutIndices"]]}->2];
  FTTest`FTAssert["dotted particle cuts cannot use on-shell unit-cut moment formulas",
   FailureQ[FeynFacet`EvaluateOneLoopPhaseSpaceBubble[family,dotted,be]]];
+ FTTest`FTAssert["particle labels alone cannot replace the actual conserved cut momenta",
+  FailureQ[FeynFacet`EvaluateOneLoopPhaseSpaceBubble[
+   Join[family,<|"FinalMomenta"->{bp1,bother,bp3}|>],master,be]]];
+ rescaledCut=Join[family,<|"Topology"->ReplacePart[family["Topology"],{2,1}->prop[2bp1]],
+   "Cuts"->ReplacePart[family["Cuts"],1->Join[First[family["Cuts"]],<|"Momentum"->2bp1|>]]|>];
+ FTTest`FTAssert["a consistently rescaled cut cannot acquire the unit-cut phase-space normalization",
+  AssociationQ[FeynFacet`CreateCutIntegralFamily[rescaledCut]]&&
+  FailureQ[FeynFacet`EvaluateOneLoopPhaseSpaceBubble[rescaledCut,master,be]]];
+ FTTest`FTAssert["a different spacetime dimension cannot acquire a four-dimensional-reference scalar value",
+  MatchQ[FeynFacet`EvaluateOneLoopPhaseSpaceBubble[Join[family,<|"Dimension"->6-2be|>],master,be],
+    Failure["FourMinusTwoEpsilonScalarDimensionRequired",_]]];
+ FTTest`FTAssert["an extra phase-space acceptance condition cannot use inclusive Dirichlet moments",
+  FailureQ[FeynFacet`EvaluateOneLoopPhaseSpaceBubble[
+   Join[family,<|"AdditionalAcceptanceBoundaries"->FeynCalc`SPD[bp1,bq]>bs/4|>],master,be]]];
  moment=FeynFacet`IntegrateSimplexLaurentMonomials[1/(1-ba-bb),{ba,bb,bc},{1-be,1-be,1-be}];
  FTTest`FTAssert["affine simplex denominators are recognized modulo the simplex constraint",
   AssociationQ[moment]&&moment["Value"]===Gamma[1-be]^2 Gamma[-be]/Gamma[2-3be]];

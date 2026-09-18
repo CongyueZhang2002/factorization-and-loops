@@ -8,7 +8,7 @@
 Clear[FindCutIntegralEquivalences];
 ClearAll[cutEquivalenceFamilyName, cutEquivalenceIntegral, cutEquivalenceVector,
   cutEquivalenceScalarProducts, cutEquivalenceTopology,
-  cutEquivalenceFrames, cutEquivalenceSignature];
+  cutEquivalenceFrames, cutEquivalenceSignatures];
 
 cutEquivalenceFamilyName[x_] := If[StringQ[x], x, SymbolName[x]];
 
@@ -95,7 +95,7 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
 
 cutEquivalenceFrames[top_Association] := Module[
   {l, n, cuts, choices, frames = {}, a, b, t, mappedGram, rules,
-   cutRank,cutChoices,pool,uncutChoices,rows},
+   cutRank,cutChoices,pool,uncutChoices,rows,seen=<||>},
   l = Length[top["Loops"]]; n = Length[top["GramMatrix"]];
   cuts = top["OrientedCutMomenta"];
   (* A loop-dependent measure or acceptance condition must itself be mapped.
@@ -128,6 +128,7 @@ cutEquivalenceFrames[top_Association] := Module[
     b = rows[[All, l + 1 ;; n]];
     t = Join[Join[Inverse[a], -Inverse[a].b, 2],
       Join[ConstantArray[0, {n - l, l}], IdentityMatrix[n - l], 2]];
+    If[KeyExistsQ[seen,t],Continue[]];AssociateTo[seen,t->True];
     mappedGram = Expand[t.top["GramMatrix"].Transpose[t]];
     rules = DeleteDuplicates[Thread[
       Flatten[top["GramMatrix"]] -> Flatten[mappedGram]]];
@@ -137,18 +138,18 @@ cutEquivalenceFrames[top_Association] := Module[
       "Polynomials" -> (Expand[# /. rules /. top["KinematicRules"]] & /@
         top["PropagatorPolynomials"])|>],
     {choice, choices}];
-  DeleteDuplicatesBy[frames,#["LoopTransformation"]&]
+  frames
 ];
 
-cutEquivalenceSignature[integral_, top_, frames_] := Module[
+cutEquivalenceSignatures[integral_, top_, frames_] := Module[
   {powers, cuts, ordinary, candidates, key,cutRows,particleIndex},
   powers = integral[[2]]; cuts = top["CutIndices"];
   If[Length[powers] =!= Length[top["PropagatorPolynomials"]] ||
       ! VectorQ[powers, IntegerQ], Return[$Failed]];
   If[AnyTrue[cuts, powers[[#]] <= 0 &],
-    Return[<|"Zero" -> True, "Key" -> {"MissingReverseUnitarityCut"}|>]];
-  If[frames === {}, Return[<|"Zero" -> False,
-    "Key" -> {"UnmappedIntegral", integral}, "Frame" -> Missing["CutRank"]|>]];
+    Return[{<|"Zero" -> True, "Key" -> {"MissingReverseUnitarityCut"}|>}]];
+  If[frames === {}, Return[{<|"Zero" -> False,
+    "Key" -> {"UnmappedIntegral", integral}, "Frame" -> Missing["CutRank"]|>}]];
   ordinary = Complement[Range[Length[powers]], cuts];
   candidates = Table[
     key = {top["External"], Sort[top["KinematicRules"]],
@@ -163,7 +164,7 @@ cutEquivalenceSignature[integral_, top_, frames_] := Module[
         Last[#] =!= 0 &]]};
     <|"Zero" -> False, "Key" -> key, "Frame" -> frame|>,
     {frame, frames}];
-  First[SortBy[candidates, #["Key"] &]]
+  DeleteDuplicatesBy[SortBy[candidates, #["Key"] &],#["Key"]&]
 ];
 
 Options[FindCutIntegralEquivalences] = {
@@ -172,8 +173,8 @@ Options[FindCutIntegralEquivalences] = {
 
 FindCutIntegralEquivalences[integrals_List, records_List,
     OptionsPattern[]] := Catch@Module[
-  {ms, tops, selectedRecords, frames, signatures, groups, mappings = {},
-   representatives = {}, preferred, rep, repSig, sig, original, fam,
+  {ms, tops, selectedRecords, frames, signatures, mappings = {},
+   representatives = {}, preferred, sig, fam,ordered,index=<||>,match,sourceSig,repSig,representative,
    normalization = OptionValue["Normalization"], originalByIntegral},
   If[OptionValue["OrdinaryPrescriptionGeometry"]=!=None,
     Return[cutCertifiedPrescriptionEquivalences[integrals,records,
@@ -198,29 +199,36 @@ FindCutIntegralEquivalences[integrals_List, records_List,
     Throw[Failure["MissingCutTopology", <||>]]];
   frames = cutEquivalenceFrames /@ tops;
   signatures = Association[Table[
-    fam = m[[1]]; sig = cutEquivalenceSignature[m, tops[fam], frames[fam]];
+    fam = m[[1]]; sig = cutEquivalenceSignatures[m, tops[fam], frames[fam]];
     If[sig === $Failed, Throw[Failure["InvalidPoweredCutIntegral", <|"Integral" -> m|>]]];
     m -> sig, {m, ms}]];
-  groups = GatherBy[ms, signatures[#]["Key"] &];
-  representatives=Map[Function[group,
-    First[SortBy[group,{If[MemberQ[preferred,#],0,1]&,LeafCount,ToString[#,InputForm]&}]]],groups];
-  mappings=Flatten[MapThread[Function[{group,representative},
-    Map[Function[member,
-      <|"Source"->originalByIntegral[member],
-        "Representative"->originalByIntegral[representative],
-        "Factor"->If[TrueQ[signatures[member]["Zero"]],0,1],
-        "SourceFrame"->KeyTake[Replace[Lookup[signatures[member],"Frame",<||>],_Missing-><||>],
-          {"ChosenCutMomenta","LoopTransformation"}],
-        "RepresentativeFrame"->KeyTake[Replace[Lookup[signatures[representative],"Frame",<||>],_Missing-><||>],
-          {"ChosenCutMomenta","LoopTransformation"}]|>],group]],{groups,representatives}],1];
+  (* Mixed frames can contain noncovariant axes or unused auxiliaries.
+     Their minima need not agree even when actual candidate frames do.
+     Index every candidate of each representative and retain a DIRECT pair
+     of witnesses. A transitive overlap is never substituted for that map. *)
+  ordered=SortBy[ms,{If[MemberQ[preferred,#],0,1]&,LeafCount,ToString[#,InputForm]&}];
+  Do[
+   sourceSig=SelectFirst[signatures[member],KeyExistsQ[index,#["Key"]]&,None];
+   If[sourceSig===None,
+    representative=member;sourceSig=First[signatures[member]];repSig=sourceSig;
+    AppendTo[representatives,member];
+    Do[If[!KeyExistsQ[index,candidate["Key"]],AssociateTo[index,candidate["Key"]->{member,candidate}]],
+      {candidate,signatures[member]}],
+    match=Lookup[index,Key[sourceSig["Key"]]];representative=First[match];repSig=Last[match]];
+   AppendTo[mappings,<|"Source"->originalByIntegral[member],
+     "Representative"->originalByIntegral[representative],"Factor"->If[TrueQ[sourceSig["Zero"]],0,1],
+     "SourceFrame"->KeyTake[Replace[Lookup[sourceSig,"Frame",<||>],_Missing-><||>],
+       {"ChosenCutMomenta","LoopTransformation"}],
+     "RepresentativeFrame"->KeyTake[Replace[Lookup[repSig,"Frame",<||>],_Missing-><||>],
+       {"ChosenCutMomenta","LoopTransformation"}]|>],{member,ordered}];
   <|"DataType" -> "CutIntegralEquivalences", "SchemaVersion" -> 1,
     "Method" -> "ExactAffineLoopMomentumChanges",
-    "InputCount" -> Length[ms], "EquivalenceClassCount" -> Length[groups],
+    "InputCount" -> Length[ms], "EquivalenceClassCount" -> Length[representatives],
     "Normalization" -> normalization, "Mappings" -> mappings,
     "RepresentativeMasterIntegrals" ->
       (originalByIntegral /@ representatives),
     "UnmappedMasterIntegrals" ->
-      Select[ms, MatchQ[Lookup[signatures[#], "Frame", None], _Missing] &],
+      Select[ms, MatchQ[Lookup[First[signatures[#]], "Frame", None], _Missing] &],
     "MinimalIBPMasterCountDetermined" -> False|>
 ];
 

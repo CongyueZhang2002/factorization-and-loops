@@ -19,7 +19,15 @@ partonicCollect[expr_]:=Module[{value,words,atoms},
  atoms=Join[words,DeleteDuplicates[Cases[value,
    _Log|_PolyLog|_PolyGamma|_Zeta|System`EulerGamma,{0,Infinity}]]];
  If[atoms==={},Factor[value],Collect[value,atoms,Factor]]];
-partonicIntervalRowQ[row_]:=AssociationQ[row]&&KeyExistsQ[row,"DeltaCoefficients"];
+partonicFinitePartRowQ[row_]:=AssociationQ[row]&&KeyExistsQ[row,"FinitePartKernel"];
+partonicIntervalRowQ[row_]:=AssociationQ[row]&&KeyExistsQ[row,"DeltaCoefficients"]&&!partonicFinitePartRowQ[row];
+partonicFinitePartZero[z_]:=<|"FinitePartKernel"->0,"Variable"->z,"DeltaCoefficients"-><|0->0,1->0|>|>;
+partonicMap[f_,row_Association]/;partonicFinitePartRowQ[row]:=Module[{test=Unique["linearCoefficient"],factor},
+ factor=Cancel[f[test]/test];
+ If[f[0]=!=0||!FreeQ[factor,test|row["Variable"]],
+  Return[Failure["FinitePartNonconstantMultiplierRequiresContactCorrections",<||>]]];
+ <|"Variable"->row["Variable"],"FinitePartKernel"->f[row["FinitePartKernel"]],
+   "DeltaCoefficients"->Map[f,row["DeltaCoefficients"]]|>];
 partonicIntervalZero[]:=<|"DeltaCoefficients"-><|0->0,1->0|>,"PlusCoefficients"-><|0-><||>,1-><||>|>,"RegularCoefficient"->0|>;
 partonicMap[f_,row_Association]/;partonicIntervalRowQ[row]:=<|
  "DeltaCoefficients"->Map[f,row["DeltaCoefficients"]],
@@ -33,10 +41,20 @@ partonicMap[f_,value_]:=f[value];
 partonicPhysicalDistributionBasis[basis_Association]:=If[KeyExistsQ[basis,"Axes"],
  Join[basis,<|"Axes"->(KeyDrop[#,"NormalVariable"]&/@basis["Axes"])|>],KeyDrop[basis,"NormalVariable"]];
 partonicDistributionDepth[basis_Association]:=If[KeyExistsQ[basis,"Axes"],Length[basis["Axes"]],1];
-partonicDistributionZero[basis_Association]:=If[Lookup[basis,"Representation",None]==="UnitInterval",
- partonicIntervalZero[],partonicDistributionZero[partonicDistributionDepth[basis]]];
+partonicDistributionZero[basis_Association]:=Switch[Lookup[basis,"Representation",None],
+ "UnitInterval",partonicIntervalZero[],"UnitIntervalFinitePart",partonicFinitePartZero[basis["Variable"]],
+ _,partonicDistributionZero[partonicDistributionDepth[basis]]];
 partonicDistributionZero[1]:=partonicDistribution[0,<||>,0];
 partonicDistributionZero[n_Integer?Positive]:=With[{zero=partonicDistributionZero[n-1]},partonicDistribution[zero,<||>,zero]];
+partonicDistributionValidQ[row_,1]/;partonicFinitePartRowQ[row]:=
+ MatchQ[Lookup[row,"Variable",None],_Symbol]&&AssociationQ[Lookup[row,"DeltaCoefficients",None]]&&
+ Sort[Keys[row["DeltaCoefficients"]]]==={0,1}&&
+ FreeQ[Join[{row["FinitePartKernel"]},Values[row["DeltaCoefficients"]]],_Association]&&
+ FreeQ[Values[row["DeltaCoefficients"]],row["Variable"]]&&
+ !KeyExistsQ[row,"RegularCoefficient"]&&!KeyExistsQ[row,"PlusCoefficients"];
+partonicDistributionSum[rows_List,1]/;rows=!={}&&AllTrue[rows,partonicFinitePartRowQ]:=<|
+ "Variable"->First[rows]["Variable"],"FinitePartKernel"->Total[Lookup[rows,"FinitePartKernel"]],
+ "DeltaCoefficients"->Association@Table[p->Total[#["DeltaCoefficients"][p]&/@rows],{p,{0,1}}]|>;
 partonicDistributionValidQ[row_,1]/;partonicIntervalRowQ[row]:=
  ContainsAll[Keys[row],{"DeltaCoefficients","PlusCoefficients","RegularCoefficient"}]&&
  AssociationQ[row["DeltaCoefficients"]]&&Sort[Keys[row["DeltaCoefficients"]]]==={0,1}&&
@@ -66,6 +84,9 @@ partonicDistributionSum[rows_List,n_Integer?Positive]:=Module[{sum,keys,zero},
 ];
 (* Scalar zero represents a zero in every structure function; nonzero
    vectors must have exactly the declared length, at every endpoint leaf. *)
+partonicDistributionComponentsQ[row_Association,1,n_Integer?Positive]/;partonicFinitePartRowQ[row]:=
+ AllTrue[Join[Values[row["DeltaCoefficients"]],{row["FinitePartKernel"]}],
+  partonicDistributionComponentsQ[#,0,n]&];
 partonicDistributionComponentsQ[row_Association,1,n_Integer?Positive]/;partonicIntervalRowQ[row]:=
  AllTrue[Join[Values[row["DeltaCoefficients"]],Flatten[Values/@Values[row["PlusCoefficients"]]],{row["RegularCoefficient"]}],
   partonicDistributionComponentsQ[#,0,n]&];
@@ -76,6 +97,8 @@ partonicDistributionComponentsQ[value_,0,n_]:=If[ListQ[value],
   Length[value]===n&&AllTrue[value,!ListQ[#]&&!AssociationQ[#]&],
   !AssociationQ[value]&&(n===1||value===0)];
 partonicDistributionComponentsQ[___]:=False;
+partonicZeroTreeQ[value_Association]/;partonicFinitePartRowQ[value]:=
+ partonicZeroTreeQ[value["FinitePartKernel"]]&&partonicZeroTreeQ[value["DeltaCoefficients"]];
 partonicZeroTreeQ[value_Association]:=AllTrue[Values[value],partonicZeroTreeQ];
 partonicZeroTreeQ[value_List]:=AllTrue[value,partonicZeroTreeQ];
 partonicZeroTreeQ[value_]:=TrueQ[value===0];
@@ -89,10 +112,13 @@ partonicResultValidQ[result_]:=Module[{range,e,cs,basis,depth,components},
   !AllTrue[basis["Axes"],ContainsAll[Keys[#],{"Variable","Endpoint","Interval","Distance"}]&]||
   !DuplicateFreeQ[Lookup[basis["Axes"],"Variable"]]),Return[False]];
  depth=partonicDistributionDepth[basis];
- If[Lookup[basis,"Representation",None]==="UnitInterval",
+ If[MemberQ[{"UnitInterval","UnitIntervalFinitePart"},Lookup[basis,"Representation",None]],
   If[KeyExistsQ[basis,"Axes"]||Lookup[basis,"Endpoints",{}]=!={0,1}||Lookup[basis,"Interval",None]=!={0,1}||
-    !MatchQ[Lookup[basis,"Variable",None],_Symbol]||!AllTrue[Values[cs],partonicIntervalRowQ],Return[False]],
-  If[AnyTrue[Values[cs],partonicIntervalRowQ],Return[False]]];
+    !MatchQ[Lookup[basis,"Variable",None],_Symbol],Return[False]];
+  If[Lookup[basis,"Representation",None]==="UnitInterval",
+   If[!AllTrue[Values[cs],partonicIntervalRowQ],Return[False]],
+   If[!AllTrue[Values[cs],partonicFinitePartRowQ[#]&&Lookup[#,"Variable",None]===basis["Variable"]&],Return[False]]],
+  If[AnyTrue[Values[cs],partonicIntervalRowQ[#]||partonicFinitePartRowQ[#]&],Return[False]]];
   components=Lookup[result,"StructureFunctions",{"Scalar"}];
   If[!MatchQ[e,_Symbol]||!MatchQ[components,{__}]||!DuplicateFreeQ[components],Return[False]];
   If[!AssociationQ[cs]||!AllTrue[Values[cs],partonicDistributionValidQ[#,depth]&]||
@@ -105,7 +131,8 @@ partonicResultValidQ[result_]:=Module[{range,e,cs,basis,depth,components},
 CreatePartonicResult[coefficients_Association,metadata_Association]:=Catch[Module[{record},
  If[Length[coefficients]===0,partonicResultFail["ExplicitEpsilonCoefficientsRequired"]];
  record=Join[KeyDrop[metadata,{"Coefficients","EpsilonRange","Format","FormatVersion"}],<|
-  "Format"->"FeynFacet-PartonicResult","FormatVersion"->If[AllTrue[Values[coefficients],partonicIntervalRowQ],2,1],
+  "Format"->"FeynFacet-PartonicResult","FormatVersion"->Which[AllTrue[Values[coefficients],partonicFinitePartRowQ],3,
+    AllTrue[Values[coefficients],partonicIntervalRowQ],2,True,1],
   "EpsilonRange"->{Min[Keys[coefficients]],Max[Keys[coefficients]]},
   "LaurentLowerBound"->Lookup[metadata,"LaurentLowerBound",Min[Keys[coefficients]]],
   "DimensionalPrefactor"->Lookup[metadata,"DimensionalPrefactor",1],
@@ -114,6 +141,7 @@ CreatePartonicResult[coefficients_Association,metadata_Association]:=Catch[Modul
   "PlusConvention"->"At each axis, PlusCoefficients[k] multiplies [Log[Distance]^k/Distance]_+ on Interval, with subtraction at Endpoint. For DistributionBasis[Axes], delta/plus/regular values repeat recursively in the listed axis order."|>];
  record["DistributionBasis"]=partonicPhysicalDistributionBasis[record["DistributionBasis"]];
  If[record["FormatVersion"]===2,record["PlusConvention"]="One measured variable on [0,1]. DeltaCoefficients[p] multiplies the unit-mass delta at p. PlusCoefficients[p][k] multiplies [Log[distance]^k/distance]_+ subtracting f(p) over the full interval; distance is z or 1-z. The two endpoints are not tensor axes."];
+ If[record["FormatVersion"]===3,record["PlusConvention"]="Linear endpoint interpolation: integrate the complete FinitePartKernel times phi(z)-(1-z)phi(0)-z phi(1). DeltaCoefficients[p] multiplies the unit-mass delta at p. The finite part has vanishing zeroth and first moments. Nonconstant multipliers require induced contact corrections."];
  If[!partonicResultValidQ[record],partonicResultFail["PartonicResultIncompleteOrInvalid"]];
  record],"PartonicResults"];
 RequirePartonicEpsilonRange[result_Association,range:{_Integer,_Integer}]:=If[
@@ -169,7 +197,7 @@ CombinePartonicResults[contributions_Association,metadata_Association]:=Catch[Mo
  range={Min[First[#["EpsilonRange"]]& /@ all],Min[Last[#["EpsilonRange"]]& /@ all]};
  depth=partonicDistributionDepth[First[all]["DistributionBasis"]];
  cs=Association@Table[
-  rows=Lookup[#["Coefficients"],j,If[Lookup[First[all]["DistributionBasis"],"Representation",None]==="UnitInterval",partonicIntervalZero[],partonicDistributionZero[depth]]]& /@ all;
+  rows=Lookup[#["Coefficients"],j,partonicDistributionZero[First[all]["DistributionBasis"]]]& /@ all;
   j->partonicDistributionSum[rows,depth],{j,First[range],Last[range]}];
  CreatePartonicResult[cs,Join[KeyTake[First[all],Union[identityKeys,{"Scale","Variables","DimensionalRegulator","Order","DensityConvention","DistributionBasis","DimensionalPrefactor","CurrentNormalization"}]],merged,
   <|"IncludedContributions"->Lookup[all,"Contribution"]|>]]],"PartonicResults"];
@@ -247,6 +275,11 @@ CreatePartonicResultFromEndpointExpansion[expansion_Association,metadata_Associa
 PartonicResultInteriorCoefficients[result_Association]:=Catch[Module[{axes,interior,coefficients},
  If[!partonicResultValidQ[result],partonicResultFail["CommonPartonicResultRequired"]];
  axes=Lookup[result["DistributionBasis"],"Axes",{result["DistributionBasis"]}];
+ If[Lookup[result["DistributionBasis"],"Representation",None]==="UnitIntervalFinitePart",
+  Return[<|"Format"->"FeynFacet-PartonicInteriorCoefficients","Coefficients"->Map[#["FinitePartKernel"]&,result["Coefficients"]],
+   "DimensionalRegulator"->result["DimensionalRegulator"],"EpsilonRange"->result["EpsilonRange"],
+   "DimensionalPrefactor"->result["DimensionalPrefactor"],"Variables"->result["Variables"],
+   "StructureFunctions"->result["StructureFunctions"],"Scope"->"Open interval only"|>,Module]];
  If[Lookup[result["DistributionBasis"],"Representation",None]==="UnitInterval",
   With[{z=result["DistributionBasis"]["Variable"]},coefficients=Map[Function[row,
    row["RegularCoefficient"]+Total[KeyValueMap[Function[{point,terms},Total[KeyValueMap[
@@ -273,6 +306,9 @@ PartonicScalarCoefficientRules[result_Association]:=Module[{n,walk,depth},
  If[!partonicResultValidQ[result],Return[Failure["CommonPartonicResultRequired",<||>]]];
  n=Length[Lookup[result,"StructureFunctions",{"Scalar"}]];depth=partonicDistributionDepth[result["DistributionBasis"]];
  walk[row_,path_,0]:=Table[Append[path,i]->If[ListQ[row],row[[i]],row],{i,n}];
+ walk[row_,path_,1]/;partonicFinitePartRowQ[row]:=Join[
+  Flatten[KeyValueMap[walk[#2,Append[path,{"Delta",#1}],0]&,row["DeltaCoefficients"]],1],
+  walk[row["FinitePartKernel"],Append[path,"FinitePart"],0]];
  walk[row_,path_,1]/;partonicIntervalRowQ[row]:=Join[
   Flatten[KeyValueMap[walk[#2,Append[path,{"Delta",#1}],0]&,row["DeltaCoefficients"]],1],
   Flatten[KeyValueMap[Function[{point,terms},Flatten[KeyValueMap[walk[#2,Append[path,{"Plus",point,#1}],0]&,terms],1]],row["PlusCoefficients"]],1],

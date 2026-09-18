@@ -82,4 +82,17 @@ dottedMaps=FeynFacet`FindCutIntegralFamilyMaps[dotted,Join[decomposed["Families"
 FTTest`FTAssert["mixed family routing maps cover dotted cuts using unrestricted propagator identities",
  AssociationQ[dottedMaps]&&dottedMaps["RepresentativeFamilyCount"]===1&&
  AllTrue[dottedMaps["Mappings"],TrueQ[#["OffShellPropagatorsAndDirectedCutsVerified"]]&]];
+farShift=FeynFacet`DecomposeCutLoopIntegrands[<|"Scalar"->(bubble/.il->il+3ik1-7iq)|>,phase,{il},
+ <|"FamilyNamePrefix"->"FarShiftedMixedTest"|>];
+farEquivalence=FeynFacet`FindCutIntegralEquivalences[Join[decomposed["Targets"],farShift["Targets"]],
+ Join[decomposed["Families"],farShift["Families"]],"Normalization"->"DeclaredTypedCutMeasures",
+ "PreferredMasterIntegrals"->decomposed["Targets"]];
+FTTest`FTAssert["a mixed routing compares common witness frames despite extra coordinate-axis candidates",
+ AssociationQ[farEquivalence]&&farEquivalence["EquivalenceClassCount"]===1&&
+ farEquivalence["RepresentativeMasterIntegrals"]===decomposed["Targets"]];
+farMaps=FeynFacet`FindCutIntegralFamilyMaps[Join[decomposed["Targets"],farShift["Targets"]],
+ Join[decomposed["Families"],farShift["Families"]]];
+FTTest`FTAssert["the selected common frames produce an independently verified off-shell map",
+ AssociationQ[farMaps]&&farMaps["RepresentativeFamilyCount"]===1&&
+ AllTrue[farMaps["Mappings"],TrueQ[#["OffShellPropagatorsAndDirectedCutsVerified"]]&]];
 Print["CUT LOOP INTEGRANDS TEST COMPLETE"];FTTest`FTReport[];

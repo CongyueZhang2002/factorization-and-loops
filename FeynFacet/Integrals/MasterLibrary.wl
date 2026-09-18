@@ -138,16 +138,21 @@ FindMasterIntegralValues[definitions_Association,ranges_Association,request_Asso
   "InsufficientOrderRows"->insufficient,"MissingDetails"->details,
   "RequestedRanges"->ranges,"LookupCount"->Length[definitions],"LookupStatistics"->statistics|>
 ],"MasterLibrary"];
-EvaluateWithMasterIntegralLibrary[definition_Association,range_,provider_Function,request_Association:<||>]:=Module[
- {found,result,stored},
+EvaluateWithMasterIntegralLibrary[definition_Association,range_,provider_Function,request_Association:<||>]:=Catch[Module[
+ {found,result,stored,expanded,value},
+ If[range=!=Automatic&&(!MatchQ[range,{_Integer,_Integer}]||First[range]>Last[range]),
+  masterLibraryFail["MasterLibraryOrderRangeRequired"]];
  found=FindMasterIntegralValue[definition,range,request];
  If[AssociationQ[found]||FailureQ[found],Return[found]];
  result=provider[];
  If[!AssociationQ[result],Return[result]];
+ value=masterLibraryValue[result,definition["DimensionalRegulator"]];
+ expanded=masterLibraryResult[definition,value,range,<|"Identifier"->Missing["FreshEvaluation"]|>];
+ If[!AssociationQ[expanded],masterLibraryFail["ProviderMasterOrderCoverageNotEstablished",<|"Cause"->expanded|>]];
  stored=StoreMasterIntegralValue[definition,result,request];
  If[FailureQ[stored],Return[stored]];
- Join[result,<|"LibraryStorage"->stored|>]
-];
+ Join[result,KeyDrop[expanded,{"LibraryReuse","EvaluationMethod"}],<|"LibraryStorage"->stored|>]
+],"MasterLibrary"];
 StoreMasterIntegralSolution[definitions_Association,solution_Association,request_Association:<||>]:=Catch[Module[
  {basis,lower,upper,e,coefficients,rules,rows,record,result,records=<||>},
  {basis,lower,upper,e,coefficients}=Lookup[solution,{"MasterIntegralBasis","OriginalMasterLaurentLowerBounds",

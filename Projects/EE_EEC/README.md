@@ -220,3 +220,14 @@ scalar set is in `Work/InclusiveScalarMasterValues.wl`. The box is known through
 its finite Laurent term, which suffices for the actual coefficient multiplying
 it. Unsupported types or insufficient orders fail explicitly. This stage does
 not contract the inclusive rate or complete the measured RV distribution.
+
+`loop-inclusive-rate` contracts the explicit scalar values with their generated
+coefficients, checks sufficient epsilon orders and adds the conjugate once.
+`loop-distribution` combines the current GPL interior, source-bound weighted
+endpoint proof, and automatically generated moment weights. The corresponding
+raw-card driver now supports RealVirtual through this general path. Its complete
+result uses `UnitIntervalFinitePart`, defined in Design/IntervalFiniteParts.md;
+it must never be read as an ordinary regular density. Result assembly converts
+other completed interval contributions by preserving their original moments.
+The actual raw RV regeneration is currently running; see the dated report and
+Work/MeasuredRawContinuation.json before launching another kernel.

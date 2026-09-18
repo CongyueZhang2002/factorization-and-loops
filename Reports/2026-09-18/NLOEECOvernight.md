@@ -617,3 +617,51 @@ now resolving203 further dependencies while retaining959 exact exported rows.
 Main PGID335582/kernel335613 remains healthy; Kira345117 is using all8 cores.
 Inspect fresh process state before starting another job. There is still no
 closed RR DE or complete NLO result.
+
+### Inclusive rate and interval finite parts (15:13 UTC)
+
+The generated inclusive RV master combination is now explicitly contracted,
+retaining all implied poles and adding the Hermitian conjugate once. Its saved
+coefficients in Work/InclusiveOneLoopRate.wl are nonzero starting at epsilon^-4;
+the conservative extra orders through epsilon^-7 cancel exactly. The first
+contraction took28.737s including startup and prior-value reuse; the routing/
+geometry replay took27.822s. Six finite-product tests pass in16.012s.
+
+Actual Pro review14 inspected pushed9b5a0e43 and confirmed the raw-loop/PaVe
+normalization, universal box phase/coverage and coefficientwise endpoint theorem.
+It identified missing bubble cut-geometry/dimension guards and a cold/warm
+record-shape difference. Both are fixed: actual cuts must match the standard
+three-particle frame, no additional acceptance restriction is allowed, dimension
+is4-2epsilon, and the shared library wrapper returns requested finite coverage
+for fresh exact functions as well as stored functions. Twelve scalar assertions
+pass in17.014s and23 master-library assertions in18.246s.
+
+Mixed routing now indexes all candidate signatures of a representative and
+retains a DIRECT common-frame witness, rather than requiring equal minima.
+Duplicate transformations are removed before polynomial substitution. Seventeen
+mixed routing tests, six polynomial routing tests and seven box tests pass in
+17.231s,18.729s and18.215s respectively. The actual inclusive replay preserves
+the successfully evaluated scalar coverage.
+
+The generic endpoint constructor combines a proved weighted-integrable GPL
+interior with generated zeroth/first moments. It uses the explicitly declared
+linear-endpoint-interpolation finite part, not an ordinary regular coefficient.
+The common partonic format supports this distinct basis, constant weighting,
+addition, interior restriction and exact conversion from the standard interval
+basis by original moments. Nonconstant row multipliers fail until their contact
+corrections are computed. Twelve tests pass in17.177s; all28 prior final-result
+assertions also pass in17.376s. That latter supervisor was initially given a
+wrong completion-line prefix; the retained verified receipt checks the existing
+28-assertion output without rerunning the test.
+
+The first distribution completion regenerated all three interiors, then reached
+its600s cap during the third tuple-group contact proof (605.010s including
+cleanup). No completed endpoint result is claimed from that attempt. This
+attempt is retained separately. Contact proofs now checkpoint each completed
+tuple group with its exact density and producing definition. The raw producer
+resumed at15:13UTC with cached current interiors and a1800s allowance, on CPU7;
+owned PGID357308, supervisor357307, execution session67696. Its state is
+RealVirtual/Work/MeasuredRawContinuation.json and log MeasuredRawCompletion.log.
+The RR native job retains CPUs0..6 during this run and restores0..7 afterward.
+The full NLO result is still incomplete; no new measured literature coefficient
+has been read or compared.

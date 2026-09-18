@@ -1,6 +1,8 @@
 (* Card-owned one-loop radiative densities. Scalar loop reduction precedes
    the measurement; endpoints and Hermitian completion remain explicit. *)
 BeginPackage["FeynFacet`"];
+CompleteMeasuredCurrentOneLoopDistribution::usage="CompleteMeasuredCurrentOneLoopDistribution[card,mode] completes every explicit one-loop measured interior coefficient with the two physical contact coefficients obtained from generated inclusive moments and a uniform weighted-density proof. It stores Work/MeasuredOneLoopDistribution.wl in the explicitly declared linear-endpoint-interpolation finite-part convention. The current moment evaluator requires both generated moment weights to be constant; other measurements fail instead of receiving guessed endpoint terms.";
+IntegrateMeasuredCurrentOneLoopInclusiveRate::usage="IntegrateMeasuredCurrentOneLoopInclusiveRate[card,mode] contracts the card-owned inclusive reduction with fully evaluated scalar masters using checked finite Laurent products, retaining all poles and adding the conjugate interference once. It saves Work/InclusiveOneLoopRate.wl, not the measured endpoint distribution or accepted raw result.";
 PrepareMeasuredCurrentOneLoopContribution::usage="PrepareMeasuredCurrentOneLoopContribution[card,mode] generates a one-loop/tree current interference, reduces the virtual loop, and inserts the card's tuple measurement into physical three-particle phase space. It stores causal scalar integration representations and separate inclusive contacts in the contribution Work directory. This preparation does not write an accepted Results.wl.";
 IntegrateMeasuredCurrentOneLoopInterior::usage="IntegrateMeasuredCurrentOneLoopInterior[card,mode] prepares the card-owned one-loop radiative density, verifies its energy endpoint integrability including original external causal factors, adds its conjugate on verified scalar branches, and integrates every noncontact tuple group through the requested Laurent range. It stores Hermitian GPL coefficients in Work/MeasuredOneLoopInterior.wl, before measurement-variable endpoint distributions. Compatible row records may be reused in resume mode.";
 VerifyMeasuredCurrentOneLoopContactOrder::usage="VerifyMeasuredCurrentOneLoopContactOrder[card,mode] proves an ordinary-contact bound for every noncontact tuple density on its full two-variable integration domain and stores Work/MeasuredContactOrder.wl. It uses the original prescribed products and actual measurement maps; inclusive moments and contact coefficients remain separate. Matching proofs may be reused in resume mode.";
@@ -142,7 +144,7 @@ IntegrateMeasuredCurrentOneLoopInterior[card_Association,mode_String:"resume"]:=
  projectWrite[output,path<>"/MeasuredOneLoopInterior.wl"];output
 ],"ProjectCards"];
 VerifyMeasuredCurrentOneLoopContactOrder[card_Association,mode_String:"resume"]:=Catch[Module[
- {prepared,file,saved,definition,inputs,rows={},seconds,proof,output,moments},
+ {prepared,file,saved,definition,inputs,rows={},seconds,proof,output,moments,rowFile,rowSaved},
  prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopContribution[card,mode],"PreparedMeasuredLoopContributionRequired"];
  file=card["WorkDirectory"]<>"/MeasuredContactOrder.wl";
  definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],"ContactDerivativeOrder"->0,"ContactOrderSchema"->2,
@@ -162,9 +164,18 @@ VerifyMeasuredCurrentOneLoopContactOrder[card_Association,mode_String:"resume"]:
    If[Lookup[saved,"MeasurementMoments",None]=!=moments,projectWrite[output,file]];
    Return[output,Module]]];
  Do[
+  rowFile=card["WorkDirectory"]<>"/ContactOrderRows/Row"<>ToString[i]<>".wl";
+  rowSaved=If[mode=!="all"&&FileExistsQ[rowFile],FeynFacet`FamilyArtifactRead[rowFile],None];
+  If[AssociationQ[rowSaved]&&Lookup[rowSaved,"CalculationDefinition",None]===definition&&
+    Lookup[Lookup[rowSaved,"InputCompanions",<||>],"Density",None]===inputs[[i]]&&
+    TrueQ[Lookup[Lookup[rowSaved,"Proof",<||>],"CompleteEnergyMeasurementCoverVerified",False]]&&
+    Lookup[rowSaved["Proof"],"ContactDerivativeOrderBound",None]===0,
+   proof=rowSaved["Proof"];seconds=0,
   {seconds,proof}=AbsoluteTiming[FeynFacet`VerifyOneLoopMeasurementContactOrder[inputs[[i]],0,
     <|"Assumptions"->card["Assembly"]["Assumptions"],"PrintTimings"->True|>]];
   proof=projectCheck[proof,"MeasuredContactOrderProofFailed"];
+  projectWrite[<|"CalculationDefinition"->definition,"InputCompanions"-><|"Density"->inputs[[i]]|>,
+    "Proof"->proof,"Seconds"->seconds|>,rowFile]];
   AppendTo[rows,<|"Row"->i,"ParticleTuples"->inputs[[i]]["ParticleTuples"],
     "Proof"->proof,"Seconds"->seconds|>],{i,Length[inputs]}];
  output=<|"Format"->"FeynFacet-MeasuredCurrentContactOrder","CalculationDefinition"->definition,
@@ -342,5 +353,64 @@ EvaluateMeasuredCurrentOneLoopInclusiveMasters[card_Association,mode_String:"res
    "UniversalScalarSources"->"Causal massless bubble Gamma formulas, normalized Dirichlet moments, and the separately derived inclusive one-mass scalar box when an exact momentum map and sufficient Laurent coverage exist; no measured hard-function input.",
    "InclusiveRateEvaluated"->False|>;
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterValues.wl"];output
+],"ProjectCards"];
+IntegrateMeasuredCurrentOneLoopInclusiveRate[card_Association,mode_String:"resume"]:=Catch[Module[
+ {masters,rate,conjugate,conditions,complex,seconds,output,audit},
+ masters=projectCheck[FeynFacet`EvaluateMeasuredCurrentOneLoopInclusiveMasters[card,mode],
+   "InclusiveScalarMasterValuesRequired"];
+ If[!TrueQ[masters["AllMasterValuesEvaluated"]],projectFail["CompleteInclusiveScalarValuesRequired",
+   <|"Unresolved"->masters["Unresolved"]|>]];
+ conditions=card["Assembly"]["Assumptions"];
+ complex=Lookup[masters["CalculationDefinition"]["ProcessDefinition"],"ComplexParameters",{}];
+ {seconds,rate}=AbsoluteTiming[
+  audit=FeynFacet`WithEpsilonRemainderChecks[FeynFacet`ExpandScalarIntegralCombination[
+    masters["MasterCoefficients"],masters["Values"],masters["DimensionalRegulator"],card["EpsilonRange"],
+    <|"RetainAllPoles"->True|>]];
+  If[!AssociationQ[audit]||Lookup[audit["EpsilonRemainderAudit"],"Status",None]=!="Passed",
+   projectFail["InclusiveScalarRemainderAuditRequired",<|"Cause"->audit|>]];
+  rate=projectCheck[audit["Result"],
+    "InclusiveScalarContractionRequired"];
+  conjugate=projectCheck[FeynFacet`ConjugateExplicitScalarFunctions[rate["Coefficients"],conditions,complex],
+    "InclusiveCausalConjugationRequired"];
+  Join[rate,<|"Coefficients"->Map[Factor,Merge[{rate["Coefficients"],conjugate},Total]],
+    "ConjugateInterferenceAdded"->True|>]];
+ output=Join[rate,<|"Format"->"FeynFacet-MeasuredCurrentInclusiveOneLoopRate",
+   "CalculationDefinition"->masters["CalculationDefinition"],"EpsilonRange"->card["EpsilonRange"],
+   "InclusiveRateEvaluated"->True,"EndpointDistributionIncluded"->False,
+   "UniversalScalarSources"->masters["UniversalScalarSources"],"ContractionSeconds"->seconds,
+   "EpsilonRemainderAudit"->audit["EpsilonRemainderAudit"],
+   "InputCompanions"-><|"MasterCoefficients"->masters["MasterCoefficients"],"ScalarValues"->masters["Values"]|>|>];
+ projectWrite[output,card["WorkDirectory"]<>"/InclusiveOneLoopRate.wl"];output
+],"ProjectCards"];
+CompleteMeasuredCurrentOneLoopDistribution[card_Association,mode_String:"resume"]:=Catch[Module[
+ {interior,proof,rate,definition,moments,weights,proofs,completed,rows=<||>,range,e,z,labels,output},
+ interior=projectCheck[FeynFacet`IntegrateMeasuredCurrentOneLoopInterior[card,mode],"ExplicitMeasuredLoopInteriorRequired"];
+ proof=projectCheck[FeynFacet`VerifyMeasuredCurrentOneLoopContactOrder[card,"resume"],"UniformMeasuredContactProofRequired"];
+ rate=projectCheck[FeynFacet`IntegrateMeasuredCurrentOneLoopInclusiveRate[card,"resume"],"GeneratedInclusiveLoopRateRequired"];
+ definition=interior["CalculationDefinition"];range=card["EpsilonRange"];e=interior["DimensionalRegulator"];
+ z=First[card["Assembly"]["Variables"]];labels=interior["StructureFunctions"];
+ If[rate["CalculationDefinition"]=!=definition||proof["CalculationDefinition"]["CalculationDefinition"]=!=definition||
+   rate["StructureFunctions"]=!=labels||!TrueQ[rate["ConjugateInterferenceAdded"]]||
+   !TrueQ[interior["ConjugateInterferenceAdded"]]||Length[card["Assembly"]["Variables"]]=!=1,
+  projectFail["CommonPhysicalInclusiveAndMeasuredSourcesRequired"]];
+ If[AnyTrue[KeySelect[rate["Coefficients"],Last[#]<First[range]&],#=!=0&],
+  projectFail["InclusivePolesOutsideRequestedDistributionRange",<|"Ranges"->rate["OutputEpsilonRanges"]|>]];
+ weights=proof["MeasurementMoments"]["ConstantWeights"];
+ If[!ContainsAll[Keys[weights],{0,1}]||!FreeQ[Lookup[weights,{0,1}],z|e],
+  projectFail["GeneratedConstantZerothAndFirstMomentWeightsRequired"]];
+ proofs=Lookup[proof["Rows"],"Proof"];
+ Do[
+  moments=Association@Table[n->(Lookup[weights,{0,1}]rate["Coefficients"][{i,n}]),{n,First[range],Last[range]}];
+  completed=projectCheck[FeynFacet`CompleteUnitIntervalDistributionFromMoments[
+    Association@Table[n->interior["Coefficients"][{i,n}],{n,First[range],Last[range]}],moments,proofs,{z,e},range],
+    "ProvedIntervalFinitePartCompletionRequired"];
+  KeyValueMap[AssociateTo[rows,{i,#1}->#2]&,completed["Coefficients"]],{i,Length[labels]}];
+ output=Join[KeyDrop[completed,"Coefficients"],<|"Format"->"FeynFacet-MeasuredCurrentOneLoopDistribution",
+   "Coefficients"->rows,"StructureFunctions"->labels,"CalculationDefinition"->definition,
+   "MomentWeights"->weights,"ContactProofRecord"->card["WorkDirectory"]<>"/MeasuredContactOrder.wl",
+   "InclusiveRateRecord"->card["WorkDirectory"]<>"/InclusiveOneLoopRate.wl",
+   "ConjugateInterferenceAdded"->True,"EpsilonRemainderAudit"->rate["EpsilonRemainderAudit"],
+   "Scope"->"Complete real-virtual distribution in the explicitly defined interpolation finite-part convention. Ordinary self contacts are already fixed by the inclusive moments. This is not a sum with other perturbative contributions or a conventional logarithmic-plus decomposition."|>];
+ projectWrite[output,card["WorkDirectory"]<>"/MeasuredOneLoopDistribution.wl"];output
 ],"ProjectCards"];
 End[];EndPackage[];

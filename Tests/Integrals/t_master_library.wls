@@ -76,4 +76,16 @@ FTTest`FTAssert["a solution without applied physical constants is rejected",
  FailureQ[FeynFacet`StoreMasterIntegralSolution[<|1->definition|>,
   Append[physical,"BoundaryValuesApplied"->False],request]]];
 Print["LIBRARY TEST DIRECTORY ",dir];
+fresh=FeynFacet`EvaluateWithMasterIntegralLibrary[definition,{-1,3},
+ Function[{},<|"ExactValue"->exactFunction|>],Append[request,"Mode"->"Recompute"]];
+reused=FeynFacet`FindMasterIntegralValue[definition,{-1,3},request];
+FTTest`FTAssert["fresh exact providers and library hits have identical finite Laurent coverage",
+ AssociationQ[fresh]&&KeyTake[fresh,{"Coefficients","LaurentLowerBound","KnownThroughOrder","ExactInEpsilon"}]===
+   KeyTake[reused,{"Coefficients","LaurentLowerBound","KnownThroughOrder","ExactInEpsilon"}]];
+FTTest`FTAssert["a fresh finite provider cannot claim unavailable requested coefficients",
+ FailureQ[FeynFacet`EvaluateWithMasterIntegralLibrary[definition,{-1,4},
+   Function[{},value],Append[request,"Mode"->"Disabled"]]]];
+FTTest`FTAssert["disabled library writes still return finite coefficients from an exact provider",
+ AssociationQ[FeynFacet`EvaluateWithMasterIntegralLibrary[definition,{-1,3},
+   Function[{},<|"ExactValue"->exactFunction|>],Append[request,"Mode"->"Disabled"]]["Coefficients"]]];
 Print["MASTER LIBRARY TEST COMPLETE"];FTTest`FTReport[];
