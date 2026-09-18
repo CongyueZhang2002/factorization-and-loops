@@ -8,6 +8,7 @@ ReduceMasterDifferentialSystem::usage="ReduceMasterDifferentialSystem[system,red
 ReduceEquivalentMasterIntegrals::usage="ReduceEquivalentMasterIntegrals[system,request] identifies exactly equivalent typed cut integrals under allowed loop changes, closes their differential consequences with the existing subset reducer, and updates every original reduction and requested value. It does not claim master minimality.";
 SelectMasterIntegralBasis::usage="SelectMasterIntegralBasis[system,reduction,request] selects a subset of exact candidate integral images as DE coordinates. It prefers nonnegative indices and smaller total denominator powers. Rational sampling chooses a candidate subset; exact inversion and differential compatibility certify its map. This makes no minimality or global nonsingularity claim.";
 ExtendMasterValuesUsingDifferentialEquations::usage="ExtendMasterValuesUsingDifferentialEquations[system,known] derives further exact physical master functions when the derivative of a known master has exactly one still-unknown integral in a declared DE row. known maps basis integrals to exact functions with fixed physical constants. It iterates these algebraic consequences, reports unresolved integrals and retains closed-row compatibility residuals. It does not choose any integration constant, infer endpoint distributions, or claim that untested input functions satisfy the whole DE.";
+ExtendMasterLaurentCoefficientsUsingDifferentialEquations::usage="ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system,known,upperOrders] derives requested master Laurent coefficients from single-unknown DE rows. known maps basis integrals to contiguous coefficient records with lower bounds and known upper orders; upperOrders maps requested integrals to their required maximum order. Rational valuations and the shared omitted-tail audit determine whether the differentiated input orders suffice. Unavailable orders remain unresolved; finite polynomials are never treated as exact functions.";
 Begin["`Private`"];
 ExtendMasterValuesUsingDifferentialEquations[system_Association,known_Association]:=Catch[Module[
  {basis,variables,matrices,n,values=known,derived={},changed=True,indices,missing,j,value,closed,residuals={}},
@@ -39,6 +40,55 @@ ExtendMasterValuesUsingDifferentialEquations[system_Association,known_Associatio
   "KnownRowCompatibilityResiduals"->residuals,"AllBasisValuesKnown"->(Length[values]===n),
   "EndpointDistributionsSolved"->False,
   "Scope"->"Algebraic consequences of the exact DE and supplied physical functions. Every new value follows without integration. Closed-row compatibility residuals are retained for independent verification."|>
+],"CutFamily"];
+ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,known_Association,upperOrders_Association]:=Catch[Module[
+ {basis,variables,matrices,n,e,values=known,derived={},pending={},changed=True,indices,missing,j,
+  ratios,records,derivative,low,high,lowers,uppers,vector,matrix,result,one,offset,derivativeFunction,valid},
+ basis=system["MasterIntegralBasis"];variables=system["KinematicVariables"];e=system["DimensionalRegulator"];
+ matrices=cutConnectionMatrices[system]/.system["DimensionRule"];n=Length[basis];
+ valid[row_]:=AssociationQ[row]&&IntegerQ[Lookup[row,"LaurentLowerBound",None]]&&
+  IntegerQ[Lookup[row,"KnownThroughOrder",None]]&&AssociationQ[Lookup[row,"Coefficients",None]]&&
+  Sort[Keys[row["Coefficients"]]]===Range[row["LaurentLowerBound"],row["KnownThroughOrder"]]&&
+  FreeQ[Values[row["Coefficients"]],e|_FeynCalc`GLI|_Integrate|_Inactive|_Failure|_Missing];
+ If[!ContainsAll[basis,Join[Keys[known],Keys[upperOrders]]]||!AllTrue[Values[known],valid]||
+   !VectorQ[Values[upperOrders],IntegerQ],cutFamilyFail["ContiguousKnownMasterOrdersRequired"]];
+ If[DownValues[FeynFacetSolution`DifferentiateGPLExpression]==={},
+  Block[{$ContextPath=$ContextPath},Get[FileNameJoin[{$feynFacetDirectory,"Solution.m"}]]]];
+ derivativeFunction[value_,variable_]:=If[FreeQ[value,_FeynFacetSolution`G],D[value,variable],
+   FeynFacetSolution`DifferentiateGPLExpression[value,variable]];
+ While[changed,changed=False;indices=Select[Range[n],KeyExistsQ[values,basis[[#]]]&];
+  Do[
+   missing=Select[Range[n],matrices[[axis,i,#]]=!=0&&!KeyExistsQ[values,basis[[#]]]&];
+   If[Length[missing]=!=1||!KeyExistsQ[upperOrders,basis[[First[missing]]]],Continue[]];
+   j=First[missing];high=upperOrders[basis[[j]]];
+   ratios=Prepend[(-matrices[[axis,i,#]]/matrices[[axis,i,j]]&/@indices),1/matrices[[axis,i,j]]];
+   ratios=Cancel[Together[#]]&/@ratios;
+   derivative=Join[values[basis[[i]]],<|"Coefficients"->Map[derivativeFunction[#,variables[[axis]]]&,values[basis[[i]]]["Coefficients"]]|>];
+   If[!FreeQ[derivative,_Failure|_Derivative],cutFamilyFail["ExplicitMasterCoefficientDerivativeRequired",<|"Integral"->basis[[i]]|>]];
+   records=Prepend[Lookup[values,basis[[indices]]],derivative];
+   lowers=Lookup[records,"LaurentLowerBound"];uppers=Lookup[records,"KnownThroughOrder"];
+   low=Min[high,Min[MapThread[#1+FeynFacet`DetermineLaurentValuation[#2,e]&,{lowers,ratios}]]];
+   If[!IntegerQ[low],cutFamilyFail["RationalDifferentialCoefficientValuationsRequired"]];
+   vector=<|"DimensionalRegulator"->e,"Dimension"->Length[records],
+    "Coefficients"->Association@Flatten[Table[KeyValueMap[{k,#1}->#2&,records[[k]]["Coefficients"]],{k,Length[records]}],1],
+    "LaurentLowerBounds"->lowers,"KnownThroughOrders"->uppers,
+    "ExactTails"->(TrueQ[Lookup[#,"ExactTail",False]]&/@records)|>;
+   matrix=FeynFacet`ExpandLaurentCoefficientMatrix[{ratios},e,high-lowers];
+   result=If[AssociationQ[matrix],FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,{{low,high}}],matrix];
+   If[!AssociationQ[result],AppendTo[pending,<|"Integral"->basis[[j]],"SourceIntegral"->basis[[i]],"Cause"->result|>];Continue[]];
+   one=<|"Coefficients"->Association@Table[k->Lookup[result["Coefficients"],Key[{1,k}],0],{k,low,high}],
+    "LaurentLowerBound"->low,"KnownThroughOrder"->high,"ExactTail"->False,
+    "OrderCoverageVerified"->result["OrderCoverageVerified"],
+    "Method"->"AuditedDifferentialConsequencesOfPhysicalLaurentCoefficients"|>;
+   AssociateTo[values,basis[[j]]->one];changed=True;
+   AppendTo[derived,<|"Integral"->basis[[j]],"DifferentiatedIntegral"->basis[[i]],
+    "Variable"->variables[[axis]],"SolvedCoefficientValuation"->FeynFacet`DetermineLaurentValuation[matrices[[axis,i,j]],e],
+    "StoredOrderRange"->{low,high},"OrderCoverageVerified"->result["OrderCoverageVerified"]|>],
+  {axis,Length[variables]},{i,indices}]];
+ <|"Format"->"FeynFacet-DifferentialConsequencesOfMasterCoefficients","Values"->values,
+  "Derivations"->derived,"UnresolvedRequests"->KeySelect[upperOrders,
+    !KeyExistsQ[values,#]||values[#]["KnownThroughOrder"]<upperOrders[#]&],
+  "PendingOrderRequirements"->DeleteDuplicates[pending],"EndpointDistributionsSolved"->False|>
 ],"CutFamily"];
 cutRetainedIntegralRuleEquations[rules_List]:=DeleteCases[Map[Function[rule,
   With[{parsed=linearIntegralSum[First[rule]-Last[rule]]},

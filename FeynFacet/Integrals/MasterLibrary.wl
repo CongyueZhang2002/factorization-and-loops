@@ -19,7 +19,8 @@ masterLibraryMode[request_]:=Module[{mode=Lookup[request,"Mode",$MasterIntegralL
  If[!MemberQ[{"ReadWrite","ReadOnly","Recompute","Disabled"},mode],masterLibraryFail["InvalidMasterLibraryMode"]];mode];
 masterLibraryExplicitQ[value_]:=FreeQ[value,
  _Integrate|_NIntegrate|_Inactive|_Series|_SeriesCoefficient|_SeriesData|_Real|
- _Derivative|_FeynCalc`GLI|_Failure|_Missing|Indeterminate|_DirectedInfinity]&&
+ _Derivative|_FeynCalc`GLI|_Failure|_Missing|Indeterminate|_DirectedInfinity|
+ _FeynFacet`MasslessPhaseSpaceVolume|_FeynFacet`MasslessMeasuredPhaseSpace]&&
  FreeQ[value,h_Symbol[___]/;MemberQ[{"i","a","k","C","F"},SymbolName[h]]&&Context[h]==="FeynFacetSolution`"];
 masterLibraryValue[value_Association,e_]:=Module[{coefficients,lower,upper,exact,record=<||>},
  exact=Lookup[value,"ExactValue",Lookup[value,"AnalyticExpression",Missing[]]];
@@ -75,6 +76,15 @@ masterLibraryResult[definition_,value_,range_,reuse_]:=Module[{e,lower,result,co
      "RequestedThroughOrder"->Last[range]|>]]];
   lower=Min[First[range],value["LaurentLowerBound"]];
   coeffs=Association@Table[j->Lookup[value["Coefficients"],j,0],{j,lower,Last[range]}],
+  If[!FreeQ[value["ExactValue"],_Hypergeometric2F1],
+   result=FeynFacet`ExpandGaussHypergeometricCombinations[<|"Master"->FunctionExpand[value["ExactValue"]]|>,e,range,<|"IncludeAllLowerOrders"->True|>];
+   If[!AssociationQ[result],Return[Missing["ExactMasterLaurentExpansionNotEstablished"]]];
+   lower=Min[First[range],First[result["LaurentLowerBounds"]]];
+   coeffs=Association@Table[j->Lookup[result["Coefficients"],Key[{1,j}],0],{j,lower,Last[range]}];
+   Return[<|"ExactValue"->value["ExactValue"],"MasterIntegral"->definition["MasterIntegral"],
+    "DimensionalRegulator"->e,"Coefficients"->coeffs,"LaurentLowerBound"->lower,
+    "KnownThroughOrder"->Last[range],"RequestedRange"->range,"ExactInEpsilon"->False,
+    "EvaluationMethod"->"SharedMasterIntegralLibrary","LibraryReuse"->reuse|>]];
   lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[value["ExactValue"],e];
   If[lower===Infinity,lower=First[range]];
   If[!IntegerQ[lower],Return[Missing["ExactMasterLaurentExpansionNotEstablished"]]];

@@ -261,7 +261,43 @@ coordinates. Exact affine master equivalences give24 classes; differential
 relations reduce them to18, and the general selector finds18 unit-cut masters.
 The source DE is `DoubleReal/Work/Components/DifferentQuarks/Work/DifferentialSystem.wl`;
 the physical basis DE is `PhysicalDifferentialSystem.wl` beside it, with
-`MasterIntegralDefinitions.wl`. These18 have no physical boundary values yet.
+`MasterIntegralDefinitions.wl`. Physical values are now known to the needed interior orders for16 of these18;
+the other two have identically zero coefficients in this component.
 They are not the master count for all double-real components. No further Kira
 solve was required for closure on this component after the completed dependency
 import. The other components and full endpoint assembly remain unfinished.
+
+The general pair-resolved four-particle provider now gives actual physical values
+for DifferentQuarks basis entries1,2,3,5. The first two are explicit Euler periods;
+the next two follow from exact DE rows, without choosing integration constants.
+All four are in the shared master library, and their explicit GPL coefficients
+through epsilon^1 are saved beside the DE. These seed values alone do not fix every master or
+any RR endpoint distribution. RecoilAngularIntegral4.wl and13.wl have the two
+recoil-angle integrations performed by the shared angular solver; their two
+remaining tagged-energy integrations are still separate work.
+
+Positive powers in supported pair Euler periods are accepted only after the
+original prescribed product is certified and the common initial Euler convergence
+domain is nonempty. Integral dimensions and analytic branches are compared during
+coordinate reuse. Extra verified equations are being reused in the independently
+supervised IdenticalQuarks DE reduction; inspect STATUS.md and its owned state
+record before starting another kernel or reconstruction.
+
+
+The finite four-particle path now contracts only nonzero source-master columns.
+`ConstructMeasuredContributionMasterValues` first consults the shared library,
+then uses typed physical Euler/complement-mass providers and order-audited DE
+consequences. `AssembleMeasuredContributionInterior` accepts their explicit
+Laurent records and rejects missing input orders. The DifferentQuarks component
+has16 needed master records and an explicit interior through epsilon^0; its
+first nonzero interior pole is epsilon^-1. This remains an interior contribution,
+not an accepted complete RR distribution. IdenticalQuarks, Gluons and inclusive
+RR moments/endpoints remain in progress. General raw-card completion must still
+connect the finite four-particle interior to proved endpoint/moment data.
+
+The library expands supported exact Gauss functions through the shared GPL
+routine, including every lower Laurent coefficient even when only the highest
+order is requested. Physical-volume functions also evaluate at literal epsilon
+zero; an unevaluated normalization function is rejected as a stored master.
+The absolute normalization is checked against independent energy integrals,
+not cancelled from both sides of a relative check.

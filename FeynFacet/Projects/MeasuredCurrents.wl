@@ -101,10 +101,98 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
   "Scope"->"Generic measured variables; physical boundary constants and endpoint contacts are separate inputs."|>;
  projectWrite[output,path<>"/DifferentialSystem.wl"];output
 ],"ProjectCards"];
+measuredMasterCoefficientRows[card_,record_]:=Module[{rows,groups},
+ rows=projectCheck[FeynFacet`ApplyIntegralReduction[record["IntegralDecomposition"]["Coefficients"],
+   record["DifferentialSystem"]["Reduction"]],"MeasuredMasterCoefficientReductionRequired"];
+ If[Total[Table[Count[Keys[rows],label_String/;StringMatchQ[label,structure~~DigitCharacter..]],
+   {structure,card["StructureFunctions"]}]]=!=Length[rows],projectFail["DistinctMeasuredStructureLabelsRequired"]];
+ groups=Association@Table[With[{labels=Select[Keys[rows],StringMatchQ[#,structure~~DigitCharacter..]&]},
+   structure->If[labels==={},<||>,Merge[Lookup[rows,labels],Total]]],{structure,card["StructureFunctions"]}];
+ groups=Map[Select[Map[Cancel[Together[#]]&,#],#=!=0&]&,groups];
+ groups/.record["DifferentialSystem"]["DimensionRule"]
+];
+constructMeasuredFourParticleMasterCoefficients[card_,prepared_,record_]:=Module[
+ {system=record["DifferentialSystem"],rows,needed,upper,definitions,library,known=<||>,methods=<||>,
+  basis,e,hi,family,value,exact,expanded,one,extension,missing,output,seconds,started=facetElapsedClock[]},
+ rows=measuredMasterCoefficientRows[card,record];basis=system["MasterIntegralBasis"];e=system["DimensionalRegulator"];
+ needed=Union[Flatten[Keys/@Values[rows]]];
+ upper=Association@Table[master->(Last[card["EpsilonRange"]]-Min[
+   FeynFacet`DetermineLaurentValuation[#,e]&/@Lookup[Values[rows],master,0]]),{master,needed}];
+ If[!VectorQ[Values[upper],IntegerQ],projectFail["ExactMeasuredCoefficientOrderBoundsRequired"]];
+ definitions=projectCheck[FeynFacet`ConstructMasterIntegralDefinitions[Join[system,<|"KinematicConditions"->
+   card["Assembly"]["PhaseSpace"]["Assumptions"]&&And@@(0<#<1&/@system["KinematicVariables"])|>]],
+   "PhysicalMeasuredMasterDefinitionsRequired"]["MasterIntegralDefinitions"];
+ definitions=Association@Table[basis[[i]]->definitions[i],{i,Length[basis]}];
+ library=Join[Lookup[card["Assembly"],"MasterLibrary",<||>],<|"Provenance"-><|
+   "Project"->card["Project"],"Card"->card["CardFile"],"Producer"->"TypedPhysicalPhaseSpacePeriods"|>|>];
+ Do[
+  hi=upper[master];value=FeynFacet`FindMasterIntegralValue[definitions[master],{hi,hi},library];
+  If[AssociationQ[value]&&AssociationQ[Lookup[value,"Coefficients",None]],
+   AssociateTo[known,master->Join[value,<|"ExactTail"->False|>]];AssociateTo[methods,master->"SharedLibrary"];Continue[]];
+  family=SelectFirst[system["Families"],#["Topology"][[1]]===master[[1]]&];
+  exact=FeynFacet`EvaluatePairMeasurementEulerMaster[family,master,e];
+  If[AssociationQ[exact],
+   expanded=FeynFacet`ExpandGaussHypergeometricCombinations[<|master->FunctionExpand[exact["Value"]]|>,e,{Min[0,hi],hi},<|"IncludeAllLowerOrders"->True|>];
+   If[AssociationQ[expanded],
+    one=<|"Coefficients"->Association@Table[k->Lookup[expanded["Coefficients"],Key[{1,k}],0],
+       {k,First[expanded["LaurentLowerBounds"]],hi}],
+     "LaurentLowerBound"->First[expanded["LaurentLowerBounds"]],"KnownThroughOrder"->hi,"ExactTail"->False|>;
+    AssociateTo[known,master->one];AssociateTo[methods,master->exact["Method"]];
+    projectCheck[FeynFacet`StoreMasterIntegralValue[definitions[master],<|"ExactValue"->exact["Value"]|>,library],"PhysicalMasterPublicationFailed"];
+    Continue[]]];
+  value=FeynFacet`EvaluatePairComplementMassPeriod[family,master,e];
+  If[AssociationQ[value]&&value["KnownThroughOrder"]>=hi,
+   AssociateTo[known,master->value];AssociateTo[methods,master->value["Method"]];
+   projectCheck[FeynFacet`StoreMasterIntegralValue[definitions[master],value,library],"PhysicalMasterPublicationFailed"]],
+ {master,needed}];
+ extension=projectCheck[FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system,known,upper],
+   "AuditedMeasuredDifferentialCoefficientsRequired"];
+ Do[If[!KeyExistsQ[known,master],
+   projectCheck[FeynFacet`StoreMasterIntegralValue[definitions[master],extension["Values"][master],library],"PhysicalMasterPublicationFailed"]],
+  {master,Keys[extension["Values"]]}];
+ known=extension["Values"];missing=extension["UnresolvedRequests"];
+ output=<|"MasterIntegralBasis"->basis,"MasterIntegralValues"->known,"DimensionalRegulator"->e,
+  "RequiredMasterUpperOrders"->upper,"UnresolvedRequests"->missing,"Methods"->methods,
+  "DifferentialCoefficientDerivations"->extension["Derivations"],"PendingOrderRequirements"->extension["PendingOrderRequirements"],
+  "KinematicVariables"->system["KinematicVariables"],"KinematicConditions"->card["Assembly"]["Assumptions"]&&
+    And@@(0<#<1&/@system["KinematicVariables"]),"ExactInRegulator"->False,
+  "PhysicalBoundaryConstantsFixedForRequestedOrders"->(missing===<||>),
+  "EndpointDistributionsSolved"->False,"CalculationDefinition"->prepared["CalculationDefinition"],
+  "StageSeconds"-><|"PhysicalMasterEvaluation"->(facetElapsedClock[]-started)|>|>;
+ projectWrite[output,card["WorkDirectory"]<>If[missing===<||>,"/MasterValues.wl","/PartialMasterValues.wl"]];
+ If[missing=!=<||>,projectFail["PhysicalMasterCoefficientsStillRequired",<|"UnresolvedRequests"->missing|>]];output
+];
+assembleMeasuredFiniteMasterInterior[card_,record_,solution_]:=Module[
+ {rows,needed,values,records,e,lowers,uppers,vector,matrix,expanded,result,seconds,range=card["EpsilonRange"]},
+ If[solution["CalculationDefinition"]=!=record["CalculationDefinition"]||
+   solution["MasterIntegralBasis"]=!=record["DifferentialSystem"]["MasterIntegralBasis"],
+  projectFail["MatchingPhysicalMasterCoefficientDefinitionsRequired"]];
+ {seconds,result}=facetElapsedTiming[
+ rows=measuredMasterCoefficientRows[card,record];needed=Union[Flatten[Keys/@Values[rows]]];
+ values=solution["MasterIntegralValues"];e=record["DifferentialSystem"]["DimensionalRegulator"];
+ If[!ContainsAll[Keys[values],needed],projectFail["CompleteNonzeroMeasuredMasterSupportRequired"]];
+ records=Lookup[values,needed];lowers=Lookup[records,"LaurentLowerBound"];uppers=Lookup[records,"KnownThroughOrder"];
+ vector=<|"DimensionalRegulator"->e,"Dimension"->Length[needed],
+  "Coefficients"->Association@Flatten[Table[KeyValueMap[{i,#1}->#2&,records[[i]]["Coefficients"]],{i,Length[records]}],1],
+  "LaurentLowerBounds"->lowers,"KnownThroughOrders"->uppers,"ExactTails"->ConstantArray[False,Length[needed]]|>;
+ matrix=projectCheck[FeynFacet`ExpandLaurentCoefficientMatrix[Lookup[#,needed,0]&/@Values[rows],e,Last[range]-lowers],
+  "MeasuredRationalCoefficientExpansionRequired"];
+ expanded=projectCheck[FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,ConstantArray[range,Length[rows]]],
+  "SufficientPhysicalMeasuredMasterOrdersRequired"];
+ Join[expanded,<|"CoefficientRowLabels"->Keys[rows],"Expression"->Association@Table[Keys[rows][[i]]->
+   Sum[Lookup[expanded["Coefficients"],Key[{i,k}],0]e^k,{k,First[range],Last[range]}],{i,Length[rows]}],
+  "KinematicConditions"->solution["KinematicConditions"],"EndpointDistributionsSolved"->False,
+  "Scope"->"Only the measured interior through the requested Laurent orders. Zero source columns need no master value; contact sectors and regulated measurement endpoints remain separate.",
+  "CalculationDefinition"->record["CalculationDefinition"]|>]];
+ result=Append[result,"StageSeconds"-><|"InteriorCoefficientAssembly"->seconds|>];
+ projectWrite[result,card["WorkDirectory"]<>"/Interior.wl"];result
+];
 ConstructMeasuredContributionMasterValues[card_Association,prepared_Association,record_Association]:=Catch[Module[
  {system=record["DifferentialSystem"],family,row,order,slots,ordinary,pure,integrand,one,direct,
   e=Global`Epsilon,values={},seconds,timings=<||>,definition,output,definitions,library,
   libraryRecords={},masterValue,conditions},
+ If[AllTrue[system["Families"],Length[Lookup[#,"FinalMomenta",{}]]===4&],
+  Return[constructMeasuredFourParticleMasterCoefficients[card,prepared,record],Module]];
  conditions=card["Assembly"]["PhaseSpace"]["Assumptions"]&&And@@(0<#<1&/@card["Assembly"]["Variables"]);
  definitions=projectCheck[FeynFacet`ConstructMasterIntegralDefinitions[Join[system,<|"KinematicConditions"->conditions|>]],
    "PolynomialMasterPhysicalDefinitionsRequired"]["MasterIntegralDefinitions"];
@@ -150,6 +238,8 @@ ConstructMeasuredContributionMasterValues[card_Association,prepared_Association,
 AssembleMeasuredContributionInterior[card_Association,record_Association,solution_Association]:=Catch[Module[
  {system=record["DifferentialSystem"],decomposition=record["IntegralDecomposition"],values,
   e=Global`Epsilon,byTerm,byStructure=<||>,labels,structure,expression,expanded,seconds,result},
+ If[AssociationQ[Lookup[solution,"MasterIntegralValues",None]],
+  Return[assembleMeasuredFiniteMasterInterior[card,record,solution],Module]];
  If[solution["MasterIntegralBasis"]=!=system["MasterIntegralBasis"]||
    solution["CalculationDefinition"]=!=record["CalculationDefinition"]||!TrueQ[solution["ExactInRegulator"]],
   projectFail["MatchingExactPhysicalMasterValuesRequired"]];

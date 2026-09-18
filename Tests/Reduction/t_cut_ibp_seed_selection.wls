@@ -64,6 +64,13 @@ FTTest`FTAssert["equation homogeneity removes a scale by an exact change of unkn
  FeynFacet`RestoreIntegralEquationScale[{spT->spM},spNormalized]==={spT->spScale spM}];
 spBadScale=FeynFacet`NormalizeIntegralEquationScale[
  {<|spH->1,spT->-(1+spScale)spA|>},<|spM->0,spT->1,spH->2|>,spScale];
+spNested=(spA spM+(spM+spT)/(1-spA))/(1+spA)+spM/(spA^2-1);
+spRestored=FeynFacet`RestoreIntegralEquationScale[{spH->spNested},spNormalized];
+FTTest`FTAssert["nested native linear rules restore each integral weight without expanding rational coefficients",
+ ListQ[spRestored]&&Cancel[Together[(spH/.spRestored)-
+   spScale^2(spNested/.spT->spT/spScale)]]===0];
+FTTest`FTAssert["nonlinear native expressions cannot be accepted during scale restoration",
+ FailureQ[FeynFacet`RestoreIntegralEquationScale[{spH->spM spT},spNormalized]]];
 FTTest`FTAssert["a scale-dependent matrix cannot be treated as its value at scale one",
  FailureQ[spBadScale]];
 spHarder=FeynFacet`FindCutIBPPredecessorSeeds[spFamily,{spFrontier},spPlan["Seeds"],

@@ -3,10 +3,13 @@
 BeginPackage["FeynFacet`"];
 ExpandGaussHypergeometricCombinations::usage="ExpandGaussHypergeometricCombinations[values,epsilon,range] expands a named linear combination of supported Gauss functions and meromorphic prefactors, with sufficient per-function orders and the common omitted-tail audit.";
 Begin["`Private`"];
-ExpandGaussHypergeometricCombinations[values_Association,e_Symbol,range:{_Integer,_Integer}]:=
+ExpandGaussHypergeometricCombinations[values_Association,e_Symbol,range:{_Integer,_Integer},request_Association:<||>]:=
  Catch[Module[{labels=Keys[values],objects,aliases,polynomials,n,m,coefficients,lower,upper,
-  needed,functions=<||>,vector,matrix,result,expanded,entry,fallback,methods={}},
+  needed,functions=<||>,vector,matrix,result,expanded,entry,fallback,methods={},ranges,allLower=Lookup[request,"IncludeAllLowerOrders",False]},
+ If[!MemberQ[{True,False},allLower],epsOrderFail["BooleanGaussLowerOrderCoverageRequired"]];
  If[values===<||>||First[range]>Last[range],epsOrderFail["FiniteGaussCombinationRequestRequired"]];
+ If[DownValues[FeynFacetSolution`GaussHypergeometricEpsilonCoefficients]==={},
+  Block[{$ContextPath=$ContextPath},Get[FileNameJoin[{$feynFacetDirectory,"Solution.m"}]]]];
  objects=DeleteDuplicates[Cases[Values[values],_Hypergeometric2F1,{0,Infinity}]];
  aliases=Unique["gaussFunction"]&/@objects;n=Length[labels];m=Length[objects]+1;
  polynomials=FeynFacet`PolynomialCoefficientRules[#/.Thread[objects->aliases],aliases]&/@Values[values];
@@ -33,7 +36,8 @@ ExpandGaussHypergeometricCombinations[values_Association,e_Symbol,range:{_Intege
  vector=<|"DimensionalRegulator"->e,"Dimension"->m,"Coefficients"->functions,
   "LaurentLowerBounds"->ConstantArray[0,m],"KnownThroughOrders"->needed,
   "ExactTails"->Prepend[ConstantArray[False,m-1],True]|>;
- result=FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,ConstantArray[range,n]];
+ ranges=If[allLower,({Min[First[range],Min[#]],Last[range]}&/@lower),ConstantArray[range,n]];
+ result=FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,ranges];
  If[FailureQ[result],Throw[result,"EpsilonOrders"]];
  Join[result,<|"CoefficientRowLabels"->labels,"GaussFunctionBasis"->objects,
   "GaussFunctionUpperOrders"->Rest[needed],"AdditionalExpansionMethods"->methods,"CoefficientEntryLaurentLowerBounds"->lower|>]

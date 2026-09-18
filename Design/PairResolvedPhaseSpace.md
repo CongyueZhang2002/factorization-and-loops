@@ -6,7 +6,7 @@ its normalization, scalar-invariant coverage and angular continuation. The gener
 `ConstructPhaseSpaceMeasurementPushforward` retains all proved simple physical
 roots and exact Jacobians. `EvaluatePairMeasurementEulerMaster` evaluates the
 supported angle-independent polynomial periods through explicit beta/Gauss
-functions. It rejects positive ordinary propagator powers for now. This does not
+functions. Positive ordinary powers require the shared original-product prescription certificate and a nonempty initial Euler convergence domain. This does not
 complete general four-body integration or endpoint continuation. No measured
 literature hard coefficient enters the derivation.
 
@@ -93,3 +93,23 @@ Moving angular collinear loci are b=0,a=zeta and b=1,a=1-zeta. With
  t=1-z,X=1-x,Y=1-y, the distinct balances t~X and t~XY must be resolved for
 singular integrands. The internal 1/s34 collinear pole persists at interior z;
 no contact-order bound is inferred from the positive coordinate density.
+
+
+## Explicit complement-mass coefficients
+
+`EvaluatePairComplementMassPeriod` recognizes ordinary complementary invariants
+`(q-p_i)^2` from the original typed cut data, including their prescriptions and
+normalization. It returns finite coefficients for one untagged complement,
+two tagged complements, and a mixed tagged/untagged pair. A single untagged
+complement may carry nonnegative tagged-pair invariant powers. Two untagged
+complements supply only their epsilon^-1 residue after an exact radial subtraction.
+These scalar classes do not encode observable weights or particle multiplicities.
+The mathematical derivation and fixed-interior convergence bounds are retained
+in `External/ChatGPT/Records/2026-09-18/19_complement_mass_physical_periods.md`.
+
+Known finite coefficients propagate through
+`ExtendMasterLaurentCoefficientsUsingDifferentialEquations`, separately from the
+exact-function consequence routine. Differentiation includes moving GPL letters;
+the coefficient valuation and omitted-tail audit control any lost epsilon orders.
+An unresolved order remains unresolved. None of these operations determines
+measurement endpoint contacts from interior values alone.

@@ -12,9 +12,9 @@ masslessPhaseSpaceConstant[n_Integer,e_]:=Module[{coefficient,clusterExponent},
  {particles,3,n}];
  Factor[coefficient]
 ];
-MasslessPhaseSpaceVolume[n_Integer/;n>=2,s_,e_Symbol]:=
+MasslessPhaseSpaceVolume[n_Integer/;n>=2,s_,e_]:=
  masslessPhaseSpaceConstant[n,e]s^(n-2-(n-1)e);
-MasslessMeasuredPhaseSpace[n_Integer/;n>=2,s_,z_,e_Symbol]:=Module[
+MasslessMeasuredPhaseSpace[n_Integer/;n>=2,s_,z_,e_]:=Module[
  {a=1-e,b=(n-1)(1-e)},
  MasslessPhaseSpaceVolume[n,s,e]Gamma[a+b]/(Gamma[a]Gamma[b])z^(a-1)(1-z)^(b-1)
 ];

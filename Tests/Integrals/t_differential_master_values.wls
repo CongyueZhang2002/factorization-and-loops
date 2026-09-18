@@ -16,4 +16,16 @@ FTTest`FTAssert["inconsistent input functions leave a nonzero DE residual instea
  AnyTrue[bad["KnownRowCompatibilityResiduals"],FullSimplify[#["Residual"]]=!=0&]];
 FTTest`FTAssert["unknown integral identities cannot enter supplied physical functions",
  FailureQ[FeynFacet`ExtendMasterValuesUsingDifferentialEquations[system,<|basis[[1]]->basis[[3]]|>]]];
+orderSystem=<|"KinematicVariables"->{x},"DimensionalRegulator"->e,"DimensionRule"->D->4-2e,
+ "MasterIntegralBasis"->Take[basis,2],"ConnectionMatrices"->{{{0,e},{0,0}}}|>;
+short=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
+ <|basis[[1]]-><|"Coefficients"-><|0->1|>,"LaurentLowerBound"->0,"KnownThroughOrder"->0,"ExactTail"->False|>|>,<|basis[[2]]->0|>];
+FTTest`FTAssert["division by an epsilon-valued DE coefficient refuses a missing input order",
+ AssociationQ[short]&&KeyExistsQ[short["UnresolvedRequests"],basis[[2]]]&&!KeyExistsQ[short["Values"],basis[[2]]]];
+sufficient=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
+ <|basis[[1]]-><|"Coefficients"-><|0->1,1->x|>,"LaurentLowerBound"->0,"KnownThroughOrder"->1,"ExactTail"->False|>|>,<|basis[[2]]->0|>];
+FTTest`FTAssert["the next input order determines the finite partner with the omitted-tail audit",
+ AssociationQ[sufficient]&&sufficient["UnresolvedRequests"]===<||>&&
+ sufficient["Values"][basis[[2]]]["Coefficients"][0]===1&&
+ TrueQ[sufficient["Values"][basis[[2]]]["OrderCoverageVerified"]]];
 Print["DIFFERENTIAL MASTER VALUES TEST COMPLETE"];FTTest`FTReport[];

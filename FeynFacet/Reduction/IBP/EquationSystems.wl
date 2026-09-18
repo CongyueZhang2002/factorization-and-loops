@@ -215,18 +215,20 @@ NormalizeIntegralEquationScale[rows_List,weights_Association,scale_Symbol]:=Catc
   "Convention"->"I_i=scale^weight_i J_i. Each original equation is multiplied by the inverse of its recorded common scale monomial. No physical scaling law of I_i is assumed."|>
 ]];
 RestoreIntegralEquationScale[rules_List,normalization_Association]:=Catch[Module[
- {scale,weights,rhs,masters,restored},
+ {scale,weights,rhs,masters,restored,parsed},
  If[Lookup[normalization,"Format",None]=!="FeynFacet-HomogeneousIntegralEquationSystem"||
   !TrueQ[Lookup[normalization,"ExactChangeOfUnknownsEstablished",False]]||
   !MatchQ[rules,{(_Rule)...}],
   Throw[Failure["VerifiedIntegralScaleNormalizationRequired",<||>]]];
  scale=normalization["Scale"];weights=normalization["IntegralWeights"];
  Map[Function[rule,
-  rhs=Last[rule];masters=DeleteDuplicates[Cases[rhs,_FeynCalc`GLI,{0,Infinity}]];
-  If[!AllTrue[Prepend[masters,First[rule]],KeyExistsQ[weights,#]&]||!FreeQ[rhs,scale]||
-    Expand[rhs-Total[Coefficient[rhs,#]#&/@masters]]=!=0,
+  rhs=Last[rule];parsed=linearIntegralSum[rhs];
+  If[!linearIntegralSumQ[parsed]||Cancel[Together[parsed["Remainder"]]]=!=0||!FreeQ[rhs,scale],
    Throw[Failure["LinearScaleIndependentIntegralRuleRequired",<|"Rule"->rule|>]]];
-  restored=Total[(Coefficient[rhs,#]scale^(weights[First[rule]]-weights[#])#)&/@masters];
+  masters=Keys[parsed["Terms"]];
+  If[!AllTrue[Prepend[masters,First[rule]],KeyExistsQ[weights,#]&],
+   Throw[Failure["DeclaredScaleWeightsForEveryIntegralRequired",<|"Integral"->First[rule]|>]]];
+  restored=Total[KeyValueMap[#2 scale^(weights[First[rule]]-weights[#1])#1&,parsed["Terms"]]];
   First[rule]->restored],rules]
 ]];
 End[];EndPackage[];

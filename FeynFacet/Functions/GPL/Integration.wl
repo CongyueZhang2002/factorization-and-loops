@@ -315,8 +315,8 @@ gplFactorCoefficient[coefficient_]:=Module[{atoms},
   _Log|_PolyLog|_PolyGamma|_Zeta|System`EulerGamma,{0,Infinity}]];
  If[atoms==={},Factor[coefficient],Collect[coefficient,atoms,Factor]]
 ];
-gplCollectCoefficients[expression_]:=Module[{objects},
- If[LeafCount[expression]<=1000,Return[expression]];
+gplCollectCoefficients[expression_,force_:False]:=Module[{objects},
+ If[!TrueQ[force]&&LeafCount[expression]<=1000,Return[expression]];
  objects=DeleteDuplicates[Cases[expression,_FeynFacetSolution`G,{0,Infinity}]];
  If[objects==={},gplFactorCoefficient[expression],
   Collect[expression,objects,gplFactorCoefficient]]
@@ -362,5 +362,7 @@ FeynFacetSolution`IntegrateGPL[expression_,{t_Symbol,0,s_},OptionsPattern[]]:=
   words=gplWords[normalized,t];gplBound[words];
   primitive=gplPrimitiveSum[KeyValueMap[gplIntegrateWord[#2,#1,t]&,words]];
   lower=gplAtZero[primitive,t];
-  result=gplCollectCoefficients[gplUpperValue[primitive,t,s]-lower];gplBound[result];result
+  (* Final collection is also required for short expressions: otherwise
+     cancelling coefficients can leave individually divergent upper-end GPLs. *)
+  result=gplCollectCoefficients[gplUpperValue[primitive,t,s]-lower,True];gplBound[result];result
  ],"GPLIntegration"],OptionValue["TimeLimit"],Failure["GPLIntegrationTimeLimit",<||>]]]];

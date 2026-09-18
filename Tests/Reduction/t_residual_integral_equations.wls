@@ -9,6 +9,11 @@ known={a->(rx+1)b};
 residual=FeynFacet`EliminateKnownIntegralRules[rows,{a,c},known];
 FTTest`FTAssert["substitution retains constraints outside the requested target span",
  AssociationQ[residual]&&residual["Rows"]==={<|c->2|>,<|d->1,f->-rx|>}&&residual["Targets"]==={b,c}];
+FTTest`FTAssert["only rows containing solved columns are substituted",
+ residual["SubstitutedEquationCount"]===2&&residual["UnchangedEquationCount"]===1];
+FTTest`FTAssert["a large factored rational coefficient is validated without expanding its polynomial",
+ FeynFacet`Private`exactIntegralCoefficientQ[(1+rx)^10000/(1-rx)^9999]&&
+ !FeynFacet`Private`exactIntegralCoefficientQ[1.5/(1-rx)]];
 FTTest`FTAssert["exact zero equations disappear without deleting a nonzero column",
  residual["OriginalEquationCount"]===3&&residual["ResidualEquationCount"]===2&&residual["ResidualColumnCount"]===3];
 FTTest`FTAssert["the residual has exactly the original equations on the known relation",
