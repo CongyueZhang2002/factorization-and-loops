@@ -29,8 +29,41 @@ UnitCutScalarProductRules[input_Association,preserved_List:{}]:=Catch[Module[
  solution=Factor/@LinearSolve[matrix[[All,pivots]],-constant-matrix[[All,free]].coordinates[[free]]];
  Thread[basis[[pivots]]->(solution/.Thread[coordinates->basis])]
 ],"MeasuredIntegrand"];
+(* Polynomial numerator reduction is an identity on unit cuts, over the
+   rational function field of external variables. It must not change the
+   unrestricted propagators used in differentiated-cut equations. Reducing
+   the small measurement weight first avoids multiplying a large amplitude
+   by numerator factors which the measurement constraint immediately removes. *)
+measuredUnitCutWeight[row_Association,base_Association]:=Module[
+ {definition=row["Definition"],slots,variables=base["FreeScalarProductVariables"],replace,
+  weight,cuts,basis,division,remainder,degree,divisors,output},
+ output=<|"Weight"->row["Weight"],"Definition"->definition,"PolynomialReduction"->None|>;
+ slots=definition["MeasurementCutIndices"];If[slots==={},Return[output]];
+ replace=Reverse/@base["ScalarProductVariables"];
+ weight=(FeynCalc`ExpandScalarProduct[FeynCalc`FCI[
+   (row["Weight"]Lookup[definition,"MeasurementNumerator",1])/.definition["MomentumConservationRules"]]]/.
+   definition["Topology"][[5]]/.replace)/.base["UnitCutRules"];
+ cuts=(definition["InversePropagators"][[slots]]/.replace)/.base["UnitCutRules"];
+ If[!PolynomialQ[weight,variables]||!AllTrue[cuts,PolynomialQ[#,variables]&],Return[output]];
+ degree[value_]:=Max[0,Sequence@@(Total/@(First/@CoefficientRules[value,variables]))];
+ basis=GroebnerBasis[cuts,variables,MonomialOrder->DegreeReverseLexicographic];
+ division=PolynomialReduce[weight,basis,variables,MonomialOrder->DegreeReverseLexicographic];
+ remainder=Factor[Last[division]];
+ If[degree[remainder]>=degree[weight],Return[output]];
+ If[Expand[weight-remainder-First[division].basis]=!=0,
+  measuredIntegrandFail["UnitMeasurementPolynomialIdentityFailed"]];
+ divisors=DeleteDuplicates[First/@Rest[FactorList[Denominator[Together[#]]]]&/@Join[basis,{remainder}]];
+ divisors=DeleteDuplicates[Flatten[divisors]];
+ Join[output,<|"Weight"->(remainder/.base["ScalarProductVariables"]),
+  "Definition"->Join[definition,<|"MeasurementNumerator"->1|>],
+  "PolynomialReduction"-><|"OriginalWeightTimesJacobian"->weight,"ReducedWeightTimesJacobian"->remainder,
+   "UnitMeasurementPolynomials"->cuts,"GroebnerBasis"->basis,"Quotients"->First[division],
+   "OriginalDegree"->degree[weight],"ReducedDegree"->degree[remainder],
+   "ScalarProductVariables"->base["ScalarProductVariables"],"ExceptionalDivisors"->divisors,
+   "Scope"->"Unit-cut numerator identity at generic external variables. Original measurement polynomials remain the off-shell propagators; the regulated endpoint continuation uses the original physical integral."|>|>]
+];
 PrepareFinalStateMeasurementIntegrands[expression_,geometry_Association,specification_Association,request_Association:<||>]:=
-  Catch[Module[{rows,result={},prepared,settings,inclusive,base,reduced,ordinary,index=0,seconds,started},
+  Catch[Module[{rows,result={},prepared,settings,inclusive,base,reduced,ordinary,index=0,seconds,started,weighted},
  rows=FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,specification];
  If[!ListQ[rows],measuredIntegrandFail["FinalStateMeasurementDefinitionsRequired",<|"Cause"->rows|>]];
   settings=Join[<|"ExternalKinematicConditions"->geometry["Assumptions"]|>,request];
@@ -54,8 +87,11 @@ PrepareFinalStateMeasurementIntegrands[expression_,geometry_Association,specific
   If[TrueQ[Lookup[settings,"PrintTimings",False]],Print["COMMON UNMEASURED DENSITY SECONDS ",seconds," BYTES ",ByteCount[reduced]]];
   Do[
    index++;If[TrueQ[Lookup[settings,"PrintTimings",False]],Print["PREPARING MEASUREMENT ",index,"/",Length[rows]]];
-   prepared=FeynFacet`PrepareCutIntegrand[reduced row["Weight"],row["Definition"],settings];
+   weighted=measuredUnitCutWeight[row,base];
+   prepared=FeynFacet`PrepareCutIntegrand[reduced weighted["Weight"],weighted["Definition"],settings];
    If[!AssociationQ[prepared],measuredIntegrandFail["FinalStateMeasurementPreparationFailed",<|"Cause"->prepared|>]];
+   If[AssociationQ[weighted["PolynomialReduction"]],
+    prepared=Join[prepared,<|"UnitMeasurementPolynomialReduction"->weighted["PolynomialReduction"]|>]];
    AppendTo[result,Join[KeyDrop[row,"Definition"],<|"PreparedIntegrand"->prepared,
     "UnmeasuredPreparation"-><|"Seconds"->seconds,"OrdinaryPrescriptionCertificate"->base["OrdinaryPrescriptionCertificate"]|>,
    "ContactMeasurements"->row["Definition"]["ContactMeasurements"]|>]],{row,rows}];
@@ -360,7 +396,8 @@ DecomposeMeasuredCutIntegrand[prepared_Association,request_Association:<||>]:=Ca
  progress["Collecting "<>ToString[Length[rows]]<>" numerator monomials"];
  coefficients=If[rows==={},<||>,Merge[rows,Total]];
  Clear[coordinateImages,monomialImage,sourceCoefficientRules,familyNumeratorRules];
- divisors=DeleteDuplicates[Flatten[Lookup[Values[partials],"ExceptionalDivisors"],1]];
+  divisors=DeleteDuplicates[Join[Flatten[Lookup[Values[partials],"ExceptionalDivisors"],1],
+   Lookup[Lookup[prepared,"UnitMeasurementPolynomialReduction",<||>],"ExceptionalDivisors",{}]]];
  raw=<|"Format"->"FeynFacet-MeasuredIntegralDecomposition","FormatVersion"->2,
   "ScalarCoefficientsExternal"->True,"CoefficientCancellationComplete"->False,
   "Families"->families,"Coefficients"->coefficients,"Targets"->Keys[coefficients],

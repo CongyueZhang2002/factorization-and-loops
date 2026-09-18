@@ -97,3 +97,19 @@ internal branch and Laurent-truncation checks passed in 17.32 s. This supplies
 scalar integral values, not generated two-loop form-factor coefficients and not
 the missing measured virtual assembly. The four-body implementation at revision
 `f126f874` has been pushed and sent to Pro for a focused static review.
+
+The first DE attempt was then stopped after 318.80 s of preparation, before
+claiming any completed reduction. The unoptimized gluon attempt was stopped
+after 1206.11 s, still converting large polynomial numerators. Their receipts
+record unsuccessful/interrupted attempts, not production success.
+
+An exact polynomial-cut relation now reduces the small measurement weight times
+Jacobian before multiplying it by the amplitude. In this observable its loop
+scalar-product degree drops from four to two. Original unrestricted propagators
+are retained for dotted-cut equations; new external divisors are recorded.
+Seventeen direct/shared four-body checks pass (7.97 s), as do seven exact
+three-body phase-space checks (5.32 s), with all regulator dependence retained.
+Both gluon and distinct-flavor preparations are now rerunning with this reduction,
+on CPUs 0..3 and 4..7 respectively. Inspect their latest Prepare logs/receipts;
+the preceding records have the prefix BeforePolynomialReduction. No new DE is
+currently running. Restart the DE with the new inputs after successful preparation.

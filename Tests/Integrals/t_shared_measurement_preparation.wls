@@ -17,13 +17,23 @@ restore[prepared_]:=Total[Map[#["Numerator"]Times@@MapThread[Power,
 Do[
  direct=FeynFacet`PrepareCutIntegrand[expression definitions[[i]]["Weight"],definitions[[i]]["Definition"],
    <|"ExternalKinematicConditions"->ps>0|>];
+ difference=If[AssociationQ[direct],restore[shared[[i]]["PreparedIntegrand"]]-restore[direct],$Failed];
+ slots=definitions[[i]]["Definition"]["MeasurementCutIndices"];
+ If[slots=!={}&&AssociationQ[direct],
+  constraint=definitions[[i]]["Definition"]["InversePropagators"][[First[slots]]];
+  constraint=(constraint/.(Reverse/@direct["ScalarProductVariables"])/.direct["UnitCutRules"])/.direct["ScalarProductVariables"];
+  difference=difference/.pz->-(constraint/.pz->0)/Coefficient[constraint,pz]];
  FTTest`FTAssert["shared and direct rational densities agree for constraint "<>ToString[i],
-   AssociationQ[direct]&&Cancel[Together[restore[shared[[i]]["PreparedIntegrand"]]-restore[direct]]]===0];
+   AssociationQ[direct]&&Cancel[Together[difference]]===0];
  FTTest`FTAssert["original off-shell propagators retain the causal proof for constraint "<>ToString[i],
   FeynFacet`RequireOrdinaryPrescriptionCertificate[shared[[i]]["PreparedIntegrand"],"GenericKinematics"]===True],
  {i,Length[definitions]}];
 FTTest`FTAssert["dimensional scale powers remain coefficients of rational cancellation",
  FreeQ[Lookup[# ["PreparedIntegrand"]["RationalCancellation"],"Reason",None]&/@shared,
    "RationalCoefficientDependenceRequired"]];
+FTTest`FTAssert["quadratic cuts reduce the degree of the measured numerator before amplitude expansion",
+ AllTrue[Select[shared,#["ContactMeasurements"]==={}&],
+  With[{r=Lookup[#["PreparedIntegrand"],"UnitMeasurementPolynomialReduction",<||>]},
+   Lookup[r,"ReducedDegree",Infinity]<Lookup[r,"OriginalDegree",0]]&]];
 Print["SHARED MEASUREMENT PREPARATION TEST COMPLETE"];
 FTTest`FTReport[];

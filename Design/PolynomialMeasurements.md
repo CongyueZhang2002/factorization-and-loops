@@ -89,6 +89,28 @@ massless two-/three-body timelike current decays with supported Euler
 geometry and the one-loop two-body interference. This is not a claim of a
 solver for every possible quadratic observable or of NLO EEC (alpha_s^2).
 
+## Reducing measurement numerators before expansion
+
+For unit cuts, polynomial division gives `N = Sum[Qi Gi] + R`, where the `Gi`
+are measurement polynomials after the affine particle-cut equations are imposed.
+Thus `N Product[delta(Gi)] = R Product[delta(Gi)]`. The preparer applies this to
+the small card-defined weight times its measurement Jacobian before multiplying
+by the amplitude. For the quadratic energy-pair measurement, this reduces the
+scalar-product degree from four to two and avoids many unnecessary IBP targets.
+
+The division is over the rational function field in external variables. Newly
+introduced external divisors are retained in `ExceptionalDivisors`; they are
+not automatically physical singularities. The original unrestricted measurement
+and ordinary propagators remain the definitions for dotted cuts. No polynomial
+relation restricted to unit cuts is substituted into an off-shell IBP identity.
+Endpoint distributions are still obtained by continuing the original regulated
+physical integral, rather than extending an unregulated interior identity.
+
+The physical coordinate constructor in `Integrals/Parametric/InvariantPhaseSpace.wl`
+supplies scalar two-, three- and four-body integration charts. Its four-body
+chart retains the dimensional relative-azimuth measure. It is an integration
+representation; it does not claim that a measured master has been evaluated.
+
 ## Review and sources
 
 Actual GPT-6 Pro reviewed the cut algebra, convergence qualifications,
