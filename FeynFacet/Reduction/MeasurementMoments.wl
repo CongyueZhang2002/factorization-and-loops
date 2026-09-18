@@ -4,8 +4,12 @@ BeginPackage["FeynFacet`"];
 ReduceMeasurementMomentCombinations::usage="ReduceMeasurementMomentCombinations[moments,reduction] applies retained exact integral rules to polynomial measurement moments and finds combinations, with coefficients independent of the measurement variable, whose unreduced integrals cancel identically. It returns measured rows in the declared basis and the matching inclusive integrals. It does not generate IBPs, evaluate inclusive values, continue endpoint integrals or establish rank on unknown DE constants.";
 Begin["`Private`"];
 ReduceMeasurementMomentCombinations[moments:{__Association},reduction_Association]:=Catch[Module[
- {z,e,basis,rules,images,parsed,outside,coefficientRows,matrixRows={},denominator,polynomials,
-  degree,kernel,results={},coefficients,image,inclusive,terms,rows,families,signature,groups},
+ {z,e,basis,rules,images,parsed,outside,matrixRows={},denominator,polynomials,
+  degree,kernel,results={},coefficients,image,inclusive,terms,rows,families,signature,groups,
+  requireExactCoefficients},
+ requireExactCoefficients[maps_List]:=If[
+  !AllTrue[DeleteDuplicates[Flatten[Values/@maps]],exactIntegralCoefficientQ],
+  cutFamilyFail["ExactRationalMomentCoefficientsRequired"]];
  If[!AllTrue[moments,Lookup[#,"Format",None]==="FeynFacet-PolynomialMeasurementMoment"&&
     TrueQ[Lookup[#,"CommonConvergenceDomainExists",False]]&],
   cutFamilyFail["VerifiedPolynomialMeasurementMomentsRequired"]];
@@ -33,13 +37,19 @@ ReduceMeasurementMomentCombinations[moments:{__Association},reduction_Associatio
       _FeynCalc`GLI,{0,Infinity}]]],cutFamilyFail["EveryMomentIntegralFamilyMustBeDeclared"]];
  If[rules=!={},parsed=linearIntegralSum/@(Last/@rules);
   If[!AllTrue[parsed,linearIntegralSumQ[#]&&Cancel[Together[#["Remainder"]]]===0&&
-    ContainsAll[basis,Keys[#["Terms"]]]&],cutFamilyFail["ClosedMomentReductionRulesRequired"]]];
+    ContainsAll[basis,Keys[#["Terms"]]]&],cutFamilyFail["ClosedMomentReductionRulesRequired"]];
+  requireExactCoefficients[Lookup[parsed,"Terms"]]];
+ parsed=linearIntegralSum/@Lookup[moments,"UnmeasuredIntegrals"];
+ If[!AllTrue[parsed,linearIntegralSumQ[#]&&#["Remainder"]===0&],
+  cutFamilyFail["LinearInclusiveMomentImagesRequired"]];
+ requireExactCoefficients[Lookup[parsed,"Terms"]];
  images=ibpCanonicalIntegralImages[(#["Weight"]#["MeasuredIntegrals"]&/@moments)/.Dispatch[rules]];
  If[!ListQ[images],cutFamilyFail["CanonicalMomentIntegralImagesRequired"]];
  parsed=linearIntegralSum/@images;
  If[!AllTrue[parsed,linearIntegralSumQ[#]&&#["Remainder"]===0&],
   cutFamilyFail["LinearMomentIntegralImagesRequired"]];
  rows=Lookup[parsed,"Terms"];
+ requireExactCoefficients[rows];
  outside=Complement[Union[Flatten[Keys/@rows]],basis];
  (* Clear denominators separately for each outside GLI. Coefficients of every
     power of z constrain the same constant combination; a single z sample
@@ -69,6 +79,8 @@ ReduceMeasurementMomentCombinations[moments:{__Association},reduction_Associatio
  {combination,kernel}];
  <|"Format"->"FeynFacet-ReducedMeasurementMomentCombinations","Variable"->z,
    "DimensionalRegulator"->e,"MasterIntegralBasis"->basis,"SourceMoments"->moments,
+   "ReductionInput"->KeyTake[reduction,{"Families","Masters","Rules","Scope"}],
+   "ExactnessScope"->"Verified algebraic consequence of the retained source moments and supplied reduction identities; not an independent proof of those input identities.",
    "ReducedInsertionImages"->images,"UncoveredIntegrals"->outside,
    "MeasurementIndependentCombinationBasis"->kernel,"MomentRows"->results,
    "IntegralIdentitiesVerifiedExactly"->True,"NewIBPEquationsGenerated"->False,

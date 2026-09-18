@@ -257,3 +257,76 @@ This is an execution change, not a claim of an eightfold full-run speedup.
 The preserved live derivative search has progressed to33977 seeds/1083829 rows,
 reducing313 sampled remainder columns to1. Iteration3 adds121 seeds (1087863 rows).
 It still requires exact rational acceptance and physical master integration.
+
+
+### Exact-attempt recovery and inclusive moment constraints
+
+The repaired identical-quark derivative search reached zero sampled remainder
+columns at34,098 seeds/1,087,863 rows. Before launching the exact backend, the
+kernel was OOM-killed after3116.165s. Native equations, identifiers and scale
+normalization survived. The new permanent resume path directly consumes the
+retained exact request; it does not repeat seed generation or sampling. The
+unused full-equation fingerprint was removed from this typed path, retaining
+exact workspace comparisons. Its position matches the final stopped operation;
+this is a diagnosed suspect allocation, not an isolated memory benchmark.
+The resumed process is recorded in STATUS.md and ControlledDEState.json.
+
+Pro26 confirmed an explicit sufficient four-particle Gram-domination half-plane
+and bounded selection of inclusive moment constraints. Pro27 inspected the
+pushed moment code, confirmed its normalization/convergence argument and found
+three input/metadata gaps. They are repaired using shared normalization-domain
+checks, regulator agreement and context-preserving family identifiers. These
+are generic operations. No measured literature hard coefficient was used.
+
+Exploratory actual source moments:17 prepared,26 unsupported with the selected
+chart;5 combinations have exact cancellation of all uncovered GLIs without new
+IBPs,29.382s. They do not yet fix physical constants; inclusive values, continued
+endpoint pairings and physical-constant rank remain required. Regenerate this
+record after the Pro27 metadata repairs before consuming it.
+
+Validation after repairs:11 moment assertions6.269s,18 endpoint-regularity
+assertions2.966s,6 exact DE/replay assertions5.821s. Six moment-combination
+assertions passed17.524s; the first attempt incorrectly demanded a particular
+normalization of a null-space vector and was corrected to test its exact linear
+relation. Scale-analysis caching:4096 real rows1.773s ->0.476s with identical
+exact records; benchmark total19.924s and15 seed/scale assertions20.374s. All
+quoted elapsed times come from Python monotonic clocks and include startup
+unless explicitly identified as an internal timed section.
+
+Pushed revision1f27a8b18ff6ba1ffda2025e8095c89491c1f563. Full conventional NLO
+EEC remains incomplete: identical/gluon measured DEs and physical values,
+original-source RR endpoints, complete angular pole cancellation and final
+explicit result still need completion.
+
+
+## Exact identical-quark DE and physical moment constraints
+
+The controlled DE recovery has completed successfully in1426.822s including
+startup, retaining earlier equation-generation work. This is a recovery-stage
+time, not a cold calculation total. Both derivative searches now close exactly;
+the saved DifferentialSystem.wl is the input to physical-basis/master evaluation.
+The earlier OOM3116.165s and memory-guard244.556s attempts remain failed costs.
+Duplicate snapshot deserialization and rebuilding were removed; no healthy
+native computation was discarded for this change.
+
+Automatic pair identification and the fixed-sign absolute measurement Jacobian
+now prepare moments for all43 source coordinates. Ten exact combinations lie
+in the retained source span. Their inclusive RHSs involve11 targets in3 families,
+reduced to6 evaluated physical scalars. InclusiveMomentValues.wxf was produced
+in37.986s including startup and exact reduction. Coefficient order demands and
+omitted-tail checking are retained. Neither physical-constant rank nor sufficient
+depth for inverting the eventual moment matrix is yet established.
+
+Actual Pro28 reviewed fb974069 and confirmed the signed-cut and selector formulas.
+All parsed coefficients now undergo exact rational checks, including fully reduced
+images and inclusive RHSs. The accepted reduction catalogue/rules are retained
+with the selector.10 assertions pass2.966s; the first test attempt15.608s failed
+only because it compared association key ordering, and is retained separately.
+The real43/10 moment records and nested inclusive provenance were refreshed with
+exactly unchanged moment rows in15.222s. No native solve was repeated for this.
+
+The next decision milestone is the full source-required identical-quark physical
+interior, with every relevant homogeneous constant fixed and an independent
+check. The gluon measured sector and original-source endpoint/contact proof remain
+separate obligations. The complete NLO EEC result has not been compared with a
+published measured coefficient.

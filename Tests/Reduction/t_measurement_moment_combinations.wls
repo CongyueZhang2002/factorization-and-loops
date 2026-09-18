@@ -38,4 +38,17 @@ FTTest`FTAssert["integral identities do not assert solved moments or physical-co
 FTTest`FTAssert["identical integral names cannot hide different physical definitions",
  FailureQ[FeynFacet`ReduceMeasurementMomentCombinations[records,
   Join[reduction,<|"Families"->{Join[fixture,<|"MeasurePrefactor"->2|>]}|>]]]];
+FTTest`FTAssert["approximate coefficients are rejected even without outside-span columns",
+ FailureQ[FeynFacet`ReduceMeasurementMomentCombinations[{make[i1+0.1i2,u1]},reduction]]&&
+ FailureQ[FeynFacet`ReduceMeasurementMomentCombinations[{make[i1,0.1u1]},reduction]]&&
+ FailureQ[FeynFacet`ReduceMeasurementMomentCombinations[{make[ix,u1]},
+  Join[reduction,<|"Rules"->{ix->i1+0.1i2}|>]]]];
+weighted=FeynFacet`ReduceMeasurementMomentCombinations[
+ {make[i1+z ix,u1],Join[make[i2+2ix,u2],<|"Weight"->z|>]},reduction];
+FTTest`FTAssert["unequal measured weights are not applied a second time to inclusive values",
+ AssociationQ[weighted]&&First[weighted["MomentRows"]]["MeasuredMasterCoefficients"]==={-2,z}&&
+ First[weighted["MomentRows"]]["UnmeasuredIntegrals"]===-2u1+u2];
+FTTest`FTAssert["the exact supplied reduction and family catalogue remain attached",
+ AllTrue[Keys[reduction],result["ReductionInput"][#]===reduction[#]&]&&
+ StringQ[result["ExactnessScope"]]];
 Print["MEASUREMENT MOMENT COMBINATIONS TEST COMPLETE"];FTTest`FTReport[];
