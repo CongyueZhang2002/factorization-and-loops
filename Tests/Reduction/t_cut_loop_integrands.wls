@@ -34,4 +34,35 @@ FTTest`FTAssert["pure virtual sources use the same numerator algebra without acq
  Values[pure["CoefficientRules"]["Scalar"]]==={2}];
 FTTest`FTAssert["an ordinary propagator coinciding with a mandatory cut is not silently merged",
  FailureQ[FeynFacet`DecomposeCutLoopIntegrands[<|"Scalar"->bubble prop[ik1]|>,phase,{il}]]];
+phase3=FeynFacet`CreateMasslessPhaseSpaceDefinition[<|"Name"->mixedThreeTest,
+ "FinalMomenta"->{ik1,ik2,ik3},"TotalMomentum"->iq,"ExternalMomenta"->{iq},
+ "KinematicRules"->{FeynCalc`SPD[iq]->is},"Assumptions"->is>0|>];
+threeSource=<|"Scalar"->prop[ik1+ik2]prop[ik1+ik3,-1]prop[ik2+ik3]bubble|>;
+partials=FeynFacet`Private`cutLoopExternalPartialFractions[threeSource,phase3,{il}];
+FTTest`FTAssert["unit-cut external partial fractions never increase any original denominator power",
+ AssociationQ[partials]&&partials["PowersNeverIncreased"]&&
+ Length[First[Values[partials["PartialFractions"]]]["Terms"]]===3];
+If[!AssociationQ[partials],Print[InputForm[partials]];Exit[1]];
+unitRules=FeynFacet`UnitCutScalarProductRules[phase3];
+identity=FeynCalc`ExpandScalarProduct[FeynCalc`FeynAmpDenominatorExplicit[
+ (threeSource["Scalar"]/.phase3["MomentumConservationRules"])-partials["Values"]["Scalar"]]]/.
+ phase3["Topology"][[5]]/.unitRules;
+FTTest`FTAssert["the external rewrite is an exact rational identity on the original particle cuts",
+ Factor[identity]===0];
+FTTest`FTAssert["external partial fractions retain the virtual denominator product and its causal signs",
+ !partials["VirtualPrescriptionsChanged"]&&
+ !FreeQ[partials["Values"],FeynCalc`StandardPropagatorDenominator[FeynCalc`Momentum[il,D],0,0,{1,-1}]]];
+mixed3=FeynFacet`DecomposeCutLoopIntegrands[partials["Values"],phase3,{il}];
+FTTest`FTAssert["the rewritten mixed products have complete independent off-shell families",
+ AssociationQ[mixed3]&&Length[mixed3["Families"]]===3&&
+ AllTrue[mixed3["Families"],Length[#["CutIndices"]]===3&]];
+FTTest`FTAssert["unit-cut partial fraction identities cannot be applied to dotted particle cuts",
+ FailureQ[FeynFacet`Private`cutLoopExternalPartialFractions[threeSource,
+  Join[phase3,<|"CutPowers"->{2,1,1}|>],{il}]]];
+generic[core_]:=FeynCalc`FeynAmpDenominator[FeynCalc`GenericPropagatorDenominator[FeynCalc`FCI[core],{1,1}]];
+homogeneousSource=<|"Scalar"->generic[2FeynCalc`SPD[ik1,ik2]]generic[2FeynCalc`SPD[ik1,ik3]]*
+ generic[2FeynCalc`SPD[ik1,ik2]+2FeynCalc`SPD[ik1,ik3]]bubble|>;
+FTTest`FTAssert["a homogeneous dependency requiring raised external powers needs a new proof",
+ MatchQ[FeynFacet`Private`cutLoopExternalPartialFractions[homogeneousSource,phase3,{il}],
+  Failure["NonincreasingExternalPowersAndNonzeroDivisorsRequired",_]]];
 Print["CUT LOOP INTEGRANDS TEST COMPLETE"];FTTest`FTReport[];

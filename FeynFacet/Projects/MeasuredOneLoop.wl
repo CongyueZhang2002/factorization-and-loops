@@ -6,11 +6,17 @@ IntegrateMeasuredCurrentOneLoopInterior::usage="IntegrateMeasuredCurrentOneLoopI
 VerifyMeasuredCurrentOneLoopContactOrder::usage="VerifyMeasuredCurrentOneLoopContactOrder[card,mode] proves an ordinary-contact bound for every noncontact tuple density on its full two-variable integration domain and stores Work/MeasuredContactOrder.wl. It uses the original prescribed products and actual measurement maps; inclusive moments and contact coefficients remain separate. Matching proofs may be reused in resume mode.";
 PrepareMeasuredCurrentOneLoopInclusiveIntegration::usage="PrepareMeasuredCurrentOneLoopInclusiveIntegration[card,mode] derives an unweighted inclusive integration density from the card-owned generated scalar-loop source, using a proved measurement chart as coordinates. It constructs the complete regulated endpoint cover and verifies the external-prescription limit in a convergent epsilon half-plane. It stores Work/InclusiveScalarLoopEndpointCharts.wl; it does not supply the integrated rate or an accepted contribution.";
 ConstructMeasuredCurrentOneLoopInclusiveSubtractions::usage="ConstructMeasuredCurrentOneLoopInclusiveSubtractions[card,mode] prepares the card-owned inclusive scalar-loop chart cover, then constructs exact regulator-dependent endpoint subtractions on every chart. It saves Work/InclusiveScalarLoopSubtractions.wl. The resulting finite strata remain to be integrated and are not an accepted raw contribution.";
+DecomposeMeasuredCurrentOneLoopInclusiveSource::usage="DecomposeMeasuredCurrentOneLoopInclusiveSource[card,mode] converts the generated unweighted loop source to measurement-free cut/loop families, after verifying its exact source binding and inclusive external-prescription limit. Only external products with nonincreasing partial-fraction powers are rewritten on original unit particle cuts. Virtual prescriptions remain. It saves Work/InclusiveCutLoopIntegrands.wl; IBP reduction and scalar evaluation are separate.";
+ReduceMeasuredCurrentOneLoopInclusiveSource::usage="ReduceMeasuredCurrentOneLoopInclusiveSource[card,mode,execution] derives the card-owned measurement-free cut/loop source and reduces its actual targets with the shared typed IBP machinery. It uses the declared scale and execution thread budget; execution may restrict Threads to fit a concurrent run. It retains the exact reduction and assembles its master coefficients. Universal scalar evaluation and Hermitian completion are separate; no inclusive rate is claimed.";
 Begin["`Private`"];
 measuredLoopNormalizeSource[reduced_,card_,request_,e_]:=<|
  "Source"->Join[reduced,Association@Table[key->Map[
    FeynFacet`SubstituteScalarPowers[#/.D->4-2e,request["BareCouplingRules"]]&,reduced[key]],{key,{"Values","InteriorValues"}}]],
  "Prefactor"->((request["CurrentNormalization"]Lookup[card,"SymmetryFactor",1]Lookup[card,"FlavorMultiplicity",1])/.D->4-2e)|>;
+measuredLoopSourceCompatibleQ[source_,definition_]:=AssociationQ[source]&&
+ Lookup[source,"Format",None]==="FeynFacet-OneLoopIntegrands"&&
+ Lookup[source,"CalculationDefinition",None]===definition&&
+ AssociationQ[Lookup[source,"InvariantCoordinates",None]];
 
 measuredLoopInteriorReusableQ[row_,definition_,density_]:=Module[{range,labels,keys},
  If[!AssociationQ[row]||Lookup[row,"Format",None]=!="FeynFacet-OneLoopMeasuredInterior"||
@@ -49,7 +55,9 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
   "FlavorMultiplicity"->Lookup[card,"FlavorMultiplicity",1]|>;
  file=path<>"/PreparedScalarLoopDensity.wl";
  If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
-  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition,
+  source=FeynFacet`FamilyArtifactRead[path<>"/MeasuredScalarLoopIntegrals.wl"];
+  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition&&
+    measuredLoopSourceCompatibleQ[source,definition],
    Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
  {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
   <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
@@ -65,7 +73,9 @@ PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]
   <|"LoopMomentum"->First[setup["ForwardAmplitudes"]["LoopMomenta"]],"PrintTimings"->True|>]];
  reduced=projectCheck[reduced,"MeasuredLoopScalarReductionFailed"];
  AssociateTo[timings,"ScalarLoopReduction"->seconds];
- projectWrite[Join[reduced,<|"ProcessDefinition"->setup,"InvariantCoordinates"->coordinates|>],path<>"/MeasuredScalarLoopIntegrals.wl"];
+ projectWrite[Join[reduced,<|"ProcessDefinition"->setup,"CalculationDefinition"->definition,
+   "InvariantCoordinates"->coordinates,"InputCompanions"-><|"SourceValues"->source["Values"]|>|>],
+   path<>"/MeasuredScalarLoopIntegrals.wl"];
  {normalized,prefactor}=Lookup[measuredLoopNormalizeSource[reduced,card,request,e],{"Source","Prefactor"}];
  {seconds,terms}=facetElapsedTiming[FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,specification]];
  If[!ListQ[terms],projectFail["MeasuredLoopTupleDefinitionsRequired",<|"Cause"->terms|>]];
@@ -164,20 +174,23 @@ VerifyMeasuredCurrentOneLoopContactOrder[card_Association,mode_String:"resume"]:
 ],"ProjectCards"];
 PrepareMeasuredCurrentOneLoopInclusiveIntegration[card_Association,mode_String:"resume"]:=Catch[Module[
  {prepared,request,geometry,reduced,normalized,terms,term,density,atlas,path,file,e=Global`Epsilon,
-  prefactor,seconds,proof,definition,saved,inputs},
+  prefactor,seconds,proof,coverage,definition,saved,inputs},
  prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopContribution[card,mode],"PreparedMeasuredLoopContributionRequired"];
  path=card["WorkDirectory"];file=path<>"/InclusiveScalarLoopEndpointCharts.wl";
  request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"MeasuredCurrentAssemblyRequired"];
  geometry=prepared["CalculationDefinition"]["PhaseSpace"];
  reduced=projectCheck[FeynFacet`FamilyArtifactRead[path<>"/MeasuredScalarLoopIntegrals.wl"],"GeneratedScalarLoopSourceRequired"];
+ If[!measuredLoopSourceCompatibleQ[reduced,prepared["CalculationDefinition"]],
+  projectFail["ScalarLoopSourceCalculationMismatch"]];
  {normalized,prefactor}=Lookup[measuredLoopNormalizeSource[reduced,card,request,e],{"Source","Prefactor"}];
- definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],"InclusiveIntegrationSchema"->1,
+ definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],"InclusiveIntegrationSchema"->2,
    "Assumptions"->card["Assembly"]["Assumptions"]|>;
  inputs=<|"Source"->normalized,"Coordinates"->reduced["InvariantCoordinates"],"Prefactor"->prefactor|>;
  If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
   If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition&&
     Lookup[saved,"InputCompanions",None]===inputs&&
-    TrueQ[Lookup[Lookup[saved,"PrescriptionLimit",<||>],"ExternalPrescriptionLimitEstablished",False]],
+    TrueQ[Lookup[Lookup[saved,"PrescriptionLimit",<||>],"ExternalPrescriptionLimitEstablished",False]]&&
+    TrueQ[Lookup[Lookup[saved,"InclusiveChartVerification",<||>],"FullPhaseSpaceCovered",False]],
    Return[Join[saved,<|"Reused"->True|>],Module]]];
  terms=FeynFacet`CreateFinalStateMeasurementDefinitions[geometry,
    prepared["CalculationDefinition"]["FinalStateMeasurement"]];
@@ -190,12 +203,14 @@ PrepareMeasuredCurrentOneLoopInclusiveIntegration[card_Association,mode_String:"
        Complement[Range[Length[geometry["FinalMomenta"]]],First[term["ParticleTuples"]]]],
      "DensityPrefactor"->prefactor,"Assumptions"->geometry["Assumptions"]&&
        And@@(0<#<1&/@card["Assembly"]["Variables"])|>],"InclusiveScalarLoopPushforwardRequired"];
- projectWrite[density,path<>"/InclusiveScalarLoopDensity.wl"];
+ coverage=projectCheck[FeynFacet`VerifyThreeParticleInclusiveChart[density["MeasurementGeometry"],
+   card["Assembly"]["Assumptions"]],"ExhaustiveInclusiveMeasurementCoordinatesRequired"];
+ projectWrite[Join[density,<|"InclusiveChartVerification"->coverage|>],path<>"/InclusiveScalarLoopDensity.wl"];
  {seconds,atlas}=AbsoluteTiming[FeynFacet`ResolveOneLoopMeasurementEndpointCharts[density,1,
     <|"Assumptions"->card["Assembly"]["Assumptions"],"PrintTimings"->True|>]];
  atlas=projectCheck[atlas,"InclusiveScalarLoopEndpointResolutionRequired"];
  proof=projectCheck[FeynFacet`VerifyOneLoopInclusivePrescriptionLimit[atlas],"InclusiveExternalPrescriptionLimitRequired"];
- atlas=Join[atlas,<|"CalculationDefinition"->definition,"PrescriptionLimit"->proof,
+ atlas=Join[atlas,<|"CalculationDefinition"->definition,"PrescriptionLimit"->proof,"InclusiveChartVerification"->coverage,
    "InputCompanions"->inputs,"Seconds"->seconds,"Reused"->False,"IntegralEvaluated"->False|>];
  projectWrite[atlas,file];atlas
 ],"ProjectCards"];
@@ -219,5 +234,66 @@ ConstructMeasuredCurrentOneLoopInclusiveSubtractions[card_Association,mode_Strin
    "Rows"->rows,"InputCompanions"-><|"Charts"->prepared["Charts"]|>,
    "IntegralEvaluated"->False,"Reused"->False|>;
  projectWrite[output,file];output
+],"ProjectCards"];
+DecomposeMeasuredCurrentOneLoopInclusiveSource[card_Association,mode_String:"resume"]:=Catch[Module[
+ {inclusive,definition,reduced,source,phase,loops,partials,decomposed,request,e=Global`Epsilon,
+  prefactor,seconds,output,inputs,file,saved},
+ inclusive=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopInclusiveIntegration[card,mode],"InclusiveLoopPreparationRequired"];
+ definition=inclusive["CalculationDefinition"]["CalculationDefinition"];
+ reduced=inclusive["InputCompanions"]["Source"];
+ source=Lookup[Lookup[reduced,"InputCompanions",<||>],"SourceValues",None];
+ If[!measuredLoopSourceCompatibleQ[reduced,definition]||!AssociationQ[source]||
+   !TrueQ[inclusive["InclusiveChartVerification"]["FullPhaseSpaceCovered"]]||
+   !TrueQ[inclusive["PrescriptionLimit"]["ExternalPrescriptionLimitEstablished"]],
+  projectFail["BoundGeneratedSourceAndInclusivePrescriptionLimitRequired"]];
+ phase=projectCheck[FeynFacet`CreateMasslessPhaseSpaceDefinition[definition["PhaseSpace"]],"InclusiveParticleCutsRequired"];
+ loops=definition["ProcessDefinition"]["ForwardAmplitudes"]["LoopMomenta"];
+ request=definition["AssemblyRequest"];prefactor=inclusive["InputCompanions"]["Prefactor"];
+ inputs=<|"SourceValues"->source,"PhaseSpace"->phase,"LoopMomenta"->loops,
+   "Prefactor"->prefactor,"BareCouplingRules"->request["BareCouplingRules"]|>;
+ file=card["WorkDirectory"]<>"/InclusiveCutLoopIntegrands.wl";
+ If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition&&
+    Lookup[saved,"DecompositionSchema",None]===1&&Lookup[saved,"InputCompanions",None]===inputs,
+   Return[Join[saved,<|"Reused"->True|>],Module]]];
+ {seconds,decomposed}=AbsoluteTiming[
+  partials=projectCheck[cutLoopExternalPartialFractions[source,phase,loops,
+    <|"Assumptions"->card["Assembly"]["Assumptions"]|>],"InclusiveExternalPartialFractionsRequired"];
+  FeynFacet`DecomposeCutLoopIntegrands[partials["Values"],phase,loops,
+    <|"FamilyNamePrefix"->"InclusiveLoopFamily","Assumptions"->card["Assembly"]["Assumptions"]|>]];
+ decomposed=projectCheck[decomposed,"InclusiveCutLoopDecompositionRequired"];
+ decomposed=Join[decomposed,<|"CoefficientRules"->Map[Map[
+   FeynFacet`SubstituteScalarPowers[(# prefactor)/.D->4-2e,request["BareCouplingRules"]]&,
+     #]&,decomposed["CoefficientRules"]]|>];
+ output=<|"Format"->"FeynFacet-InclusiveCutLoopSource","DecompositionSchema"->1,
+   "CalculationDefinition"->definition,"IntegralDecomposition"->decomposed,
+   "ExternalPartialFractions"->KeyDrop[partials,"Values"],"InputCompanions"->inputs,
+   "PrescriptionLimit"->inclusive["PrescriptionLimit"],"InclusiveChartVerification"->inclusive["InclusiveChartVerification"],
+   "Seconds"->seconds,"Reused"->False,"IntegralEvaluated"->False,
+   "Scope"->"Generated amplitude, derived scalar normalization and original unit particle cuts. Source-level external prescription limits precede nonincreasing partial fractions; virtual causal prescriptions remain in all families. No IBP reduction or inclusive rate is supplied."|>;
+ projectWrite[output,file];output
+],"ProjectCards"];
+ReduceMeasuredCurrentOneLoopInclusiveSource[card_Association,mode_String:"resume",execution_Association:<||>]:=Catch[Module[
+ {source,data,reduction,seconds,coefficients,output,threads},
+ threads=Lookup[execution,"Threads",card["Execution"]["KiraThreads"]];
+ If[!IntegerQ[threads]||threads<1||threads>card["Execution"]["KiraThreads"],projectFail["BoundedPositiveReductionThreadsRequired"]];
+ source=projectCheck[FeynFacet`DecomposeMeasuredCurrentOneLoopInclusiveSource[card,mode],"InclusiveCutLoopSourceRequired"];
+ data=source["IntegralDecomposition"];
+ Print["INCLUSIVE CUT LOOP FAMILIES ",Length[data["Families"]]," TARGETS ",Length[data["Targets"]]];
+ {seconds,reduction}=AbsoluteTiming[FeynFacet`KiraReduction[data["Families"],data["Targets"],
+   <|"WorkingDirectory"->card["WorkDirectory"]<>"/InclusiveReduction",
+     "Threads"->threads,"GenerationKernels"->1,
+     "SeedPolicy"->"TargetDownsets","RationalSolver"->"FireFly",
+     "HomogeneousScale"->card["Assembly"]["Scale"],"PrintTimings"->True|>]];
+ reduction=projectCheck[reduction,"InclusiveCutLoopReductionRequired"];
+ coefficients=Map[Function[row,Module[{parsed=linearIntegralSum[
+     Total[KeyValueMap[#1 #2&,row]]/.Dispatch[reduction["Rules"]]]},
+   If[!linearIntegralSumQ[parsed]||parsed["Remainder"]=!=0,
+    projectFail["LinearInclusiveMasterCoefficientsRequired"]];Factor/@parsed["Terms"]]],data["CoefficientRules"]];
+ output=<|"Format"->"FeynFacet-InclusiveCutLoopReduction","CalculationDefinition"->source["CalculationDefinition"],
+   "Reduction"->reduction,"MasterCoefficients"->coefficients,"Seconds"->seconds,
+   "InputCompanions"-><|"IntegralDecomposition"->data|>,"IntegralEvaluated"->False,
+   "ConjugateInterferenceAdded"->False|>;
+ projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterReduction.wl"];output
 ],"ProjectCards"];
 End[];EndPackage[];

@@ -129,5 +129,13 @@ FTTest`FTAssert["exact row inputs round-trip in binary metadata without duplicat
  FeynFacet`Private`measuredLoopInteriorReusableQ[cacheRead,cacheDefinition,density]&&
  StringFreeQ[Import[cacheFile,"Text"],"InputCompanions"]];
 FeynFacet`FamilyArtifactDelete[cacheFile];DeleteDirectory[cacheDirectory];
+sourceDefinition=<|"Process"->"test","Measurement"->1|>;
+boundSource=<|"Format"->"FeynFacet-OneLoopIntegrands","CalculationDefinition"->sourceDefinition,
+ "InvariantCoordinates"-><|"Parameters"->{cx,cy}|>|>;
+FTTest`FTAssert["a scalar source is reusable only for its exact producing calculation",
+ FeynFacet`Private`measuredLoopSourceCompatibleQ[boundSource,sourceDefinition]&&
+ !FeynFacet`Private`measuredLoopSourceCompatibleQ[boundSource,Join[sourceDefinition,<|"Measurement"->2|>]]];
+FTTest`FTAssert["unbound scalar sources are rejected rather than paired with an older prepared record",
+ !FeynFacet`Private`measuredLoopSourceCompatibleQ[KeyDrop[boundSource,"CalculationDefinition"],sourceDefinition]];
 Print["ONE LOOP MEASUREMENT DENSITY TEST COMPLETE"];
 FTTest`FTReport[];

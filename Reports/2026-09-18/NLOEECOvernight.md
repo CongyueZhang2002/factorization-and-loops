@@ -516,3 +516,48 @@ NativeDependencyClosureResumed.log records progress. This run only completes
 native reduction import, not full DE closure. No second symbolic job should
 consume the8-core allocation concurrently. Source and workflow directions are
 pushed at3229fdbe; a further actual Pro review of that revision is pending.
+
+## Inclusive source reduction and review repairs (14:04 UTC)
+
+Actual GPT-6 Pro completed the review of3229fdbe after13m11s. It inspected the
+source, confirmed the exact subtraction identity and native declaration change,
+and identified three general-interface gaps. Record12 retains its conclusions.
+The finite-parameter guard now applies to coordinate-dependent exponents,
+Gauss/Appell parameters and normal-power slopes. The inclusive driver now proves
+observable support and retained-root coverage of the original energy triangle,
+including unit measurement-delta normalization. Separately read scalar sources
+are bound to the exact producing calculation and original amplitude. A doubled
+observable that covers only part of phase space is correctly rejected.
+
+The four targeted tests pass65 assertions: parameter-domain guards15.926s,
+inclusive-chart coverage16.927s, source binding19.176s, and exact subtractions
+17.476s. These were single-core tests run alongside the native reconstruction,
+with its affinity temporarily restricted to the other seven cores. Timings
+include startup and should not be compared as isolated kernel benchmarks.
+The actual source, eight inclusive charts and their subtractions were regenerated
+in252.903s, including fresh amplitude generation and scalar loop reduction.
+Intermediate symbolic probing emitted division-by-zero warnings in the last two
+charts; the final proofs passed, and saved charts/subtractions contain no
+Indeterminate or infinity values.
+
+The new `loop-inclusive-decompose` stage applies only nonincreasing external
+partial fractions on the original unit particle cuts, after the source's
+prescription limit. Virtual denominators and signs are preserved. The shared
+mixed decomposer now accepts affine generic propagators as well as standard
+quadratic ones. Twelve assertions pass in17.212s. A preceding17.417s failed
+attempt exposed the standard-only input restriction and is retained separately.
+Actual-source decomposition completed in23.078s:934 targets in18 families.
+
+`loop-inclusive-reduce` generated16020 typed IBP equations and reduced those
+targets in29.253s including startup, on two cores alongside the RR run on six.
+It retained exact native rules while resolving55 then5 missing dependencies.
+The result has66 spanning integrals; no minimal-master claim is made. It is
+saved as RealVirtual/Work/InclusiveScalarMasterReduction.wl. Family/routing
+equivalences, additional relations if needed, and physical scalar values are
+still required. The existing cut-equivalence frame construction uses particle
+cuts to span every loop direction; mixed real/virtual families require a
+prescription-preserving completion for the uncut loop direction.
+
+The eight-core allocation has been restored to the continuing RR native job.
+No inclusive rate, accepted RV result or complete NLO EEC coefficient has been
+claimed, and no measured NLO literature coefficient has been compared.

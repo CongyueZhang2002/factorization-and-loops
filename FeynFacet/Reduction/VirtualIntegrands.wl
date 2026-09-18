@@ -4,6 +4,64 @@ BeginPackage["FeynFacet`"];
 DecomposeVirtualLoopIntegrands::usage="DecomposeVirtualLoopIntegrands[values,loops,external,kinematicRules,request] converts full-D scalar virtual integrands to explicit GLI coefficient rules and complete ordinary integral families. Equal denominator products share one family across named tensor structures. Ordinary prescriptions and the original density are retained.";
 DecomposeCutLoopIntegrands::usage="DecomposeCutLoopIntegrands[values,cutDefinition,virtualLoops,request] decomposes scalar loop corrections on explicitly directed unit cuts without removing ordinary prescriptions. It retains the cut definition, adds the declared virtual integration momenta, and uses the same prescribed-product numerator algebra as virtual-only decomposition. The default additional virtual measure is d^D ell per loop; request may explicitly set VirtualLoopMeasurePrefactor. Dependent original denominators fail pending a prescription-preserving partial fraction reduction.";
 Begin["`Private`"];
+(* Source-level algebra AFTER the caller has proved the external prescription
+   limit of this exact source. Virtual denominators never enter this partial
+   fraction step. The componentwise nonincrease of external powers makes each
+   new term the original rational product times a bounded cut polynomial. *)
+cutLoopExternalPartialFractions[values_Association,input_Association,virtualLoops_List,request_Association:<||>]:=Catch[Module[
+ {definition,kin,routed,objects,cores={},props={},aliases={},replacement,standard,
+  external,virtual,desc,core,index,unit,power,polynomials,products,unitRules,basis,
+  free,variables,restricted,partials,output,rewritten,assumptions,checks},
+ definition=FeynFacet`CreateCutIntegralDefinition[input];
+ If[!AssociationQ[definition]||definition["MeasurementCutIndices"]=!={}||
+   definition["ParticleCutIndices"]=!=definition["CutIndices"]||
+   (KeyExistsQ[input,"CutPowers"]&&input["CutPowers"]=!=ConstantArray[1,Length[definition["CutIndices"]]]),
+  cutFamilyFail["OriginalUnitParticleCutsRequired"]];
+ kin=definition["Topology"][[5]];assumptions=Lookup[request,"Assumptions",definition["Assumptions"]];
+ routed=Map[FeynCalc`FCI[#]/.Lookup[input,"MomentumConservationRules",{}]&,values];
+ objects=DeleteDuplicates[Cases[routed,_FeynCalc`FeynAmpDenominator,Infinity]];
+ replacement=Table[
+  standard=FeynCalc`ToSFAD[object];
+  If[Head[standard]=!=FeynCalc`FeynAmpDenominator,cutFamilyFail["ExplicitOrdinaryPropagatorProductRequired"]];
+  external=1;virtual={};
+  Do[
+   If[!FreeQ[prop,Alternatives@@virtualLoops],AppendTo[virtual,prop];Continue[]];
+   desc=propagatorDescriptor[prop,kin];
+   If[!AssociationQ[desc]||!IntegerQ[desc["Power"]]||desc["Power"]<=0,
+    cutFamilyFail["PositiveExternalPropagatorPowersRequired"]];
+   core=Factor[FeynCalc`ExpandScalarProduct[desc["UnitCore"]]/.kin];
+   index=FirstPosition[cores,core,Missing[],{1},Heads->False];
+   If[MissingQ[index],AppendTo[cores,core];
+    AppendTo[props,FeynCalc`FeynAmpDenominator[FeynCalc`GenericPropagatorDenominator[core,{1,1}]]];
+    AppendTo[aliases,Unique["externalLoopDenominator"]];index={Length[cores]}];
+   external*=aliases[[First[index]]]^desc["Power"],{prop,List@@standard}];
+  object->external If[virtual==={},1,FeynCalc`FeynAmpDenominator@@virtual],{object,objects}];
+ If[cores==={},Return[<|"Values"->routed,"PartialFractions"-><||>,"ExternalPolynomials"->{},
+    "PowersNeverIncreased"->True,"VirtualPrescriptionsChanged"->False|>,Module]];
+ polynomials=Map[FeynFacet`PolynomialCoefficientRules[#/.replacement,aliases]&,routed];
+ If[AnyTrue[Values[polynomials],FailureQ],cutFamilyFail["PolynomialExternalProductsRequired"]];
+ products=DeleteDuplicates[Flatten[(First/@#)&/@Values[polynomials],1]];
+ unitRules=FeynFacet`UnitCutScalarProductRules[definition];
+ If[!ListQ[unitRules],cutFamilyFail["AffineParticleUnitCutsRequired"]];
+ basis=definition["LoopScalarProducts"];free=Complement[basis,First/@unitRules];
+ variables=Table[Unique["externalCutCoordinate"],{Length[free]}];
+ restricted=(cores/.unitRules)/.Thread[free->variables];
+ If[!FreeQ[restricted,_FeynCalc`Pair],cutFamilyFail["CompleteExternalUnitCutCoordinatesRequired"]];
+ partials=Association@Table[powers->FeynFacet`PartialFractionAffineDenominators[
+   restricted,powers,variables,<|"Assumptions"->assumptions|>],{powers,products}];
+ If[AnyTrue[Values[partials],FailureQ],cutFamilyFail["ExternalUnitCutPartialFractionsFailed",
+   <|"Cause"->SelectFirst[Values[partials],FailureQ]|>]];
+ checks=KeyValueMap[Function[{powers,result},
+   AllTrue[result["Terms"],And@@Thread[#["Powers"]<=powers]&]&&
+   TrueQ[FullSimplify[result["ValidityConditions"],Assumptions->assumptions]]],partials];
+ If[!AllTrue[checks,TrueQ],cutFamilyFail["NonincreasingExternalPowersAndNonzeroDivisorsRequired"]];
+ rewritten=Association@KeyValueMap[Function[{powers,result},powers->Total[
+   #["Coefficient"]Times@@MapThread[Power,{props,#["Powers"]}]&/@result["Terms"]]],partials];
+ output=Map[Total[(Last[#]rewritten[First[#]])&/@#]&,polynomials];
+ <|"Values"->output,"PartialFractions"->partials,"ExternalPolynomials"->cores,
+   "PowersNeverIncreased"->True,"VirtualPrescriptionsChanged"->False,
+   "Scope"->"Rational identities on original unit particle cuts, conditional on the caller's source-specific external prescription limit. External factors are represented with a common positive prescription only after that limit. Every virtual factor and unrestricted denominator polynomial is retained; no claim is made for dotted descendants."|>
+],"CutFamily"];
 DecomposeVirtualLoopIntegrands[values_Association,loops:{__Symbol},external:{__Symbol},
  kin_List,request_Association:<||>]:=decomposePrescribedLoopIntegrands[values,loops,external,kin,request,None];
 DecomposeCutLoopIntegrands[values_Association,input_Association,virtualLoops:{__Symbol},request_Association:<||>]:=
@@ -45,14 +103,14 @@ decomposePrescribedLoopIntegrands[values_Association,loops_List,external_List,ki
    If[powers[[j]]===0,Continue[]];
    standard=FeynCalc`ToSFAD[objects[[j]]];
    If[Head[standard]=!=FeynCalc`FeynAmpDenominator||
-      !AllTrue[List@@standard,MatchQ[#,_FeynCalc`StandardPropagatorDenominator]&],
+      !AllTrue[List@@standard,MatchQ[#,_FeynCalc`StandardPropagatorDenominator|_FeynCalc`GenericPropagatorDenominator]&],
     cutFamilyFail["ExplicitOrdinaryPropagatorProductRequired"]];
    Do[
-    unit=ReplacePart[prop,{4,1}->1];
+    unit=ReplacePart[prop,{Length[prop],1}->1];
     index=FirstPosition[unitPropagators,unit,Missing[],{1},Heads->False];
     If[MissingQ[index],AppendTo[unitPropagators,unit];
-      AppendTo[propagatorPowers,powers[[j]]prop[[4,1]]],
-      propagatorPowers[[First[index]]]+=powers[[j]]prop[[4,1]]],
+      AppendTo[propagatorPowers,powers[[j]]Last[prop][[1]]],
+      propagatorPowers[[First[index]]]+=powers[[j]]Last[prop][[1]]],
    {prop,List@@standard}],
   {j,Length[objects]}];
   name=Symbol["FeynFacet`IntegralFamilies`"<>prefix<>ToString[Length[families]+1]];

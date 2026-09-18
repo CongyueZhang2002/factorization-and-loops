@@ -34,4 +34,18 @@ FTTest`FTAssert["parameter-domain zeros in regulator-independent denominators ar
  FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[1/(re (ca-cb))],ca==cb]]];
 FTTest`FTAssert["analytic regulator exponents require finite coefficients on the parameter domain",
  FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[Exp[re/(ca-cb)]],ca==cb]]];
+FTTest`FTAssert["coordinate-dependent positive bases do not hide undefined regulator exponents",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[(1+rx)^(re/(ca-cb))],ca==cb]]];
+FTTest`FTAssert["Gauss parameter slopes must be finite on the external parameter domain",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[
+  Inactive[Hypergeometric2F1][1+re/(ca-cb),1,2,-rx]],ca==cb]]];
+FTTest`FTAssert["Appell parameter slopes must be finite on the external parameter domain",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[
+  AppellF1[1,1+re/(ca-cb),2,3,-rx,-ry]],ca==cb]]];
+FTTest`FTAssert["the normal-power regulator slope is subject to the same parameter-domain check",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[
+  Join[record[1],<|"Terms"->{<|"Powers"->{-1-re/(ca-cb),0},"SmoothFactor"->1|>}|>],ca==cb]]];
+FTTest`FTAssert["regular external parameters and a proved positive Gauss lower parameter are allowed",
+ AssociationQ[FeynFacet`VerifyResolvedEndpointCube[record[
+  (1+rx)^(re/ca) Inactive[Hypergeometric2F1][1+re/ca,1,cb,-rx]],ca>0&&cb>1]]];
 Print["ENDPOINT CUBE REGULARITY TEST COMPLETE"];FTTest`FTReport[];

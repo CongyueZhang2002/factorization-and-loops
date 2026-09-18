@@ -39,5 +39,18 @@ FTTest`FTAssert["the causal bubble phase survives the measured integration",
 FTTest`FTAssert["raised measurement cuts are rejected by the unit-delta pushforward contract",
  FailureQ[FeynFacet`ConstructThreeParticleMeasurementPushforward[
   Join[definition,<|"CutPowers"->{1,1,1,2}|>],<|"Parameters"->{px,py}|>]]];
+FTTest`FTAssert["the complete unit-range observable is a proved inclusive coordinate",
+ AssociationQ[FeynFacet`VerifyThreeParticleInclusiveChart[chart,ps>0]]];
+twiceDefinition=FeynFacet`CreateMasslessPhaseSpaceDefinition[Join[geometry,<|
+ "Measurements"->{<|"Variable"->pz,"Observable"->2observable|>}|>]];
+twiceChart=FeynFacet`ConstructThreeParticleMeasurementPushforward[twiceDefinition,<|
+ "Parameters"->{px,py},"DimensionalRegulator"->pe,"Assumptions"->assumptions|>];
+FTTest`FTAssert["a valid measured square can cover only part of phase space and must not be called inclusive",
+ AssociationQ[twiceChart]&&MatchQ[FeynFacet`VerifyThreeParticleInclusiveChart[twiceChart,ps>0],
+  Failure["InclusiveMeasurementChartNotExhaustive",_]]];
+FTTest`FTAssert["a restriction hidden in the chart domain cannot define an inclusive rate",
+ FailureQ[FeynFacet`VerifyThreeParticleInclusiveChart[Join[chart,<|"Domain"->(assumptions&&pz<1/2)|>],ps>0]]];
+FTTest`FTAssert["missing physical roots cannot pass the inclusive coverage proof",
+ FailureQ[FeynFacet`VerifyThreeParticleInclusiveChart[Join[chart,<|"Branches"->{}|>],ps>0]]];
 Print["MEASUREMENT PUSHFORWARD TEST COMPLETE"];
 FTTest`FTReport[];

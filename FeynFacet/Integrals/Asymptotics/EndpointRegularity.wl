@@ -5,7 +5,7 @@ BeginPackage["FeynFacet`"];
 VerifyResolvedEndpointCube::usage="VerifyResolvedEndpointCube[resolved,parameterConditions] proves that every smooth factor of a resolved causal scalar density is uniformly analytic in its normal coordinates on the closed unit cube, after finite regulator poles are cleared. It verifies rational denominator units, positive power bases and supported real Gauss/Appell branches. Parameter conditions must be independent of normal coordinates. Unsupported or unproved factors return Failure; integer endpoint powers are reported separately.";
 Begin["`Private`"];
 VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
- {xs,e,conditions,variables,nonempty,prove,rational,analytic,meromorphic,finiteConstant,nonzeroGerm,factors,powers,unverified={},gauss},
+ {xs,e,conditions,variables,nonempty,prove,rational,analytic,meromorphic,finiteConstant,regularPolynomial,nonzeroGerm,factors,powers,unverified={},gauss},
  If[!TrueQ[Lookup[resolved,"JointAnalyticFactorsVerified",False]],
   loopEndpointFail["VerifiedAnalyticResolvedEndpointFactorsRequired"]];
  {xs,e}=Lookup[resolved,{"NormalVariables","DimensionalRegulator"}];
@@ -36,6 +36,8 @@ VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
   MemberQ[{Tan,Sec},Head[value]],finiteConstant[value[[1]]]&&prove[Cos[value[[1]]]!=0],
   MemberQ[{Cot,Csc},Head[value]],finiteConstant[value[[1]]]&&prove[Sin[value[[1]]]!=0],
   True,False];
+ regularPolynomial[value_,degree_:Infinity]:=FreeQ[value,Alternatives@@xs]&&PolynomialQ[value,e]&&
+  Exponent[value,e]<=degree&&AllTrue[CoefficientList[value,e],finiteConstant];
  nonzeroGerm[value_]:=Module[{lower,leading},
   lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[value,e];
   If[!IntegerQ[lower],Return[False]];
@@ -61,24 +63,24 @@ VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
   True,False];
  gauss[value_]:=Module[{tests},
   tests=<|"ParametersIndependentOfCoordinates"->FreeQ[Take[List@@value,3],Alternatives@@xs],
-    "AffineRegulatorParameters"->AllTrue[Take[List@@value,3],PolynomialQ[#,e]&&Exponent[#,e]<=1&],
+    "AffineRegulatorParameters"->AllTrue[Take[List@@value,3],regularPolynomial[#,1]&],
     "ArgumentIndependentOfRegulator"->FreeQ[value[[4]],e],
     "RegularRationalArgument"->rational[value[[4]]],"ArgumentBelowOne"->prove[value[[4]]<1],
-    "PositiveLowerParameter"->TrueQ[(value[[3]]/.e->0)>0]|>;
+    "PositiveLowerParameter"->prove[(value[[3]]/.e->0)>0]|>;
   If[!AllTrue[Values[tests],TrueQ],AppendTo[unverified,<|"Function"->value,"Conditions"->tests|>]];
   AllTrue[Values[tests],TrueQ]];
  analytic[value_]:=analytic[value]=With[{ok=Which[
   FreeQ[value,Alternatives@@xs],meromorphic[value],
   rational[value],True,
   MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,analytic],
-  Head[value]===Power&&!IntegerQ[value[[2]]]&&FreeQ[value[[2]],Alternatives@@xs]&&PolynomialQ[value[[2]],e],
+  Head[value]===Power&&!IntegerQ[value[[2]]]&&regularPolynomial[value[[2]]],
    FreeQ[value[[1]],e]&&rational[value[[1]]]&&prove[value[[1]]>0],
   MatchQ[value,_Hypergeometric2F1|Inactive[Hypergeometric2F1][___]],
    gauss[value],
   Head[value]===AppellF1,
    FreeQ[Take[List@@value,4],Alternatives@@xs]&&
-    AllTrue[Take[List@@value,4],PolynomialQ[#,e]&&Exponent[#,e]<=1&]&&
-    TrueQ[(value[[1]]/.e->0)>0]&&TrueQ[((value[[4]]-value[[1]])/.e->0)>0]&&
+    AllTrue[Take[List@@value,4],regularPolynomial[#,1]&]&&
+    prove[(value[[1]]/.e->0)>0]&&prove[((value[[4]]-value[[1]])/.e->0)>0]&&
     AllTrue[Take[List@@value,-2],FreeQ[#,e]&&rational[#]&&prove[#<1]&],
   True,False]},
   If[!TrueQ[ok]&&!MemberQ[{Plus,Times},Head[value]],AppendTo[unverified,value]];ok];
@@ -86,7 +88,10 @@ VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
  Do[If[!analytic[factor],loopEndpointFail["UniformAnalyticEndpointCubeNotEstablished",
     <|"UnverifiedFactors"->DeleteDuplicates[unverified]|>]],
   {factor,factors}];
- powers=Flatten[Lookup[resolved["Terms"],"Powers"]]/.e->0;
+ powers=Flatten[Lookup[resolved["Terms"],"Powers"]];
+ If[!AllTrue[powers,regularPolynomial[#,1]&],
+  loopEndpointFail["FiniteAffineEndpointPowerCoefficientsRequired",<|"Powers"->powers|>]];
+ powers=powers/.e->0;
  <|"Status"->"AnalyticClosedEndpointCubeVerified","NormalVariables"->xs,
   "RegulatorMeromorphicityVerified"->True,
   "ParameterConditions"->parameters,"ClosedCubeConditions"->conditions,

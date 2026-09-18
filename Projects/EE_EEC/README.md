@@ -188,6 +188,22 @@ face/corner terms. Results are `Work/InclusiveScalarLoopEndpointCharts.wl` and
 strata still must be integrated before an inclusive rate or accepted RV result
 exists. These stages never insert a measured literature coefficient.
 
+The inclusive preparation now also proves that its measurement coordinates
+exhaust the original phase space, rather than just producing a regular square.
+The scalar-loop source is bound to the exact producing calculation and original
+amplitude through its metadata companion. Old unbound scalar sources regenerate.
+
+`loop-inclusive-decompose` uses that proved source-level external prescription
+limit to remove dependencies among external denominator products on the original
+unit particle cuts. It only accepts partial fractions that never increase any
+external power, and leaves all virtual prescriptions and unrestricted off-shell
+denominators intact. `loop-inclusive-reduce` applies the general typed IBP
+reduction to those actual targets and saves `Work/InclusiveScalarMasterReduction.wl`.
+The current generated source has 934 targets in 18 families; its first reduction
+has 66 spanning integrals. These are not asserted to be independent masters.
+Family equivalences, any necessary additional IBP relations and physical scalar
+values remain to be applied before obtaining the inclusive rate.
+
 Typed Kira imports now use the native initial IBP-system master declaration.
 FireFly's `masters.final` instead lists reconstructed RHS identifiers and can
 omit identity-only targets. Dependency closure first exports available rules,
