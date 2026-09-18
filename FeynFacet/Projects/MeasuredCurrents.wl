@@ -188,7 +188,8 @@ measuredMasterCoefficientRows[card_,record_]:=Module[{rows,groups},
 ];
 constructMeasuredFourParticleMasterCoefficients[card_,prepared_,record_]:=Module[
  {system=record["DifferentialSystem"],rows,needed,upper,definitions,library,known=<||>,methods=<||>,
-  basis,e,hi,family,value,exact,expanded,one,extension,missing,output,seconds,started=facetElapsedClock[]},
+  basis,e,hi,family,value,exact,expanded,one,extension,missing,output,seconds,lookup,ranges,
+  started=facetElapsedClock[]},
  rows=measuredMasterCoefficientRows[card,record];basis=system["MasterIntegralBasis"];e=system["DimensionalRegulator"];
  needed=Union[Flatten[Keys/@Values[rows]]];
  upper=Association@Table[master->(Last[card["EpsilonRange"]]-Min[
@@ -200,10 +201,16 @@ constructMeasuredFourParticleMasterCoefficients[card_,prepared_,record_]:=Module
  definitions=Association@Table[basis[[i]]->definitions[i],{i,Length[basis]}];
  library=Join[Lookup[card["Assembly"],"MasterLibrary",<||>],<|"Provenance"-><|
    "Project"->card["Project"],"Card"->card["CardFile"],"Producer"->"TypedPhysicalPhaseSpacePeriods"|>|>];
+ ranges=Map[{#,#}&,upper];
+ lookup=projectCheck[FeynFacet`FindMasterIntegralValues[KeyTake[definitions,needed],ranges,library],
+   "MeasuredPhysicalMasterLibraryLookupRequired"];
+ known=Map[Join[#,<|"ExactTail"->False|>]&,Join[lookup["PartialValues"],lookup["Values"]]];
+ methods=Association[Join[(#->"SharedLibraryPartial"&/@Keys[lookup["PartialValues"]]),
+   (#->"SharedLibrary"&/@Keys[lookup["Values"]])]];
+ Print["PHYSICAL MASTER LIBRARY ",Length[lookup["Values"]]," COMPLETE, ",
+   Length[lookup["PartialValues"]]," WITH PARTIAL EPSILON COVERAGE"];
  Do[
-  hi=upper[master];value=FeynFacet`FindMasterIntegralValue[definitions[master],{hi,hi},library];
-  If[AssociationQ[value]&&AssociationQ[Lookup[value,"Coefficients",None]],
-   AssociateTo[known,master->Join[value,<|"ExactTail"->False|>]];AssociateTo[methods,master->"SharedLibrary"];Continue[]];
+  hi=upper[master];If[KeyExistsQ[lookup["Values"],master],Continue[]];
   family=SelectFirst[system["Families"],#["Topology"][[1]]===master[[1]]&];
   exact=FeynFacet`EvaluatePairMeasurementEulerMaster[family,master,e];
   If[AssociationQ[exact],
@@ -228,6 +235,7 @@ constructMeasuredFourParticleMasterCoefficients[card_,prepared_,record_]:=Module
  known=extension["Values"];missing=extension["UnresolvedRequests"];
  output=<|"MasterIntegralBasis"->basis,"MasterIntegralValues"->known,"DimensionalRegulator"->e,
   "RequiredMasterUpperOrders"->upper,"UnresolvedRequests"->missing,"Methods"->methods,
+  "MasterLibraryLookup"->KeyDrop[lookup,{"Values","PartialValues"}],
   "DifferentialCoefficientDerivations"->extension["Derivations"],"PendingOrderRequirements"->extension["PendingOrderRequirements"],
   "KinematicVariables"->system["KinematicVariables"],"KinematicConditions"->card["Assembly"]["Assumptions"]&&
     And@@(0<#<1&/@system["KinematicVariables"]),"ExactInRegulator"->False,

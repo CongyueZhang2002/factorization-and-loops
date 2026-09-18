@@ -30,6 +30,13 @@ FTTest`FTAssert["universal scalar provenance survives storage and reuse",
  MemberQ[Lookup[found["MasterIntegralProvenance"],"UniversalScalarSources",None],value["UniversalScalarSources"]]];
 FTTest`FTAssert["missing higher coefficients are not assumed zero",
  MissingQ[FeynFacet`FindMasterIntegralValue[renamed,{-1,2},request]]];
+partialBatch=FeynFacet`FindMasterIntegralValues[<|1->definition,2->renamed|>,
+ <|1->{2,2},2->{1,1}|>,request];
+FTTest`FTAssert["batch lookup preserves lower-order data without claiming sufficient coverage",
+ !partialBatch["Complete"]&&partialBatch["InsufficientOrderRows"]==={1}&&
+ Keys[partialBatch["Values"]]==={2}&&Keys[partialBatch["PartialValues"]]==={1}&&
+ partialBatch["PartialValues"][1]["KnownThroughOrder"]===1&&
+ partialBatch["PartialValues"][1]["Coefficients"][1]===Pi^2];
 FTTest`FTAssert["a changed normalization cannot reuse the master",
  MissingQ[FeynFacet`FindMasterIntegralValue[Append[definition,"MeasurePrefactor"->2definition["MeasurePrefactor"]],{-1,0},request]]];
 FTTest`FTAssert["a changed causal prescription cannot reuse the master",

@@ -38,6 +38,15 @@ spIncidences=Table[
  {spSeed,spPredecessors["Seeds"]}];
 FTTest`FTAssert["every selected predecessor has actual nonzero incidence in its exact IBP equations",
  AllTrue[spIncidences,TrueQ]];
+spVectors=FeynFacet`ConstructCutCompatibleIBPVectors[spFamily];
+spCompatiblePredecessors=FeynFacet`FindCutIBPPredecessorSeeds[spFamily,{spFrontier},spPlan["Seeds"],
+ <|"IncludeOrdinaryVectors"->False,"CutCompatibleVectors"->spVectors|>];
+spCompatibleIncidences=Table[
+ spEquations=FeynFacet`GenerateCutCompatibleIBPEquations[spFamily,{spSeed},spVectors]["Rows"];
+ AnyTrue[spEquations,Cancel[Together[Lookup[#,Key[spFrontier],0]]]=!=0&],
+ {spSeed,spCompatiblePredecessors["Seeds"]}];
+FTTest`FTAssert["compatible-vector predecessors survive cancellation within the actual generated operators",
+ spCompatiblePredecessors["SeedCount"]>0&&AllTrue[spCompatibleIncidences,TrueQ]];
 (* An independent sparse linear-algebra fixture: a harder unknown must be
    eliminated before the requested target can reduce to the preferred one. *)
 spM=FeynCalc`GLI[spName,{1,1,1,1,1,0,0}];

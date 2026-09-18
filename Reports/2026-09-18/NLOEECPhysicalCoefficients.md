@@ -214,3 +214,32 @@ DE test passes6.005s. The first card DE attempt stopped after588.876s because it
 lacked the candidate cross-family equations. Its completed61904-row Sample001
 checkpoint is retained; completed log/receipt moved to Archive/Runs/2026-09-18/
 NLOEECChecks/ControlledDEAttempt1.*. A repaired permanent-card attempt is running.
+
+
+The card physical-value stage now performs batch library lookup and preserves
+insufficient-order donor coefficients. The library test has26 passing assertions,
+18.474s. An identity-only read-only inventory of the current43 source coordinates
+finds2 direct stored values; this is not an order-sufficiency or new-integral count.
+Generic covered-sector maps and DE relations can provide additional reuse.
+
+The predecessor selector now sums terms within each actual operator before its
+nonzero-incidence test and avoids reconsidering accepted candidate seeds.15 seed/
+scale assertions pass21.527s. The actual313-column derivative frontier selects
+32133 additional seeds with this code; its saved inventory is
+IdenticalQuarks/Work/ExactDerivativePredecessors.wxf. Five bounded-DE assertions
+pass26.679s under the shared CPU allocation.
+
+The common equation generator now builds each index substitution once per seed,
+combines equal operator shifts before the seed loop, and caches repeated rational
+coefficient factors with a4MiB bound. On128 real predecessor seeds from the largest
+family, both generators return the same3842 exact equations:3.126s before versus
+1.718s after, measured with Python monotonic timestamps around the calls. This
+is a1.82x microbenchmark, not a full-production timing. Total supervised benchmark
+including startup/input reads is30.080s; the independent polynomial-vector test
+passes5 assertions in15.523s. Its launcher completion marker had a singular/plural
+typo; the retained receipt explicitly records that reporting correction.
+
+Pro25 recommends Jacobian-corrected inclusive moments as a bounded method for
+remaining physical constants, with exact rank on unresolved DE modes, meromorphic
+endpoint continuation and valuation-aware epsilon coverage. The complete advice
+is retained; no moment-based physical constants have yet been claimed.

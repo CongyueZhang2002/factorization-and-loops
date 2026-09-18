@@ -62,7 +62,8 @@ FindCutIBPPredecessorSeeds[family_Association,frontier:{__FeynCalc`GLI},existing
  {count,name,cuts,operators,indices,zero,raw,shiftRows,shifts,allowed,known,candidates,
   nu,coefficients,limit,searchFrontier,depth,neighbors,positive,negative,
   compatible=Lookup[request,"CutCompatibleVectors",None],
-  ordinary=Lookup[request,"IncludeOrdinaryVectors",True],tag=Unique["ibpPredecessor"]},
+  ordinary=Lookup[request,"IncludeOrdinaryVectors",True],candidateCount=0,integral,
+  tag=Unique["ibpPredecessor"]},
  count=Length[family["Topology"][[2]]];name=family["Topology"][[1]];cuts=family["CutIndices"];
  If[!AllTrue[Join[frontier,existing],MatchQ[#,_FeynCalc`GLI]&&#[[1]]===name&&
    Length[#[[2]]]===count&&VectorQ[#[[2]],IntegerQ]&&AllTrue[#[[2,cuts]],#>0&]&],
@@ -94,16 +95,21 @@ FindCutIBPPredecessorSeeds[family_Association,frontier:{__FeynCalc`GLI},existing
   operators=Join[operators,compatible["Operators"]]];
  indices=Table[Unique["integralPower"],{count}];
  shiftRows=cutIBPShiftRows[family,operators,indices];
- shifts=GroupBy[Flatten[shiftRows,1],First->Last];
+ (* Combine terms of each actual operator before testing incidence. Terms
+    from its divergence and denominator derivatives may cancel at a seed. *)
+ shifts=Merge[(Map[Total,GroupBy[#,First->Last]]&/@shiftRows),Identity];
  known=AssociationThread[existing,ConstantArray[True,Length[existing]]];
  candidates=Reap[Do[
   KeyValueMap[Function[{shift,expressions},
    nu=master[[2]]-shift;
+   integral=FeynCalc`GLI[name,nu];
    If[AllTrue[nu[[cuts]],#>0&]&&ContainsAll[allowed,Flatten[Position[nu,_Integer?Positive,{1}]]]&&
-     !KeyExistsQ[known,FeynCalc`GLI[name,nu]],
+     !KeyExistsQ[known,integral],
     coefficients=expressions/.Thread[indices->nu];
     If[AnyTrue[coefficients,Cancel[Together[#]]=!=0&],
-     Sow[FeynCalc`GLI[name,nu],tag]]]],shifts],
+     candidateCount++;
+     If[candidateCount>limit,cutFamilyFail["IBPPredecessorCountLimit",<|"Count"->candidateCount|>]];
+     AssociateTo[known,integral->True];Sow[integral,tag]]]],shifts],
  {master,searchFrontier}],tag][[2]];
  candidates=If[candidates==={},{},DeleteDuplicates[First[candidates]]];
  If[Length[candidates]>limit,cutFamilyFail["IBPPredecessorCountLimit",<|"Count"->Length[candidates]|>]];

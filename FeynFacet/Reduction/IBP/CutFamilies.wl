@@ -42,7 +42,8 @@ cutIBPShiftRows[family_,operators_,indices_List]:=Module[
 GenerateCutIBPEquations[family_Association,seeds:{__FeynCalc`GLI}]:=
  cutGenerateIBPEquations[family,seeds,Automatic];
 cutGenerateIBPEquations[family_Association,seeds:{__FeynCalc`GLI},operatorData_]:=Catch[Module[
- {top,cuts,operators,rows,indices,shiftRows,symbols,terms,row,rowTag=Unique["ibpEquation$"]},
+ {top,cuts,operators,rows,indices,shiftRows,symbols,terms,row,rowTag=Unique["ibpEquation$"],
+  substitutions,coefficients,factorCoefficient,coefficientCache=<||>,cacheBytes=0},
  If[!MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-LoopIntegralFamily"},Lookup[family,"Format",None]],
    cutFamilyFail["IntegralFamilyRequired"]];
  top=family["Topology"];cuts=family["CutIndices"];
@@ -51,11 +52,20 @@ cutGenerateIBPEquations[family_Association,seeds:{__FeynCalc`GLI},operatorData_]
  operators=If[operatorData===Automatic,cutIBPOperators[family],operatorData];
  symbols=Table[Unique["integralPower$"],{Length[top[[2]]]}];
  shiftRows=cutIBPShiftRows[family,operators,symbols];
+ shiftRows=Map[Function[one,With[{combined=Map[Total,GroupBy[one,First->Last]]},
+   {Keys[combined],Values[combined]}]],shiftRows];
+ factorCoefficient[value_]:=If[KeyExistsQ[coefficientCache,value],coefficientCache[value],Module[{result},
+   result=Factor[value];
+   If[cacheBytes+ByteCount[value]+ByteCount[result]<4*1024^2,
+    AssociateTo[coefficientCache,value->result];cacheBytes+=ByteCount[value]+ByteCount[result]];
+   result]];
  rows=Flatten[Last[Reap[Do[
-  indices=seed[[2]];
-  Do[terms=Map[Function[term,With[{powers=indices+First[term],coefficient=Last[term]/.Thread[symbols->indices]},
-    If[coefficient===0||!AllTrue[powers[[cuts]],#>0&],Nothing,FeynCalc`GLI[top[[1]],powers]->coefficient]]],shifts];
-   If[terms=!={},row=Select[Map[Factor,GroupBy[terms,First->Last,Total]],#=!=0&];
+  indices=seed[[2]];substitutions=Thread[symbols->indices];
+  Do[coefficients=factorCoefficient/@(shifts[[2]]/.substitutions);
+   terms=MapThread[Function[{shift,coefficient},With[{powers=indices+shift},
+    If[coefficient===0||!AllTrue[powers[[cuts]],#>0&],Nothing,FeynCalc`GLI[top[[1]],powers]->coefficient]]],
+     {shifts[[1]],coefficients}];
+   If[terms=!={},row=Association[terms];
     If[row=!=<||>,Sow[row,rowTag]]],{shifts,shiftRows}],{seed,seeds}],rowTag]],1];
  <|"Format"->"FeynFacet-IBPEquations","Rows"->DeleteDuplicates[rows],
   "Seeds"->seeds,"OperatorCount"->Length[operators],
