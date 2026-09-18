@@ -140,4 +140,11 @@ FTTest`FTAssert["assumptions that ramify a symbolic basepoint are rejected befor
  MatchQ[Block[{FeynFacetSolution`Private`$gplAssumptions=aa==0},
   FeynFacetSolution`Private`gplLinearRootPairChart[{aa+t,1+2t},t,v]],
   Failure["NonzeroQuadraticRootBasePointRequired",_]]];
+FTTest`FTAssert["the public chart retains assumptions used to simplify its domain",
+ FeynFacetSolution`QuadraticRootChart[aa+t,t,v,"Assumptions"->aa>0]["Assumptions"]===(aa>0)&&
+ TrueQ[FeynFacetSolution`QuadraticRootChart[aa+t,t,v,"Assumptions"->aa>0]["ValidityConditions"]]];
+FTTest`FTAssert["unresolved root-chart conditions are not discarded by expression integration",
+ MatchQ[FeynFacetSolution`IntegrateGPL[1/Sqrt[aa+t],{t,0,s}],
+  Failure["QuadraticRootChartDomainNotEstablished",_]]&&
+ !FailureQ[FeynFacetSolution`IntegrateGPL[1/Sqrt[aa+t],{t,0,s},"Assumptions"->aa>0]]];
 Print["QUADRATIC GPL PULLBACK TEST COMPLETE"];FTTest`FTReport[];

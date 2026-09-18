@@ -110,11 +110,11 @@ familyCoefficientPresentationFromRecord[record_Association,
 
 (* Re-derive exactly what a forward rationalizing parametrization proves.
    Rationality of both the source-coordinate images and the displayed root
-   images is part of the gate.  No inverse is checked here, so neither the
+   images is part of the verification.  No inverse is checked here, so neither the
    result nor its status uses "change of variables", "birational", or
    "chart". *)
 FeynFacet`VerifyRationalizingParametrization[input_Association] := Module[
-  {parametrization, vars, subst, sourceVariables, f, g, jac, det, roots,
+  {parametrization, vars, subst, sourceVariables, images, dimension, jac, det, roots,
    substitutionRationalChecks, rootRationalChecks, rootChecks, parentMaps,
   parentParametrizations, parentChecks, verified},
   parametrization = rationalizingParametrizationNormalize[input];
@@ -124,23 +124,24 @@ FeynFacet`VerifyRationalizingParametrization[input_Association] := Module[
   vars = parametrization["ParametrizingVariables"];
   subst = parametrization["SourceVariableSubstitution"];
   roots = parametrization["RationalizedSquareRoots"];
-  If[! MatchQ[vars, {_Symbol, _Symbol}] ||
-      ! MatchQ[subst, {_Rule, _Rule}] || ! ListQ[roots],
+  If[! MatchQ[vars, {__Symbol}] || ! MatchQ[subst, {__Rule}] ||
+      Length[vars]=!=Length[subst] || !DuplicateFreeQ[vars] ||
+      !MatchQ[First/@subst,{__Symbol}] || !DuplicateFreeQ[First/@subst] ||
+      parametrization["SourceVariables"]=!=(First/@subst) || ! ListQ[roots],
     Return[<|"Status" -> "RationalizingParametrizationNotWellFormed",
       "Verified" -> False|>]];
   sourceVariables = First /@ subst;
-  {f, g} = Together /@ (Last /@ subst);
+  dimension=Length[vars];images = Together /@ (Last /@ subst);
   substitutionRationalChecks =
-    transportChartRationalExpressionQ[#, vars] & /@ {f, g};
+    (FreeQ[#,Alternatives@@Complement[sourceVariables,vars]]&&transportChartRationalExpressionQ[#, vars])& /@ images;
   rootRationalChecks =
     transportChartRationalExpressionQ[#1["RationalRoot"], vars] & /@ roots;
-  jac = {{D[f, vars[[1]]], D[f, vars[[2]]]},
-    {D[g, vars[[1]]], D[g, vars[[2]]]}};
+  jac = Table[D[images[[i]],vars[[j]]],{i,dimension},{j,dimension}];
   det = Together[Det[jac]];
   rootChecks = Table[
     TrueQ[Together[root["RationalRoot"]^2 -
       (root["SourceRadicand"] /.
-        Thread[sourceVariables -> {f, g}])] === 0],
+        Thread[sourceVariables -> images])] === 0],
     {root, roots}];
   parentMaps = parametrization["ParentParametrizationMaps"];
   parentParametrizations = parametrization["ParentParametrizations"];
@@ -148,16 +149,14 @@ FeynFacet`VerifyRationalizingParametrization[input_Association] := Module[
     Function[{parentName, map},
       Module[{parent = Lookup[parentParametrizations, parentName,
           masterTransportRationalizingParametrizationByName[parentName]],
-        parentSubstitution, pf, pg},
+        parentSubstitution, parentImages},
         If[parent === None || ! AssociationQ[parent], parentName -> False,
           parent = rationalizingParametrizationNormalize[parent];
           parentSubstitution = parent["SourceVariableSubstitution"];
-          If[! MatchQ[parentSubstitution, {_Rule, _Rule}],
+          If[! MatchQ[parentSubstitution, {__Rule}]||First/@parentSubstitution=!=sourceVariables,
             parentName -> False,
-            {pf, pg} = Last /@ parentSubstitution;
-            parentName ->
-              (TrueQ[Together[(pf /. map) - f] === 0] &&
-               TrueQ[Together[(pg /. map) - g] === 0])]]]],
+            parentImages = Last /@ parentSubstitution;
+            parentName -> AllTrue[Together/@((parentImages/.map)-images),#===0&]]]]],
     parentMaps];
   verified = AllTrue[substitutionRationalChecks, TrueQ] &&
     AllTrue[rootRationalChecks, TrueQ] &&
@@ -182,6 +181,40 @@ FeynFacet`VerifyRationalizingParametrization[input_Association] := Module[
 FeynFacet`VerifyRationalizingParametrization[___] :=
   <|"Status" -> "InvalidRationalizingParametrizationArguments",
     "Verified" -> False|>;
+
+(* A rational point X=0, Y=sqrt(kappa) on Y^2=kappa+lambda X^2
+   gives a rational parametrization by lines Y=sqrt(kappa)-u X. The
+   point is only a construction aid; the DE must use a regular lifted
+   basepoint and explicitly preserve its root signs. *)
+FeynFacet`ConstructAffineRootPairParametrization::usage=
+ "ConstructAffineRootPairParametrization[{q1,q2},z,u] constructs a common rational coordinate for two affine radicands with rational coefficients when the conic has a rational point at sqrt(q1)=0. It verifies the forward identities. Failure to find this point is not a nonexistence claim; the physical sheet is fixed separately at a regular lifted basepoint.";
+FeynFacet`ConstructAffineRootPairParametrization[radicands_List,z_Symbol,u_Symbol]:=Module[
+ {a,b,c,d,lambda,kappa,point,x,y,map,record,verification},
+ If[z===u||Length[radicands]=!=2||!AllTrue[radicands,
+    PolynomialQ[#,z]&&Exponent[#,z]===1&&
+     AllTrue[CoefficientList[#,z],MatchQ[#,_Integer|_Rational]&]&],
+  Return[Failure["RationalAffineRootPairRequired",<||>]]];
+ {a,b}=CoefficientList[First[radicands],z];
+ {c,d}=CoefficientList[Last[radicands],z];
+ lambda=d/b;kappa=c-d a/b;point=Sqrt[kappa];
+ If[kappa===0||!MatchQ[point,_Integer|_Rational],
+  Return[Failure["RationalConicPointNotFound",<|"Intercept"->kappa,
+    "RationalizabilityRuledOut"->False|>]]];
+ x=2point u/(u^2-lambda);y=-point(u^2+lambda)/(u^2-lambda);
+ map=Cancel[(x^2-a)/b];
+ record=<|"DataType"->"RationalizingParametrization","SchemaVersion"->2,
+  "Name"->"AffineRootPair","Kind"->"ConicParametrization",
+  "SourceVariables"->{z},"ParametrizingVariables"->{u},
+  "SourceVariableSubstitution"->{z->map},
+  "RationalizedSquareRoots"->{<|"SourceRadicand"->radicands[[1]],"RationalRoot"->x|>,
+    <|"SourceRadicand"->radicands[[2]],"RationalRoot"->y|>},
+  "ParameterFromRootValues"->(point-Sqrt[radicands[[2]]])/Sqrt[radicands[[1]]],
+  "Notes"->"Forward conic identities only. Choose a nonsingular lift; physical root branches and integration domain are separate."|>;
+ verification=FeynFacet`VerifyRationalizingParametrization[record];
+ If[!TrueQ[verification["Verified"]],Return[Failure["AffineRootParametrizationIdentityFailed",<|"Cause"->verification|>]]];
+ Join[record,<|"RationalizingParametrizationVerification"->verification|>]
+];
+FeynFacet`ConstructAffineRootPairParametrization[___]:=Failure["RationalAffineRootPairRequired",<||>];
 
 FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[
     rootSquares_List, sourceVariables : {_Symbol, _Symbol},

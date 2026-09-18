@@ -51,12 +51,52 @@ def solve_mod(a,b,p):
     return [row[-1] if row[-1]<=p//2 else row[-1]-p for row in a]
 
 results=[]
-extension=any(flag in sys.argv for flag in ('--higher-precision','--more-steps'))
-if extension:chosen=chosen[-1:]
+lattice_mode='--multipoint-lll' in sys.argv
+extension=lattice_mode or any(flag in sys.argv for flag in ('--higher-precision','--more-steps'))
+if extension and not lattice_mode:chosen=chosen[-1:]
 for i,j,expr,poly,den in chosen:
     support=poly.monoms();truth=[int(c) for c in poly.coeffs()];n=len(support)
     oracle=sp.lambdify((D,z),expr,'mpmath')
     denominator=sp.lambdify((D,z),den,'mpmath')
+    if lattice_mode:
+        for points,digits in ((2,40),(4,40),(4,80)):
+            with mp.workdps(digits+30):
+                t=time.monotonic();scale=mp.mpf(10)**digits;samples=[]
+                for k in range(points):
+                    x,y=mp.pi+mp.mpf(k)/7,mp.log(2+mp.mpf(k)/5)/2
+                    value=denominator(x,y)*oracle(x,y)
+                    samples.append([-value]+[x**a*y**b for a,b in support])
+                lattice=sp.Matrix([[int(i==j) for j in range(n+1)]+
+                                  [int(mp.nint(scale*sample[i])) for sample in samples]
+                                  for i in range(n+1)])
+                evaluation=time.monotonic()-t;t=time.monotonic();signal.alarm(15)
+                candidate=None;relation=None
+                try:
+                    reduced=lattice.lll(delta=sp.Rational(3,4))
+                    # A separate numerical point chooses candidates; the exact
+                    # truth vector is not used to select a lattice row.
+                    x,y=mp.sqrt(11),mp.log(3)/3
+                    test_value=denominator(x,y)*oracle(x,y)
+                    test_basis=[x**a*y**b for a,b in support]
+                    for row in reduced.tolist():
+                        q=row[:n+1]
+                        if not q[0] or max(abs(v) for v in q)>10**9:continue
+                        trial=[sp.Rational(v,q[0]) for v in q[1:]]
+                        residual=sum(mp.mpf(str(a.p))/int(a.q)*b for a,b in zip(trial,test_basis))-test_value
+                        if abs(residual)<mp.mpf(10)**(-digits//2)*max(1,abs(test_value)):
+                            candidate=trial;relation=[int(v) for v in q];break
+                    status='CandidateValidatedNumerically' if candidate is not None else 'NoCandidate'
+                except TimeoutError:status='RecognitionTimeLimit'
+                finally:signal.alarm(0)
+                result={'Entry':[i,j],'Terms':n,'Method':'MultipointLLL',
+                        'SamplePoints':points,'WithheldNumericalPoints':1,
+                        'LatticeDigits':digits,'ArithmeticDigits':digits+30,
+                        'OracleAndLatticeSetupSeconds':evaluation,
+                        'ReconstructionAndWithheldCheckSeconds':time.monotonic()-t,
+                        'Status':status,'Relation':relation,
+                        'ExactReferenceEquality':candidate==truth}
+                results.append(result);print(json.dumps(result),flush=True)
+        continue
     for digits in ((160,) if '--more-steps' in sys.argv else (320,) if extension else (80,160)):
         with mp.workdps(digits+30):
             x,y=mp.pi,mp.log(2)/2
@@ -96,6 +136,10 @@ report={'Scope':'Known denominator and exact sparse numerator support; saved-exp
         'Reference':str(source),'SetupAndTotalSeconds':time.monotonic()-started,
         'CoefficientHeightBound':10**9,'Results':results,
         'ProductionSpeedupEstablished':False,'ProductionMethodChanged':False}
+if lattice_mode:
+    import flint
+    report['LatticeEnvironment']={'SymPy':sp.__version__,'python-flint':flint.__version__,
+        'Installation':'Isolated temporary virtual environment; production unchanged'}
 output=root/'Projects/EE_EEC/Raw/NNLO/q-qb/DoubleReal/Work/Components/IdenticalQuarks/Work/CoefficientReconstructionBenchmark.json'
 if extension:
     previous=json.loads(output.read_text())

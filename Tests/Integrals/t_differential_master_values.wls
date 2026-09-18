@@ -38,12 +38,12 @@ FTTest`FTAssert["a value derived earlier in the same pass is included in later s
  AssociationQ[chain]&&chain["Values"][chainBasis[[3]]]["Coefficients"][0]===1&&
  Factor[chain["Values"][chainBasis[[4]]]["Coefficients"][0]-(x-1)]===0];
 partial=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
- <|basis[[1]]-><|"Coefficients"-><|0->1,1->x,2->x^2|>,
+ <|basis[[1]]-><|"Coefficients"-><|0->1,1->x,2->2x|>,
      "LaurentLowerBound"->0,"KnownThroughOrder"->2,"ExactTail"->False|>,
    basis[[2]]->Join[record[1],<|"PhysicalConvention"->"RetainedInput"|>]|>,<|basis[[2]]->1|>];
 FTTest`FTAssert["a partially known target is extended without subtracting its own old value",
  AssociationQ[partial]&&partial["UnresolvedRequests"]===<||>&&
- partial["Values"][basis[[2]]]["Coefficients"]===<|0->1,1->2x|>&&
+ partial["Values"][basis[[2]]]["Coefficients"]===<|0->1,1->2|>&&
  partial["Values"][basis[[2]]]["PhysicalConvention"]==="RetainedInput"];
 partialShort=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
  <|basis[[1]]-><|"Coefficients"-><|0->1,1->x|>,
@@ -53,4 +53,14 @@ FTTest`FTAssert["an existing partial target still requires adequate source order
  AssociationQ[partialShort]&&partialShort["Values"][basis[[2]]]===record[1]&&
  KeyExistsQ[partialShort["UnresolvedRequests"],basis[[2]]]&&
  partialShort["Derivations"]==={}];
+FTTest`FTAssert["partial extension retains overlap consistency separately from order coverage",
+ AllTrue[partial["KnownCoefficientCompatibilityResiduals"],TrueQ[#["ExactlyZero"]]&]];
+inconsistent=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
+ <|basis[[1]]-><|"Coefficients"-><|0->x,1->x,2->2x|>,
+     "LaurentLowerBound"->0,"KnownThroughOrder"->2,"ExactTail"->False|>,
+   basis[[2]]->record[7]|>,<|basis[[2]]->1|>];
+FTTest`FTAssert["conflicting old coefficients and a violated lower bound leave explicit residuals",
+ inconsistent["Values"][basis[[2]]]["Coefficients"][0]===7&&
+ First[inconsistent["KnownCoefficientCompatibilityResiduals"]]["ResidualCoefficients"]===<|-1->1,0->-6|>&&
+ !TrueQ[First[inconsistent["KnownCoefficientCompatibilityResiduals"]]["ExactlyZero"]]];
 Print["DIFFERENTIAL MASTER VALUES TEST COMPLETE"];FTTest`FTReport[];

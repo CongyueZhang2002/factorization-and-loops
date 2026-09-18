@@ -43,7 +43,7 @@ ExtendMasterValuesUsingDifferentialEquations[system_Association,known_Associatio
 ],"CutFamily"];
 ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,known_Association,upperOrders_Association]:=Catch[Module[
  {basis,variables,matrices,n,e,values=known,derived={},pending={},changed=True,indices,missing,j,
-  ratios,records,derivative,low,high,lowers,uppers,vector,matrix,result,one,offset,derivativeFunction,valid,knownIndices,oldRecord,oldLow,oldHigh},
+  ratios,records,derivative,low,high,lowers,uppers,vector,matrix,result,one,offset,derivativeFunction,valid,knownIndices,oldRecord,oldLow,oldHigh,overlapResiduals={},overlap},
  basis=system["MasterIntegralBasis"];variables=system["KinematicVariables"];e=system["DimensionalRegulator"];
  matrices=cutConnectionMatrices[system]/.system["DimensionRule"];n=Length[basis];
  valid[row_]:=AssociationQ[row]&&IntegerQ[Lookup[row,"LaurentLowerBound",None]]&&
@@ -90,6 +90,11 @@ ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,kno
     "Method"->"AuditedDifferentialConsequencesOfPhysicalLaurentCoefficients"|>;
    If[KeyExistsQ[values,basis[[j]]],
     oldRecord=values[basis[[j]]];oldLow=oldRecord["LaurentLowerBound"];oldHigh=oldRecord["KnownThroughOrder"];
+    overlap=Association@Table[k->(Lookup[one["Coefficients"],k,0]-
+      Lookup[oldRecord["Coefficients"],k,0]),{k,low,Min[oldHigh,high]}];
+    AppendTo[overlapResiduals,<|"Integral"->basis[[j]],"SourceIntegral"->basis[[i]],
+      "ResidualCoefficients"->overlap,
+      "ExactlyZero"->AllTrue[Values[overlap],#===0&]|>];
     (* Keep the accepted coefficients and their physical lower bound. The
        newly derived expression supplies only the previously unknown tail. *)
     one=Join[oldRecord,one,<|"LaurentLowerBound"->oldLow,
@@ -104,7 +109,9 @@ ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,kno
  <|"Format"->"FeynFacet-DifferentialConsequencesOfMasterCoefficients","Values"->values,
   "Derivations"->derived,"UnresolvedRequests"->KeySelect[upperOrders,
     !KeyExistsQ[values,#]||values[#]["KnownThroughOrder"]<upperOrders[#]&],
-  "PendingOrderRequirements"->DeleteDuplicates[pending],"EndpointDistributionsSolved"->False|>
+  "PendingOrderRequirements"->DeleteDuplicates[pending],
+  "KnownCoefficientCompatibilityResiduals"->overlapResiduals,
+  "EndpointDistributionsSolved"->False|>
 ],"CutFamily"];
 cutRetainedIntegralRuleEquations[rules_List]:=DeleteCases[Map[Function[rule,
   With[{parsed=linearIntegralSum[First[rule]-Last[rule]]},

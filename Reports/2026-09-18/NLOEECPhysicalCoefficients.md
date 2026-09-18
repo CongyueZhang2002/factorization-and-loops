@@ -391,3 +391,45 @@ support supplied to both reconstruction methods. See PSLQBoundaryStrategy.md for
 all costs and failed trials. This was a recognition benchmark with a saved-formula
 oracle, not numerical IBP sampling or an end-to-end FireFly comparison. Production
 finite-field reconstruction has not been replaced.
+
+
+## Pro32 repairs and common rational coordinates
+
+Pro32 statically reviewed3bbed6a74e4b986500e03be14217fca96cd7e530. The partial-tail
+formula is correct for consistent physical inputs. Its overlap residuals are
+now retained, including coefficients below the previously established lower
+bound; the local fixture was changed to satisfy its full DE.12 assertions
+pass2.817729775s. Root charts now retain assumptions, and expression integration
+refuses unresolved chart validity conditions instead of dropping them.28 assertions
+pass1.164938174s. Neither test supplies physical boundary constants.
+
+Increasing per-definition time10s->30s supplied no additional old-coordinate
+GPL definitions;170.116064852s actual elapsed. The partial-fraction diagnostic
+found algebraically overlapping factors, so a plain factor-count assumption is
+insufficient. No unverified CRT fallback was adopted.
+
+The forward rational-map verifier and its record normalizer now allow arbitrary
+matching dimension. Existing two-variable consumers retain their explicit scope.
+A new conic constructor derives a common coordinate for two rational-coefficient
+affine radicands using a rational point when available; failure is not a
+non-rationalizability claim.7 new assertions pass2.883837078s; the12 existing
+catalog assertions pass2.765783202s, and the complete old two-variable pullback
+and numerical solution test passes4.603423101s. One new derivative test initially
+needed Together before Cancel; no formula changed. A test receipt initially used
+a completion prefix without its leading count; it was corrected against the
+saved all-pass output, with the reason retained.
+
+The actual prepared identical-quark field consists of sqrt(z),sqrt(1-z).
+Pulling the entire system to a common conic coordinate and constructing U0,U1
+completed11.808280876s. Retaining z*=1/3 gives an algebraic lifted basepoint;
+its first GPL pass137.055290739s has new algebraic-coefficient bottlenecks and
+is not an improvement. A rational lifted basepoint u*=1/2 instead gives a rational
+source point and rational source roots. No physical constants have yet been
+assigned, so this separate solution can choose that normalization point without
+changing an accepted physical value. Inspect the rational-basepoint job receipts
+before any further launch.
+
+The parent distribution pole theorem in Pro32 is accepted mathematically only
+with the stated class-membership evidence, including1/Abs[F]. No automatic
+physical bound is installed yet. A compatible smooth meromorphic restriction
+to an interior chamber is still required to use it for scalar DE coefficients.

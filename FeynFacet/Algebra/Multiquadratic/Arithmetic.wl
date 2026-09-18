@@ -295,7 +295,7 @@ algebraCoefficientPresentationNormalize[input_Association] := Which[
   Lookup[input, "DataType", None] === "RationalizingParametrization" &&
       Lookup[input, "SchemaVersion", None] === 2 &&
       MatchQ[Lookup[input, "SourceVariables", $Failed],
-        {_Symbol, _Symbol}] &&
+        {__Symbol}] &&
       ListQ[Lookup[input, "RationalizedSquareRoots", $Failed]] &&
       KeyExistsQ[input, "ParametrizingVariables"] &&
       KeyExistsQ[input, "SourceVariableSubstitution"],
@@ -306,7 +306,8 @@ algebraCoefficientPresentationNormalize[input_Association] := Which[
         "RationalizingParametrizationDeclared"],
       "Name" -> Lookup[input, "Name",
         "UnnamedRationalizingParametrization"],
-      "Kind" -> Lookup[input, "Kind", "TwoVariable"],
+      "Kind" -> Lookup[input, "Kind",
+        If[Length[input["SourceVariables"]]===2,"TwoVariable","RationalCoordinateMap"]],
       "ParametrizingVariables" -> input["ParametrizingVariables"],
       "SourceVariables" -> Lookup[input, "SourceVariables",
         First /@ input["SourceVariableSubstitution"]],

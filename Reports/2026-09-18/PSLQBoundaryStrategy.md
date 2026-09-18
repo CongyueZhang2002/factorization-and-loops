@@ -87,3 +87,26 @@ from expensive numerical solves remain unbenchmarked. Production is unchanged.
 
 Records: `IdenticalQuarks/Work/CoefficientReconstructionBenchmark.json`;
 driver: `Archive/Runs/2026-09-18/NLOEECChecks/benchmark_pslq_coefficients.py`.
+
+
+## Multi-point lattice pilot
+
+The same saved-formula oracle and sparse supports were also tested with a
+multi-point integer lattice, using SymPy1.14.0 with python-flint0.9.0 in an
+isolated temporary virtual environment. No installed production Python package
+was replaced. The pure-Python SymPy LLL initially raised an internal assertion;
+that failed launch did not produce a reconstruction result.
+
+For16 numerator terms,2 samples at40 lattice digits found no candidate passing
+the withheld-point check.4 samples at40 lattice digits recovered the exact
+coefficient vector in0.001846771s including one withheld numerical check;
+sample evaluation and lattice setup took0.000800353s. Arithmetic used70 digits.
+4 samples at80 lattice digits also passed,0.006829134s recognition/check.
+The4/8-term cases passed with2 or4 samples. All accepted candidates then matched
+the saved exact numerator coefficients; exact truth was not used to select a row.
+
+This shows the points/precision tradeoff on these actual DE coefficients.
+Comparing native FLINT LLL with Python mpmath PSLQ is implementation-specific.
+Neither the numerical sample cost nor the modular baseline is a full specialized
+IBP solve, so this still establishes no production speedup. A fair next benchmark
+must generate samples from original equations with the same ansatz for each method.
