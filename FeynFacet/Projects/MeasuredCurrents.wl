@@ -3,6 +3,7 @@
    as a complete endpoint-inclusive partonic result. *)
 BeginPackage["FeynFacet`"];
 PrepareMeasuredCurrentContribution::usage="PrepareMeasuredCurrentContribution[compiledCard,mode] generates the current integrand, instantiates the card's FinalStateMeasurement on its PhaseSpace, and decomposes noncontact terms into native polynomial-cut families. All files belong to the raw contribution Work directory. mode is all or resume.";
+PrepareMeasuredContributionIntegralDecomposition::usage="PrepareMeasuredContributionIntegralDecomposition[card,prepared] merges the card-generated noncontact families, identifies equivalent integral targets and saves the exact coefficient input without starting an IBP solve. Explicit contact sectors remain separate.";
 ConstructMeasuredContributionDifferentialSystems::usage="ConstructMeasuredContributionDifferentialSystems[compiledCard,prepared] reduces the noncontact families and constructs their shared Kira differential systems. Explicit contact sectors remain separate from rational generic-variable reduction.";
 CheckMeasuredContributionInterior::usage="CheckMeasuredContributionInterior[compiledCard,prepared] directly integrates supported native three-particle polynomial cuts in four dimensions and evaluates inclusive contact moments. It writes an explicit interior check, not Results.wl or an endpoint-complete hard function.";
 ConstructMeasuredContributionMasterValues::usage="ConstructMeasuredContributionMasterValues[card,prepared,system] evaluates supported unit-cut three-particle masters as explicit beta/Gauss functions with exact regulator dependence. It retains physical normalization and separate contact sectors. Unsupported geometry fails rather than inserting boundary constants.";
@@ -63,8 +64,8 @@ PrepareMeasuredCurrentContribution[card_Association,mode_String:"resume"]:=Catch
   "Reused"->False,"EndpointDistributionsSolved"->False|>;
  projectWrite[output,file];output
 ],"ProjectCards"];
-ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Association]:=Catch[Module[
- {terms,merged,variables,system,seconds,relabelingSeconds,path,execution,output,groups,matches},
+PrepareMeasuredContributionIntegralDecomposition[card_Association,prepared_Association]:=Catch[Module[
+ {terms,merged,relabelingSeconds,groups,matches},
  If[Lookup[prepared,"Format",None]=!="FeynFacet-PolynomialMeasuredContribution",
   projectFail["PreparedPolynomialMeasuredContributionRequired"]];
  terms=Map[#["Decomposition"]&,prepared["NoncontactTerms"]];
@@ -77,9 +78,16 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
  {relabelingSeconds,merged}=facetElapsedTiming[FeynFacet`ReduceEquivalentCutIntegralTargets[merged,<|"CoefficientGroups"->groups|>]];
  merged=projectCheck[merged,"EquivalentMeasuredIntegralTargetsRequired"];
  Print["MEASURED REDUCTION INPUT ",Length[merged["Targets"]]," TARGETS IN ",Length[merged["Families"]]," FAMILIES"];
- path=card["WorkDirectory"];execution=card["Execution"];
+ merged=Join[merged,<|"CalculationDefinition"->prepared["CalculationDefinition"],
+   "StageSeconds"-><|"IntegralMomentumRelabeling"->relabelingSeconds|>|>];
+ projectWrite[merged,card["WorkDirectory"]<>"/IntegralDecomposition.wl"];merged
+],"ProjectCards"];
+ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Association]:=Catch[Module[
+ {merged,variables,system,seconds,path=card["WorkDirectory"],execution=card["Execution"],output},
+ merged=projectCheck[FeynFacet`PrepareMeasuredContributionIntegralDecomposition[card,prepared],
+   "PolynomialMeasurementFamiliesRequired"];
+ If[KeyExistsQ[merged,"DifferentialSystems"],Return[merged,Module]];
  variables=card["Assembly"]["Variables"];
- projectWrite[merged,path<>"/IntegralDecomposition.wl"];
  {seconds,system}=facetElapsedTiming[FeynFacet`ConstructCutDifferentialSystem[merged["Families"],merged["Targets"],variables,
    Join[<|"WorkingDirectory"->path<>"/DifferentialEquations","Threads"->execution["KiraThreads"],
     "SeedPolicy"->"TargetDownsets","PrintTimings"->True,
@@ -89,7 +97,7 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
  system=projectCheck[system,"PolynomialMeasurementDifferentialSystemFailed"];
  output=<|"DifferentialSystem"->system,"IntegralDecomposition"->merged,
   "ContactTerms"->prepared["ContactTerms"],"CalculationDefinition"->prepared["CalculationDefinition"],
-  "StageSeconds"-><|"IntegralMomentumRelabeling"->relabelingSeconds,"ReductionAndDifferentialClosure"->seconds|>,
+  "StageSeconds"->Join[merged["StageSeconds"],<|"ReductionAndDifferentialClosure"->seconds|>],
   "Scope"->"Generic measured variables; physical boundary constants and endpoint contacts are separate inputs."|>;
  projectWrite[output,path<>"/DifferentialSystem.wl"];output
 ],"ProjectCards"];

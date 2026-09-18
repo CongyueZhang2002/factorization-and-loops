@@ -3,7 +3,55 @@
 BeginPackage["FeynFacet`"];
 IntegrateMasslessInvariantMoments::usage="IntegrateMasslessInvariantMoments[prepared,epsilon] evaluates two-body constants or three-body Laurent monomials in pair invariant masses using the normalized Dirichlet measure. It requires no extra external direction, unit particle cuts, no measurement cut, and the original prescription certificate.";
 EvaluateThreeParticleMeasurementInterior::usage="EvaluateThreeParticleMeasurementInterior[prepared,request] integrates a native polynomial measurement on massless three-body phase space at epsilon=0, or exactly in a supplied DimensionalRegulator through Euler beta/Gauss functions. It includes all real roots whose membership in the declared open integration interval is proved. Root domains requiring partitions are rejected. This is a direct interior check, not endpoint continuation or a replacement for DE construction.";
+EvaluatePairMeasurementEulerMaster::usage="EvaluatePairMeasurementEulerMaster[family,integral,epsilon] evaluates a unit-cut massless four-particle scalar integral when a pair-resolved chart leaves an angle-independent polynomial moment and successive beta/Gauss energy integrals. Positive ordinary propagator powers are currently unsupported. The explicit meromorphic value fixes this integral's physical constants on the open measured interval; it does not infer endpoint distributions.";
 Begin["`Private`"];
+EvaluatePairMeasurementEulerMaster[family_Association,integral_FeynCalc`GLI,e_Symbol]:=Catch[Module[
+ {definition,top,powers,slots,ordinary,pure,cuts,particles,total,s,parameters,r,x,y,a,b,
+  orders,coordinates,push,branch,root,moment,inner,outer,value,normalization,domain,failures={}},
+ definition=FeynFacet`CreateCutIntegralDefinition[family];
+ If[!AssociationQ[definition],Throw[definition,"CutFamily"]];
+ top=definition["Topology"];powers=integral[[2]];slots=definition["CutIndices"];
+ ordinary=Complement[Range[Length[top[[2]]]],slots];particles=Lookup[definition,"FinalMomenta",{}];
+ If[integral[[1]]=!=First[top]||Length[powers]=!=Length[top[[2]]]||!VectorQ[powers,IntegerQ]||
+   Length[particles]=!=4||Length[definition["ParticleCutIndices"]]=!=4||
+   Length[definition["MeasurementCutIndices"]]=!=1||powers[[slots]]=!=ConstantArray[1,Length[slots]]||
+   !AllTrue[powers[[ordinary]],#<=0&],
+  cutFamilyFail["UnitFourParticleCutsAndPolynomialMomentRequired"]];
+ total=definition["TimeDirection"];s=FeynCalc`FCI[FeynCalc`SPD[total]]/.top[[5]];
+ cuts=Map[Join[#,<|"Index"->First@FirstPosition[slots,#["Index"]]|>]&,definition["Cuts"]];
+ pure=FeynFacet`CreateCutIntegralDefinition[Join[definition,<|
+  "Topology"->ReplacePart[top,2->top[[2,slots]]],"Cuts"->cuts,"MeasurementNumerator"->1|>]];
+ If[!AssociationQ[pure],Throw[pure,"CutFamily"]];
+ parameters=Table[Unique["pairEuler$"],{5}];{r,x,y,a,b}=parameters;
+ orders=Map[Join[#,Complement[Range[4],#]]&,Permutations[Range[4],{2}]];
+ Do[
+  coordinates=FeynFacet`MasslessPairPhaseSpaceCoordinates[particles[[order]],total,s,e,parameters];
+  push=FeynFacet`ConstructPhaseSpaceMeasurementPushforward[pure,coordinates];
+  If[!AssociationQ[push]||Length[push["Branches"]]=!=1,AppendTo[failures,push];Continue[]];
+  branch=First[push["Branches"]];root=branch["Root"];domain=push["Domain"];
+  If[!FreeQ[root,Alternatives@@{x,y,a,b}],Continue[]];
+  moment=Cancel[Together[FullSimplify[branch["Jacobian"],Assumptions->domain]Times@@MapThread[Power,
+    {definition["InversePropagators"][[ordinary]],-powers[[ordinary]]}]/.branch["ScalarProductRules"]/.D->4-2e]];
+  If[!FreeQ[moment,Alternatives[a,b,_FeynCalc`Pair,_FeynCalc`Momentum]],Continue[]];
+  inner=FeynFacet`IntegrateUnivariateEulerProduct[moment,{{y,1-2e},{1-y,-e}},{y,0,1},domain];
+  If[!AssociationQ[inner],AppendTo[failures,inner];Continue[]];
+  outer=FeynFacet`IntegrateUnivariateEulerProduct[inner["Value"],
+   {{x,1-2e},{1-x,2-3e},{1-root x,-2+2e}},{x,0,1},domain];
+  If[!AssociationQ[outer],AppendTo[failures,outer];Continue[]];
+  normalization=(pure["MeasurePrefactor"]/(2Pi)^(4-3D))/.D->4-2e;
+  value=normalization coordinates["Prefactor"]s^(2-3e)root^-e(1-root)^-e outer["Value"];
+  If[!FreeQ[value,Alternatives@@parameters]||!FreeQ[value,_Integrate|_Failure|_Missing],Continue[]];
+  Return[<|"Value"->value,"AnalyticExpression"->value,"ExactInRegulator"->True,
+   "DimensionalRegulator"->e,"Integral"->integral,"Variable"->push["Variable"],
+   "Domain"->definition["Assumptions"]&&0<push["Variable"]<1,
+   "Method"->"PairResolvedEulerIntegral","ParticleOrder"->order,"MeasurementRoot"->root,
+   "ConvergenceEndpointPowers"->{inner["EndpointPowers"],outer["EndpointPowers"]},
+   "NoOrdinaryCausalDenominators"->True,"PhysicalBoundaryConstantsFixed"->True,
+   "EndpointDistributionIncluded"->False,
+   "Definition"->"The labeled physical phase-space period, initially convergent and continued meromorphically in epsilon; no measured coefficient or free DE constant is inserted."|>,Module],
+ {order,orders}];
+ cutFamilyFail["PairResolvedPolynomialEulerIntegralUnsupported",<|"Causes"->DeleteDuplicates[failures]|>]
+],"CutFamily"];
 invariantPhaseSpaceData[prepared_]:=Module[{d,top,particles,total,s,rule,nu},
  If[Lookup[prepared,"Format",None]=!="FeynFacet-MeasuredCutIntegrand",
    cutFamilyFail["PreparedInvariantPhaseSpaceRequired"]];

@@ -4,7 +4,77 @@
 BeginPackage["FeynFacet`"];
 ConstructThreeParticleMeasurementPushforward::usage="ConstructThreeParticleMeasurementPushforward[definition,request] derives the physical roots of one native polynomial measurement on massless three-body phase space. It returns exact scalar-product substitutions, root Jacobians and dimensional one-dimensional kernels. MeasurementDensity includes the original measurement numerator once; PolynomialCutDensity excludes it for prepared cut densities that already contain it. Request declares ParticleOrder, optional Parameters and DimensionalRegulator, and open-domain Assumptions. Endpoint continuation and integration of a scalar density are separate operations.";
 VerifyThreeParticleInclusiveChart::usage="VerifyThreeParticleInclusiveChart[chart,parameterConditions] proves that a measurement pushforward exhausts the original open massless three-particle phase space. It derives the observable from the affine measurement-variable constraint, verifies its support in (0,1), the unit delta normalization, and coverage by the retained roots. A regular chart covering only a restricted observable range is rejected. The result is geometric and makes no prescription-limit assertion.";
+ConstructPhaseSpaceMeasurementPushforward::usage="ConstructPhaseSpaceMeasurementPushforward[definition,coordinates,request] applies a unit polynomial measurement cut to a compatible scalar massless phase-space chart. It proves which simple roots in EliminateVariable lie in the unit interval and retains their exact Jacobians and dimensional densities. Currently the constraint must be rational in that variable with numerator degree one or two. PolynomialCutDensity excludes MeasurementNumerator; MeasurementDensity includes it once. This gives open-domain integration representations, not physical master values or endpoint distributions.";
 Begin["`Private`"];
+ConstructPhaseSpaceMeasurementPushforward[input_Association,coordinates_Association,request_Association:<||>]:=Catch[Module[
+ {definition,top,particles,total,s,e,parameters,r,z,remaining,assumptions,rootDomain,rules,g,
+  numerator,polynomial,denominator,roots,branches={},inside,outside,slope,jacobian,normalization,
+  particleCuts,expected,actual,physicalRules,rootRules,branchDensity},
+ definition=FeynFacet`CreateCutIntegralDefinition[input];
+ If[!AssociationQ[definition]||Lookup[coordinates,"Format",None]=!="FeynFacet-InvariantPhaseSpaceCoordinates",
+  cutFamilyFail["TypedDefinitionAndPhysicalPhaseSpaceCoordinatesRequired"]];
+ top=definition["Topology"];particles=Lookup[definition,"FinalMomenta",{}];total=definition["TimeDirection"];
+ If[!MemberQ[{2,3,4},Length[particles]]||Sort[coordinates["FinalMomenta"]]=!=Sort[particles]||
+   coordinates["TotalMomentum"]=!=total||top[[4]]=!={total}||top[[3]]=!=Most[particles]||
+   Complement[Range[Length[top[[2]]]],definition["CutIndices"]]=!={}||
+   Length[definition["ParticleCutIndices"]]=!=Length[particles]||
+   Length[definition["MeasurementCutIndices"]]=!=1,
+  cutFamilyFail["CompatibleSingleMeasurementMasslessDecayRequired"]];
+ particleCuts=Select[definition["Cuts"],#["Type"]==="Particle"&];
+ expected=Append[Most[particles],total-Total[Most[particles]]];
+ actual=Lookup[particleCuts,"Momentum",Missing["Momentum"]];
+ If[!AllTrue[particleCuts,#["MassSquared"]===0&&#["EnergyDirection"]===1&]||
+   Sort[Expand/@actual]=!=Sort[Expand/@expected]||
+   Lookup[input,"CutPowers",ConstantArray[1,Length[definition["CutIndices"]]]]=!=
+     ConstantArray[1,Length[definition["CutIndices"]]],
+  cutFamilyFail["StandardUnitPositiveParticleAndMeasurementCutsRequired"]];
+ s=FeynCalc`FCI[FeynCalc`SPD[total]]/.top[[5]];e=coordinates["DimensionalRegulator"];
+ parameters=coordinates["Parameters"];
+ If[!MatchQ[parameters,{_Symbol..}],cutFamilyFail["NonemptyPhysicalCoordinateListRequired"]];
+ r=Lookup[request,"EliminateVariable",First[parameters]];
+ z=First[definition["MeasurementVariables"]];
+ If[!MatchQ[e,_Symbol]||!MemberQ[parameters,r]||MemberQ[parameters,z]||
+   !TrueQ[FullSimplify[s==coordinates["Scale"]&&s>0,Assumptions->definition["Assumptions"]]],
+  cutFamilyFail["IndependentCompatibleMeasurementCoordinatesRequired"]];
+ remaining=DeleteCases[parameters,r];
+ assumptions=definition["Assumptions"]&&Lookup[request,"Assumptions",0<z<1];
+ rootDomain=assumptions&&And@@(0<#<1&/@remaining);
+ rules=coordinates["ScalarProductRules"];
+ g=Cancel[Together[definition["InversePropagators"][[First[definition["MeasurementCutIndices"]]]]/.rules]];
+ numerator=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[Lookup[definition,"MeasurementNumerator",1]]]/.rules;
+ If[!FreeQ[{g,numerator},_FeynCalc`Pair|_FeynCalc`Momentum|_FeynCalc`Eps],
+  cutFamilyFail["ScalarProductMeasurementRequired"]];
+ {polynomial,denominator}={Numerator[g],Denominator[g]};
+ If[!PolynomialQ[polynomial,r]||!PolynomialQ[denominator,r]||!MemberQ[{1,2},Exponent[polynomial,r]]||
+   !TrueQ[TimeConstrained[FullSimplify[denominator!=0,Assumptions->rootDomain&&0<r<1],10,False]],
+  cutFamilyFail["RegularRationalMeasurementRootRequired"]];
+ normalization=(definition["MeasurePrefactor"]/(2Pi)^(Length[particles]-(Length[particles]-1)D))/.D->4-2e;
+ roots=DeleteDuplicates[r/.Solve[polynomial==0,r]];
+ Do[
+  inside=TrueQ[TimeConstrained[FullSimplify[Element[root,Reals]&&0<root<1,Assumptions->rootDomain],10,False]];
+  outside=TrueQ[TimeConstrained[FullSimplify[!Element[root,Reals]||root<=0||root>=1,Assumptions->rootDomain],10,False]];
+  If[!inside&&!outside,cutFamilyFail["MeasurementRootDomainPartitionRequired",<|"Root"->root|>]];
+  If[inside,
+   rootRules={r->root};slope=Factor[D[g,r]/.rootRules];
+   If[!TrueQ[TimeConstrained[FullSimplify[slope!=0&&Element[slope,Reals],Assumptions->rootDomain],10,False]],
+    cutFamilyFail["SimpleInteriorMeasurementRootsRequired"]];
+   jacobian=Which[
+    TrueQ[FullSimplify[slope>0,Assumptions->rootDomain]],1/slope,
+    TrueQ[FullSimplify[slope<0,Assumptions->rootDomain]],-1/slope,
+    True,FullSimplify[1/Abs[slope],Assumptions->rootDomain]];
+   branchDensity=normalization jacobian(coordinates["Density"]/.rootRules);
+   AppendTo[branches,<|"Root"->root,"EliminationRule"->First[rootRules],"Jacobian"->jacobian,
+    "ScalarProductRules"->(First[#]->(Last[#]/.rootRules)&/@rules),
+    "MeasurementNumerator"->(numerator/.rootRules),"PolynomialCutDensity"->branchDensity,
+    "MeasurementDensity"->branchDensity(numerator/.rootRules)|>]],{root,roots}];
+ <|"Format"->"FeynFacet-PhaseSpaceMeasurementPushforward","Definition"->definition,
+   "Coordinates"->coordinates,"IntegrationVariables"->remaining,"EliminatedVariable"->r,
+   "Bounds"->({#,0,1}&/@remaining),"Variable"->z,"MeasurementPolynomial"->g,
+   "Branches"->branches,"DimensionalRegulator"->e,"Domain"->rootDomain,
+   "EndpointDistributionIncluded"->False,"IntegralEvaluated"->False,
+   "Scope"->"Open-domain unit-cut pushforward. All retained roots and Jacobians are explicit; internal singular strata, physical boundary values and measurement-endpoint continuation remain separate."|>
+],"CutFamily"];
+ConstructPhaseSpaceMeasurementPushforward[___]:=Failure["TypedDefinitionPhysicalCoordinatesAndRequestRequired",<||>];
 ConstructThreeParticleMeasurementPushforward[input_Association,request_Association:<||>]:=Catch[Module[
  {definition,top,particles,total,s,order,parameters,x,y,z,assumptions,rules,g,roots,
   selected={},inside,outside,slope,jacobian,e,dimension,normalization,gram,numerator,cutSlots},

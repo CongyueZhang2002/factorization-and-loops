@@ -1,8 +1,14 @@
 # Two resolved particles in massless four-body phase space
 
-This is a proposed physical coordinate construction, submitted to actual Pro
-for mathematical review17 on18September. It is not implemented or an evaluated
-master integral. No measured literature hard coefficient enters the derivation.
+The physical coordinate construction is implemented by
+`MasslessPairPhaseSpaceCoordinates`; actual Pro mathematical review17 confirmed
+its normalization, scalar-invariant coverage and angular continuation. The generic
+`ConstructPhaseSpaceMeasurementPushforward` retains all proved simple physical
+roots and exact Jacobians. `EvaluatePairMeasurementEulerMaster` evaluates the
+supported angle-independent polynomial periods through explicit beta/Gauss
+functions. It rejects positive ordinary propagator powers for now. This does not
+complete general four-body integration or endpoint continuation. No measured
+literature hard coefficient enters the derivation.
 
 Take q=sum p_i, q^2=s>0, p_i^2=0, D=4-2epsilon. Integrate overall rotations,
 but keep scalar invariants. With particles1,2 resolved, define
@@ -33,7 +39,7 @@ The normalized recoil angular measures are
 
 The standard Lorentz-invariant convention is product d^(D-1)p/
 [(2Pi)^(D-1)2E] times (2Pi)^D delta^D(q-sum p).
-Using the two resolved one-particle measures times dPhi2(R) gives the proposed
+Using the two resolved one-particle measures times dPhi2(R) gives the
 five-variable density
 
     C(epsilon) s^(2-3epsilon) [z(1-z)]^(-epsilon)
@@ -68,15 +74,22 @@ or s^2/(24576Pi^5) at epsilon=0. This agrees algebraically with iterated
 two-body factorization. It checks normalization, not the continuation of an
 arbitrary singular measured integrand.
 
-The intended reusable interface is a pair-resolved coordinate option for
+The implemented reusable interface is a pair-resolved coordinate option for
 scalar four-particle decay phase space. An arbitrary supported polynomial
 measurement would still be pushed forward from its actual card expression.
 For an angle measurement on the resolved pair, the cut simply selects z.
 No process name, energy weight or hard coefficient would enter the coordinate
 provider.
 
-Remaining mathematical work: independent review of coverage and angular
-continuation; limiting charts at z=0,1, rho=0, x=0 and the coupled x=z=1
+Remaining mathematical work: limiting charts at z=0,1, rho=0, x=0 and the coupled x=z=1
 corner; sector/region completeness for each actual master; sufficient epsilon
 orders, physical boundary constants and distributional endpoint bounds.
-This proposal supplies none of those endpoint conclusions by itself.
+The coordinate representation supplies none of those endpoint conclusions by itself.
+
+The record stores d=1-z*x, K=1-z+z*rho, zeta=z*rho/K, the exact Gram
+ determinant and inverse energy map. Scalar-product observables integrate both
+parity orientations; oriented Levi-Civita observables are outside its scope.
+Moving angular collinear loci are b=0,a=zeta and b=1,a=1-zeta. With
+ t=1-z,X=1-x,Y=1-y, the distinct balances t~X and t~XY must be resolved for
+singular integrands. The internal 1/s34 collinear pole persists at interior z;
+no contact-order bound is inferred from the positive coordinate density.

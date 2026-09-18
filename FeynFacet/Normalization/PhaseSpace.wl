@@ -2,8 +2,13 @@
 BeginPackage["FeynFacet`"];
 OnShellInvariantDensityFactor::usage="OnShellInvariantDensityFactor[dimension] is the coefficient of d^(dimension-1)p/E in d^dimension p (2 Pi) delta_+(p^2)/(2 Pi)^dimension. The energy delta derivative supplies 1/(2E).";
 LorentzInvariantIncidentFlux::usage="LorentzInvariantIncidentFlux[s,m1Squared,m2Squared,assumptions] derives the two-particle incident flux 2 sqrt(lambda(s,m1Squared,m2Squared)). No incoming identical-particle factorial is included.";
+MasslessResolvedPairDensityFactor::usage="MasslessResolvedPairDensityFactor[dimension] derives the coefficient multiplying s^(dimension-2) (x1 x2)^(dimension-3) [z(1-z)]^((dimension-4)/2) dx1 dx2 dz for two labeled massless particle measures, after integrating their overall orientations. Energies are sqrt(s) xi/2 and cos(theta12)=1-2z. The recoil phase space, observable and state counting are not included.";
 Begin["`Private`"];
 OnShellInvariantDensityFactor[dimension_]:=(2Pi)/(2(2Pi)^dimension);
+normalizationSphereArea[dimension_]:=2Pi^((dimension+1)/2)/Gamma[(dimension+1)/2];
+MasslessResolvedPairDensityFactor[dimension_]:=
+ FeynFacet`OnShellInvariantDensityFactor[dimension]^2 * 2^(-2(dimension-2)) *
+ normalizationSphereArea[dimension-2]normalizationSphereArea[dimension-3]*2^(dimension-3);
 LorentzInvariantIncidentFlux[s_,m1_,m2_,assumptions_:True]:=
  FullSimplify[2Sqrt[(s-m1-m2)^2-4m1 m2],Assumptions->assumptions];
 FeynFacet`PartonicInvariantDensityNormalization::usage="PartonicInvariantDensityNormalization[setup,request] supplies the common flux, incoming color average, observed measure and removal of PDF/FF fractions for E_c d sigma/d^(D-1)p_c. It applies equally to Born, real and virtual contributions; loop and unobserved phase-space measures belong to the amplitude and master definitions.";

@@ -3,7 +3,7 @@
 BeginPackage["FeynFacet`"];
 ReuseIntegralReduction::usage="ReuseIntegralReduction[families,targets,reduction] reuses closed IBP rules for exactly identical integral-family definitions, allowing family-name changes. It verifies source target coverage and never interprets an unresolved target as a master.";
 ApplyIntegralReduction::usage="ApplyIntegralReduction[coefficientRows,reduction] substitutes a closed exact integral reduction into sparse external-coefficient rows and cancels the resulting master coefficients with exact rational arithmetic. It retains the row labels and never evaluates or expands the master integrals.";
-TransformIntegralReductionEquations::usage="TransformIntegralReductionEquations[families,reduction] rewrites retained exact reduction identities in new complete inverse-propagator coordinates. Uncovered new targets remain to be solved; the transformed identities can be supplied as ExtraEquations to the common IBP solver.";
+TransformIntegralReductionEquations::usage="TransformIntegralReductionEquations[families,reduction] rewrites retained exact reduction identities in new complete inverse-propagator coordinates. Uncovered new targets remain to be solved; the transformed identities can be supplied as ExtraEquations to the common IBP solver. RequireComplete -> False retains only whole relations whose every integral has a verified map, and reports all missing relations explicitly.";
 EliminateKnownIntegralRules::usage="EliminateKnownIntegralRules[rows,targets,rules] substitutes supplied exact closed linear integral identities into every sparse equation. It retains all remaining columns, including integrals outside the requested targets, and returns the residual equations and required target images. The identities are assumed established by their producer; this operation does not prove new physical relations or discard unresolved columns.";
 Begin["`Private`"];
 EliminateKnownIntegralRules[rows_List,targets_List,rules_List]:=Catch[Module[
@@ -141,8 +141,10 @@ reuseIntegralReductionCoordinates[families_,targets_,reduction_]:=Catch[Module[
   "ReductionReuse"-><|"ExactCoordinateChangesVerified"->True,"AllTargetsCovered"->True,
     "ClosedOnDeclaredMasters"->True,"ForwardIntegralImages"->maps,"ReverseMasterImages"->reverse|>|>]
 ],"CutFamily"];
-TransformIntegralReductionEquations[families_List,reduction_Association]:=Catch[Module[
- {columns,old,images=<||>,proofs={},local,choice,candidate,rows,terms,coefficients,toTerms},
+TransformIntegralReductionEquations[families_List,reduction_Association,request_Association:<||>]:=Catch[Module[
+  {columns,old,images=<||>,proofs={},local,choice,candidate,rows,terms,coefficients,toTerms,
+   requireComplete=Lookup[request,"RequireComplete",True],unmapped={},covered,unmappedRules},
+  If[!MemberQ[{True,False},requireComplete],cutFamilyFail["BooleanIntegralEquationCoverageRequired"]];
  If[!ListQ[Lookup[reduction,"Rules",None]]||!ListQ[Lookup[reduction,"Families",None]],
   cutFamilyFail["ExactRetainedReductionIdentitiesRequired"]];
  old=reduction["Families"];
@@ -154,18 +156,24 @@ TransformIntegralReductionEquations[families_List,reduction_Association]:=Catch[
    candidate=FeynFacet`MapIntegralFamilyCoordinates[local,donor,family];
    If[AssociationQ[candidate],choice=candidate;Break[]],
   {family,SortBy[families,If[#["Topology"][[1]]===donor["Topology"][[1]],0,1]&]}];
-  If[choice===None,cutFamilyFail["RetainedReductionCoordinateMapRequired",<|"Family"->donor["Topology"][[1]]|>]];
+   If[choice===None,
+    If[requireComplete,cutFamilyFail["RetainedReductionCoordinateMapRequired",<|"Family"->donor["Topology"][[1]]|>]];
+    AppendTo[unmapped,donor["Topology"][[1]]];Continue[]];
   images=Join[images,choice["IntegralImages"]];AppendTo[proofs,KeyDrop[choice,"IntegralImages"]],
  {donor,old}];
  toTerms[expression_]:=Flatten[Map[Function[integral,
    KeyValueMap[#1->Coefficient[expression,integral]#2&,images[integral]]],
   DeleteDuplicates[Cases[expression,_FeynCalc`GLI,{0,Infinity}]]],1];
- rows=Map[Function[rule,
+  covered=Select[reduction["Rules"],AllTrue[Cases[#,_FeynCalc`GLI,{0,Infinity}],KeyExistsQ[images,#]&]&];
+  unmappedRules=Complement[reduction["Rules"],covered];
+  rows=Map[Function[rule,
   terms=Join[Normal[images[First[rule]]],(First[#]->-Last[#]&/@toTerms[Last[rule]])];
   coefficients=Map[Cancel[Together[#]]&,Merge[terms,Total]];
-  Select[coefficients,#=!=0&]],reduction["Rules"]];
+   Select[coefficients,#=!=0&]],covered];
  <|"Format"->"FeynFacet-TransformedIntegralReductionEquations","Rows"->DeleteDuplicates[DeleteCases[rows,<||>]],
-   "CoordinateMaps"->proofs,"SourceReductionWorkspace"->Lookup[reduction,"Workspace",None],
+    "CoordinateMaps"->proofs,"SourceReductionWorkspace"->Lookup[reduction,"Workspace",None],
+    "AllSourceRelationsMapped"->(unmappedRules==={}),"MappedRuleCount"->Length[covered],
+    "UnmappedFamilies"->unmapped,"UnmappedRules"->unmappedRules,
    "ExactIdentityScope"->"The retained identities in explicitly verified inverse-propagator coordinates. New target coverage is not asserted."|>
 ],"CutFamily"];
 End[];EndPackage[];

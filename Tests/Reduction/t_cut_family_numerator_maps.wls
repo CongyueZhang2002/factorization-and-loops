@@ -43,5 +43,27 @@ zero=FeynFacet`ReduceEquivalentCutIntegralTargets[combined,
 FTTest`FTAssert["exact zero after family mapping retains coefficient groups and exceptional loci",
  AssociationQ[zero]&&zero["Targets"]==={}&&zero["Coefficients"]===<|"Scalar"-><||>|>&&
  zero["CoefficientGroups"]===<|"BeforeGrouping"->"Scalar"|>&&zero["ExceptionalDivisors"]==={zz}];
+coordinateMap=FeynFacet`MapIntegralFamilyCoordinates[{si,dotted},src,rep];
+FTTest`FTAssert["coordinate reuse retains the index of an identical dependent polynomial cut",
+ AssociationQ[coordinateMap]&&coordinateMap["CoordinateMap"]["InversePropagatorImages"][[3]]===vars[[3]]&&
+ coordinateMap["IntegralImages"][si]===<|ri->2ss|>];
+FTTest`FTAssert["coordinate reuse proves denominator equality before unit-cut numerator reduction",
+ AssociationQ[coordinateMap]&&AllTrue[Cancel[Together[#]]&/@
+  ((coordinateMap["CoordinateMap"]["InversePropagatorImages"]/.Thread[vars->rep["InversePropagators"]])-
+    src["InversePropagators"]),#===0&]];
+FTTest`FTAssert["coordinate reuse preserves lower dotted-cut powers",
+ AssociationQ[coordinateMap]&&
+ Expand[Total[KeyValueMap[Times,coordinateMap["IntegralImages"][dotted]]]-
+   (2ri+2ss FeynCalc`GLI[AffineRepresentative,{2,1,1,1}])]===0];
+FTTest`FTAssert["an identical polynomial cut cannot override an opposite ordinary prescription",
+ FailureQ[FeynFacet`MapIntegralFamilyCoordinates[{FeynCalc`GLI[OppositePrescription,si[[2]]]},flipped,rep]]];
+oppositeIntegral=FeynCalc`GLI[OppositePrescription,si[[2]]];
+retained=<|"Families"->{src,rep,flipped},"Rules"->{si->2ss ri,oppositeIntegral->oppositeIntegral}|>;
+partial=FeynFacet`TransformIntegralReductionEquations[{rep},retained,<|"RequireComplete"->False|>];
+FTTest`FTAssert["partial equation reuse keeps only whole relations with complete verified maps",
+ AssociationQ[partial]&&partial["MappedRuleCount"]===1&&!partial["AllSourceRelationsMapped"]&&
+ partial["UnmappedRules"]==={oppositeIntegral->oppositeIntegral}&&partial["Rows"]==={}];
+FTTest`FTAssert["complete equation reuse still rejects missing physical maps",
+ FailureQ[FeynFacet`TransformIntegralReductionEquations[{rep},retained]]];
 Print["CUT FAMILY NUMERATOR MAP TEST COMPLETE"];
 FTTest`FTReport[];

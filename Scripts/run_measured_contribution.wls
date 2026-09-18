@@ -2,9 +2,10 @@ Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 args=Rest[$ScriptCommandLine];
-If[Length[args]<2,Print["Usage: run_measured_contribution.wls CARD {prepare|de|masters|interior|check|virtual|loop|loop-interior|loop-contact-order|loop-inclusive-prepare|loop-inclusive-subtract|loop-inclusive-decompose|loop-inclusive-reduce|loop-inclusive-masters|loop-inclusive-rate|loop-distribution} [all|resume]"];Exit[2]];
+If[Length[args]<2||Length[args]>4,Print["Usage: run_measured_contribution.wls CARD {prepare|families|de|masters|interior|check|virtual|loop|loop-interior|loop-contact-order|loop-inclusive-prepare|loop-inclusive-subtract|loop-inclusive-decompose|loop-inclusive-reduce|loop-inclusive-masters|loop-inclusive-rate|loop-distribution} [all|resume] [COMPONENT]"];Exit[2]];
 path=ExpandFileName[args[[1]]];stage=args[[2]];mode=If[Length[args]>=3,args[[3]],"resume"];
-card=FeynFacet`ReadContributionCard[DirectoryName[path,2],FileNameTake[DirectoryName[path]]];
+contribution=FileNameTake[DirectoryName[path]]<>If[Length[args]===4,"."<>args[[4]],""];
+card=FeynFacet`ReadContributionCard[DirectoryName[path,2],contribution];
 If[!AssociationQ[card],Print[InputForm[card]];Exit[1]];
 If[stage==="loop-distribution",result=FeynFacet`CompleteMeasuredCurrentOneLoopDistribution[card,mode];
  If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
@@ -49,6 +50,7 @@ If[stage==="virtual",result=FeynFacet`IntegrateMeasuredCurrentVirtual[card,mode]
 prepared=FeynFacet`PrepareMeasuredCurrentContribution[card,mode];
 If[!AssociationQ[prepared],Print[InputForm[prepared]];Exit[1]];
 result=Switch[stage,"prepare",prepared,
+ "families",FeynFacet`PrepareMeasuredContributionIntegralDecomposition[card,prepared],
  "de",FeynFacet`ConstructMeasuredContributionDifferentialSystems[card,prepared],
  "masters",de=FeynFacet`FamilyArtifactRead[card["WorkDirectory"]<>"/DifferentialSystem.wl"];
  If[!AssociationQ[de],Print[InputForm[de]];Exit[1]];

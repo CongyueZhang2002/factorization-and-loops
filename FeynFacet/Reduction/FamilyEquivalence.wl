@@ -121,16 +121,25 @@ integralCoordinateImage[master_FeynCalc`GLI,map_Association,family_Association]:
  ];
 
 MapIntegralFamilyCoordinates[integrals_List,source_Association,representative_Association]:=Catch[Module[
- {a=source["Topology"],b=representative["Topology"],images,positive,map=<||>,index,oldCut,newCut,record},
+ {a=source["Topology"],b=representative["Topology"],images,positive,map=<||>,index,oldCut,newCut,record,literalImage},
  If[!AllTrue[integrals,MatchQ[#,_FeynCalc`GLI]&&#[[1]]===a[[1]]&&Length[#[[2]]]===Length[a[[2]]]&]||
   !ContainsAll[Keys[source],{"InversePropagators","CutIndices","OrdinaryPropagatorPrescriptions","Definition"}]||
-  !ContainsAll[Keys[representative],{"ScalarProductRules","DenominatorVariables","CutIndices","OrdinaryPropagatorPrescriptions","Definition"}],
+  !ContainsAll[Keys[representative],{"InversePropagators","ScalarProductRules","DenominatorVariables","CutIndices","OrdinaryPropagatorPrescriptions","Definition"}],
   cutFamilyEquivalenceFail["CompleteIntegralCoordinateDefinitionsRequired"]];
  If[Map[Identity,a[[3;;5]],{0,Infinity}]=!=Map[Identity,b[[3;;5]],{0,Infinity}]||
   KeyTake[source,{"MeasurePrefactor","TimeDirection","Assumptions","Definition","AdditionalAcceptanceBoundaries"}]=!=
    KeyTake[representative,{"MeasurePrefactor","TimeDirection","Assumptions","Definition","AdditionalAcceptanceBoundaries"}],
   cutFamilyEquivalenceFail["SameIntegralFrameAndMeasureRequired"]];
- images=Cancel[Together[#]]&/@(source["InversePropagators"]/.representative["ScalarProductRules"]);
+ (* A dependent polynomial denominator has its own formal index but is not
+    an affine scalar-product coordinate. Preserve an exactly identical
+    off-shell denominator before applying the affine coordinate inverse. *)
+ literalImage[polynomial_]:=Module[{position},
+  position=SelectFirst[Range[Length[representative["InversePropagators"]]],
+    Cancel[Together[polynomial-representative["InversePropagators"][[#]]]]===0&,None];
+  If[position===None,Cancel[Together[polynomial/.representative["ScalarProductRules"]]],
+    representative["DenominatorVariables"][[position]]]
+ ];
+ images=literalImage/@source["InversePropagators"];
  If[!FreeQ[images,_FeynCalc`Pair|_FeynCalc`Momentum]||
    !AllTrue[images,PolynomialQ[#,representative["DenominatorVariables"]]&],
   cutFamilyEquivalenceFail["AffineIntegralCoordinateImagesRequired"]];

@@ -795,3 +795,36 @@ regression passes in34.387s (ResidualProReviewRepairs.json). No large production
 solve has yet enabled residual elimination. The active native job completed
 with the unchanged equation system; the new option was not the cause of its
 completion or the subsequent37->18 exact basis reduction.
+
+### Pair-resolved physical coordinates and first explicit RR periods
+
+Pro17 completed its mathematical review: exact measure, dimensional angular
+weights, invariant signs, Gram determinant and inclusive volume agree. The review
+identifies correlated d=1-z*x and K=1-z+z*rho limits and moving angular collinear
+loci; those remain endpoint work, not a normalization discrepancy.
+
+The general coordinate constructor and unit polynomial-measurement pushforward
+are implemented, with scalar parity and unit-cut restrictions explicit. Fifteen
+geometry/pushforward assertions passed in15.012s. Adding the physical Euler
+provider gives18 assertions, including two rational negative-epsilon comparisons
+against independently integrated beta/Gauss periods. It computes actual basis
+entries1 and2 of DifferentQuarks exactly in epsilon, without any ordinary causal
+denominators, external measured coefficient or free DE constant. The second
+period uses a different particle ordering and the independently derived absolute
+Jacobian. Values are PhysicalEulerSeedValues.wl with its metadata companion.
+Successful first evaluation took4.567s including startup; three earlier failed
+attempts retain separate receipts. Other16 basis periods and endpoints remain.
+
+A dependent measurement denominator is now preserved as its formal coordinate
+when it is exactly the same unrestricted polynomial in the target family. Thirteen
+coordinate-map/partial-reuse assertions pass in13.924s. Verified complete equations
+can be retained with RequireComplete->False while all unmapped equations remain
+reported. Actual reuse retains429 equations for IdenticalQuarks and356 for Gluons;
+this is not a completed reduction of those components.
+
+Independent family preparation took94.978s for IdenticalQuarks (4234targets,
+32families) and113.307s for Gluons (9944targets,91families), including startup.
+DifferentQuarks source contraction/profile took26.827s. Its exact coefficient
+valuations require at least epsilon^1 for some masters at interior kinematics;
+physical master pole bounds and endpoint requirements are still needed for the
+complete order plan. None of these stage timings is a whole-NLO cold timing.
