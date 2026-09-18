@@ -207,7 +207,8 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
   "Scope"->"Finite-field diagnostics for equation selection; exact target identities remain required. With RequireClosedExport False, unresolved columns remain explicit independent formal remainders, so nonzero rank is only an upper bound and is never an irreducibility claim."|>
 ],"CutFamily"],$ibpFailure];
 NormalizeIntegralEquationScale[rows_List,weights_Association,scale_Symbol]:=Catch[Module[
- {columns,output,coefficients,degrees,rowDegree,normalized,proofs,w,degree,unit,rowIndex=0},
+ {columns,output,coefficients,degrees,rowDegree,normalized,proofs,w,degree,unit,rowIndex=0,
+  termData,analyze,cache=<||>,cacheBytes=0,keys},
  If[rows==={}||!AllTrue[rows,AssociationQ]||!AllTrue[Values[weights],IntegerQ],
   Throw[Failure["RationalIntegralRowsAndIntegerScaleWeightsRequired",<||>]]];
  columns=Union[Flatten[Keys/@rows]];
@@ -237,21 +238,27 @@ NormalizeIntegralEquationScale[rows_List,weights_Association,scale_Symbol]:=Catc
   If[!FreeQ[result,Indeterminate|_DirectedInfinity],
    Throw[Failure["FiniteRationalScaleUnitRequired",<||>]]];
   result];
+ (* Repeated coefficients occur in thousands of seed rows. Analyze each
+    scale-dependent coefficient once within a bounded cache, and retain its
+    degree and unit-scale coefficient together. Scale-free terms need no work. *)
+ analyze[value_]:=If[FreeQ[value,scale],{0,value},
+   If[KeyExistsQ[cache,value],cache[value],Module[{d=degree[value],data},
+    If[!IntegerQ[d],Throw[Failure["NonmonomialEquationScaleDependence",<|"Coefficient"->value|>]]];
+    data={d,unit[value,-d]};
+    If[cacheBytes+ByteCount[value]+ByteCount[data]<=4*1024^2,
+     AssociateTo[cache,value->data];cacheBytes+=ByteCount[value]+ByteCount[data]];
+    data]]];
  proofs=ConstantArray[0,Length[rows]];
  output=Map[Function[row,
   rowIndex++;
-  coefficients=Normal[Select[row,#=!=0&]];
-  If[coefficients==={},Return[<||>,Function]];
-  degrees=Map[Function[term,
-   w=weights[First[term]];
-   normalized=degree[Last[term]];
-   If[!IntegerQ[normalized],Throw[Failure["NonmonomialEquationScaleDependence",<|"Term"->term|>]]];
-   w+normalized],coefficients];
+  coefficients=Select[row,#=!=0&];keys=Keys[coefficients];
+  If[keys==={},Return[<||>,Function]];
+  termData=analyze/@Values[coefficients];
+  degrees=Lookup[weights,keys]+(First/@termData);
   rowDegree=First[degrees];
   If[!AllTrue[degrees,#===rowDegree&],
    Throw[Failure["IntegralEquationScaleWeightsNotHomogeneous",<|"Degrees"->degrees|>]]];
-  normalized=Association@Map[Function[term,First[term]->
-   unit[Last[term],weights[First[term]]-rowDegree]],coefficients];
+  normalized=AssociationThread[keys,Last/@termData];
   If[!FreeQ[Values[normalized],scale],
    Throw[Failure["EquationScaleRemovalNotExact",<||>]]];
   proofs[[rowIndex]]=rowDegree;normalized],rows];
