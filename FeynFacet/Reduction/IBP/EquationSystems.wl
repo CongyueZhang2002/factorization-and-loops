@@ -30,7 +30,7 @@ cutKiraWriteEquationRows[equations_List,idMap_Association,coefficientText_,file_
 
 cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:{}]:=Module[
  {names,familyOrder,unknowns,idMap,variables,aliases,variableRules,coefficientValues,
-  coefficientText,rows,project,head=Global`FeynFacetIBP},
+  coefficientText,rows,project,head=Global`FeynFacetIBP,textCache=<||>,textBytes=0},
  names=#[["Topology",1]]&/@records;
  familyOrder=AssociationThread[names,Range[Length[names]]];
  If[!ListQ[equations]||!AllTrue[equations,AssociationQ]||
@@ -42,8 +42,12 @@ cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:
    Total[Select[integral[[2]],Positive]],familyOrder[integral[[1]]],integral[[2]]}]];
  If[Length[unknowns]>=2^31,cutFamilyFail["SingleIndexKiraIdentifierCapacityExceeded"]];
  idMap=AssociationThread[unknowns,Range[Length[unknowns]]];
- variables=SortBy[DeleteDuplicates[Cases[Values/@equations,_Symbol,Infinity]],ToString[#,InputForm]&];
  coefficientValues=DeleteDuplicates[Flatten[Values/@equations]];
+ (* Collect each distinct coefficient's small symbol set first. Traversing
+    every repeated rational tree into one giant symbol list can exceed memory
+    even though the equation system has only two kinematic parameters. *)
+ variables=SortBy[Union@@(DeleteDuplicates[Cases[#,_Symbol,{0,Infinity}]]&/@coefficientValues),
+  ToString[#,InputForm]&];
  If[!FreeQ[coefficientValues,_Complex|_Real]||!AllTrue[coefficientValues,exactIntegralCoefficientQ],
   cutFamilyFail["RationalIBPCoefficientsRequired"]];
  Clear[coefficientValues];
@@ -51,7 +55,11 @@ cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:
  If[!AllTrue[aliases,Function[a,With[{symbol=a},OwnValues[symbol]==={}&&DownValues[symbol]==={}]]],
   cutFamilyFail["KiraCoefficientAliasAlreadyDefined"]];
  variableRules=Thread[variables->aliases];
- coefficientText[value_]:=coefficientText[value]=StringDelete[ToString[value/.variableRules,InputForm,PageWidth->Infinity]," "];
+ coefficientText[value_]:=If[KeyExistsQ[textCache,value],textCache[value],Module[{text},
+  text=StringDelete[ToString[value/.variableRules,InputForm,PageWidth->Infinity]," "];
+  If[textBytes+ByteCount[value]+StringLength[text]<4*1024^2,
+   AssociateTo[textCache,value->text];textBytes+=ByteCount[value]+StringLength[text]];
+  text]];
  cutKiraWriteEquationRows[equations,idMap,coefficientText,directory<>"/equations.kira"];
  Export[directory<>"/targets",StringRiffle[("FeynFacetIBP["<>ToString[idMap[#]]<>"]"&/@targets),"\n"]<>"\n","String"];
  project=<|"Directory"->directory,"Runtime"->ibpRuntime[],"Manifest"->{<|"Name"->head|>},
@@ -122,7 +130,6 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
  If[Lookup[process,"ExitCode",1]=!=0,cutFamilyFail["FiniteFieldKiraRunFailed",<|"Directory"->runDirectory|>]];
  samples={};
  files=Sort[FileNames["points_"<>ToString[prime]<>"_*.m",runDirectory<>"/results/FeynFacetIBP"]];
- If[files==={},cutFamilyFail["FiniteFieldKiraOutputRequired"]];
  decode[expr_]:=expr/.{(HoldPattern[h_Symbol[i_Integer]]/;SymbolName[h]==="FeynFacetIBP"):>
   If[1<=i<=Length[project["IndexedIntegrals"]],project["IndexedIntegrals"][[i]],
    cutFamilyFail["SampledIntegralIdentifierOutOfRange"]]};
@@ -139,6 +146,14 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
  If[!VectorQ[masterIndices,IntegerQ[#]&&1<=#<=Length[project["IndexedIntegrals"]]&],
   cutFamilyFail["SampledUnpivotedIntegralIdentifiersRequired"]];
  declared=project["IndexedIntegrals"][[masterIndices]];
+ If[files==={},
+  (* Kira writes no point file when every selected target is itself an
+     unpivoted integral. This is identity coverage, not a zero remainder. *)
+  If[!ContainsAll[declared,selected]||
+    !StringContainsQ[Lookup[process,"StandardOutput",""],"No integrals to reduce"],
+   cutFamilyFail["FiniteFieldKiraOutputRequired"]];
+  samples=(<|"PointValues"->#,"Rules"->{}|>&/@values)
+ ];
  groups=GatherBy[samples,#["PointValues"]&];
 
   frontier=DeleteDuplicates[Flatten[Map[Function[group,
@@ -206,7 +221,13 @@ NormalizeIntegralEquationScale[rows_List,weights_Association,scale_Symbol]:=Catc
  (* After the exact common row degree is verified, evaluation at scale=1 is
     precisely its coefficient in the rescaled unknowns. No integration value
     is specialized here and no unproved scale dependence is discarded. *)
- unit[value_,power_]:=(value/.scale->1);
+ unit[value_,power_]:=Module[{result},
+  result=Quiet[value/.scale->1,{Power::infy,Infinity::indet}];
+  If[!FreeQ[result,Indeterminate|_DirectedInfinity],
+   result=Cancel[Together[value]]/.scale->1];
+  If[!FreeQ[result,Indeterminate|_DirectedInfinity],
+   Throw[Failure["FiniteRationalScaleUnitRequired",<||>]]];
+  result];
  proofs=ConstantArray[0,Length[rows]];
  output=Map[Function[row,
   rowIndex++;

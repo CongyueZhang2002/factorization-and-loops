@@ -76,21 +76,44 @@ PrepareMeasuredCurrentInclusiveSource[card_Association,mode_String:"resume"]:=Ca
  projectWrite[output,file];output
 ],"ProjectCards"];
 ReduceMeasuredCurrentInclusiveSource[card_Association,mode_String:"resume",execution_Association:<||>]:=Catch[Module[
- {source,data,reduction,coefficients,seconds,threads,output,masters,families,equivalences,maps,terms},
+ {source,data,reduction,coefficients,seconds,threads,output,masters,families,equivalences,maps,terms,
+  basisFile,saved,reused=None,unknowns,candidates,refinementSeconds=0},
  threads=Lookup[execution,"Threads",card["Execution"]["KiraThreads"]];
  If[!IntegerQ[threads]||threads<1||threads>card["Execution"]["KiraThreads"],projectFail["BoundedPositiveReductionThreadsRequired"]];
  source=projectCheck[FeynFacet`PrepareMeasuredCurrentInclusiveSource[card,mode],"InclusiveTreeCurrentSourceRequired"];
  data=source["IntegralDecomposition"];
+ basisFile=card["WorkDirectory"]<>"/InclusiveBasisReduction.wl";
+ If[mode==="resume"&&FileExistsQ[basisFile],saved=FeynFacet`FamilyArtifactRead[basisFile];
+  If[AssociationQ[saved]&&TrueQ[Lookup[saved,"TargetSpanVerifiedExactly",False]],
+   reused=FeynFacet`ReuseIntegralReduction[data["Families"],data["Targets"],saved]]];
  Print["INCLUSIVE TREE FAMILIES ",Length[data["Families"]]," TARGETS ",Length[data["Targets"]]];
- {seconds,reduction}=facetElapsedTiming[FeynFacet`KiraReduction[data["Families"],data["Targets"],
+ {seconds,reduction}=facetElapsedTiming[If[AssociationQ[reused],reused,FeynFacet`KiraReduction[data["Families"],data["Targets"],
   <|"WorkingDirectory"->card["WorkDirectory"]<>"/InclusiveReduction","Threads"->threads,"GenerationKernels"->1,
    "SeedPolicy"->"TargetDownsets","RationalSolver"->"FireFly","HomogeneousScale"->card["Assembly"]["Scale"],
-   "PrintTimings"->True|>]];
+   "PrintTimings"->True|>]]];
  reduction=projectCheck[reduction,"InclusiveTreeReductionRequired"];
  coefficients=projectCheck[FeynFacet`ApplyIntegralReduction[data["Coefficients"],reduction],"InclusiveReducedCoefficientsRequired"];
  coefficients=Map[Map[Cancel[Together[#/.D->4-2Global`Epsilon]]&,#]&,coefficients];
  coefficients=Map[Select[#,#=!=0&]&,coefficients];
  masters=Union[Flatten[Keys/@Values[coefficients]]];families=reduction["Families"];
+ unknowns=Select[masters,Function[master,!AssociationQ[FeynFacet`EvaluateInclusiveFourParticleMaster[
+   SelectFirst[families,#["Topology"][[1]]===master[[1]]&],master,Global`Epsilon,{-4,-4}]]]];
+ If[unknowns=!={},
+  {refinementSeconds,reduction}=facetElapsedTiming[
+   candidates=projectCheck[FeynFacet`FindInclusiveFourParticleMasterCandidates[data["Families"],Global`Epsilon],
+    "InclusivePhysicalScalarCandidatesRequired"];
+   projectWrite[candidates,card["WorkDirectory"]<>"/InclusiveScalarCandidates.wl"];
+   FeynFacet`ReduceCutIntegralsToBasis[data["Families"],data["Targets"],candidates["Masters"],<|
+    "WorkingDirectory"->card["WorkDirectory"]<>"/InclusiveBasisReduction","Threads"->threads,
+    "HomogeneousScale"->card["Assembly"]["Scale"],"RationalSolver"->"FireFly","PrintTimings"->True,
+    "SamplingPoints"->{{D->13/5,card["Assembly"]["Scale"]->1},{D->17/7,card["Assembly"]["Scale"]->1}},
+    "MaximumSeedIterations"->5,"MaximumSeeds"->100000|>]];
+  reduction=projectCheck[reduction,"InclusivePhysicalScalarSpanNotEstablished"];
+  projectWrite[reduction,basisFile];
+  coefficients=projectCheck[FeynFacet`ApplyIntegralReduction[data["Coefficients"],reduction],"InclusiveReducedCoefficientsRequired"];
+  coefficients=Map[Select[Map[Cancel[Together[#/.D->4-2Global`Epsilon]]&,#],#=!=0&]&,coefficients];
+  masters=Union[Flatten[Keys/@Values[coefficients]]];families=reduction["Families"]
+ ];
  equivalences=If[masters==={},<|"Mappings"->{}|>,projectCheck[
   FeynFacet`FindCutIntegralEquivalences[masters,families,"Normalization"->"DeclaredTypedCutMeasures"],
   "InclusiveMasterRoutingEquivalencesRequired"]];
@@ -102,7 +125,8 @@ ReduceMeasuredCurrentInclusiveSource[card_Association,mode_String:"resume",execu
   "InputCompanions"->source["InputCompanions"],"MasterCoefficients"->coefficients,"Reduction"->reduction,
   "IntegralEquivalences"->equivalences,"MeasurementMoments"->source["MeasurementMoments"],
   "DimensionalRegulator"->Global`Epsilon,"DimensionRule"->(D->4-2Global`Epsilon),
-  "StageSeconds"->Join[source["StageSeconds"],<|"InclusiveReduction"->seconds|>],
+  "StageSeconds"->Join[source["StageSeconds"],<|"InclusiveReduction"->seconds,
+    "InclusiveBasisRefinement"->refinementSeconds|>],
   "IntegralEvaluated"->False,"EndpointDistributionIncluded"->False|>;
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterReduction.wl"];output
 ],"ProjectCards"];
@@ -116,7 +140,8 @@ EvaluateMeasuredCurrentInclusiveMasters[card_Association,mode_String:"resume",ex
    "Topologies"->families,"DimensionalRegulator"->e,"KinematicConditions"->card["Assembly"]["PhaseSpace"]["Assumptions"]|>],
    "InclusivePhysicalMasterDefinitionsRequired"];
  If[Length[definitions["MasterIntegralDefinitions"]]=!=Length[masters],projectFail["CompleteInclusiveMasterDefinitionsRequired"]];
- library=Join[Lookup[card["Assembly"],"MasterLibrary",<||>],<|"Provenance"-><|"Project"->card["Project"],
+ library=Join[Lookup[card["Assembly"],"MasterLibrary",<||>],<|"RequiredProvenanceFields"->{"UniversalScalarSources"},
+  "Provenance"-><|"Project"->card["Project"],
    "Card"->card["CardFile"],"Producer"->"UniversalInclusiveScalarProvider"|>|>];
  Do[master=masters[[i]];definition=definitions["MasterIntegralDefinitions"][i];
   family=SelectFirst[families,#["Topology"][[1]]===master[[1]]&];
@@ -137,7 +162,8 @@ EvaluateMeasuredCurrentInclusiveMasters[card_Association,mode_String:"resume",ex
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterValues.wl"];output
 ],"ProjectCards"];
 IntegrateMeasuredCurrentInclusiveRate[card_Association,mode_String:"resume",execution_Association:<||>]:=Catch[Module[
- {masters,labels,needed,values,records,e,lowers,uppers,matrix,vector,product,rows,output,range=card["EpsilonRange"]},
+ {masters,labels,needed,values,records,e,lowers,uppers,matrix,vector,product,rows,output,
+  productLowers,ranges,range=card["EpsilonRange"]},
  masters=projectCheck[FeynFacet`EvaluateMeasuredCurrentInclusiveMasters[card,mode,execution],"InclusiveScalarValuesRequired"];
  If[!TrueQ[masters["AllMasterValuesEvaluated"]],projectFail["CompleteInclusivePhysicalScalarsRequired",<|"Unresolved"->masters["Unresolved"]|>]];
  rows=masters["MasterCoefficients"];labels=Keys[rows];needed=Union[Flatten[Keys/@Values[rows]]];
@@ -148,10 +174,14 @@ IntegrateMeasuredCurrentInclusiveRate[card_Association,mode_String:"resume",exec
   "LaurentLowerBounds"->lowers,"KnownThroughOrders"->uppers,"ExactTails"->ConstantArray[False,Length[needed]]|>;
  matrix=projectCheck[FeynFacet`ExpandLaurentCoefficientMatrix[Lookup[#,needed,0]&/@Values[rows],e,Last[range]-lowers],
   "InclusiveCoefficientExpansionRequired"];
- product=projectCheck[FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,ConstantArray[range,Length[labels]]],
+ productLowers=Map[Min[# + lowers]&,matrix["EntryLaurentLowerBounds"]];
+ ranges=({Min[First[range],#],Last[range]}&/@productLowers);
+ product=projectCheck[FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,ranges],
   "InclusiveScalarProductCoverageRequired"];
  output=Join[product,<|"Format"->"FeynFacet-InclusiveTreeCurrentRate","StructureFunctions"->labels,
   "CalculationDefinition"->masters["CalculationDefinition"],"InputCompanions"->masters["InputCompanions"],
+  "ScalarContractionInputs"-><|"MasterCoefficients"->rows,"MasterValues"->values|>,
+  "RequestedEpsilonRange"->range,"AllImpliedLowerPolesRetained"->True,
   "MeasurementMoments"->masters["MeasurementMoments"],"IntegralEvaluated"->True,
   "EndpointDistributionIncluded"->False,"Scope"->"Generated inclusive tree rate with all raw poles. Measured endpoint completion additionally requires its source-bound contact-order proof."|>];
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveTreeRate.wl"];output

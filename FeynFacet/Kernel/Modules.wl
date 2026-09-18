@@ -147,6 +147,7 @@
     "Integrals/Asymptotics/OneLoopCombinations.wl",
     "Integrals/Asymptotics/EndpointRegularity.wl",
     "Integrals/Asymptotics/MeasurementContacts.wl",
+    "Integrals/Asymptotics/MeasuredTaylorSubtractions.wl",
  "Integrals/Asymptotics/EndpointIntegrals.wl",
     "Integrals/Evaluations/OneLoopExpansion.wl",
     "Integrals/Evaluations/OneLoopMeasurements.wl",

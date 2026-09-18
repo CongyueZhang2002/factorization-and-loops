@@ -11,6 +11,10 @@ volumeFamily=makeFamily[{}];volume=FeynFacet`EvaluateInclusiveFourParticleMaster
  FeynCalc`GLI[phase["Topology"][[1]],{1,1,1,1}],e,{0,0}];
 FTTest`FTAssert["unmeasured volume matches the independently normalized recursive phase space",
  AssociationQ[volume]&&Simplify[volume["ExactValue"]-FeynFacet`MasslessPhaseSpaceVolume[4,s,e]]===0];
+FTTest`FTAssert["physical scalar formulas reject inconsistent recoil metadata",
+ FailureQ[FeynFacet`EvaluateInclusiveFourParticleMaster[
+  Join[volumeFamily,<|"MomentumConservationRules"->{k4->2q-k1-k2-k3}|>],
+  FeynCalc`GLI[phase["Topology"][[1]],{1,1,1,1}],e,{0,0}]]];
 singleFamily=makeFamily[{q-k1}];single=FeynFacet`EvaluateInclusiveFourParticleMaster[singleFamily,
  FeynCalc`GLI[phase["Topology"][[1]],{1,1,1,1,2}],e,{-1,0}];
 reference=FeynFacet`MasslessPhaseSpaceVolume[4,1,-1/4]*NIntegrate[t^(-1/2)(1-t)^(3/2),{t,0,1},WorkingPrecision->35]/Beta[5/2,5/2];

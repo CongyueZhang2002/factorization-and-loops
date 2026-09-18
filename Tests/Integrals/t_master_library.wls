@@ -14,6 +14,7 @@ definition=<|"MasterIntegral"->FeynCalc`GLI["FamilyA",{1,1}],"LoopMomenta"->{ell
  "KinematicRules"->{FeynCalc`SPD[p]->s},"KinematicConditions"->s>0,
  "EvaluationScope"->"GenericKinematics"|>;
 value=<|"Coefficients"-><|-1->2,0->Log[s],1->Pi^2|>,"LaurentLowerBound"->-1,"KnownThroughOrder"->1|>;
+value=Join[value,<|"UniversalScalarSources"-><|"Source"->"Independent synthetic contract fixture"|>|>];
 FTTest`FTAssert["an empty shared library is an explicit miss",
  MissingQ[FeynFacet`FindMasterIntegralValue[definition,{-1,1},request]]];
 stored=FeynFacet`StoreMasterIntegralValue[definition,value,request];
@@ -24,6 +25,9 @@ found=FeynFacet`FindMasterIntegralValue[renamed,{-2,1},request];
 FTTest`FTAssert["family, loop, external and epsilon renaming preserves exact identity",
  AssociationQ[found]&&found["Coefficients"]===<|-2->0,-1->2,0->Log[s],1->Pi^2|>&&
  found["DimensionalRegulator"]===ep];
+FTTest`FTAssert["universal scalar provenance survives storage and reuse",
+ found["UniversalScalarSources"]===value["UniversalScalarSources"]&&
+ MemberQ[Lookup[found["MasterIntegralProvenance"],"UniversalScalarSources",None],value["UniversalScalarSources"]]];
 FTTest`FTAssert["missing higher coefficients are not assumed zero",
  MissingQ[FeynFacet`FindMasterIntegralValue[renamed,{-1,2},request]]];
 FTTest`FTAssert["a changed normalization cannot reuse the master",

@@ -84,3 +84,39 @@ expanded geometry tests are recorded separately.
 Remaining work is the other measured RR components, further inclusive reduction,
 measurement-aware endpoint subtraction and its contact-order proof, then the
 complete raw sum and pole cancellation. No full alpha_s^2 comparison has begun.
+
+
+## Further exact reduction and Pro21
+
+Actual Pro21 inspected pushed939a416d and confirmed the scalar normalization and
+finite-DE dependency repair. It identified a cut-frame guard, removable scale-one
+singularities, lower-pole retention and provenance-through-reuse gaps. These are
+repaired.10 scalar/frame assertions pass16.273s;14 seed/scale assertions pass18.580s;
+24 library assertions with provenance pass14.827s. The exact-source contraction
+records are retained with the inclusive rate. The complete review is saved.
+
+IdenticalQuarks inclusive refinement:15 evaluated candidate geometries,368 initial
+seeds, then665 seeds. The exact final source reduction took100.532s, including
+startup, and coefficient contraction/routing leaves3 physical scalar demands.
+Permanent card inclusive-rate passed21.279s. This is an inclusive rate, not the
+measured angular distribution. Gluons inclusive refinement is ongoing.
+
+The next measured derivative attempt reached scale normalization, then its writer
+again exhausted memory. The supervisor stopped it after2036.548s. The new writer
+collects parameter symbols per distinct coefficient, bounds coefficient text
+cache size and releases obsolete residual rows.20 actual native/reuse assertions
+pass11.872s. This second failure is retained as failed time, not useful production.
+
+An inspection of the initial measured IdenticalQuarks source found4424 provisional
+integrals,2638 after exact routing (203.069s). The current approach therefore
+establishes a unit-cut spanning basis before differentiating.946 candidates reduce
+to381 affine classes; the first search has123571 equations, versus938184 in the
+failed derivative attempt. Sufficiency still requires exact final target identities.
+No physical master values are assigned from a sampled rank.
+
+The general measurement-aware Taylor module has six passing assertions3.716s,
+including a chain-rule derivative contact, overlapping logarithmic faces and an
+independent convergent-integral comparison. It retains all regulator denominators.
+These formal identities do not yet prove the original RR chart cover or weighted
+L1 continuation. Pro21 explains the needed fixed-z subtraction for nonconstant
+face maps and positive endpoint-weight suppression for constant endpoint maps.

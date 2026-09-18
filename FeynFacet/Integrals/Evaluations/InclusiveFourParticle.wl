@@ -3,9 +3,11 @@
    is contained in this file. *)
 BeginPackage["FeynFacet`"];
 EvaluateInclusiveFourParticleMaster::usage="EvaluateInclusiveFourParticleMaster[family,integral,epsilon,range] matches supported physical unit-cut massless four-particle integrals to the phase volume, a single complementary mass power, or the universal inclusive R6/R8 scalar geometries. It restores the declared family measure and checks the original prescription. Finite universal scalar input has explicit coverage and provenance; unsupported geometries or insufficient orders fail.";
+FindInclusiveFourParticleMasterCandidates::usage="FindInclusiveFourParticleMasterCandidates[families,epsilon] enumerates unit-cut, unit ordinary-denominator subsets within each supplied family and retains only geometries recognized by the universal physical scalar provider. These are candidate spanning integrals, not asserted independent or sufficient masters; exact IBP target-span reduction remains required.";
 Begin["`Private`"];
 inclusiveFourParticleKernel[family_,integral_,e_]:=Module[
- {definition,top,slots,powers,ordinary,particles,total,s,rules,unit,kernel,normalization,certificate},
+ {definition,top,slots,powers,ordinary,particles,total,s,rules,unit,kernel,normalization,certificate,
+  physicalMomenta,actualMomenta,routing},
  definition=FeynFacet`CreateCutIntegralDefinition[family];
  If[!AssociationQ[definition],Throw[definition,"CutFamily"]];
  top=definition["Topology"];slots=definition["CutIndices"];powers=integral[[2]];
@@ -16,8 +18,21 @@ inclusiveFourParticleKernel[family_,integral_,e_]:=Module[
    !AllTrue[definition["Cuts"],Lookup[#,"MassSquared",None]===0&&Lookup[#,"EnergyDirection",None]===1&]||
    Length[top[[4]]]=!=1||!MemberQ[{D,4-2e},definition["Dimension"]],
   cutFamilyFail["InclusiveUnitMasslessFourParticleCutsRequired"]];
- s=FeynCalc`FCI[FeynCalc`SPD[total]]/.top[[5]];
+ (* Metadata labels alone do not establish a physical phase-space measure.
+    These formulas integrate the first three final momenta with unit Jacobian,
+    and the fourth is exactly the momentum-conservation recoil. *)
+ routing=Lookup[definition,"MomentumConservationRules",{}];
+ physicalMomenta=Join[Most[particles],{Expand[total-Total[Most[particles]]]}];
+ actualMomenta=Expand/@Lookup[definition["Cuts"],"Momentum",None];
+ If[!MatchQ[particles,{_Symbol,_Symbol,_Symbol,_Symbol}]||!DuplicateFreeQ[particles]||
+   top[[3]]=!=Most[particles]||Expand/@(particles/.routing)=!=physicalMomenta||
+   Sort[actualMomenta]=!=Sort[physicalMomenta]||
+   !FreeQ[definition["MeasurePrefactor"],Alternatives@@particles],
+  cutFamilyFail["CanonicalPhysicalFourParticleCutFrameRequired"]];
+ s=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[FeynCalc`SPD[total]]]/.top[[5]];
  If[!FreeQ[s,_FeynCalc`Pair|_FeynCalc`Momentum],cutFamilyFail["DeclaredPositiveTotalMassInvariantRequired"]];
+ If[!TrueQ[FullSimplify[s>0,Assumptions->definition["Assumptions"]]],
+  cutFamilyFail["PositivePhysicalTotalMassRequired"]];
  ordinary=Complement[Range[Length[powers]],slots];
  unit=FeynFacet`UnitCutScalarProductRules[definition];
  If[!ListQ[unit],cutFamilyFail["InclusiveUnitCutCoordinatesRequired"]];
@@ -100,5 +115,20 @@ EvaluateInclusiveFourParticleMaster[family_Association,integral_FeynCalc`GLI,e_S
      "R8b",{"3.5","4.13","4.29"},"R8r",{"4.13","4.30","4.31"}]|>,
   "Domain"->definition["Assumptions"],"MeasuredHardFunctionInput"->False,
   "Scope"->"Universal unweighted scalar phase-space integral with explicit finite coverage. No amplitude, flavor sum, measured coefficient or endpoint contact is supplied."|>
+],"CutFamily"];
+FindInclusiveFourParticleMasterCandidates[families:{__Association},e_Symbol]:=Catch[Module[
+ {records=<||>,name,count,cuts,ordinary,master,value,definition},
+ Do[definition=FeynFacet`CreateCutIntegralDefinition[family];
+  If[!AssociationQ[definition],cutFamilyFail["TypedInclusiveCandidateFamilyRequired"]];
+  name=definition["Topology"][[1]];count=Length[definition["Topology"][[2]]];cuts=definition["CutIndices"];
+  ordinary=Complement[Range[count],cuts];
+  If[Length[ordinary]>10,cutFamilyFail["BoundedInclusiveCandidateDenominatorCountRequired"]];
+  Do[master=FeynCalc`GLI[name,Table[Boole[MemberQ[Join[cuts,subset],j]],{j,count}]];
+   value=EvaluateInclusiveFourParticleMaster[definition,master,e,{-4,-4}];
+   If[AssociationQ[value],AssociateTo[records,master->KeyTake[value,
+     {"ScalarGeometry","OriginalOrdinaryPrescriptionCertificate","Domain"}]]],
+   {subset,Subsets[ordinary,{0,Min[4,Length[ordinary]]}]}],{family,families}];
+ <|"Masters"->Keys[records],"Definitions"->records,"MasterMinimalityEstablished"->False,
+   "TargetSpanEstablished"->False|>
 ],"CutFamily"];
 End[];EndPackage[];

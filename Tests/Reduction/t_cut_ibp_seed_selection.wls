@@ -86,4 +86,8 @@ FTTest`FTAssert["a bounded harder shell adds candidates without deleting the ori
  ContainsAll[spHarder["Seeds"],spPredecessors["Seeds"]]&&spHarder["SeedCount"]>spPredecessors["SeedCount"]];
 If[StringStartsQ[ExpandFileName[spDirectory],ExpandFileName[$TemporaryDirectory]<>"/"],
  DeleteDirectory[spDirectory,DeleteContents->True]];
+spRemovable=FeynFacet`NormalizeIntegralEquationScale[
+ {<|spM->(spS^2-1)/((spS-1)(spS+1)),spT->-1|>},<|spM->0,spT->0|>,spS];
+FTTest`FTAssert["scale-one specialization removes a proved removable singularity",
+ AssociationQ[spRemovable]&&spRemovable["Rows"]==={<|spM->1,spT->-1|>}];
 Print["AFFINE REGRESSION COMPLETE"];FTTest`FTReport[];

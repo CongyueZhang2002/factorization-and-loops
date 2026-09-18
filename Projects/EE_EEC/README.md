@@ -301,3 +301,30 @@ order is requested. Physical-volume functions also evaluate at literal epsilon
 zero; an unevaluated normalization function is rejected as a stored master.
 The absolute normalization is checked against independent energy integrals,
 not cancelled from both sides of a relative check.
+
+
+## Current four-particle development stages
+
+The maintained contribution driver also has inclusive-prepare, inclusive-reduce,
+inclusive-masters and inclusive-rate stages. Each takes the raw card, resume/all
+mode and optional component name; for example:
+
+~~~bash
+wolframscript -file Scripts/run_measured_contribution.wls \
+  Projects/EE_EEC/Raw/NNLO/q-qb/DoubleReal/Card.wl inclusive-rate resume DifferentQuarks
+~~~
+
+Use the supervised runner for real work and inspect STATUS.md before launching
+another kernel. The inclusive stages use the original generated amplitude and
+particle cuts. They can refine a provisional IBP span into supported scalar
+geometries using sampled equation selection followed by exact rational reduction.
+Unresolved geometry/order demands fail explicitly. Universal scalar inputs and
+their provenance are separate from measured hard coefficients. A rate does not
+complete the measured angular distribution or its endpoint proof.
+
+For measured four-body components, physical-basis, masters and interior stages
+retain the closed DE, exact physical definitions, audited epsilon coverage and
+explicit interior coefficients. Full raw acceptance still additionally needs the
+source-bound endpoint proof and generated moments. Formal measurement-aware
+Taylor subtraction records alone are not an endpoint certificate. No full new
+order-alpha_s-squared result or published hard-coefficient comparison is claimed.

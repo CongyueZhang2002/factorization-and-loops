@@ -99,7 +99,7 @@ masterLibraryResult[definition_,value_,range_,reuse_]:=Module[{e,lower,result,co
   "EvaluationMethod"->"SharedMasterIntegralLibrary","LibraryReuse"->reuse|>]
 ];
 FindMasterIntegralValue[definition_Association,range_:Automatic,request_Association:<||>]:=Catch[Module[
- {dir,c,location,record,value,mode,reuse},
+ {dir,c,location,record,value,mode,reuse,result,provenance,sources},
  mode=masterLibraryMode[request];
  If[MemberQ[{"Disabled","Recompute"},mode],Return[Missing["LibraryReuseDisabled"]]];
  If[range=!=Automatic&&(!MatchQ[range,{_Integer,_Integer}]||First[range]>Last[range]),
@@ -115,7 +115,12 @@ FindMasterIntegralValue[definition_Association,range_:Automatic,request_Associat
    <|"KnownThroughOrder"->location["KnownThroughOrder"],"RequestedThroughOrder"->Last[range]|>]]]];
  record=masterLibraryLoadValue[location];
  value=record["Value"]/.c["FromCanonicalSymbols"];
- masterLibraryResult[definition,value,range,reuse]
+ result=masterLibraryResult[definition,value,range,reuse];
+ If[!AssociationQ[result],Return[result]];
+ provenance=Lookup[record,"Provenance",{}];
+ sources=DeleteDuplicates[Lookup[Select[provenance,AssociationQ],"UniversalScalarSources",Nothing]];
+ Join[result,<|"MasterIntegralProvenance"->provenance|>,
+  If[sources==={},<||>,<|"UniversalScalarSources"->If[Length[sources]===1,First[sources],sources]|>]]
 ],"MasterLibrary"];
 StoreMasterIntegralValue[definition_Association,value_Association,request_Association:<||>]:=Catch[Module[
  {mode,c,stored,provenance},
@@ -125,6 +130,8 @@ StoreMasterIntegralValue[definition_Association,value_Association,request_Associ
  If[!FreeQ[stored,Alternatives@@definition["LoopMomenta"]],masterLibraryFail["IntegratedPhysicalValueRequired"]];
  stored=stored/.c["ToCanonicalSymbols"];
  provenance=Lookup[request,"Provenance",<|"Producer"->Lookup[value,"EvaluationMethod","ExplicitPhysicalMasterSolution"]|>];
+ If[!AssociationQ[provenance],masterLibraryFail["MasterProvenanceAssociationRequired"]];
+ provenance=Join[provenance,KeyTake[value,{"UniversalScalarSources","MeasuredHardFunctionInput","ScalarGeometry","EvaluationMethod"}]];
  masterLibraryStore[masterLibraryDirectory[request],c,stored,provenance]
 ],"MasterLibrary"];
 FindMasterIntegralValues[definitions_Association,ranges_Association,request_Association:<||>]:=Catch[Module[
@@ -149,11 +156,13 @@ FindMasterIntegralValues[definitions_Association,ranges_Association,request_Asso
   "RequestedRanges"->ranges,"LookupCount"->Length[definitions],"LookupStatistics"->statistics|>
 ],"MasterLibrary"];
 EvaluateWithMasterIntegralLibrary[definition_Association,range_,provider_Function,request_Association:<||>]:=Catch[Module[
- {found,result,stored,expanded,value},
+ {found,result,stored,expanded,value,required},
  If[range=!=Automatic&&(!MatchQ[range,{_Integer,_Integer}]||First[range]>Last[range]),
   masterLibraryFail["MasterLibraryOrderRangeRequired"]];
  found=FindMasterIntegralValue[definition,range,request];
- If[AssociationQ[found]||FailureQ[found],Return[found]];
+ required=Lookup[request,"RequiredProvenanceFields",{}];
+ If[!VectorQ[required,StringQ],masterLibraryFail["RequiredMasterProvenanceFieldsInvalid"]];
+ If[FailureQ[found]||(AssociationQ[found]&&ContainsAll[Keys[found],required]),Return[found]];
  result=provider[];
  If[!AssociationQ[result],Return[result]];
  value=masterLibraryValue[result,definition["DimensionalRegulator"]];

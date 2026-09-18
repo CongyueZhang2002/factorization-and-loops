@@ -372,6 +372,7 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
      FeynFacet`EliminateKnownIntegralRules[equations,targets,knownRules]];
    If[!AssociationQ[elimination],cutFamilyFail["KnownIntegralEquationEliminationFailed",<|"Cause"->elimination|>]];
    equations=elimination["Rows"];residualIsZero=equations==={};
+   elimination=KeyDrop[elimination,{"Rows","KnownRules","TargetImages"}];
    If[elimination["Targets"]=!=solveTargets,cutFamilyFail["ConsistentResidualTargetsRequired"]];
    If[FamilyArtifactWrite[KeyDrop[elimination,{"Rows","KnownRules","TargetImages"}],
      directory<>"/EquationElimination.wl"]===$Failed,cutFamilyFail["IntegralEquationEliminationWriteFailed"]];
