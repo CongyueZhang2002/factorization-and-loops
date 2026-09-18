@@ -79,6 +79,7 @@
     "Reduction/IBP/EquationSystems.wl",
     "Reduction/IBP/Specialization.wl",
     "Reduction/IBP/SeedSelection.wl",
+    "Reduction/IBP/CutCompatible.wl",
     "Reduction/IBP/SupplementalReduction.wl",
     "Reduction/IBP/Streams.wl",
     "Interfaces/AMFlowSystemCache.wl",

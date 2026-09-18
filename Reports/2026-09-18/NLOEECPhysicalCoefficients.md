@@ -120,3 +120,53 @@ independent convergent-integral comparison. It retains all regulator denominator
 These formal identities do not yet prove the original RR chart cover or weighted
 L1 continuation. Pro21 explains the needed fixed-z subtraction for nonconstant
 face maps and positive endpoint-weight suppression for constant endpoint maps.
+
+
+## Inclusive completion and smaller measured basis search
+
+All three inclusive RR card stages now finish with explicit scalar coefficients,
+full implied lower-pole ranges and source provenance. Latest measured wall times:
+Gluons711.418s, DifferentQuarks21.697s and IdenticalQuarks23.417s. The latter two
+reuse completed native reductions and refresh source/provenance coverage. Gluons
+contracts to6 physical scalar demands; each quark component to3. These are not
+minimal master counts.
+
+The generated inclusive sum of RR, RV, Virtual and UV cancels every negative
+epsilon coefficient exactly (the raw lower bound is-4). No measured hard
+coefficient was consulted. The audit took21.526s and is stored in
+DoubleReal/Work/GeneratedInclusivePoleAudit.wl with its exact input coefficients.
+This does not prove angular/endpoint cancellation or complete NLO EEC.
+
+The ordinary-vector measured search hit a point-dependent export-closure issue
+after282.902s. Missing exported columns are now retained as conservative formal
+remainders when used for seed selection; a nonzero remainder rank then need not
+be the true quotient rank. The final exact closure remains mandatory. That
+restarted search grew to1531198 rows and is retained while an improved job runs.
+
+Actual Pro22 confirmed the search's exact acceptance and the measured Taylor
+algebra. It recommended sector-local numerators, trying remaining predecessor
+shells before a stall, and cut-compatible polynomial momentum vectors. All are
+implemented. Required scalar provenance is also enforced on cold provider results.
+
+The new vector constructor solves a bounded polynomial nullspace in independent
+full-D scalar products and verifies individual off-shell cut tangencies. It
+includes coefficient derivatives in the divergence and inserts certified cut
+cofactors at unchanged cut power. Five assertions pass18.012s, including an
+independent comparison to ordinary total derivatives of polynomial-shifted seeds.
+An actual family yields24 particle-protecting vectors and12 all-cut-protecting
+vectors in45.442s including loading and artifact I/O. The internal algebra alone
+was subsecond, but those internal clocks are diagnostic only.
+
+The mixed-vector Dirichlet test needs29 rows in one search rather than114 over
+three;4 assertions pass24.280s. In the actual measured IdenticalQuarks search,
+1799 candidates reduce to610 exact affine classes.206491 rows leave77 formal
+remainder columns;273281 leave3;275494 are currently being sampled. No exact
+basis or physical-master completion is claimed from those counts.
+
+A separate bottleneck was repeated readable serialization of large solver
+definitions: one sampled input occupied90MB. Large exact solver snapshots now
+use binary records and matching definitions are not rewritten. Four snapshot
+checks pass17.474s;20 actual native/reuse checks pass37.134s. The active older
+job retains its loaded code, while the improved job uses compact snapshots.
+Physical result files remain readable. Hidden-pole rate2 assertions pass16.574s;
+cold/warm provenance25 assertions pass19.676s.

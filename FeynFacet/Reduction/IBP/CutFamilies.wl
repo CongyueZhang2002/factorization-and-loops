@@ -26,10 +26,14 @@ cutIBPShiftRows[family_,operators_,indices_List]:=Module[
  {count=Length[indices],zero,raw,rows,variables=family["DenominatorVariables"],relations},
  zero=ConstantArray[0,count];
  rows=Table[
-  raw={zero->operator["Divergence"]};
-  Do[Scan[Function[term,AppendTo[raw,
+  raw=If[KeyExistsQ[operator,"DivergenceMonomials"],
+   (-First[#]->Last[#])&/@operator["DivergenceMonomials"],{zero->operator["Divergence"]}];
+  Do[If[KeyExistsQ[Lookup[operator,"ProtectedDenominatorCofactorMonomials",<||>],i],
+   Scan[Function[term,AppendTo[raw,-First[term]->(-indices[[i]]Last[term])]],
+    operator["ProtectedDenominatorCofactorMonomials"][i]],
+   Scan[Function[term,AppendTo[raw,
     (UnitVector[count,i]-First[term])->(-indices[[i]]Last[term])]],
-    operator["DenominatorDerivativeMonomials"][[i]]],{i,count}];
+    operator["DenominatorDerivativeMonomials"][[i]]]],{i,count}];
   Normal[Select[Map[Factor,Merge[raw,Total]],#=!=0&]],{operator,operators}];
  relations=Values[Lookup[family,"DependentDenominatorRelations",<||>]];
  Join[rows,Map[Function[relation,(-First[#]->Last[#])&/@CoefficientRules[relation,variables]],relations]]
@@ -90,21 +94,29 @@ cutIBPSeeds[family_,targets_,extension_]:=Module[
    Saving/reading already does this; a literal 1*x must not invalidate a
    matching definition while a changed polynomial still must. *)
 cutKiraDefinitionCanonical[definition_]:=Map[Identity,definition,{0,Infinity}];
+cutKiraDefinitionFile[directory_]:=SelectFirst[
+ {directory<>"/InputDefinition.wxf",directory<>"/InputDefinition.wl"},FileExistsQ,directory<>"/InputDefinition.wl"];
+cutKiraReadDefinition[directory_]:=With[{file=cutKiraDefinitionFile[directory]},
+ If[FileExistsQ[file],FamilyArtifactRead[file],Missing["UnverifiedWorkspace"]]];
 cutKiraSelectWorkspace[directory_,definition_,allowNew_]:=Module[{candidate=directory,index=1,old},
  If[!MemberQ[{True,False},allowNew],cutFamilyFail["BooleanChangedInputWorkspacePolicyRequired"]];
  If[!TrueQ[allowNew],Return[directory]];
  While[DirectoryQ[candidate]&&FileNames[All,candidate]=!={},
-  old=If[FileExistsQ[candidate<>"/InputDefinition.wl"],FamilyArtifactRead[candidate<>"/InputDefinition.wl"],None];
+  old=cutKiraReadDefinition[candidate];
   If[AssociationQ[old]&&cutKiraDefinitionCanonical[old]===cutKiraDefinitionCanonical[definition],Return[candidate]];
   candidate=directory<>"/Generation"<>IntegerString[index,10,3];index++];
  If[candidate=!=directory,Print["Using a new Kira workspace for changed exact inputs: ",candidate]];
  candidate
 ];
 cutKiraWorkspaceDefinition[directory_,rawDefinition_]:=Module[{file,old,definition=cutKiraDefinitionCanonical[rawDefinition]},
- file=FileNameJoin[{directory,"InputDefinition.wl"}];
+ (* Large equation snapshots are solver state, not physical coefficient
+    reports. Binary storage avoids repeatedly parsing/printing tens of MB of
+    identical rational trees; small definitions remain readable. *)
+ file=FileNameJoin[{directory,If[ByteCount[definition]>2^20,"InputDefinition.wxf","InputDefinition.wl"]}];
  If[DirectoryQ[directory]&&FileNames[All,directory]=!={},
-  old=If[FileExistsQ[file],FamilyArtifactRead[file],Missing["UnverifiedWorkspace"]];
-  If[cutKiraDefinitionCanonical[old]=!=definition,cutFamilyFail["KiraWorkspaceDefinitionMismatch",<|"Directory"->directory|>]]];
+  old=cutKiraReadDefinition[directory];
+  If[cutKiraDefinitionCanonical[old]=!=definition,cutFamilyFail["KiraWorkspaceDefinitionMismatch",<|"Directory"->directory|>]];
+  If[FileExistsQ[file],Return[file]]];
  If[!DirectoryQ[directory],CreateDirectory[directory,CreateIntermediateDirectories->True]];
  If[FamilyArtifactWrite[definition,file]===$Failed,cutFamilyFail["KiraInputDefinitionWriteFailed"]]
 ];
@@ -155,7 +167,7 @@ cutKiraCloseSelectedReduction[project_,initialRules_,targets_,initialDeclared_,r
    directory=FileNameJoin[{project["Directory"],"DependencyReduction"<>IntegerString[iteration,10,3]}];
    encoded=ibpEncodeProjectIntegrals[project,missing];
    selectionDefinition=<|"Format"->"FeynFacet-KiraDependencyInput",
-    "OriginalInputDefinition"->FamilyArtifactRead[FileNameJoin[{project["Directory"],"InputDefinition.wl"}]],
+    "OriginalInputDefinition"->cutKiraReadDefinition[project["Directory"]],
     "SelectedIdentifiers"->encoded|>;
    cutKiraWorkspaceDefinition[directory,selectionDefinition];
    Export[directory<>"/selected_integrals",StringRiffle[ibpKiraIntegralText/@encoded,"\n"]<>"\n","String"];

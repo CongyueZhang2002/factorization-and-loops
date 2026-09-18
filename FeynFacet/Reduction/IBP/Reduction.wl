@@ -1358,7 +1358,7 @@ ibpSolvedProjectFingerprint[project_Association] := Module[
       FileNameJoin[{directory, "results", "kira.db"}],
       FileNameJoin[{directory, "jobs.yaml"}],
       Sequence@@If[Lookup[project,"EquationSource",None]==="TypedIBP",
-       {FileNameJoin[{directory,"InputDefinition.wl"}],FileNameJoin[{directory,"equations.kira"}]},
+       {cutKiraDefinitionFile[directory],FileNameJoin[{directory,"equations.kira"}]},
        {FileNameJoin[{directory,"config","kinematics.yaml"}],
         FileNameJoin[{directory,"config","integralfamilies.yaml"}]}]
     },

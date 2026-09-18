@@ -19,6 +19,7 @@ directory=CreateDirectory[];
 Print["BASIS TEST DIRECTORY ",directory];
 reduced=FeynFacet`ReduceCutIntegralsToBasis[{family},data["Targets"],{base},<|
  "WorkingDirectory"->directory,"Threads"->1,"HomogeneousScale"->s,
+ "IBPVectorMethod"->"Mixed",
  "RationalSolver"->"FireFly","SamplingPoints"->{{D->13/5,s->1},{D->17/7,s->1}},
  "MaximumSeedIterations"->5,"MaximumSeeds"->10000|>];
 If[FailureQ[reduced],Print[InputForm[reduced]]];

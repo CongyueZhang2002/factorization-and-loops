@@ -29,15 +29,16 @@ cutKiraWriteEquationRows[equations_List,idMap_Association,coefficientText_,file_
 ];
 
 cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:{}]:=Module[
- {names,familyOrder,unknowns,idMap,variables,aliases,variableRules,coefficientValues,
+ {names,familyOrder,unknowns,idMap,variables,aliases,variableRules,coefficientValues,preferredSet,
   coefficientText,rows,project,head=Global`FeynFacetIBP,textCache=<||>,textBytes=0},
  names=#[["Topology",1]]&/@records;
  familyOrder=AssociationThread[names,Range[Length[names]]];
  If[!ListQ[equations]||!AllTrue[equations,AssociationQ]||
   !DuplicateFreeQ[names]||validateCutGLIs[Join[targets,preferred,Keys/@equations],records]=!=True,
   cutFamilyFail["TypedIntegralEquationSystemRequired"]];
+ preferredSet=AssociationThread[preferred,ConstantArray[True,Length[preferred]]];
  unknowns=SortBy[DeleteDuplicates[Join[targets,preferred,Flatten[Keys/@equations]]],
-  Function[integral,{If[MemberQ[preferred,integral],0,1],
+  Function[integral,{If[KeyExistsQ[preferredSet,integral],0,1],
    Count[integral[[2]],_?Positive],Total[Abs[integral[[2]]]],
    Total[Select[integral[[2]],Positive]],familyOrder[integral[[1]]],integral[[2]]}]];
  If[Length[unknowns]>=2^31,cutFamilyFail["SingleIndexKiraIdentifierCapacityExceeded"]];
@@ -83,11 +84,13 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
  request_Association]:=Catch[Catch[Module[
  {directory,preferred,points,prime,variables,text,values,project,process,files,raw,samples={},
   context,decode,rows,groups,sample,allRules,rules,declared,masterFile,masterIndices,
-  expressions,remaining,remainderRows,rank,positions,matrix,result,seconds,denominators,denominatorValues,selected,frontier,selectionHistory={},iteration=0,selectionLimit,totalSeconds=0,runDirectory,runIndex=1},
+  expressions,remaining,remainderRows,rank,positions,matrix,result,seconds,denominators,denominatorValues,selected,frontier,selectionHistory={},iteration=0,selectionLimit,totalSeconds=0,runDirectory,runIndex=1,
+  requireClosed=Lookup[request,"RequireClosedExport",True],unresolved,
+  computeRank=Lookup[request,"ComputeRemainderRank",True]},
  directory=Lookup[request,"WorkingDirectory",None];preferred=Lookup[request,"PreferredMasterIntegrals",{}];
  points=Lookup[request,"Points",{}];prime=Lookup[request,"Prime",2147483647];
  If[!StringQ[directory]||!ListQ[preferred]||!MatchQ[points,{{(_Rule)..}..}]||
-  !IntegerQ[prime]||!PrimeQ[prime]||prime>=2^63,
+  !MemberQ[{True,False},requireClosed]||!MemberQ[{True,False},computeRank]||!IntegerQ[prime]||!PrimeQ[prime]||prime>=2^63,
   cutFamilyFail["FiniteFieldIBPPointRequestRequired"]];
  directory=ExpandFileName[directory];
  cutKiraWorkspaceDefinition[directory,<|"Format"->"FeynFacet-SampledIBPInput",
@@ -163,8 +166,8 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
   If[frontier==={},Break[]];
   iteration++;
   If[iteration>selectionLimit||ContainsAll[selected,frontier],
-   cutFamilyFail["SampledSelectionClosureIncomplete",<|"UnresolvedDependencies"->frontier,
-     "SelectionHistory"->selectionHistory|>]];
+   If[requireClosed,cutFamilyFail["SampledSelectionClosureIncomplete",<|"UnresolvedDependencies"->frontier,
+     "SelectionHistory"->selectionHistory|>],Break[]]];
   AppendTo[selectionHistory,<|"Iteration"->iteration,"AddedDependencies"->frontier,
     "SamplingSeconds"->seconds,"WorkingDirectory"->runDirectory|>];
   selected=Union[selected,frontier];
@@ -175,18 +178,24 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
   If[!DuplicateFreeQ[First/@rules],cutFamilyFail["ConflictingFiniteFieldReductionRules"]];
   expressions=targets/.Dispatch[rules];
   remaining=Complement[DeleteDuplicates[Cases[expressions,_FeynCalc`GLI,Infinity]],preferred];
-  If[!ContainsAll[declared,remaining],
+  unresolved=Complement[remaining,declared];
+  If[requireClosed&&unresolved=!={},
    cutFamilyFail["UnresolvedSampledPivotDependencies",<|"Integrals"->Complement[remaining,declared]|>]];
+  If[computeRank,
   positions=AssociationThread[remaining,Range[Length[remaining]]];
   remainderRows=Flatten[MapIndexed[Function[{expression,index},
    Map[Function[master,{First[index],positions[master]}->Mod[Coefficient[expression,master],prime]],
     Select[DeleteDuplicates[Cases[expression,_FeynCalc`GLI,{0,Infinity}]],KeyExistsQ[positions,#]&]]
    ],expressions],1];
   matrix=SparseArray[Select[remainderRows,Last[#]=!=0&],{Length[targets],Length[remaining]}];
-  rank=If[remaining==={},0,MatrixRank[matrix,Modulus->prime]];
-  If[!IntegerQ[rank],cutFamilyFail["FiniteFieldTargetRankRequired"]];
+  rank=If[remaining==={},0,MatrixRank[matrix,Modulus->prime]],
+  rank=If[remaining==={},0,Missing["NotRequested"]]];
+  If[computeRank&&!IntegerQ[rank],cutFamilyFail["FiniteFieldTargetRankRequired"]];
   <|"PointValues"->First[group]["PointValues"],"Rules"->rules,
     "NonpreferredIntegralColumns"->remaining,"TargetRemainderRank"->rank,
+    "UnresolvedExportedDependencies"->unresolved,"ClosedOnDeclaredSampleMasters"->(unresolved==={}),
+    "RemainderRankIsOnlyUpperBound"->(unresolved=!={}),
+    "RemainderRankComputed"->IntegerQ[rank],
     "AllTargetsInPreferredSpanAtPoint"->(rank===0)|>,
  {group,groups}];
  <|"Format"->"FeynFacet-FiniteFieldIBPSamples","FormatVersion"->1,"Prime"->prime,
@@ -195,7 +204,7 @@ SampleCutIBPEquations[equations_List,targets:{__FeynCalc`GLI},records:{__Associa
   "EquationCount"->Length[equations],"IntegralColumnCount"->Length[project["IndexedIntegrals"]],
   "Seconds"->totalSeconds,"WorkingDirectory"->directory,"SelectionClosure"->selectionHistory,"FinalSamplingDirectory"->runDirectory,
   "ExactReductionEstablished"->False,"MasterMinimalityEstablished"->False,
-  "Scope"->"Generic finite-field diagnostics for equation selection; exact target identities remain required."|>
+  "Scope"->"Finite-field diagnostics for equation selection; exact target identities remain required. With RequireClosedExport False, unresolved columns remain explicit independent formal remainders, so nonzero rank is only an upper bound and is never an irreducibility claim."|>
 ],"CutFamily"],$ibpFailure];
 NormalizeIntegralEquationScale[rows_List,weights_Association,scale_Symbol]:=Catch[Module[
  {columns,output,coefficients,degrees,rowDegree,normalized,proofs,w,degree,unit,rowIndex=0},

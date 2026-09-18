@@ -107,34 +107,36 @@ ConstructUnitCutMasterCandidates[families:{__Association},targets:{__FeynCalc`GL
  request_Association:<||>]:=Catch[Module[
  {maximum=Lookup[request,"MaximumOrdinaryPower",1],rank=Lookup[request,"MaximumAuxiliaryNumeratorDegree",1],
   limit=Lookup[request,"MaximumCandidates",100000],candidates={},name,count,cuts,local,positive,auxiliary,
-  numerators,powers,one},
+  numerators,powers,one,sectorLocal=Lookup[request,"SectorLocalNumerators",True],active},
  If[!IntegerQ[maximum]||!Between[maximum,{1,3}]||!IntegerQ[rank]||!Between[rank,{0,3}]||
-   !IntegerQ[limit]||limit<1,cutFamilyFail["BoundedUnitCutCandidateRequestRequired"]];
+   !MemberQ[{True,False},sectorLocal]||!IntegerQ[limit]||limit<1,cutFamilyFail["BoundedUnitCutCandidateRequestRequired"]];
  Do[name=family["Topology"][[1]];count=Length[family["Topology"][[2]]];cuts=family["CutIndices"];
   local=Select[targets,#[[1]]===name&];If[local==={},Continue[]];
   If[!AllTrue[local,Length[#[[2]]]===count&&VectorQ[#[[2]],IntegerQ]&&
     AllTrue[#[[2,cuts]],#>0&]&],cutFamilyFail["AdmissibleUnitCutCandidateTargetsRequired"]];
   positive=Complement[Union[Flatten[Flatten[Position[#[[2]],_Integer?Positive,{1}]]&/@local]],cuts];
-  auxiliary=Complement[Range[count],Join[cuts,positive]];
-  numerators=cutSeedCompositionsUpTo[rank,Length[auxiliary]];
-  If[Length[candidates]+(maximum+1)^Length[positive]Length[numerators]>limit,
-   cutFamilyFail["UnitCutCandidateCountLimit"]];
   Do[powers=ReplacePart[ConstantArray[0,count],Thread[cuts->1]];
    powers=ReplacePart[powers,Thread[positive->denominators]];
-   one=FeynCalc`GLI[name,ReplacePart[powers,Thread[auxiliary->(-numerator)]]];AppendTo[candidates,one],
-   {denominators,Tuples[Range[0,maximum],Length[positive]]},{numerator,numerators}],
+   active=If[sectorLocal,Pick[positive,Unitize[denominators],1],positive];
+   auxiliary=Complement[Range[count],Join[cuts,active]];
+   numerators=cutSeedCompositionsUpTo[rank,Length[auxiliary]];
+   If[Length[candidates]+Length[numerators]>limit,cutFamilyFail["UnitCutCandidateCountLimit"]];
+   Do[one=FeynCalc`GLI[name,ReplacePart[powers,Thread[auxiliary->(-numerator)]]];AppendTo[candidates,one],
+    {numerator,numerators}],{denominators,Tuples[Range[0,maximum],Length[positive]]}],
  {family,families}];
  <|"Masters"->Union[candidates],"MaximumOrdinaryPower"->maximum,"MaximumAuxiliaryNumeratorDegree"->rank,
-  "TargetSpanEstablished"->False,"MasterMinimalityEstablished"->False|>
+  "SectorLocalNumerators"->sectorLocal,"TargetSpanEstablished"->False,"MasterMinimalityEstablished"->False|>
 ],"CutFamily"];
 ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
  candidates:{__FeynCalc`GLI},request_Association]:=Catch[Module[
  {work,points,limit,seedLimit,seeds=<||>,plans,local,rows={},generated,samples,frontier,
   added,more,iteration,history={},exact,images,unmatched,allSeeds,preferred=Union[candidates],
-  name,depth,record,byName},
+  name,depth,record,byName,trialDepth,tangentVectors=<||>,tangent,
+  vectorMethod=Lookup[request,"IBPVectorMethod","Ordinary"]},
  work=Lookup[request,"WorkingDirectory",None];points=Lookup[request,"SamplingPoints",None];
  limit=Lookup[request,"MaximumSeedIterations",5];seedLimit=Lookup[request,"MaximumSeeds",100000];
  If[!StringQ[work]||!MatchQ[points,{{(_Rule)..}..}]||!IntegerQ[limit]||limit<1||
+   !MemberQ[{"Ordinary","CutCompatible","Mixed"},vectorMethod]||
    !IntegerQ[seedLimit]||seedLimit<1,cutFamilyFail["BoundedSampledBasisSearchRequestRequired"]];
  byName=Association[(#["Topology"][[1]]->#)&/@families];
  If[!DuplicateFreeQ[First[#["Topology"]]&/@families]||
@@ -143,18 +145,29 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
   plans=If[local==={},<|"Seeds"->{}|>,PlanCutIBPSeeds[family,local,<|"MaximumSeeds"->seedLimit|>]];
   If[!AssociationQ[plans],cutFamilyFail["BasisSearchSeedPlanRequired",<|"Cause"->plans|>]];
   AssociateTo[seeds,name->plans["Seeds"]],{family,families}];
+ If[vectorMethod=!="Ordinary",Do[
+  tangent=FeynFacet`ConstructCutCompatibleIBPVectors[family,<|
+   "Degree"->Lookup[request,"CutVectorDegree",1],"ProtectedIndices"->family["CutIndices"]|>];
+  If[!AssociationQ[tangent],cutFamilyFail["CertifiedPolynomialCutVectorsRequired",<|"Cause"->tangent|>]];
+  AssociateTo[tangentVectors,family["Topology"][[1]]->tangent],{family,families}]];
  added=seeds;
  Do[
   If[Total[Length/@Values[seeds]]>seedLimit,cutFamilyFail["BasisSearchSeedLimit",<|"History"->history|>]];
   Do[name=family["Topology"][[1]];If[added[name]==={},Continue[]];
-   generated=FeynFacet`GenerateCutIBPEquations[family,added[name]];
+   generated=If[vectorMethod==="CutCompatible",<|"Rows"->{}|>,FeynFacet`GenerateCutIBPEquations[family,added[name]]];
    If[!AssociationQ[generated],cutFamilyFail["BasisSearchExactEquationsRequired",<|"Cause"->generated|>]];
-   rows=Join[rows,generated["Rows"]],{family,families}];
+   rows=Join[rows,generated["Rows"]];
+   If[vectorMethod=!="Ordinary",
+    tangent=FeynFacet`GenerateCutCompatibleIBPEquations[family,added[name],tangentVectors[name]];
+    If[!AssociationQ[tangent],cutFamilyFail["CutCompatibleBasisEquationsRequired",<|"Cause"->tangent|>]];
+    rows=Join[rows,tangent["Rows"]]],{family,families}];
   If[iteration===1,rows=Join[rows,Lookup[request,"ExtraEquations",{}]]];
   Print["BASIS SEED SEARCH ",iteration," SEEDS ",Total[Length/@Values[seeds]]," ROWS ",Length[rows]];
   samples=FeynFacet`SampleCutIBPEquations[rows,targets,families,<|
    "WorkingDirectory"->work<>"/Sample"<>IntegerString[iteration,10,3],
    "PreferredMasterIntegrals"->preferred,"Points"->points,
+   "RequireClosedExport"->False,
+   "ComputeRemainderRank"->False,
    "Threads"->Lookup[request,"Threads",1],"Prime"->Lookup[request,"Prime",2147483647]|>];
   If[!AssociationQ[samples],cutFamilyFail["BasisSearchSamplesRequired",<|"Cause"->samples|>]];
   frontier=Union[Flatten[Lookup[samples["Samples"],"NonpreferredIntegralColumns"],1]];
@@ -162,7 +175,7 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
     "EquationCount"->Length[rows],"UnmatchedTargetColumns"->frontier,
     "SampleRanks"->Lookup[samples["Samples"],"TargetRemainderRank"]|>;
   AppendTo[history,record];
-  Print["BASIS SEARCH REMAINING COLUMNS ",Length[frontier]," RANKS ",record["SampleRanks"]];
+  Print["BASIS SEARCH REMAINING COLUMNS ",Length[frontier]];
   If[frontier==={},
    exact=FeynFacet`KiraReduction[families,targets,
     Join[KeyTake[request,{"Threads","HomogeneousScale","RationalSolver","PrintTimings"}],<|
@@ -177,12 +190,14 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
   ];
   If[iteration===limit,Break[]];
   added=<||>;depth=Min[2,Quotient[iteration-1,2]];
+  Do[
   Do[name=family["Topology"][[1]];local=Select[frontier,#[[1]]===name&];
    more=If[local==={},<|"Seeds"->{}|>,FindCutIBPPredecessorSeeds[family,local,seeds[name],
-     <|"FrontierNeighborDepth"->depth,"MaximumCandidates"->seedLimit|>]];
+     <|"FrontierNeighborDepth"->trialDepth,"MaximumCandidates"->seedLimit|>]];
    If[!AssociationQ[more],cutFamilyFail["BasisSearchPredecessorsRequired",<|"Cause"->more|>]];
    AssociateTo[added,name->more["Seeds"]];AssociateTo[seeds,name->Union[seeds[name],more["Seeds"]]],
    {family,families}];
+  If[Total[Length/@Values[added]]>0,Break[]],{trialDepth,depth,2}];
   If[Total[Length/@Values[added]]===0,cutFamilyFail["BasisSearchNeedsBroaderRegion",<|"History"->history|>]],
  {iteration,limit}];
  cutFamilyFail["CandidateBasisSearchIncomplete",<|"History"->history,

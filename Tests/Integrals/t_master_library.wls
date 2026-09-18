@@ -92,4 +92,8 @@ FTTest`FTAssert["a fresh finite provider cannot claim unavailable requested coef
 FTTest`FTAssert["disabled library writes still return finite coefficients from an exact provider",
  AssociationQ[FeynFacet`EvaluateWithMasterIntegralLibrary[definition,{-1,3},
    Function[{},<|"ExactValue"->exactFunction|>],Append[request,"Mode"->"Disabled"]]["Coefficients"]]];
+FTTest`FTAssert["required scalar provenance is also enforced on a fresh provider",
+ FailureQ[FeynFacet`EvaluateWithMasterIntegralLibrary[definition,{-1,0},
+  Function[{},<|"ExactValue"->exactFunction|>],Join[request,<|"Mode"->"Disabled",
+   "RequiredProvenanceFields"->{"UniversalScalarSources"}|>]]]];
 Print["MASTER LIBRARY TEST COMPLETE"];FTTest`FTReport[];

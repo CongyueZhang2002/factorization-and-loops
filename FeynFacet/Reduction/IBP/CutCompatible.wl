@@ -1,0 +1,76 @@
+(* Polynomial momentum-space IBP vectors with exact individual cut tangency. *)
+BeginPackage["FeynFacet`"];
+ConstructCutCompatibleIBPVectors::usage="ConstructCutCompatibleIBPVectors[family,request] solves a bounded polynomial momentum-vector ansatz tangent to each protected inverse propagator separately. Degree defaults to1; particle cuts are protected by default. Every vector is verified off shell in independent full-D scalar products. The complete polynomial divergence and certified cofactors are retained. A bounded nullspace does not claim a complete syzygy module or removal of existing cut dots.";
+GenerateCutCompatibleIBPEquations::usage="GenerateCutCompatibleIBPEquations[family,seeds,vectors] inserts verified polynomial vector divergences and cut cofactors into the common sparse IBP generator. Protected cut powers cannot increase; unprotected measurement derivatives are retained.";
+Begin["`Private`"];
+ConstructCutCompatibleIBPVectors[family_Association,request_Association:<||>]:=Catch[Module[
+ {degree=Lookup[request,"Degree",1],protected,top,loops,external,basis,x,kin,polynomials,
+  velocities,labels,derivatives,monomials,unknowns,nops,nmon,c,f,equations,matrix,nulls,
+  cs,fs,residuals,divergence,images,cofactorImages,divergenceImage,operators={},proofs={},
+  denominators,multiplier,limit=Lookup[request,"TimeLimit",30],variables,back,toDenominators},
+ If[Lookup[family,"Format",None]=!="FeynFacet-CutIntegralFamily"||
+   !IntegerQ[degree]||!Between[degree,{0,2}]||!NumericQ[limit]||limit<=0,
+  cutFamilyFail["BoundedPolynomialCutVectorRequestRequired"]];
+ protected=Lookup[request,"ProtectedIndices",family["ParticleCutIndices"]];
+ top=family["Topology"];loops=top[[3]];external=top[[4]];basis=family["LoopScalarProducts"];
+ If[protected==={}||!DuplicateFreeQ[protected]||!VectorQ[protected,IntegerQ[#]&&1<=#<=Length[top[[2]]]&],
+  cutFamilyFail["DistinctProtectedPropagatorIndicesRequired"]];
+ x=Table[Unique["ibpCoordinate"],{Length[basis]}];kin=FeynCalc`FCI[top[[5]]];
+ polynomials=Expand[family["InversePropagators"]/.Thread[basis->x]];
+ If[!AllTrue[polynomials,PolynomialQ[#,x]&]||!FreeQ[polynomials,_FeynCalc`Pair|_FeynCalc`Momentum],
+  cutFamilyFail["IndependentUnrestrictedScalarProductPolynomialsRequired"]];
+ labels=Flatten[Table[{ell,v},{ell,loops},{v,Join[loops,external]}],1];
+ velocities=Map[Function[label,Map[Function[pair,With[{a=pair[[1,1]],b=pair[[2,1]]},
+   ((If[a===label[[1]],FeynCalc`FCI[FeynCalc`SPD[label[[2]],b]],0]+
+     If[b===label[[1]],FeynCalc`FCI[FeynCalc`SPD[label[[2]],a]],0])/.kin)/.Thread[basis->x]]],basis]],labels];
+ derivatives=Table[Sum[D[polynomial,x[[j]]]velocities[[i,j]],{j,Length[x]}],
+   {i,Length[labels]},{polynomial,polynomials}];
+ monomials=(Times@@MapThread[Power,{x,#}]&/@cutSeedCompositionsUpTo[degree,Length[x]]);
+ nops=Length[labels];nmon=Length[monomials];
+ If[(nops+Length[protected])nmon>1000,cutFamilyFail["CutVectorAnsatzSizeLimit"]];
+ unknowns=Table[Unique["vectorCoefficient"],{(nops+Length[protected])nmon}];
+ c=Take[Partition[unknowns,nmon],nops].monomials;
+ f=Drop[Partition[unknowns,nmon],nops].monomials;
+ equations=Flatten[Table[Last/@CoefficientRules[
+   Expand[c.derivatives[[All,protected[[j]]]]-f[[j]]polynomials[[protected[[j]]]]],x],{j,Length[protected]}]];
+ matrix=Last[CoefficientArrays[equations,unknowns]];
+ nulls=TimeConstrained[NullSpace[matrix],limit,$Aborted];
+ If[!MatrixQ[nulls]&&nulls=!={},cutFamilyFail["CutVectorNullspaceNotEstablished",<|"Degree"->degree|>]];
+ variables=family["DenominatorVariables"];back=Thread[x->basis];
+ toDenominators[value_]:=Expand[(value/.back)/.family["ScalarProductRules"]];
+ Do[
+  cs=Take[Partition[vector,nmon],nops].monomials;
+  fs=Drop[Partition[vector,nmon],nops].monomials;
+  denominators=DeleteDuplicates[Denominator[Together[#]]&/@vector];
+  If[!FreeQ[denominators,Alternatives@@x],cutFamilyFail["PolynomialMomentumVectorsRequired"]];
+  multiplier=Times@@denominators;cs=Cancel[Together[# multiplier]]&/@cs;fs=Cancel[Together[# multiplier]]&/@fs;
+  residuals=Table[Cancel[Together[cs.derivatives[[All,protected[[j]]]]-fs[[j]]polynomials[[protected[[j]]]]]],{j,Length[protected]}];
+  If[!AllTrue[residuals,#===0&],cutFamilyFail["ExactIndividualCutTangencyFailed"]];
+  If[AllTrue[cs,#===0&],Continue[]];
+  divergence=Sum[Sum[D[cs[[i]],x[[j]]]velocities[[i,j]],{j,Length[x]}]+
+    If[labels[[i,1]]===labels[[i,2]],D cs[[i]],0],{i,nops}];
+  images=toDenominators/@Table[cs.derivatives[[All,j]],{j,Length[polynomials]}];
+  cofactorImages=toDenominators/@fs;divergenceImage=toDenominators[divergence];
+  If[!AllTrue[Join[images,cofactorImages,{divergenceImage}],PolynomialQ[#,variables]&],
+   cutFamilyFail["PolynomialCutVectorInsertionRequired"]];
+  AppendTo[operators,<|"DivergenceMonomials"->CoefficientRules[divergenceImage,variables],
+   "DenominatorDerivativeMonomials"->(CoefficientRules[#,variables]&/@images),
+   "ProtectedDenominatorCofactorMonomials"->AssociationThread[protected,CoefficientRules[#,variables]&/@cofactorImages]|>];
+  AppendTo[proofs,<|"MomentumVectorCoefficients"->(cs/.back),"ProtectedCofactors"->(fs/.back),
+   "Divergence"->(Expand[divergence]/.back),"TangencyResiduals"->residuals,
+   "ExternalDenominatorsCleared"->denominators|>],{vector,nulls}];
+ <|"Format"->"FeynFacet-CutCompatibleIBPVectors","Family"->family,"ProtectedIndices"->protected,
+  "MomentumVectorBasis"->labels,"Degree"->degree,"Operators"->operators,"VectorCertificates"->proofs,
+  "ExactIndividualTangencyVerified"->True,"CompleteSyzygyModuleEstablished"->False,
+  "ExistingCutDotsRemoved"->False|>
+],"CutFamily"];
+GenerateCutCompatibleIBPEquations[family_Association,seeds:{__FeynCalc`GLI},vectors_Association]:=Catch[Module[{result},
+ If[Lookup[vectors,"Format",None]=!="FeynFacet-CutCompatibleIBPVectors"||
+  !TrueQ[Lookup[vectors,"ExactIndividualTangencyVerified",False]]||vectors["Family"]=!=family,
+  cutFamilyFail["MatchingCertifiedCutVectorFamilyRequired"]];
+ result=cutGenerateIBPEquations[family,seeds,vectors["Operators"]];
+ If[!AssociationQ[result],Return[result]];
+ Join[result,<|"ProtectedIndices"->vectors["ProtectedIndices"],
+  "EquationSource"->"CutCompatiblePolynomialMomentumVectorsAndDenominatorRelations"|>]
+],"CutFamily"];
+End[];EndPackage[];
