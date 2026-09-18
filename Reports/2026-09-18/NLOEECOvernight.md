@@ -561,3 +561,31 @@ prescription-preserving completion for the uncut loop direction.
 The eight-core allocation has been restored to the continuing RR native job.
 No inclusive rate, accepted RV result or complete NLO EEC coefficient has been
 claimed, and no measured NLO literature coefficient has been compared.
+
+### Mixed real/virtual routing (14:15 UTC)
+
+Candidate momentum frames now complete the span of oriented particle cuts with
+uncut quadratic-propagator momenta and coordinate axes. Both uncut orientations
+are considered; only exact unit-Jacobian frames are retained. The existing
+comparison of full denominator polynomials, directed cuts, causal signs and
+physical measures still decides equivalence. Pure-cut full-rank construction
+is unchanged. Three additional mixed tests verify a virtual loop shift, reject
+opposite virtual prescriptions, and map dotted cuts using off-shell identities.
+All15 mixed tests,7 numerator-map tests and6 polynomial-cut equivalence tests
+pass; the latter two take7.664s and10.723s including startup.
+
+The saved native reduction is reused without a new solve. Fifty nonzero input
+integrals fall into eight exact routing classes, and coefficient cancellation
+leaves seven scalar integrals in the inclusive rate. The wrapper also substitutes
+D=4-2epsilon in imported rational relations before coefficient collection, so
+there is no second independent dimension parameter in the scalar coefficients.
+This replay took17.664s; its preceding routing-only replay took17.863s and has a
+separate retained receipt. The29.253s first native reduction remains separately
+recorded. No minimal-basis claim or evaluated inclusive rate follows from this.
+
+The code through217a9a9e was pushed and sent to actual Pro, including the precise
+source-level prescription question and the mixed-frame completion plan. That
+review is pending. The next useful mathematical step is to evaluate the remaining
+scalar types with generic subloop/phase-space machinery and the independently
+derived universal box, after establishing the actual required epsilon orders.
+The measured NLO hard coefficient remains uncomputed and un-compared.

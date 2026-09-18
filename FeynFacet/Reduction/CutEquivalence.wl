@@ -32,7 +32,7 @@ cutEquivalenceScalarProducts[expr_, momenta_List, gram_] :=
 
 cutEquivalenceTopology[record_Association, normalization_] := Module[
   {top, momenta, loops, external, n, gram, descriptors, polynomials,
-   kinematics, cutVectors, indices, directions, typed, validated, particles, cutTypes, particleIndices, dimensionTags, definitionData,denominators},
+   kinematics, cutVectors, indices, directions, typed, validated, particles, cutTypes, particleIndices, dimensionTags, definitionData,denominators,uncutVectors},
   typed=MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[record,"Format",None]];
   validated=If[typed,FeynFacet`CreateCutIntegralDefinition[record],record];
   If[!AssociationQ[validated],Return[$Failed]];
@@ -70,12 +70,16 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
       ! AllTrue[directions, MemberQ[{1, -1}, #] &] ||
       MemberQ[cutVectors, $Failed] || ! FreeQ[polynomials, $Failed],
     Return[$Failed]];
+  uncutVectors=DeleteDuplicates@DeleteCases[
+    (cutEquivalenceVector[#["Momentum"],momenta]&/@Select[
+      descriptors[[Complement[Range[Length[descriptors]],indices]]],#["Type"]==="QuadraticLorentzian"&]),$Failed];
   <|"Family" -> cutEquivalenceFamilyName[top[[1]]], "Loops" -> loops,
     "External" -> external, "GramMatrix" -> gram,
     "KinematicRules" -> kinematics, "PropagatorPolynomials" -> polynomials,
     "Prescriptions" -> (Last[Last[#]] & /@ denominators),
     "CutIndices" -> indices, "ParticleCutIndices"->particleIndices, "CutTypes"->cutTypes,
     "OrientedCutMomenta" -> MapThread[Times, {directions, cutVectors}],
+    "UncutFrameDirections"->uncutVectors,
     "DefinitionData" -> definitionData,"LorentzDimensionAnnotations"->First[dimensionTags],
     "LoopFrameChangesPermitted" -> (
       MemberQ[{None,{},True},Lookup[validated,"AdditionalAcceptanceBoundaries",None]]&&
@@ -90,7 +94,8 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
 ];
 
 cutEquivalenceFrames[top_Association] := Module[
-  {l, n, cuts, choices, frames = {}, a, b, t, mappedGram, rules},
+  {l, n, cuts, choices, frames = {}, a, b, t, mappedGram, rules,
+   cutRank,cutChoices,pool,uncutChoices,rows},
   l = Length[top["Loops"]]; n = Length[top["GramMatrix"]];
   cuts = top["OrientedCutMomenta"];
   (* A loop-dependent measure or acceptance condition must itself be mapped.
@@ -101,23 +106,38 @@ cutEquivalenceFrames[top_Association] := Module[
      "LoopTransformation"->IdentityMatrix[n][[1;;l]],
      "CutMomenta"->cuts,
      "Polynomials"->(Expand[#/.top["KinematicRules"]]&/@top["PropagatorPolynomials"])|>}]];
-  choices = Flatten[Permutations /@ Subsets[Range[Length[cuts]], {l}], 1];
+  cutRank=If[cuts==={},0,MatrixRank[cuts[[All,1;;l]]]];
+  If[cutRank===l,
+   choices = {#,cuts[[#]]}&/@Flatten[Permutations /@ Subsets[Range[Length[cuts]], {l}], 1],
+   (* In a mixed real/virtual family the particle cuts span only the real
+      integration directions. Complete them with uncut propagator momenta.
+      These are candidate changes of coordinates, not integral identities;
+      the complete cut, sign and measure comparison still decides a match. *)
+   cutChoices=Select[Subsets[Range[Length[cuts]],{cutRank}],
+     cutRank===0||MatrixRank[cuts[[#,1;;l]]]===cutRank&];
+   cutChoices=Flatten[Permutations/@cutChoices,1];
+   pool=DeleteDuplicates@Join[Lookup[top,"UncutFrameDirections",{}],IdentityMatrix[n][[1;;l]]];
+   pool=Select[pool,MatrixRank[Join[If[cuts==={},{},cuts[[All,1;;l]]],{Take[#,l]}]]>cutRank&];
+   pool=DeleteDuplicates[Join[pool,-pool]];
+   uncutChoices=Flatten[Permutations/@Subsets[pool,{l-cutRank}],1];
+   choices=Flatten[Table[{chosen,Join[cuts[[chosen]],extra]},
+     {chosen,cutChoices},{extra,uncutChoices}],1]];
   Do[
-    a = cuts[[chosen, 1 ;; l]];
+    rows=choice[[2]];a = rows[[All, 1 ;; l]];
     If[! MemberQ[{1, -1}, Det[a]], Continue[]];
-    b = cuts[[chosen, l + 1 ;; n]];
+    b = rows[[All, l + 1 ;; n]];
     t = Join[Join[Inverse[a], -Inverse[a].b, 2],
       Join[ConstantArray[0, {n - l, l}], IdentityMatrix[n - l], 2]];
     mappedGram = Expand[t.top["GramMatrix"].Transpose[t]];
     rules = DeleteDuplicates[Thread[
       Flatten[top["GramMatrix"]] -> Flatten[mappedGram]]];
-    AppendTo[frames, <|"ChosenCutMomenta" -> chosen,
+    AppendTo[frames, <|"ChosenCutMomenta" -> choice[[1]],
       "LoopTransformation" -> t[[1 ;; l]],
       "CutMomenta" -> (Expand[#.t] & /@ cuts),
       "Polynomials" -> (Expand[# /. rules /. top["KinematicRules"]] & /@
         top["PropagatorPolynomials"])|>],
-    {chosen, choices}];
-  frames
+    {choice, choices}];
+  DeleteDuplicatesBy[frames,#["LoopTransformation"]&]
 ];
 
 cutEquivalenceSignature[integral_, top_, frames_] := Module[

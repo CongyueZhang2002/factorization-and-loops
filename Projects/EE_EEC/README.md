@@ -200,9 +200,12 @@ external power, and leaves all virtual prescriptions and unrestricted off-shell
 denominators intact. `loop-inclusive-reduce` applies the general typed IBP
 reduction to those actual targets and saves `Work/InclusiveScalarMasterReduction.wl`.
 The current generated source has 934 targets in 18 families; its first reduction
-has 66 spanning integrals. These are not asserted to be independent masters.
-Family equivalences, any necessary additional IBP relations and physical scalar
-values remain to be applied before obtaining the inclusive rate.
+has 66 spanning integrals. Fifty have nonzero source coefficients before routing;
+exact mixed cut/virtual changes of loop momentum group them into eight classes,
+and coefficient cancellation leaves seven scalar integrals to evaluate. These
+are not asserted to be independent masters. The coefficients use a single
+dimensional regulator after substituting D=4-2 epsilon in the native relations.
+Physical scalar values remain to be applied before obtaining the inclusive rate.
 
 Typed Kira imports now use the native initial IBP-system master declaration.
 FireFly's `masters.final` instead lists reconstructed RHS identifiers and can

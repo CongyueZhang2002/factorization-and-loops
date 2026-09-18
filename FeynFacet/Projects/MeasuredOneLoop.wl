@@ -274,7 +274,7 @@ DecomposeMeasuredCurrentOneLoopInclusiveSource[card_Association,mode_String:"res
  projectWrite[output,file];output
 ],"ProjectCards"];
 ReduceMeasuredCurrentOneLoopInclusiveSource[card_Association,mode_String:"resume",execution_Association:<||>]:=Catch[Module[
- {source,data,reduction,seconds,coefficients,output,threads},
+ {source,data,reduction,seconds,coefficients,output,threads,equivalences,maps,active,rows},
  threads=Lookup[execution,"Threads",card["Execution"]["KiraThreads"]];
  If[!IntegerQ[threads]||threads<1||threads>card["Execution"]["KiraThreads"],projectFail["BoundedPositiveReductionThreadsRequired"]];
  source=projectCheck[FeynFacet`DecomposeMeasuredCurrentOneLoopInclusiveSource[card,mode],"InclusiveCutLoopSourceRequired"];
@@ -289,9 +289,20 @@ ReduceMeasuredCurrentOneLoopInclusiveSource[card_Association,mode_String:"resume
  coefficients=Map[Function[row,Module[{parsed=linearIntegralSum[
      Total[KeyValueMap[#1 #2&,row]]/.Dispatch[reduction["Rules"]]]},
    If[!linearIntegralSumQ[parsed]||parsed["Remainder"]=!=0,
-    projectFail["LinearInclusiveMasterCoefficientsRequired"]];Factor/@parsed["Terms"]]],data["CoefficientRules"]];
+    projectFail["LinearInclusiveMasterCoefficientsRequired"]];
+   Map[Factor[#/.D->4-2Global`Epsilon]&,parsed["Terms"]]]],data["CoefficientRules"]];
+ coefficients=Map[Select[#,#=!=0&]&,coefficients];
+ active=Union[Flatten[Keys/@Values[coefficients],1]];
+ equivalences=If[active==={},<|"Mappings"->{}|>,projectCheck[
+   FeynFacet`FindCutIntegralEquivalences[active,reduction["Families"],"Normalization"->"DeclaredTypedCutMeasures"],
+   "InclusiveMasterRoutingEquivalencesRequired"]];
+ maps=Association[(#["Source"]->{#["Representative"],#["Factor"]})&/@equivalences["Mappings"]];
+ coefficients=Map[Function[row,
+   rows=KeyValueMap[With[{entry=maps[#1]},entry[[1]]->#2 entry[[2]]]&,row];
+   If[rows==={},<||>,Select[Factor/@Merge[rows,Total],#=!=0&]]],coefficients];
  output=<|"Format"->"FeynFacet-InclusiveCutLoopReduction","CalculationDefinition"->source["CalculationDefinition"],
-   "Reduction"->reduction,"MasterCoefficients"->coefficients,"Seconds"->seconds,
+   "Reduction"->reduction,"MasterCoefficients"->coefficients,"IntegralEquivalences"->equivalences,"Seconds"->seconds,
+   "DimensionalRegulator"->Global`Epsilon,"DimensionRule"->(D->4-2Global`Epsilon),
    "InputCompanions"-><|"IntegralDecomposition"->data|>,"IntegralEvaluated"->False,
    "ConjugateInterferenceAdded"->False|>;
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterReduction.wl"];output

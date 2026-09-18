@@ -65,4 +65,21 @@ homogeneousSource=<|"Scalar"->generic[2FeynCalc`SPD[ik1,ik2]]generic[2FeynCalc`S
 FTTest`FTAssert["a homogeneous dependency requiring raised external powers needs a new proof",
  MatchQ[FeynFacet`Private`cutLoopExternalPartialFractions[homogeneousSource,phase3,{il}],
   Failure["NonincreasingExternalPowersAndNonzeroDivisorsRequired",_]]];
+shifted=FeynFacet`DecomposeCutLoopIntegrands[<|"Scalar"->(bubble/.il->il+ik1)|>,phase,{il},
+ <|"FamilyNamePrefix"->"ShiftedMixedTest"|>];
+opposite=FeynFacet`DecomposeCutLoopIntegrands[<|"Scalar"->prop[il+ik1]prop[il+ik1-iq]|>,phase,{il},
+ <|"FamilyNamePrefix"->"OppositeMixedTest"|>];
+equivalences=FeynFacet`FindCutIntegralEquivalences[Join[decomposed["Targets"],shifted["Targets"]],
+ Join[decomposed["Families"],shifted["Families"]],"Normalization"->"DeclaredTypedCutMeasures"];
+FTTest`FTAssert["mixed cut and virtual directions admit a verified virtual loop shift",
+ AssociationQ[equivalences]&&equivalences["EquivalenceClassCount"]===1];
+separate=FeynFacet`FindCutIntegralEquivalences[Join[decomposed["Targets"],opposite["Targets"]],
+ Join[decomposed["Families"],opposite["Families"]],"Normalization"->"DeclaredTypedCutMeasures"];
+FTTest`FTAssert["a virtual routing change cannot identify opposite causal prescriptions",
+ AssociationQ[separate]&&separate["EquivalenceClassCount"]===2];
+dotted=ReplacePart[#,{2,1}->2]&/@Join[decomposed["Targets"],shifted["Targets"]];
+dottedMaps=FeynFacet`FindCutIntegralFamilyMaps[dotted,Join[decomposed["Families"],shifted["Families"]]];
+FTTest`FTAssert["mixed family routing maps cover dotted cuts using unrestricted propagator identities",
+ AssociationQ[dottedMaps]&&dottedMaps["RepresentativeFamilyCount"]===1&&
+ AllTrue[dottedMaps["Mappings"],TrueQ[#["OffShellPropagatorsAndDirectedCutsVerified"]]&]];
 Print["CUT LOOP INTEGRANDS TEST COMPLETE"];FTTest`FTReport[];
