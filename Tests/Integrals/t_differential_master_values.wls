@@ -28,4 +28,13 @@ FTTest`FTAssert["the next input order determines the finite partner with the omi
  AssociationQ[sufficient]&&sufficient["UnresolvedRequests"]===<||>&&
  sufficient["Values"][basis[[2]]]["Coefficients"][0]===1&&
  TrueQ[sufficient["Values"][basis[[2]]]["OrderCoverageVerified"]]];
+chainBasis=FeynCalc`GLI[ChainedKnownValues,{#}]&/@Range[4];
+chainSystem=<|"KinematicVariables"->{x},"DimensionalRegulator"->e,"DimensionRule"->D->4-2e,
+ "MasterIntegralBasis"->chainBasis,"ConnectionMatrices"->{{{0,0,1,0},{0,0,1,1},{0,0,0,0},{0,0,1,0}}}|>;
+record[value_]:=<|"Coefficients"-><|0->value|>,"LaurentLowerBound"->0,"KnownThroughOrder"->0,"ExactTail"->False|>;
+chain=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[chainSystem,
+ <|chainBasis[[1]]->record[x],chainBasis[[2]]->record[x^2/2]|>,AssociationThread[chainBasis[[{3,4}]],{0,0}]];
+FTTest`FTAssert["a value derived earlier in the same pass is included in later subtractions",
+ AssociationQ[chain]&&chain["Values"][chainBasis[[3]]]["Coefficients"][0]===1&&
+ Factor[chain["Values"][chainBasis[[4]]]["Coefficients"][0]-(x-1)]===0];
 Print["DIFFERENTIAL MASTER VALUES TEST COMPLETE"];FTTest`FTReport[];

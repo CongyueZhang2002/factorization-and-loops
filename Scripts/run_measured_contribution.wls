@@ -2,11 +2,18 @@ Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],2];Block[{Print},Get[root<>"/Addon/Load/LoadFACET.wl"]];$PrePrint=.;
 args=Rest[$ScriptCommandLine];
-If[Length[args]<2||Length[args]>4,Print["Usage: run_measured_contribution.wls CARD {prepare|families|de|masters|interior|check|virtual|loop|loop-interior|loop-contact-order|loop-inclusive-prepare|loop-inclusive-subtract|loop-inclusive-decompose|loop-inclusive-reduce|loop-inclusive-masters|loop-inclusive-rate|loop-distribution} [all|resume] [COMPONENT]"];Exit[2]];
+If[Length[args]<2||Length[args]>4,Print["Usage: run_measured_contribution.wls CARD {prepare|families|de|physical-basis|masters|interior|check|virtual|loop|loop-interior|loop-contact-order|loop-inclusive-prepare|loop-inclusive-subtract|loop-inclusive-decompose|loop-inclusive-reduce|loop-inclusive-masters|loop-inclusive-rate|loop-distribution|inclusive-prepare|inclusive-reduce|inclusive-masters|inclusive-rate} [all|resume] [COMPONENT]"];Exit[2]];
 path=ExpandFileName[args[[1]]];stage=args[[2]];mode=If[Length[args]>=3,args[[3]],"resume"];
 contribution=FileNameTake[DirectoryName[path]]<>If[Length[args]===4,"."<>args[[4]],""];
 card=FeynFacet`ReadContributionCard[DirectoryName[path,2],contribution];
 If[!AssociationQ[card],Print[InputForm[card]];Exit[1]];
+If[MemberQ[{"inclusive-prepare","inclusive-reduce","inclusive-masters","inclusive-rate"},stage],
+ result=Switch[stage,"inclusive-prepare",FeynFacet`PrepareMeasuredCurrentInclusiveSource[card,mode],
+   "inclusive-reduce",FeynFacet`ReduceMeasuredCurrentInclusiveSource[card,mode],
+   "inclusive-masters",FeynFacet`EvaluateMeasuredCurrentInclusiveMasters[card,mode],
+   "inclusive-rate",FeynFacet`IntegrateMeasuredCurrentInclusiveRate[card,mode]];
+ If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
+ Print["MEASURED CONTRIBUTION STAGE COMPLETE ",stage];Exit[0]];
 If[stage==="loop-distribution",result=FeynFacet`CompleteMeasuredCurrentOneLoopDistribution[card,mode];
  If[!AssociationQ[result],Print[InputForm[result]];Exit[1]];
  Print["MEASURED CONTRIBUTION STAGE COMPLETE loop-distribution"];Exit[0]];
@@ -52,7 +59,13 @@ If[!AssociationQ[prepared],Print[InputForm[prepared]];Exit[1]];
 result=Switch[stage,"prepare",prepared,
  "families",FeynFacet`PrepareMeasuredContributionIntegralDecomposition[card,prepared],
  "de",FeynFacet`ConstructMeasuredContributionDifferentialSystems[card,prepared],
+ "physical-basis",de=FeynFacet`FamilyArtifactRead[card["WorkDirectory"]<>"/DifferentialSystem.wl"];
+ If[!AssociationQ[de],Print[InputForm[de]];Exit[1]];
+ FeynFacet`PrepareMeasuredContributionPhysicalBasis[card,de],
  "masters",de=FeynFacet`FamilyArtifactRead[card["WorkDirectory"]<>"/DifferentialSystem.wl"];
+ If[!AssociationQ[de],Print[InputForm[de]];Exit[1]];
+ If[AllTrue[de["DifferentialSystem"]["Families"],Length[Lookup[#,"FinalMomenta",{}]]===4&],
+  de=FeynFacet`PrepareMeasuredContributionPhysicalBasis[card,de]];
  If[!AssociationQ[de],Print[InputForm[de]];Exit[1]];
  FeynFacet`ConstructMeasuredContributionMasterValues[card,prepared,de],
  "interior",de=FeynFacet`FamilyArtifactRead[card["WorkDirectory"]<>"/DifferentialSystem.wl"];

@@ -863,3 +863,6 @@ and this is not its total timing. Remaining native dependencies are being closed
 The owner state is ReductionWithReuseState.json; dynamic CPU affinity reserves
 CPU7 only while the second main Wolfram kernel is active and restores all eight
 otherwise. Preserve this job and inspect its actual state before further launches.
+
+
+Latest continuation: see [physical coefficients and current RR status](NLOEECPhysicalCoefficients.md).

@@ -1,0 +1,159 @@
+(* Inclusive scalar sources use the same generated current, normalization and
+   physical particle cuts as measured contributions. Moments are derived from
+   the card separately; no measured coefficient or endpoint contact is imported. *)
+BeginPackage["FeynFacet`"];
+PrepareMeasuredCurrentInclusiveSource::usage="PrepareMeasuredCurrentInclusiveSource[card,mode] prepares the generated tree current with its unmeasured positive-energy particle cuts and the same current, symmetry, flavor and bare-coupling normalization as its measured source. It derives the card measurement's zeroth/first inclusive weights, decomposes the actual rational amplitude and retains exact source inputs. No inclusive rate or endpoint-complete distribution is asserted.";
+ReduceMeasuredCurrentInclusiveSource::usage="ReduceMeasuredCurrentInclusiveSource[card,mode,execution] reduces the card-owned tree inclusive targets using shared typed IBPs and contracts their coefficients. It retains all poles; physical scalar values and measurement endpoints are separate stages.";
+EvaluateMeasuredCurrentInclusiveMasters::usage="EvaluateMeasuredCurrentInclusiveMasters[card,mode,execution] evaluates supported inclusive tree scalar masters with physical definitions and a shared-library lookup. Requested orders follow actual reduced coefficient valuations. Unsupported masters and orders are retained as unresolved and never interpreted as zero.";
+IntegrateMeasuredCurrentInclusiveRate::usage="IntegrateMeasuredCurrentInclusiveRate[card,mode,execution] contracts a complete set of evaluated inclusive tree scalar masters with the generated coefficients using the omitted-tail audit. It retains raw poles and generated measurement moment weights; this is not an endpoint-complete measured contribution.";
+Begin["`Private`"];
+measuredTreeCurrentSourceCompatibleQ[source_,setup_,request_]:=AssociationQ[source]&&
+ Lookup[source,"Format",None]==="FeynFacet-CurrentIntegrands"&&
+ Lookup[source,"ProcessDefinition",None]===setup&&
+ Lookup[source,"CurrentProjectors",None]===request["CurrentProjectors"]&&
+ Lookup[source,"InputColorRules",None]===Lookup[request,"ColorRules",{}]&&
+ Lookup[source,"InputKinematicRules",None]===Lookup[request,"KinematicRules",{}]&&
+ Lookup[source,"SpinCorrelations",None]===Lookup[request,"SpinCorrelations",{<|"Weight"->1,"SpinVectors"-><||>|>}]&&
+ TrueQ[Lookup[source,"FullDimensionScalarProducts",False]]&&
+ Lookup[source,"PhaseSpaceAndFluxIncluded",None]===False;
+PrepareMeasuredCurrentInclusiveSource[card_Association,mode_String:"resume"]:=Catch[Module[
+ {setup,request,geometry,phase,source,sourceFile,definition,values,file,saved,inputs,prepared=<||>,
+  decomposed=<||>,one,merged,moments,seconds,timings=<||>,output},
+ If[!MemberQ[{"all","resume"},mode]||Lookup[card["Assembly"],"IntegrationMethod",None]=!="PolynomialMeasurement",
+  projectFail["MeasuredInclusivePreparationModeRequired"]];
+ setup=projectCheck[FeynFacet`ReadProcessCard[card],"MeasuredCurrentProcessRequired"];
+ If[Lookup[card["Channels"][card["Channel"]],"Observed",None]=!=None,
+  projectFail["AllFinalMomentaIntegratedForTupleMeasurementRequired"]];
+ If[setup["ForwardAmplitudes"]["LoopOrder"]+setup["ConjugateAmplitudes"]["LoopOrder"]=!=0,
+  projectFail["TreeInclusiveCurrentSourceRequired"]];
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"MeasuredCurrentAssemblyRequired"];
+ geometry=Join[card["Assembly"]["PhaseSpace"],<|"Name"->measuredCurrentPhaseSpace,
+   "FinalMomenta"->Take[card["FinalMomenta"],Length[card["UnobservedPartons"]]]|>];
+ definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
+   "FinalStateMeasurement"->card["Assembly"]["FinalStateMeasurement"],
+   "SymmetryFactor"->Lookup[card,"SymmetryFactor",1],"FlavorMultiplicity"->Lookup[card,"FlavorMultiplicity",1]|>;
+ sourceFile=card["WorkDirectory"]<>"/Integrands.wl";
+ source=If[mode==="resume"&&FileExistsQ[sourceFile],FeynFacet`FamilyArtifactRead[sourceFile],None];
+ If[mode==="resume"&&!measuredTreeCurrentSourceCompatibleQ[source,setup,request]&&
+   FileExistsQ[card["WorkDirectory"]<>"/InclusiveCurrentIntegrands.wl"],
+  source=FeynFacet`FamilyArtifactRead[card["WorkDirectory"]<>"/InclusiveCurrentIntegrands.wl"]];
+ If[!measuredTreeCurrentSourceCompatibleQ[source,setup,request],
+  {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
+   <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
+  source=projectCheck[source,"InclusiveCurrentGenerationRequired"];
+  If[!measuredTreeCurrentSourceCompatibleQ[source,setup,request],projectFail["GeneratedInclusiveSourceDefinitionMismatch"]];
+  AssociateTo[timings,"AmplitudeGenerationAndContraction"->seconds];
+  (* A separate source checkpoint avoids overwriting an active measured producer. *)
+  projectWrite[source,card["WorkDirectory"]<>"/InclusiveCurrentIntegrands.wl"]];
+ values=Map[FeynFacet`SubstituteScalarPowers[# request["CurrentNormalization"]
+   Lookup[card,"SymmetryFactor",1]Lookup[card,"FlavorMultiplicity",1],request["BareCouplingRules"]]&,source["Values"]];
+ inputs=<|"SourceValues"->source["Values"],"NormalizedSourceValues"->values,
+   "ProcessDefinition"->setup,"CurrentProjectors"->source["CurrentProjectors"]|>;
+ file=card["WorkDirectory"]<>"/InclusiveIntegralDecomposition.wl";
+ If[mode==="resume"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition&&
+    Lookup[saved,"InputCompanions",None]===inputs,Return[Join[saved,<|"Reused"->True|>],Module]]];
+ phase=projectCheck[FeynFacet`CreateMasslessPhaseSpaceDefinition[geometry],"InclusiveParticleCutsRequired"];
+ moments=projectCheck[FeynFacet`ConstructFinalStateMeasurementMoments[geometry,
+   card["Assembly"]["FinalStateMeasurement"],{0,1}],"GeneratedInclusiveMeasurementMomentsRequired"];
+ {seconds,merged}=facetElapsedTiming[
+  KeyValueMap[Function[{name,value},
+   one=projectCheck[FeynFacet`PrepareCutIntegrand[value,phase,<|"ExternalKinematicConditions"->geometry["Assumptions"],
+     "PrintTimings"->True|>],"InclusiveOriginalCutProductRequired"];
+   AssociateTo[prepared,name->one];
+   one=projectCheck[FeynFacet`DecomposeMeasuredCutIntegrand[one,<|"FamilyNamePrefix"->("Inclusive"<>name),
+     "Assumptions"->geometry["Assumptions"],"ExternalKinematicConditions"->geometry["Assumptions"],
+     "CoefficientWorkers"->Lookup[card["Execution"],"ReconstructionThreads",1],"PrintTimings"->True|>],
+     "InclusiveCutDecompositionRequired"];
+   AssociateTo[decomposed,name->one]],values];
+  one=projectCheck[FeynFacet`MergeCutIntegralDecompositions[decomposed],"InclusiveSharedFamiliesRequired"];
+  projectCheck[FeynFacet`ReduceEquivalentCutIntegralTargets[one],"InclusiveEquivalentTargetsRequired"]];
+ AssociateTo[timings,"InclusiveIntegralDecomposition"->seconds];
+ output=<|"Format"->"FeynFacet-InclusiveTreeCurrentSource","CalculationDefinition"->definition,
+  "InputCompanions"->inputs,"PreparedIntegrands"->prepared,"IntegralDecomposition"->merged,
+  "MeasurementMoments"->moments,"StageSeconds"->timings,"Reused"->False,
+  "IntegralEvaluated"->False,"EndpointDistributionIncluded"->False|>;
+ projectWrite[output,file];output
+],"ProjectCards"];
+ReduceMeasuredCurrentInclusiveSource[card_Association,mode_String:"resume",execution_Association:<||>]:=Catch[Module[
+ {source,data,reduction,coefficients,seconds,threads,output,masters,families,equivalences,maps,terms},
+ threads=Lookup[execution,"Threads",card["Execution"]["KiraThreads"]];
+ If[!IntegerQ[threads]||threads<1||threads>card["Execution"]["KiraThreads"],projectFail["BoundedPositiveReductionThreadsRequired"]];
+ source=projectCheck[FeynFacet`PrepareMeasuredCurrentInclusiveSource[card,mode],"InclusiveTreeCurrentSourceRequired"];
+ data=source["IntegralDecomposition"];
+ Print["INCLUSIVE TREE FAMILIES ",Length[data["Families"]]," TARGETS ",Length[data["Targets"]]];
+ {seconds,reduction}=facetElapsedTiming[FeynFacet`KiraReduction[data["Families"],data["Targets"],
+  <|"WorkingDirectory"->card["WorkDirectory"]<>"/InclusiveReduction","Threads"->threads,"GenerationKernels"->1,
+   "SeedPolicy"->"TargetDownsets","RationalSolver"->"FireFly","HomogeneousScale"->card["Assembly"]["Scale"],
+   "PrintTimings"->True|>]];
+ reduction=projectCheck[reduction,"InclusiveTreeReductionRequired"];
+ coefficients=projectCheck[FeynFacet`ApplyIntegralReduction[data["Coefficients"],reduction],"InclusiveReducedCoefficientsRequired"];
+ coefficients=Map[Map[Cancel[Together[#/.D->4-2Global`Epsilon]]&,#]&,coefficients];
+ coefficients=Map[Select[#,#=!=0&]&,coefficients];
+ masters=Union[Flatten[Keys/@Values[coefficients]]];families=reduction["Families"];
+ equivalences=If[masters==={},<|"Mappings"->{}|>,projectCheck[
+  FeynFacet`FindCutIntegralEquivalences[masters,families,"Normalization"->"DeclaredTypedCutMeasures"],
+  "InclusiveMasterRoutingEquivalencesRequired"]];
+ maps=Association[(#["Source"]->{#["Representative"],#["Factor"]})&/@equivalences["Mappings"]];
+ coefficients=Map[Function[row,
+  terms=KeyValueMap[With[{entry=maps[#1]},entry[[1]]->#2 entry[[2]]]&,row];
+  If[terms==={},<||>,Select[Cancel[Together[#]]&/@Merge[terms,Total],#=!=0&]]],coefficients];
+ output=<|"Format"->"FeynFacet-InclusiveTreeCurrentReduction","CalculationDefinition"->source["CalculationDefinition"],
+  "InputCompanions"->source["InputCompanions"],"MasterCoefficients"->coefficients,"Reduction"->reduction,
+  "IntegralEquivalences"->equivalences,"MeasurementMoments"->source["MeasurementMoments"],
+  "DimensionalRegulator"->Global`Epsilon,"DimensionRule"->(D->4-2Global`Epsilon),
+  "StageSeconds"->Join[source["StageSeconds"],<|"InclusiveReduction"->seconds|>],
+  "IntegralEvaluated"->False,"EndpointDistributionIncluded"->False|>;
+ projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterReduction.wl"];output
+],"ProjectCards"];
+EvaluateMeasuredCurrentInclusiveMasters[card_Association,mode_String:"resume",execution_Association:<||>]:=Catch[Module[
+ {reduced,coefficients,masters,families,definitions,e=Global`Epsilon,values=<||>,unresolved=<||>,demands=<||>,
+  master,definition,family,valuation,hi,one,seconds,output,library},
+ reduced=projectCheck[FeynFacet`ReduceMeasuredCurrentInclusiveSource[card,mode,execution],"InclusiveTreeReductionRequired"];
+ coefficients=reduced["MasterCoefficients"];masters=Union[Flatten[Keys/@Values[coefficients]]];
+ families=reduced["Reduction"]["Families"];
+ definitions=projectCheck[FeynFacet`ConstructMasterIntegralDefinitions[<|"MasterIntegralBasis"->masters,
+   "Topologies"->families,"DimensionalRegulator"->e,"KinematicConditions"->card["Assembly"]["PhaseSpace"]["Assumptions"]|>],
+   "InclusivePhysicalMasterDefinitionsRequired"];
+ If[Length[definitions["MasterIntegralDefinitions"]]=!=Length[masters],projectFail["CompleteInclusiveMasterDefinitionsRequired"]];
+ library=Join[Lookup[card["Assembly"],"MasterLibrary",<||>],<|"Provenance"-><|"Project"->card["Project"],
+   "Card"->card["CardFile"],"Producer"->"UniversalInclusiveScalarProvider"|>|>];
+ Do[master=masters[[i]];definition=definitions["MasterIntegralDefinitions"][i];
+  family=SelectFirst[families,#["Topology"][[1]]===master[[1]]&];
+  valuation=FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&/@DeleteCases[Lookup[Values[coefficients],master,0],0];
+  If[!VectorQ[valuation,IntegerQ],projectFail["InclusiveScalarCoefficientOrdersRequired"]];
+  hi=Last[card["EpsilonRange"]]-Min[valuation];AssociateTo[demands,master->hi];
+  {seconds,one}=facetElapsedTiming[FeynFacet`EvaluateWithMasterIntegralLibrary[definition,{Min[0,hi],hi},
+    Function[{},FeynFacet`EvaluateInclusiveFourParticleMaster[family,master,e,{Min[0,hi],hi}]],library]];
+  If[AssociationQ[one],AssociateTo[values,master->Join[one,<|"Definition"->definition,"Seconds"->seconds|>]],
+    AssociateTo[unresolved,master->one]];
+  Print["INCLUSIVE PHYSICAL SCALAR ",i," / ",Length[masters]," ",If[AssociationQ[one],"COMPLETE","UNRESOLVED"]],
+ {i,Length[masters]}];
+ output=<|"Format"->"FeynFacet-InclusiveTreeScalarValues","CalculationDefinition"->reduced["CalculationDefinition"],
+  "InputCompanions"->reduced["InputCompanions"],"Values"->values,"Unresolved"->unresolved,
+  "RequiredUpperOrders"->demands,"MasterCoefficients"->coefficients,"DimensionalRegulator"->e,
+  "MeasurementMoments"->reduced["MeasurementMoments"],"AllMasterValuesEvaluated"->(unresolved===<||>),
+  "IntegralEvaluated"->False,"EndpointDistributionIncluded"->False|>;
+ projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterValues.wl"];output
+],"ProjectCards"];
+IntegrateMeasuredCurrentInclusiveRate[card_Association,mode_String:"resume",execution_Association:<||>]:=Catch[Module[
+ {masters,labels,needed,values,records,e,lowers,uppers,matrix,vector,product,rows,output,range=card["EpsilonRange"]},
+ masters=projectCheck[FeynFacet`EvaluateMeasuredCurrentInclusiveMasters[card,mode,execution],"InclusiveScalarValuesRequired"];
+ If[!TrueQ[masters["AllMasterValuesEvaluated"]],projectFail["CompleteInclusivePhysicalScalarsRequired",<|"Unresolved"->masters["Unresolved"]|>]];
+ rows=masters["MasterCoefficients"];labels=Keys[rows];needed=Union[Flatten[Keys/@Values[rows]]];
+ values=masters["Values"];records=Lookup[values,needed];e=masters["DimensionalRegulator"];
+ lowers=Lookup[records,"LaurentLowerBound"];uppers=Lookup[records,"KnownThroughOrder"];
+ vector=<|"DimensionalRegulator"->e,"Dimension"->Length[needed],
+  "Coefficients"->Association@Flatten[Table[KeyValueMap[{i,#1}->#2&,records[[i]]["Coefficients"]],{i,Length[records]}],1],
+  "LaurentLowerBounds"->lowers,"KnownThroughOrders"->uppers,"ExactTails"->ConstantArray[False,Length[needed]]|>;
+ matrix=projectCheck[FeynFacet`ExpandLaurentCoefficientMatrix[Lookup[#,needed,0]&/@Values[rows],e,Last[range]-lowers],
+  "InclusiveCoefficientExpansionRequired"];
+ product=projectCheck[FeynFacet`MultiplyLaurentCoefficientMatrix[matrix,vector,ConstantArray[range,Length[labels]]],
+  "InclusiveScalarProductCoverageRequired"];
+ output=Join[product,<|"Format"->"FeynFacet-InclusiveTreeCurrentRate","StructureFunctions"->labels,
+  "CalculationDefinition"->masters["CalculationDefinition"],"InputCompanions"->masters["InputCompanions"],
+  "MeasurementMoments"->masters["MeasurementMoments"],"IntegralEvaluated"->True,
+  "EndpointDistributionIncluded"->False,"Scope"->"Generated inclusive tree rate with all raw poles. Measured endpoint completion additionally requires its source-bound contact-order proof."|>];
+ projectWrite[output,card["WorkDirectory"]<>"/InclusiveTreeRate.wl"];output
+],"ProjectCards"];
+End[];EndPackage[];

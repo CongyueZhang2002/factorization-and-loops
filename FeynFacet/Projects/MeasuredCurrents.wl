@@ -6,7 +6,8 @@ PrepareMeasuredCurrentContribution::usage="PrepareMeasuredCurrentContribution[co
 PrepareMeasuredContributionIntegralDecomposition::usage="PrepareMeasuredContributionIntegralDecomposition[card,prepared] merges the card-generated noncontact families, identifies equivalent integral targets and saves the exact coefficient input without starting an IBP solve. Explicit contact sectors remain separate.";
 ConstructMeasuredContributionDifferentialSystems::usage="ConstructMeasuredContributionDifferentialSystems[compiledCard,prepared] reduces the noncontact families and constructs their shared Kira differential systems. Explicit contact sectors remain separate from rational generic-variable reduction.";
 CheckMeasuredContributionInterior::usage="CheckMeasuredContributionInterior[compiledCard,prepared] directly integrates supported native three-particle polynomial cuts in four dimensions and evaluates inclusive contact moments. It writes an explicit interior check, not Results.wl or an endpoint-complete hard function.";
-ConstructMeasuredContributionMasterValues::usage="ConstructMeasuredContributionMasterValues[card,prepared,system] evaluates supported unit-cut three-particle masters as explicit beta/Gauss functions with exact regulator dependence. It retains physical normalization and separate contact sectors. Unsupported geometry fails rather than inserting boundary constants.";
+PrepareMeasuredContributionPhysicalBasis::usage="PrepareMeasuredContributionPhysicalBasis[card,record] identifies exact affine master equivalences and selects a unit-cut spanning basis from the card-generated targets, verifying its differential compatibility. It updates the canonical differential-system record; physical values and endpoint distributions remain separate.";
+ConstructMeasuredContributionMasterValues::usage="ConstructMeasuredContributionMasterValues[card,prepared,system] evaluates supported unit-cut physical masters using the shared library and typed phase-space providers. Three-particle values retain exact regulator dependence; four-particle coefficient demands follow the actual nonzero source columns, with audited differential consequences. Unsupported orders remain explicit failures rather than guessed boundary constants.";
 AssembleMeasuredContributionInterior::usage="AssembleMeasuredContributionInterior[card,system,values] reconstructs the declared scalar structures from explicit physical masters and expands through the requested epsilon range with sufficient orders for every spurious reduction pole. It stores only the interior result; it never infers endpoint contacts.";
 IntegrateMeasuredCurrentVirtual::usage="IntegrateMeasuredCurrentVirtual[card,mode] generates a virtual interference, reduces its loops before phase space, and integrates constant measurement sectors. One-loop interference retains exact dimensional dependence; two-loop interference and one-loop squares return sufficient explicit Laurent coefficients from verified scalar-library reductions. The current implementation requires a massless two-body final state and no incoming partons.";
 RunMeasuredRawContribution::usage="RunMeasuredRawContribution[card,mode] computes independent full unit-interval Laurent distributions from card-declared polynomial measurements, including explicit contacts and radiative endpoint continuation. Native master reduction and physical solutions are used for the nonconstant spectrum.";
@@ -99,6 +100,28 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
   "ContactTerms"->prepared["ContactTerms"],"CalculationDefinition"->prepared["CalculationDefinition"],
   "StageSeconds"->Join[merged["StageSeconds"],<|"ReductionAndDifferentialClosure"->seconds|>],
   "Scope"->"Generic measured variables; physical boundary constants and endpoint contacts are separate inputs."|>;
+ projectWrite[output,path<>"/DifferentialSystem.wl"];output
+],"ProjectCards"];
+PrepareMeasuredContributionPhysicalBasis[card_Association,record_Association]:=Catch[Module[
+ {system=record["DifferentialSystem"],source=record["IntegralDecomposition"],selected,points,e,variables,scale,
+  seconds,timings=<||>,output,path=card["WorkDirectory"]},
+ If[TrueQ[Lookup[record,"PhysicalMasterBasisPrepared",False]],Return[record,Module]];
+ e=system["DimensionalRegulator"];variables=system["KinematicVariables"];scale=card["Assembly"]["Scale"];
+ points=Lookup[Lookup[card["Assembly"],"Reduction",<||>],"ValidationPoints",Automatic];
+ If[points===Automatic,points=Table[Join[
+   Thread[variables->Table[1/Prime[7k+j+3],{j,Length[variables]}]],
+   {e->1/Prime[7k+Length[variables]+4]},If[MatchQ[scale,_Symbol],{scale->1},{}]],{k,2}]];
+ {seconds,selected}=facetElapsedTiming[FeynFacet`ReduceEquivalentMasterIntegrals[system,
+   <|"ValidationPoints"->points,"Verbose"->True|>]];
+ selected=projectCheck[selected,"ExactMeasuredMasterEquivalencesRequired"];
+ AssociateTo[timings,"ExactMasterEquivalences"->seconds];
+ {seconds,selected}=facetElapsedTiming[FeynFacet`SelectMasterIntegralBasis[selected,selected["Reduction"],
+   <|"CandidateIntegrals"->source["Targets"],"ValidationPoints"->points,"RequireUnitCutBasis"->True|>]];
+ selected=projectCheck[selected,"UnitCutPhysicalMasterBasisRequired"];
+ AssociateTo[timings,"UnitCutBasisSelection"->seconds];
+ output=Join[record,<|"DifferentialSystem"->selected,"PhysicalMasterBasisPrepared"->True,
+   "StageSeconds"->Join[Lookup[record,"StageSeconds",<||>],timings]|>];
+ projectWrite[record,path<>"/SourceDifferentialSystem.wl"];
  projectWrite[output,path<>"/DifferentialSystem.wl"];output
 ],"ProjectCards"];
 measuredMasterCoefficientRows[card_,record_]:=Module[{rows,groups},

@@ -44,9 +44,9 @@ cutKiraPrepareEquationSystem[records_,targets_,equations_,directory_,preferred_:
  idMap=AssociationThread[unknowns,Range[Length[unknowns]]];
  variables=SortBy[DeleteDuplicates[Cases[Values/@equations,_Symbol,Infinity]],ToString[#,InputForm]&];
  coefficientValues=DeleteDuplicates[Flatten[Values/@equations]];
- If[!FreeQ[coefficientValues,_Complex|_Real]||!AllTrue[coefficientValues,With[{v=Together[#]},
-   PolynomialQ[Numerator[v],variables]&&PolynomialQ[Denominator[v],variables]]&],
+ If[!FreeQ[coefficientValues,_Complex|_Real]||!AllTrue[coefficientValues,exactIntegralCoefficientQ],
   cutFamilyFail["RationalIBPCoefficientsRequired"]];
+ Clear[coefficientValues];
  aliases=Table[Symbol["Global`fcz"<>ToString[i]],{i,Length[variables]}];
  If[!AllTrue[aliases,Function[a,With[{symbol=a},OwnValues[symbol]==={}&&DownValues[symbol]==={}]]],
   cutFamilyFail["KiraCoefficientAliasAlreadyDefined"]];
@@ -189,8 +189,24 @@ NormalizeIntegralEquationScale[rows_List,weights_Association,scale_Symbol]:=Catc
  columns=Union[Flatten[Keys/@rows]];
  If[!ContainsAll[Keys[weights],columns]||!AllTrue[columns,MatchQ[#,_FeynCalc`GLI]&],
   Throw[Failure["CompleteIntegralScaleWeightsRequired",<||>]]];
- degree[value_]:=degree[value]=Cancel[Together[scale D[value,scale]/value]];
- unit[value_,power_]:=unit[value,power]=Cancel[Together[value scale^power]];
+ (* Prove the integer degree structurally before using rational cancellation.
+    Native rows usually contain a monomial scale times a large scale-free
+    rational coefficient. Expanding it and memoizing every complete coefficient
+    can dominate memory on million-row systems. *)
+ degree[value_]:=Module[{parts,power},Which[
+  value===scale,1,
+  FreeQ[value,scale],0,
+  Head[value]===Times,parts=degree/@(List@@value);
+    If[VectorQ[parts,IntegerQ],Total[parts],Cancel[Together[scale D[value,scale]/value]]],
+  Head[value]===Power&&IntegerQ[value[[2]]],power=degree[value[[1]]];
+    If[IntegerQ[power],value[[2]]power,Cancel[Together[scale D[value,scale]/value]]],
+  Head[value]===Plus,parts=DeleteDuplicates[degree/@(List@@value)];
+    If[Length[parts]===1&&IntegerQ[First[parts]],First[parts],Cancel[Together[scale D[value,scale]/value]]],
+  True,Cancel[Together[scale D[value,scale]/value]]]];
+ (* After the exact common row degree is verified, evaluation at scale=1 is
+    precisely its coefficient in the rescaled unknowns. No integration value
+    is specialized here and no unproved scale dependence is discarded. *)
+ unit[value_,power_]:=(value/.scale->1);
  proofs=ConstantArray[0,Length[rows]];
  output=Map[Function[row,
   rowIndex++;

@@ -62,6 +62,12 @@ spNormalized=FeynFacet`NormalizeIntegralEquationScale[spScaleRows,<|spM->0,spT->
 FTTest`FTAssert["equation homogeneity removes a scale by an exact change of unknowns",
  AssociationQ[spNormalized]&&spNormalized["Rows"]===spRows&&
  FeynFacet`RestoreIntegralEquationScale[{spT->spM},spNormalized]==={spT->spScale spM}];
+spLargeCoefficient=(1+spA)^20000/(1-spA)^19999;
+spLargeNormalized=TimeConstrained[FeynFacet`NormalizeIntegralEquationScale[
+ {<|spH->spLargeCoefficient,spT->spScale spLargeCoefficient|>},
+ <|spH->2,spT->1|>,spScale],2,$Failed];
+FTTest`FTAssert["scale removal preserves a large factored rational coefficient without expansion",
+ AssociationQ[spLargeNormalized]&&spLargeNormalized["Rows"]==={<|spH->spLargeCoefficient,spT->spLargeCoefficient|>}];
 spBadScale=FeynFacet`NormalizeIntegralEquationScale[
  {<|spH->1,spT->-(1+spScale)spA|>},<|spM->0,spT->1,spH->2|>,spScale];
 spNested=(spA spM+(spM+spT)/(1-spA))/(1+spA)+spM/(spA^2-1);
