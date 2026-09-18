@@ -5,6 +5,7 @@ PrepareCutIntegrand::usage="PrepareCutIntegrand[expression,phaseSpaceDefinition,
 PrepareMeasuredCutIntegrand::usage="PrepareMeasuredCutIntegrand[expression,phaseSpaceDefinition,request] collects ordinary denominators, certifies their whole-product prescription limit using the shared compact-cut proof, and returns explicit polynomial numerators on the unit cuts. Request supplies ExternalKinematicConditions independent of the measurement. Off-shell denominator definitions are retained for later dotted-cut IBP and DEs.";
 DecomposeMeasuredCutIntegrand::usage="DecomposeMeasuredCutIntegrand[prepared,request] partial-fractions only the original ordinary denominator polynomials, completes each independent support to an off-shell scalar-product basis, and returns explicit GLI coefficient rules and typed families. Possible exceptional external divisors are retained. Unit-cut numerator identities are not used as dotted-cut identities.";
 MergeCutIntegralDecompositions::usage="MergeCutIntegralDecompositions[contributions] shares exactly identical typed families between named scalar contributions and unions their reduction targets. Family equality includes the full ordered propagators, momenta, kinematics, directed cuts, measure and assumptions. It makes no momentum-routing or prescription-equivalence inference.";
+ReduceEquivalentCutIntegralTargets::usage="ReduceEquivalentCutIntegralTargets[combined,request] combines coefficients of powered cut integrals related by exact unit-Jacobian changes of integration momenta, preserving complete polynomial measurement cuts, prescriptions and measure conventions. Optional CoefficientGroups maps all source coefficient labels to the scalar structures to sum. It removes unused families and retains explicit equivalence maps. No IBP master count or endpoint extension is inferred.";
 CancelMeasuredCutIntegrandDenominators::usage="CancelMeasuredCutIntegrandDenominators[prepared,request] cancels the complete rational density on unit cuts before family decomposition. Independent coefficient monomials are simplified separately. Unrestricted propagators and their common prescription certificate are retained.";
 SimplifyMeasuredIntegralDecomposition::usage="SimplifyMeasuredIntegralDecomposition[data,request] cancels common factors in collected external scalar-integral coefficients, removes exact zeros and updates their targets. It can finish a saved numerator decomposition without repeating polynomial coordinate conversion.";
 UnitCutScalarProductRules::usage="UnitCutScalarProductRules[definition,preserved] solves the independent unit-cut equations as affine full-D scalar-product substitutions, preferentially retaining the declared scalar products. These identities apply to numerators on unit cuts, never to unrestricted dotted-cut families.";
@@ -15,6 +16,8 @@ UnitCutScalarProductRules[input_Association,preserved_List:{}]:=Catch[Module[
  {definition,top,basis,coordinates,polynomials,matrix,constant,order,pivots={},rank=0,free,solution},
  definition=FeynFacet`CreateCutIntegralDefinition[input];
  If[!AssociationQ[definition],measuredIntegrandFail["TypedUnitCutDefinitionRequired"]];
+ If[KeyExistsQ[input,"CutPowers"]&&input["CutPowers"]=!=ConstantArray[1,Length[definition["CutIndices"]]],
+  measuredIntegrandFail["UnitCutNumeratorRestrictionRequired"]];
  top=definition["Topology"];basis=definition["LoopScalarProducts"];
  coordinates=Table[Unique["unitCutCoordinate$"],{Length[basis]}];
  polynomials=Expand[definition["InversePropagators"][[definition["CutIndices"]]]]/.Thread[basis->coordinates];
@@ -36,7 +39,7 @@ UnitCutScalarProductRules[input_Association,preserved_List:{}]:=Catch[Module[
    by numerator factors which the measurement constraint immediately removes. *)
 measuredUnitCutWeight[row_Association,base_Association]:=Module[
  {definition=row["Definition"],slots,variables=base["FreeScalarProductVariables"],replace,
-  weight,cuts,basis,division,remainder,degree,divisors,output},
+  weight,cuts,basis,division,remainder,degree,divisors,output,originalDivision,clearing,multipliers},
  output=<|"Weight"->row["Weight"],"Definition"->definition,"PolynomialReduction"->None|>;
  slots=definition["MeasurementCutIndices"];If[slots==={},Return[output]];
  replace=Reverse/@base["ScalarProductVariables"];
@@ -52,12 +55,25 @@ measuredUnitCutWeight[row_Association,base_Association]:=Module[
  If[degree[remainder]>=degree[weight],Return[output]];
  If[Expand[weight-remainder-First[division].basis]=!=0,
   measuredIntegrandFail["UnitMeasurementPolynomialIdentityFailed"]];
- divisors=DeleteDuplicates[First/@Rest[FactorList[Denominator[Together[#]]]]&/@Join[basis,{remainder}]];
- divisors=DeleteDuplicates[Flatten[divisors]];
+ (* An identity in a generic Groebner basis can lose special parameter
+    fibers. Adopt it only with a certificate in the original generators.
+    Direct polynomial division is deliberately a bounded sufficient test. *)
+ originalDivision=PolynomialReduce[Expand[weight-remainder],cuts,variables,
+   MonomialOrder->DegreeReverseLexicographic];
+ If[Expand[Last[originalDivision]]=!=0,Return[output]];
+ clearing=Factor[Fold[PolynomialLCM,1,Denominator[Together[#]]&/@
+   Join[First[originalDivision],{weight,remainder}]]];
+ If[!FreeQ[clearing,Alternatives@@variables],Return[output]];
+ multipliers=Cancel[clearing #]&/@First[originalDivision];
+ If[Expand[clearing(weight-remainder)-multipliers.cuts]=!=0,
+  measuredIntegrandFail["OriginalMeasurementPolynomialIdentityFailed"]];
+ divisors=DeleteDuplicates[First/@Rest[FactorList[clearing]]];
  Join[output,<|"Weight"->(remainder/.base["ScalarProductVariables"]),
   "Definition"->Join[definition,<|"MeasurementNumerator"->1|>],
   "PolynomialReduction"-><|"OriginalWeightTimesJacobian"->weight,"ReducedWeightTimesJacobian"->remainder,
    "UnitMeasurementPolynomials"->cuts,"GroebnerBasis"->basis,"Quotients"->First[division],
+   "OriginalGeneratorMultipliers"->multipliers,"DenominatorClearingFactor"->clearing,
+   "DenominatorClearedIdentityVerified"->True,
    "OriginalDegree"->degree[weight],"ReducedDegree"->degree[remainder],
    "ScalarProductVariables"->base["ScalarProductVariables"],"ExceptionalDivisors"->divisors,
    "Scope"->"Unit-cut numerator identity at generic external variables. Original measurement polynomials remain the off-shell propagators; the regulated endpoint continuation uses the original physical integral."|>|>]
@@ -111,6 +127,8 @@ PrepareMeasuredCutIntegrand[expression_,input_Association,request_Association]:=
     {"MeasurementVariable","ReferenceMomentum","TaggedMomentum"}]),
   measuredIntegrandFail["MeasuredPhaseSpaceDefinitionRequired"]];
  top=definition["Topology"];loops=top[[3]];kin=top[[5]];
+ If[KeyExistsQ[input,"CutPowers"]&&input["CutPowers"]=!=ConstantArray[1,Length[definition["CutIndices"]]],
+  measuredIntegrandFail["UnitCutNumeratorRestrictionRequired"]];
  If[Complement[Range[Length[top[[2]]]],definition["CutIndices"]]=!={},
   measuredIntegrandFail["SourcePhaseSpaceDefinitionMustContainOnlyCuts"]];
  basis=definition["LoopScalarProducts"];coordinates=Table[Unique["scalarProduct$"],{Length[basis]}];
@@ -199,6 +217,8 @@ CancelMeasuredCutIntegrandDenominators[prepared_Association,request_Association:
  {started=facetElapsedClock[],result,limit=Lookup[request,"CancellationTimeLimit",300]},
  If[Lookup[prepared,"Format",None]=!="FeynFacet-MeasuredCutIntegrand",
   Return[Failure["PreparedMeasuredIntegrandRequired",<||>]]];
+ If[Lookup[prepared,"CutPowers",None]=!=ConstantArray[1,Length[prepared["SourceDefinition"]["CutIndices"]]],
+  Return[Failure["UnitCutNumeratorRestrictionRequired",<||>]]];
  If[!NumericQ[limit]||limit<=0,Return[Failure["PositiveCancellationTimeLimitRequired",<||>]]];
  result=TimeConstrained[Catch[Module[
   {terms=prepared["Terms"],variables=prepared["FreeScalarProductVariables"],polynomials,
@@ -288,6 +308,8 @@ DecomposeMeasuredCutIntegrand[prepared_Association,request_Association:<||>]:=Ca
  progress[label_]:=If[TrueQ[Lookup[request,"PrintTimings",False]],
   Print[label," SECONDS ",Round[facetElapsedClock[]-started,0.01]]];
  source=prepared["SourceDefinition"];top=source["Topology"];cutCount=Length[source["CutIndices"]];
+ If[Lookup[prepared,"CutPowers",None]=!=ConstantArray[1,cutCount],
+  measuredIntegrandFail["UnitCutNumeratorRestrictionRequired"]];
  ordinary=prepared["OrdinaryUnitCutPolynomials"];variables=prepared["FreeScalarProductVariables"];
  If[variables==={},measuredIntegrandFail["PositiveDimensionalUnitCutSurfaceRequired"]];
  powers=DeleteDuplicates[Lookup[prepared["Terms"],"Powers"]];
@@ -474,7 +496,36 @@ MergeCutIntegralDecompositions[contributions_Association]:=Catch[Module[
   "Families"->families,"Coefficients"->coefficients,
   "Targets"->Sort[DeleteDuplicates[Flatten[Keys/@Values[coefficients],1]]],
   "FamilyRenamingRules"->renaming,
+  "SourceExceptionalDivisors"->Map[Lookup[#,"ExceptionalDivisors",{}]&,contributions],
+  "ExceptionalDivisors"->DeleteDuplicates[Flatten[Lookup[Values[contributions],"ExceptionalDivisors",{}]]],
   "SourcePrescriptionCertificates"->Map[#["OrdinaryPrescriptionCertificate"]&,contributions],
   "EquivalenceScope"->"Exact equality of the complete typed definitions; no momentum routing or period symmetry inferred."|>
+ ],"MeasuredIntegrand"];
+ReduceEquivalentCutIntegralTargets[data_Association,request_Association:<||>]:=Catch[Module[
+ {equivalences,mappings,rows,coefficients,values,targets,names,groups,labels},
+ If[Lookup[data,"Format",None]=!="FeynFacet-CombinedCutIntegralDecompositions",
+  measuredIntegrandFail["CombinedCutIntegralDecompositionRequired"]];
+ If[data["Targets"]==={},Return[data,Module]];
+ labels=Keys[data["Coefficients"]];
+ groups=Lookup[request,"CoefficientGroups",AssociationThread[labels,labels]];
+ If[!AssociationQ[groups]||Sort[Keys[groups]]=!=Sort[labels]||!AllTrue[Values[groups],StringQ],
+  measuredIntegrandFail["CompleteScalarCoefficientGroupingRequired"]];
+ equivalences=FeynFacet`FindCutIntegralEquivalences[data["Targets"],data["Families"],
+   "Normalization"->"DeclaredTypedCutMeasures"];
+ If[!AssociationQ[equivalences],measuredIntegrandFail["ExactCutIntegralEquivalencesRequired",<|"Cause"->equivalences|>]];
+ mappings=Association[(#["Source"]->{#["Representative"],#["Factor"]})&/@equivalences["Mappings"]];
+ coefficients=Map[Function[source,
+  rows=KeyValueMap[Function[{integral,coefficient},With[{entry=mappings[integral]},
+    entry[[1]]->entry[[2]]coefficient]],source];
+  If[rows==={},<||>,Merge[rows,Total]]],data["Coefficients"]];
+ coefficients=Map[Function[sourceLabels,
+   rows=Merge[Lookup[coefficients,sourceLabels],Total];
+   values=FeynFacet`CancelRationalCoefficients[Values[rows]];
+   If[!ListQ[values]||Length[values]=!=Length[rows],measuredIntegrandFail["EquivalentIntegralCoefficientCollectionFailed"]];
+   Select[AssociationThread[Keys[rows],values],#=!=0&]],GroupBy[labels,groups[#]&]];
+ targets=Union[Flatten[Keys/@Values[coefficients],1]];names=DeleteDuplicates[First/@targets];
+ Join[data,<|"Coefficients"->coefficients,"Targets"->targets,
+   "Families"->Select[data["Families"],MemberQ[names,#["Topology"][[1]]]&],
+   "IntegralEquivalences"->equivalences,"CoefficientGroups"->groups|>]
 ],"MeasuredIntegrand"];
 End[];EndPackage[];

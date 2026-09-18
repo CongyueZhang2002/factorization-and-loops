@@ -5,11 +5,13 @@ ExpandUnitIntervalDistribution::usage="ExpandUnitIntervalDistribution[interior,e
 UnitIntervalDistributionExpression::usage="UnitIntervalDistributionExpression[row,z] renders DeltaCoefficients, PlusCoefficients and RegularCoefficient as explicit EndpointDeltaDerivative and EndpointPlusDistribution expressions.";
 UnitIntervalDistributionMoment::usage="UnitIntervalDistributionMoment[row,z,n,assumptions] integrates a completed distribution against z^n, including both endpoints with unit delta mass.";
 Begin["`Private`"];
+intervalDistributionCollect[value_,assumptions_]:=
+ partonicCollect[FeynFacet`ExpandPositiveLogarithms[value,assumptions]];
 intervalDistributionSeries[value_,e_,hi_,assumptions_]:=Module[{result},
  result=Normal[Series[value,{e,0,hi}]];
  If[!FreeQ[result,_Series|_SeriesData|_SeriesCoefficient|Indeterminate|_DirectedInfinity|_Failure],
   Throw[Failure["ExplicitIntervalLaurentSeriesRequired",<|"Value"->value|>],"IntervalDistribution"]];
- Collect[Expand[result],e,FullSimplify[#,Assumptions->assumptions]&]
+ Collect[Expand[result],e,intervalDistributionCollect[#,assumptions]&]
 ];
 ExpandUnitIntervalDistribution[interior_Association,endpoints_List,contacts_Association,
  {z_Symbol,e_Symbol},range:{lo_Integer,hi_Integer},assumptions_:True]:=Catch[Module[
@@ -43,11 +45,11 @@ ExpandUnitIntervalDistribution[interior_Association,endpoints_List,contacts_Asso
  deltas=Map[intervalDistributionSeries[#,e,hi,assumptions]&,Association@Table[
    point->(deltas[point]+Lookup[contacts,point,0]),{point,{0,1}}]];
  rows=Association@Table[
-  models=Association@Table[point->Association@Table[k->FullSimplify[Lookup[pluses,Key[{n,point,k}],0],
-      Assumptions->assumptions],{k,DeleteDuplicates[Last/@Select[Keys[pluses],#[[1]]===n&&#[[2]]===point&]]}],{point,{0,1}}];
+  models=Association@Table[point->Association@Table[k->intervalDistributionCollect[Lookup[pluses,Key[{n,point,k}],0],
+      assumptions],{k,DeleteDuplicates[Last/@Select[Keys[pluses],#[[1]]===n&&#[[2]]===point&]]}],{point,{0,1}}];
   regular=interior[n]-Sum[Total[KeyValueMap[#2 Log[If[point===0,z,1-z]]^#1/If[point===0,z,1-z]&,models[point]]],{point,{0,1}}];
-  n-><|"DeltaCoefficients"->Map[FullSimplify[Coefficient[#,e,n],Assumptions->assumptions]&,deltas],
-    "PlusCoefficients"->models,"RegularCoefficient"->FullSimplify[regular,Assumptions->assumptions&&0<z<1]|>,
+  n-><|"DeltaCoefficients"->Map[intervalDistributionCollect[Coefficient[#,e,n],assumptions]&,deltas],
+    "PlusCoefficients"->models,"RegularCoefficient"->intervalDistributionCollect[regular,assumptions&&0<z<1]|>,
   {n,lo,hi}];
  <|"Coefficients"->rows,"EpsilonRange"->range,"DimensionalRegulator"->e,
   "Variable"->z,"Interval"->{0,1},"EndpointOrderRequirements"->records,

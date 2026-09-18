@@ -116,7 +116,7 @@ evaluateMasslessVertex[name_String,scale_,e_Symbol,range:{_Integer,_Integer},reg
   "MasterSource"->"hep-ph/0507061 section 2","FormFactorCoefficientsUsed"->False|>]
 ],"MasslessVertex"];
 
-MasslessVertexMasterLibrary[{k_Symbol,l_Symbol},{p1_,p2_},external:{__Symbol},kin_List,scale_,e_Symbol]:=
+masslessVertexMasterLibraryData[{k_Symbol,l_Symbol},{p1_,p2_},external:{__Symbol},kin_List,scale_,e_Symbol]:=
  Module[{records,reflected,conjugated,conjugatedExchange},
  records=MasslessVertexMasterDefinition[#,{k,l},{p1,p2},scale,e]&/@{"A2Squared","A3","A4","A6"};
  reflected=Join[MasslessVertexMasterDefinition["A4",{k,l},{p2,p1},scale,e],
@@ -137,9 +137,22 @@ MasslessVertexMasterLibrary[{k_Symbol,l_Symbol},{p1_,p2_},external:{__Symbol},ki
       ConstantArray[record["CausalPrescription"],Length[record["PropagatorMomenta"]]]]}],{k,l},external,FeynCalc`FCI[kin],{}],
   "MeasurePrefactor"->1|>]],Join[records,{reflected,conjugated,conjugatedExchange}]]
  ];
+masslessVertexLibraryKinematics[nulls_,kin_,scale_,region_]:=Module[{invariants,sign},
+ sign=If[region==="Timelike",1,-1];
+ invariants=FeynCalc`ExpandScalarProduct[FeynCalc`FCI[{
+   FeynCalc`SPD[nulls[[1]]],FeynCalc`SPD[nulls[[2]]],FeynCalc`SPD[Total[nulls]]}]]/.FeynCalc`FCI[kin];
+ If[!AllTrue[Factor/@(invariants-{0,0,sign scale}),#===0&],
+  masslessVertexFail["VertexCatalogAnalyticRegionMismatch",<|"Region"->region,"Invariants"->invariants|>]];
+ True
+];
+MasslessVertexMasterLibrary[loops:{_Symbol,_Symbol},nulls:{_,_},external:{__Symbol},kin_List,scale_,e_Symbol]:=
+ Catch[masslessVertexLibraryKinematics[nulls,kin,scale,"Spacelike"];
+  masslessVertexMasterLibraryData[loops,nulls,external,kin,scale,e],"MasslessVertex"];
 MasslessVertexMasterLibrary[loops:{_Symbol,_Symbol},nulls:{_,_},external:{__Symbol},kin_List,scale_,e_Symbol,"Timelike"]:=
- Module[{records=MasslessVertexMasterLibrary[loops,nulls,external,kin,scale,e],phase},
+ Catch[Module[{records,phase},
+  masslessVertexLibraryKinematics[nulls,kin,scale,"Timelike"];
+  records=masslessVertexMasterLibraryData[loops,nulls,external,kin,scale,e];
   Map[Function[record,phase=masslessVertexTimelikePhase[record,e];
    If[FailureQ[phase],phase,Join[record,<|"AnalyticRegion"->"Timelike","ExternalInvariant"->scale,
-    "ContinuationFactor"->phase,"ExactValue"->phase record["ExactValue"]|>]]],records]];
+    "ContinuationFactor"->phase,"ExactValue"->phase record["ExactValue"]|>]]],records]],"MasslessVertex"];
 End[];EndPackage[];

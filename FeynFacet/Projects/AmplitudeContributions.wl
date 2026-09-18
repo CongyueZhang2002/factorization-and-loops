@@ -345,6 +345,9 @@ projectValidateInvariantFractions[result_Association,parts_Association,card_Asso
 EvaluateBareContribution[card_Association,mode_String:"all"]:=Catch[Module[
  {cards,parts=<||>,timings=<||>,value,result,metadata,path},
  If[!MemberQ[{"all","resume","assemble"},mode],projectFail["ProjectRunModeRequired"]];
+ If[Lookup[card["Assembly"],"IntegrationMethod",None]==="PolynomialMeasurement",
+  value=projectCheck[FeynFacet`RunMeasuredRawContribution[card,mode],"MeasuredBareContributionFailed"];
+  Return[<|"Result"->value,"StageSeconds"->value["StageSeconds"],"File"->card["ResultFile"]|>,Module]];
  cards=projectContributionComponents[card];
  KeyValueMap[Function[{name,component},value=projectBareScalarContribution[component,mode];
   AssociateTo[parts,name->value["Result"]];timings=Join[timings,value["StageSeconds"]]],cards];

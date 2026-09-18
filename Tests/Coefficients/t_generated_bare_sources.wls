@@ -33,4 +33,5 @@ FTTest`FTAssert["forbidden lower-order flavor channels remain exact zero without
  {{"q","u"},{"q","d"}},<|"u"->"UpType","d"->"DownType"|>,3]===0&&
  !DirectoryQ[gsTemp<>"/Raw/NNLO/q-q/Counterterm/Work/Sources/NLO/q-qp"]];
 DeleteDirectory[gsTemp,DeleteContents->True];
+Print["REGRESSION CHECK COMPLETE"];
 FTTest`FTReport[];

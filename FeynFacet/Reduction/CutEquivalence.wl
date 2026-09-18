@@ -32,7 +32,7 @@ cutEquivalenceScalarProducts[expr_, momenta_List, gram_] :=
 
 cutEquivalenceTopology[record_Association, normalization_] := Module[
   {top, momenta, loops, external, n, gram, descriptors, polynomials,
-   kinematics, cutVectors, indices, directions, typed, validated, particles, cutTypes, particleIndices, dimensionTags, definitionData},
+   kinematics, cutVectors, indices, directions, typed, validated, particles, cutTypes, particleIndices, dimensionTags, definitionData,denominators},
   typed=MemberQ[{"FeynFacet-CutIntegralFamily","FeynFacet-CutIntegralDefinition"},Lookup[record,"Format",None]];
   validated=If[typed,FeynFacet`CreateCutIntegralDefinition[record],record];
   If[!AssociationQ[validated],Return[$Failed]];
@@ -48,8 +48,9 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
   momenta = Join[loops, external]; n = Length[momenta];
   gram = Table[cutScalarProduct[Min[i, j], Max[i, j]], {i, n}, {j, n}];
   descriptors = propagatorDescriptor[#, {}] & /@ top[[2]];
+  denominators=Cases[top[[2]],_FeynCalc`StandardPropagatorDenominator|_FeynCalc`GenericPropagatorDenominator,Infinity];
   If[MemberQ[descriptors, $Failed] || !AllTrue[descriptors,Lookup[#,"Power",None]===1&] ||
-      Length[Cases[top[[2]], _FeynCalc`StandardPropagatorDenominator, Infinity]] =!= Length[top[[2]]], Return[$Failed]];
+      Length[denominators] =!= Length[top[[2]]], Return[$Failed]];
   polynomials = cutEquivalenceScalarProducts[#, momenta, gram] & /@
     Lookup[descriptors, "UnitCore"];
   kinematics = cutEquivalenceScalarProducts[#, momenta, gram] & /@ top[[5]];
@@ -72,8 +73,7 @@ cutEquivalenceTopology[record_Association, normalization_] := Module[
   <|"Family" -> cutEquivalenceFamilyName[top[[1]]], "Loops" -> loops,
     "External" -> external, "GramMatrix" -> gram,
     "KinematicRules" -> kinematics, "PropagatorPolynomials" -> polynomials,
-    "Prescriptions" -> (Last[#[[4]]] & /@
-      Cases[top[[2]], _FeynCalc`StandardPropagatorDenominator, Infinity]),
+    "Prescriptions" -> (Last[Last[#]] & /@ denominators),
     "CutIndices" -> indices, "ParticleCutIndices"->particleIndices, "CutTypes"->cutTypes,
     "OrientedCutMomenta" -> MapThread[Times, {directions, cutVectors}],
     "DefinitionData" -> definitionData,"LorentzDimensionAnnotations"->First[dimensionTags],

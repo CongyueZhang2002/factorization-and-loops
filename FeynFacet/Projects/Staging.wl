@@ -240,7 +240,7 @@ projectRunCountertermChannel[card_Association,mode_String]:=Catch[
 
 RunRawContribution[card_Association,mode_String:"all"]:=Catch[Module[{reports},
  If[!MemberQ[{"all","resume"},mode],projectFail["RawRunModeRequired"]];
- If[Lookup[card["Assembly"],"IntegrationMethod",None]==="PolynomialMeasurement",
+ If[Lookup[card["Assembly"],"IntegrationMethod",None]==="PolynomialMeasurement"&&card["Contribution"]=!="Counterterm",
   With[{started=facetElapsedClock[]},reports=projectCheck[FeynFacet`RunMeasuredRawContribution[card,mode],"MeasuredRawExecutionFailed"];
    Return[<|"Status"->"Completed","Seconds"->facetElapsedClock[]-started,"File"->card["ResultFile"]|>,Module]]];
  If[KeyExistsQ[card,"TargetCards"],

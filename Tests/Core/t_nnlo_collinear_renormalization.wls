@@ -47,4 +47,5 @@ FTTest`FTAssert["the PDF distribution exposes the complete NNLO operator counter
  AssociationQ[pdfDistribution]&&pdfDistribution["Role"]==="PDF"&&
  pdfDistribution["Daughter"]==={"q",1}&&pdfDistribution["Parent"]==={"q",1}&&
  zeroRowQ[rowSum[{pdfDistribution,rowScale[z2scale,-1]}]]];
+Print["REGRESSION CHECK COMPLETE"];
 FTTest`FTReport[];

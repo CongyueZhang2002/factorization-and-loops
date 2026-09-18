@@ -51,7 +51,10 @@ resolvePartonicSource[catalog_Association,order_Integer,species_List,
   bareSourceFail["AlreadyConvertedFiniteSchemeSourceRejected"]];
  If[FeynFacet`RequirePartonicEpsilonRange[source,{source["LaurentLowerBound"],through}]=!=True,
   bareSourceFail["BareSourceEpsilonOrdersInsufficient",<|"Order"->order,"Channel"->name,"ThroughOrder"->through|>]];
- originalSpecies=bareChannelSpecies[channel];
+  originalSpecies=bareChannelSpecies[channel];
+  If[Lookup[catalog,"FlavorCovariance",None]==="Identity",
+   If[species=!=originalSpecies,bareSourceFail["IdenticalSourceSpeciesRequired"]];
+   Return[source]];
  sourceFlavors=DeleteDuplicates[Last/@Select[originalSpecies,#=!="g"&]];
  targetFlavors=DeleteDuplicates[Last/@Select[species,#=!="g"&]];
  If[Lookup[catalog,"FlavorCovariance",None]==="MasslessQCD",
@@ -238,7 +241,7 @@ ConstructCountertermContribution[card_Association]:=Catch[Module[
  If[Last[value["EpsilonRange"]]<Last[range],bareSourceFail["CountertermUpperEpsilonOrdersInsufficient"]];
  omitted=KeySelect[value["Coefficients"],#<First[range]&];
  If[!AllTrue[Values[omitted],partonicZeroTreeQ],bareSourceFail["CountertermCardOmitsNonzeroPoles"]];
- zero=partonicDistributionZero[partonicDistributionDepth[value["DistributionBasis"]]];
+  zero=partonicDistributionZero[value["DistributionBasis"]];
  coefficients=Association@Table[n->If[KeyExistsQ[value["Coefficients"],n],value["Coefficients"][n],
    If[n<lower,zero,bareSourceFail["UncomputedCountertermEpsilonCoefficient",<|"Order"->n|>]]],
   {n,First[range],Last[range]}];

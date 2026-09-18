@@ -4,6 +4,24 @@
   "StructureFunctions" -> {"Scalar"},
   "Orders" -> <|"LO" -> {"q-qb"}, "NLO" -> {"q-qb"}, "NNLO" -> {"q-qb"}|>,
   "Channels" -> <|"q-qb" -> <|"Incoming" -> {}|>|>,
+  "MinimumChannelOrders" -> <|"q-qb" -> 0|>, "LowerOrderFlavorCovariance" -> "Identity",
+  "BareOperatorSchemes" -> <||>,
+  "BareSourceContributions" -> <|
+    "LO" -> <|"q-qb" -> <|"Born" -> <|
+      "Contribution" -> "Born", "AmplitudeLoops" -> {0, 0},
+      "UnobservedPartons" -> {{"q", "u"}, {"qb", "u"}}, "FlavorSum" -> {"u"}
+    |>|>|>,
+    "NLO" -> <|"q-qb" -> <|
+      "Real" -> <|
+        "Contribution" -> "Real", "AmplitudeLoops" -> {0, 0},
+        "UnobservedPartons" -> {{"q", "u"}, {"qb", "u"}, "g"}, "FlavorSum" -> {"u"}
+      |>,
+      "Virtual" -> <|
+        "Contribution" -> "Virtual", "AmplitudeLoops" -> {1, 0}, "LoopMomenta" -> {{ell}, {}},
+        "UnobservedPartons" -> {{"q", "u"}, {"qb", "u"}}, "FlavorSum" -> {"u"}
+      |>
+    |>|>
+  |>,
   "SpeciesMap" -> <|
     {"q", "u"} -> FeynArts`F[3, {1}], {"qb", "u"} -> -FeynArts`F[3, {1}],
     {"q", "c"} -> FeynArts`F[3, {2}], {"qb", "c"} -> -FeynArts`F[3, {2}],
@@ -25,6 +43,8 @@
   "Kinematics" -> <|"BornConditions" -> Q2 > 0, "RadiativeConditions" -> Q2 > 0 && 0 < z < 1|>,
   "Assembly" -> <|
     "IntegrationMethod" -> "PolynomialMeasurement", "MeasurementInterval" -> {0, 1},
+    "FactorizationLegs" -> <||>,
+    "DistributionBasis" -> <|"Representation" -> "UnitInterval", "Variable" -> z, "Interval" -> {0, 1}, "Endpoints" -> {0, 1}|>,
     "Variables" -> {z}, "Scale" -> Q2, "Assumptions" -> Q2 > 0 && muR2 > 0 && nf > 0 && FeynCalc`CA > 1 && FeynCalc`CF > 0,
     "CurrentProjectors" -> <|"Scalar" -> FeynFacet`VectorCurrentPolarizationSum[q, {mu, nu}]|>,
     "KinematicRules" -> {FeynCalc`SPD[q] -> Q2},

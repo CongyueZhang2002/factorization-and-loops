@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];Get[root<>"/Tests/TestKit.wl"];
@@ -97,4 +98,5 @@ FTTest`FTAssert["each distinct pair of three factorization legs appears exactly 
  AssociationQ[prThreeResult]&&And@@Table[
  Expand[prThreeResult["Coefficients"][k]["DeltaCoefficient"]["DeltaCoefficient"]["DeltaCoefficient"]-
  prThreeExpected {born0,born1,born2}[[k+3]]]===0,{k,-2,0}]];
+Print["REGRESSION CHECK COMPLETE"];
 FTTest`FTReport[];

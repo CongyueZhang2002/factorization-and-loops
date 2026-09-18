@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
@@ -31,4 +32,5 @@ zero=FeynFacet`MultiplyPartonicLaurentFactor[source,1/ee,{-4,-2}];
 FTTest`FTAssert["orders below the established leading power are explicit zero",
  AssociationQ[zero]&&AllTrue[Values[zero["Coefficients"]],
  #["DeltaCoefficient"]===0&&#["PlusCoefficients"]===<||>&&#["RegularCoefficient"]===0&]];
+Print["REGRESSION CHECK COMPLETE"];
 FTTest`FTReport[];

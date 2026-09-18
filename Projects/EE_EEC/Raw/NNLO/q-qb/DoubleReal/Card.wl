@@ -5,7 +5,7 @@
     "Gluons" -> <|
       "UnobservedPartons" -> {{"q", "u"}, {"qb", "u"}, "g", "g"}, "FlavorSum" -> {"u"},
       "UnobservedGluonStates" -> {
-        <|"Momentum" -> k3, "Sum" -> "Physical", "ReferenceMomentum" -> q|>,
+        <|"Momentum" -> k3, "Sum" -> "Physical", "ReferenceMomentum" -> k1|>,
         <|"Momentum" -> k4, "Sum" -> "Covariant"|>
       }
     |>,

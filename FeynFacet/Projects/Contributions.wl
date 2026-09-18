@@ -269,7 +269,7 @@ GenerateBarePartonicSourceCatalog[consumer_Association,requirements_List]:=Catch
   timings=<||>,provenance=<||>,byOrder,axes,conditions,coefficients,chargeSymbols},
  If[!ContainsAll[Keys[consumer],{"BareSourceContributions","Channels","MinimumChannelOrders","FlavorClasses",
     "LowerOrderFlavorCovariance","Assembly"}]||
-  !MemberQ[{"SingleMasslessQuarkLine","MasslessQCD"},consumer["LowerOrderFlavorCovariance"]],
+  !MemberQ[{"Identity","SingleMasslessQuarkLine","MasslessQCD"},consumer["LowerOrderFlavorCovariance"]],
   projectFail["ExplicitSourceFlavorCovarianceAndChannelOrdersRequired"]];
  channels=consumer["Channels"];minimum=consumer["MinimumChannelOrders"];classes=consumer["FlavorClasses"];
  If[!AssociationQ[minimum]||!ContainsAll[Keys[minimum],Keys[channels]]||

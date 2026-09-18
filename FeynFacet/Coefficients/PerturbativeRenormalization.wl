@@ -22,7 +22,7 @@ PlanPartonicRenormalization[target_List,request_Association]:=Catch[Catch[Module
    "BornCouplingPower","Legs","FlavorClasses","TransitionKernel"},None];
  If[!MemberQ[{0,1,2},order]||!IntegerQ[through]||!MatchQ[e,_Symbol]||e===None||
   !IntegerQ[p]||p<0||!FreeQ[a,e]||MemberQ[{None,0},a]||
-  !MatchQ[legs,{_Association..}]||Length[legs]=!=Length[target]||
+  !MatchQ[legs,{_Association...}]||Length[legs]=!=Length[target]||
   !AllTrue[legs,MatchQ[Lookup[#,"Variable",None],_Symbol]&&Lookup[#,"Variable",None]=!=None&]||
   !AssociationQ[classes]||!MatchQ[provider,_Function|_Symbol]||provider===None,
   partonicRenormalizationFail["ExplicitPerturbativeRenormalizationRequestRequired"]];
@@ -32,7 +32,7 @@ PlanPartonicRenormalization[target_List,request_Association]:=Catch[Catch[Module
  If[!MemberQ[{"Bare","Renormalized"},sourceStage]||
    (sourceStage==="Renormalized"&&(through=!=0||z1=!=0||z2=!=0)),
   partonicRenormalizationFail["FiniteSchemeConversionRequiresFiniteSourcesAndNoUVRenormalization"]];
- If[!FreeQ[{a,z1,z2},Alternatives@@Lookup[legs,"Variable"]],
+ If[!FreeQ[{a,z1,z2},Alternatives@@(#["Variable"]&/@legs)],
   partonicRenormalizationFail["ExternalCouplingRenormalizationRequired"]];
  kernelFor[j_,src_,dst_,n_]:=Module[{k={j,src,dst,n},v},
   If[KeyExistsQ[cache,k],Return[cache[[Key[k]]]]];
@@ -46,7 +46,9 @@ PlanPartonicRenormalization[target_List,request_Association]:=Catch[Catch[Module
  compositions=Select[Tuples[Range[0,order],Length[legs]],Total[#]<=order&];
  terms=Reap[Do[
   positions=Flatten[Position[powers,_Integer?Positive,{1}]];
-  flavors=FeynFacet`QuarkFlavorSumTerms[target,positions,classes];
+  flavors=If[target==={},
+   {<|"Species"->{},"Multiplicity"->1,"FlavorClasses"-><||>|>},
+   FeynFacet`QuarkFlavorSumTerms[target,positions,classes]];
   If[!ListQ[flavors],partonicRenormalizationFail["CorrelatedFlavorSumFailed",<|"Cause"->flavors|>]];
   uvOrder=order-Total[powers];
   Do[
@@ -154,7 +156,7 @@ ApplyPartonicRenormalization[plan_Association,sourceProvider_,metadata_Associati
   AssociateTo[rows,name->value],
  {i,Length[terms]}];
  If[rows===<||>,Return[CreatePartonicResult[
-   Association@Table[k->partonicDistributionZero[partonicDistributionDepth[metadata["DistributionBasis"]]],
+   Association@Table[k->partonicDistributionZero[metadata["DistributionBasis"]],
     {k,Min[0,through],through}],metadata]]];
  CombinePartonicResults[rows,metadata]
 ],"PartonicRenormalization"];

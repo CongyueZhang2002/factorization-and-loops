@@ -33,6 +33,8 @@ partonicMap[f_,value_]:=f[value];
 partonicPhysicalDistributionBasis[basis_Association]:=If[KeyExistsQ[basis,"Axes"],
  Join[basis,<|"Axes"->(KeyDrop[#,"NormalVariable"]&/@basis["Axes"])|>],KeyDrop[basis,"NormalVariable"]];
 partonicDistributionDepth[basis_Association]:=If[KeyExistsQ[basis,"Axes"],Length[basis["Axes"]],1];
+partonicDistributionZero[basis_Association]:=If[Lookup[basis,"Representation",None]==="UnitInterval",
+ partonicIntervalZero[],partonicDistributionZero[partonicDistributionDepth[basis]]];
 partonicDistributionZero[1]:=partonicDistribution[0,<||>,0];
 partonicDistributionZero[n_Integer?Positive]:=With[{zero=partonicDistributionZero[n-1]},partonicDistribution[zero,<||>,zero]];
 partonicDistributionValidQ[row_,1]/;partonicIntervalRowQ[row]:=

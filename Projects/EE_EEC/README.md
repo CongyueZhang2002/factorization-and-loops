@@ -75,7 +75,9 @@ The four-parton components are qqbgg, identical four-quark states, and distinct
 four-quark states. The shared counting code supplies the state factorials and
 flavor multiplicities; all photon attachments are generated within each state.
 The Born denominator uses the same flavor sum. Lower-order stored raw definitions
-from the former fixed-flavor cards therefore require regeneration before reuse.
+from the former fixed-flavor cards required regeneration; the order-alpha_s
+result has now been regenerated with exact pole cancellation. This regeneration
+has not rerun the separate published-reference comparison.
 
 For this campaign, derive and save the full new coefficient before comparing it
 with published EEC coefficients. Internal consistency checks and universal scalar
@@ -131,3 +133,10 @@ The full normalized moments are
 
 See [the implementation report](../../Reports/2026-09-17/FullLOEEC.md) and
 [general quadratic-measurement design](../../Design/PolynomialMeasurements.md).
+
+
+The developing NNLO UV card uses the same counterterm operator as other projects,
+with no collinear legs. Its consumer-owned lower-order source range is determined
+by the UV pole. Shared Born/real/virtual templates are epsilon independent; direct
+cards only choose the final requested range. See the campaign record for the
+completed UV contribution and the unfinished remaining NNLO integration stages.

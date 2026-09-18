@@ -14,16 +14,18 @@ partonicLaurentScalarCoefficients[expr_,e_,low_,high_]:=Module[{series},
  series
 ];
 MultiplyPartonicLaurentFactor[source_Association,factor_,range:{_Integer,_Integer}]:=Catch[Module[
- {e,axes,lower,sourceLower,needed,coefficients,rows,depth,terms,check},
+ {e,axes,lower,sourceLower,needed,coefficients,rows,depth,terms,check,basis,zero},
  e=Lookup[source,"DimensionalRegulator",None];
- axes=Lookup[Lookup[source["DistributionBasis"],"Axes",{}],"Variable",{}];
+ basis=source["DistributionBasis"];
+ axes=If[KeyExistsQ[basis,"Axes"],#["Variable"]&/@basis["Axes"],{basis["Variable"]}];
  If[!MatchQ[e,_Symbol]||!FreeQ[factor,Alternatives@@axes]||First[range]>Last[range],
   collinearKernelFail["ExternalPartonicLaurentFactorRequired"]];
  check=RequirePartonicEpsilonRange[source,source["EpsilonRange"]];
  If[FailureQ[check],collinearKernelFail["CompletePartonicSourceRequired"]];
  depth=partonicDistributionDepth[source["DistributionBasis"]];
+ zero=partonicDistributionZero[basis];
  If[factor===0,Return[CreatePartonicResult[
-  Association@Table[k->partonicDistributionZero[depth],{k,First[range],Last[range]}],
+  Association@Table[k->zero,{k,First[range],Last[range]}],
   partonicLaurentProductMetadata[source]]]];
  lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[factor,e];
  If[!IntegerQ[lower],collinearKernelFail["PartonicFactorLaurentLowerBoundRequired"]];
@@ -35,10 +37,11 @@ MultiplyPartonicLaurentFactor[source_Association,factor_,range:{_Integer,_Intege
   <|"Source"->"ExternalLaurentFactor","LowerBound"->lower,"Exact"->True|>},
   Last[range],"PartonicLaurentMultiplication"];
  coefficients=partonicLaurentScalarCoefficients[factor,e,lower,Last[range]-sourceLower];
- rows=Association@Table[n->partonicDistributionSum[
+ rows=Association@Table[n->With[{summands=
   Table[If[coefficients[j]===0||n-j<sourceLower,Nothing,
    partonicMap[Function[value,coefficients[j]value],source["Coefficients"][n-j]]],
-   {j,lower,n-sourceLower}],depth],{n,First[range],Last[range]}];
+   {j,lower,n-sourceLower}]},If[summands==={},zero,partonicDistributionSum[summands,depth]]],
+  {n,First[range],Last[range]}];
  CreatePartonicResult[rows,partonicLaurentProductMetadata[source]]
 ],"CollinearCounterterms"];
 ApplyPartonicCollinearKernel[source_Association,kernel_Association,axis_Symbol,

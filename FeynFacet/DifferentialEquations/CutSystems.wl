@@ -47,7 +47,8 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
  parameters:{__Symbol},request_Association]:=Catch[Module[
  {records,names,byName,directory,iterations,moving,baseRequest,reduction,basis,nextBasis,
   allTargets,derivatives,newTargets,history={},matrices,images,iteration,closed=False,
-  derivativeRequest,rows,residual,flatness,points,checks,unknown,coefficients,regulator,seconds},
+  derivativeRequest,rows,residual,flatness,points,checks,unknown,coefficients,regulator,seconds,
+  seedRefinement,seedPlans,seeds,frontier,local,extra,added,refinementHistory={}},
  If[!DuplicateFreeQ[parameters]||!StringQ[Lookup[request,"WorkingDirectory",None]],
   cutFamilyFail["DistinctDEParametersAndWorkingDirectoryRequired"]];
  records=FeynFacet`CreateCutIntegralFamily/@families;
@@ -62,7 +63,9 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
  If[!AssociationQ[moving]||!SubsetQ[parameters,Keys[moving]],
   cutFamilyFail["MomentumDerivativesIndexedByDEParameterRequired"]];
  baseRequest=KeyDrop[request,{"MomentumDerivatives","MaximumClosureIterations","ValidationPoints",
-  "DimensionalRegulator","DimensionRule"}];
+  "DimensionalRegulator","DimensionRule","RefineDerivativeSeeds"}];
+ seedRefinement=Lookup[request,"RefineDerivativeSeeds",Lookup[request,"SeedPolicy","Rectangular"]==="TargetDownsets"];
+ If[!MemberQ[{True,False},seedRefinement],cutFamilyFail["BooleanDerivativeSeedRefinementRequired"]];
  allTargets=Sort[DeleteDuplicates[targets]];
  reduction=FeynFacet`KiraReduction[records,allTargets,Join[baseRequest,
   <|"WorkingDirectory"->FileNameJoin[{directory,"InitialReduction"}]|>]];
@@ -84,6 +87,31 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
     <|"WorkingDirectory"->FileNameJoin[{directory,"DerivativeClosure"<>ToString[iteration]}]|>]];
    If[!AssociationQ[reduction],cutFamilyFail["DerivativeCutReductionFailed",<|"Cause"->reduction|>]]];
   nextBasis=Sort[reduction["Masters"]];
+  (* A target downset alone need not contain the harder equations needed to
+     eliminate raised measurement cuts. Refine at the newly exposed masters,
+     rather than repeatedly differentiating them to still higher cut powers.
+     This chooses extra equations; it never restricts their integral columns. *)
+  If[seedRefinement&&nextBasis=!=basis,
+   seedPlans=Table[FeynFacet`PlanCutIBPSeeds[family,
+     Select[allTargets,#[[1]]===family["Topology"][[1]]&]],{family,records}];
+   If[!AllTrue[seedPlans,AssociationQ],cutFamilyFail["DerivativeTargetSeedPlansRequired"]];
+   seeds=Union[Lookup[baseRequest,"SeedIntegrals",{}],Flatten[Lookup[seedPlans,"Seeds"],1]];
+   frontier=Complement[nextBasis,basis];added={};
+   Do[
+    local=Select[frontier,#[[1]]===family["Topology"][[1]]&];If[local==={},Continue[]];
+    extra=FeynFacet`FindCutIBPPredecessorSeeds[family,local,
+      Select[seeds,#[[1]]===family["Topology"][[1]]&],<|"FrontierNeighborDepth"->1|>];
+    If[!AssociationQ[extra],cutFamilyFail["DerivativePredecessorSeedSelectionFailed",<|"Cause"->extra|>]];
+    added=Join[added,extra["Seeds"]],{family,records}];
+   If[added=!={},
+    AssociateTo[baseRequest,"SeedIntegrals"->Union[seeds,added]];
+    Print["Refining derivative reduction with ",Length[added]," predecessor seeds"];
+    reduction=FeynFacet`KiraReduction[records,allTargets,Join[baseRequest,
+      <|"WorkingDirectory"->FileNameJoin[{directory,"DerivativeSeedRefinement"<>ToString[iteration]}]|>]];
+    If[!AssociationQ[reduction],cutFamilyFail["RefinedDerivativeReductionFailed",<|"Cause"->reduction|>]];
+    AppendTo[refinementHistory,<|"Iteration"->iteration,"FrontierCount"->Length[frontier],
+      "AdditionalSeedCount"->Length[added],"SeedCount"->Length[baseRequest["SeedIntegrals"]]|>];
+    nextBasis=Sort[reduction["Masters"]]]];
   AppendTo[history,<|"Iteration"->iteration,"InputBasisCount"->Length[basis],
    "ReducedBasisCount"->Length[nextBasis],"TargetCount"->Length[allTargets],
    "DifferentiationSeconds"->seconds|>];
@@ -109,7 +137,8 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   "DimensionRule"->Lookup[request,"DimensionRule",D->4-2regulator],
   "MasterIntegralBasis"->basis,"ConnectionMatrices"->matrices,
   "RequestedMasterIntegrals"->targets,"RequestedMasterValues"->(targets/.Dispatch[reduction["Rules"]]),
-  "Families"->records,"Reduction"->Join[reduction,<|"Masters"->basis|>],"ClosureHistory"->history,"Validation"->checks,
+  "Families"->records,"Reduction"->Join[reduction,<|"Masters"->basis|>],"ClosureHistory"->history,
+  "SeedRefinementHistory"->refinementHistory,"Validation"->checks,
   "MomentumDerivatives"->moving,
   "PhysicalBoundaryConditionsApplied"->False,"MinimalMasterCountDetermined"->False|>
 ],"CutFamily"];

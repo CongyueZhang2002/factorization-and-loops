@@ -31,5 +31,20 @@ mixed=Join[FeynFacet`MasslessVertexMasterDefinition["A6",{pl1,pl2},{pp1,pp2},ps,
  <|"CausalPrescription"->{-1,1,1,1,1,1}|>];
 FTTest`FTAssert["connected mixed prescriptions cannot use a common homogeneity phase",
  FailureQ[FeynFacet`Private`masslessVertexTimelikePhase[mixed,pe]]];
+kin={FeynCalc`SPD[pp1]->0,FeynCalc`SPD[pp2]->0,FeynCalc`SPD[pp1,pp2]->ps/2};
+catalog=FeynFacet`MasslessVertexMasterLibrary[{pl1,pl2},{pp1,pp2},{pp1,pp2},kin,ps,pe,"Timelike"];
+FTTest`FTAssert["the caller-frame catalog agrees with its timelike scalar values",
+ ListQ[catalog]&&AllTrue[catalog,#["ExternalInvariant"]===ps&&#["AnalyticRegion"]==="Timelike"&]];
+FTTest`FTAssert["contradictory caller-frame and analytic-region declarations are rejected",
+ FailureQ[FeynFacet`MasslessVertexMasterLibrary[{pl1,pl2},{pp1,pp2},{pp1,pp2},kin,ps,pe]]&&
+ FailureQ[FeynFacet`MasslessVertexMasterLibrary[{pl1,pl2},{pp1,pp2},{pp1,pp2},kin/.ps->-ps,ps,pe,"Timelike"]]];
+libraryDirectory=CreateDirectory[];SetEnvironment["FEYNFACET_MASTER_LIBRARY_DIRECTORY"->libraryDirectory];
+Block[{FeynFacet`$MasterIntegralLibraryMode="ReadWrite"},
+ stored=FeynFacet`EvaluateMasslessVertexMaster["A2",ps,pe,{-1,0},"Timelike"];
+ reused=FeynFacet`EvaluateMasslessVertexMaster["A2",ps,pe,{-1,0},"Timelike"];
+ FTTest`FTAssert["the persistent library preserves timelike phase times pole terms",
+  AssociationQ[stored]&&AssociationQ[reused]&&KeyExistsQ[reused,"LibraryReuse"]&&
+  FullSimplify[reused["Coefficients"][{1,0}]-time["Coefficients"][{1,0}],ps>0]===0]];
+DeleteDirectory[libraryDirectory,DeleteContents->True];
 Print["TIMELIKE VERTEX TEST COMPLETE"];
 FTTest`FTReport[];

@@ -91,7 +91,7 @@ PlanCollinearRenormalization[target_List,request_Association]:=Catch[Module[
  {legs,parameters,e,provider,coupling,normalization,poleNormalization,externalSymbols,answer},
  legs=Lookup[request,"Legs",{}];parameters=Lookup[request,"KernelParameters",<||>];
  e=Lookup[request,"DimensionalRegulator",None];
- If[!MatchQ[legs,{_Association..}]||!AllTrue[legs,
+ If[!MatchQ[legs,{_Association...}]||!AllTrue[legs,
    ContainsAll[Keys[#],{"Role","Spin","Variable","ScaleLog","OperatorScheme"}]&&
    MemberQ[{"PDF","FF"},#["Role"]]&]||
   !ContainsAll[Keys[parameters],{"CA","CF","TR","FlavorCount"}],
@@ -104,8 +104,8 @@ PlanCollinearRenormalization[target_List,request_Association]:=Catch[Module[
   collinearKernelFail["MSbarCouplingNormalizationRecordRequired"]];
  poleNormalization=normalization["PoleNormalization"];
  externalSymbols=DeleteDuplicates[Cases[
-   {Lookup[request,"PerturbativeParameter",None],Lookup[legs,"Variable"],
-    Lookup[legs,"ScaleLog"]},symbol_Symbol/;Context[symbol]=!="System`",Infinity]];
+   {Lookup[request,"PerturbativeParameter",None],(#["Variable"]&/@legs),
+    (#["ScaleLog"]&/@legs)},symbol_Symbol/;Context[symbol]=!="System`",Infinity]];
  If[!FreeQ[poleNormalization,Alternatives@@DeleteCases[externalSymbols,e]]||
    !AllTrue[legs,Lookup[#,"PoleNormalization",poleNormalization]===poleNormalization&],
   collinearKernelFail["CommonScaleIndependentCouplingNormalizationRequired"]];
@@ -150,7 +150,7 @@ InverseFactorizationSchemeKernel[scheme_,daughter_,parent_,spin_,x_Symbol,
 PlanFiniteFactorizationSchemeChange[target_List,request_Association]:=Catch[Module[
  {legs,parameters,provider,answer},
  legs=Lookup[request,"Legs",{}];parameters=Lookup[request,"KernelParameters",<||>];
- If[!MatchQ[legs,{_Association..}]||!AllTrue[legs,
+ If[!MatchQ[legs,{_Association...}]||!AllTrue[legs,
   ContainsAll[Keys[#],{"Role","Spin","Variable","ScaleLog","OperatorRedefinition"}]&&
   MemberQ[{"PDF","FF"},#["Role"]]&]||Lookup[request,"ThroughOrder",None]=!=0,
   collinearKernelFail["FiniteSchemePhysicalLegsAndEpsilonZeroRequired"]];
