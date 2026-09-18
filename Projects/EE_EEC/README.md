@@ -212,3 +212,11 @@ FireFly's `masters.final` instead lists reconstructed RHS identifiers and can
 omit identity-only targets. Dependency closure first exports available rules,
 then reduces only missing dependencies in separate native workspaces, preserving
 completed exact rows. A no-progress closure fails explicitly.
+
+`loop-inclusive-masters` evaluates the seven nonzero routed scalar integrals
+with the general bubble/Dirichlet provider and an exactly matched universal
+one-mass box. New values enter the shared master library; the current complete
+scalar set is in `Work/InclusiveScalarMasterValues.wl`. The box is known through
+its finite Laurent term, which suffices for the actual coefficient multiplying
+it. Unsupported types or insufficient orders fail explicitly. This stage does
+not contract the inclusive rate or complete the measured RV distribution.

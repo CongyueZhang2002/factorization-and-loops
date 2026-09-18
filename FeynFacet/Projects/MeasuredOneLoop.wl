@@ -8,6 +8,7 @@ PrepareMeasuredCurrentOneLoopInclusiveIntegration::usage="PrepareMeasuredCurrent
 ConstructMeasuredCurrentOneLoopInclusiveSubtractions::usage="ConstructMeasuredCurrentOneLoopInclusiveSubtractions[card,mode] prepares the card-owned inclusive scalar-loop chart cover, then constructs exact regulator-dependent endpoint subtractions on every chart. It saves Work/InclusiveScalarLoopSubtractions.wl. The resulting finite strata remain to be integrated and are not an accepted raw contribution.";
 DecomposeMeasuredCurrentOneLoopInclusiveSource::usage="DecomposeMeasuredCurrentOneLoopInclusiveSource[card,mode] converts the generated unweighted loop source to measurement-free cut/loop families, after verifying its exact source binding and inclusive external-prescription limit. Only external products with nonincreasing partial-fraction powers are rewritten on original unit particle cuts. Virtual prescriptions remain. It saves Work/InclusiveCutLoopIntegrands.wl; IBP reduction and scalar evaluation are separate.";
 ReduceMeasuredCurrentOneLoopInclusiveSource::usage="ReduceMeasuredCurrentOneLoopInclusiveSource[card,mode,execution] derives the card-owned measurement-free cut/loop source and reduces its actual targets with the shared typed IBP machinery. It uses the declared scale and execution thread budget; execution may restrict Threads to fit a concurrent run. It retains the exact reduction and assembles its master coefficients. Universal scalar evaluation and Hermitian completion are separate; no inclusive rate is claimed.";
+EvaluateMeasuredCurrentOneLoopInclusiveMasters::usage="EvaluateMeasuredCurrentOneLoopInclusiveMasters[card,mode] evaluates recognized physical scalar integrals from the card-owned inclusive reduction and stores every new value in the shared master library. Laurent demands are derived from the actual coefficients. Unsupported scalar types remain explicitly unresolved in Work/InclusiveScalarMasterValues.wl; partial coverage is never an accepted rate.";
 Begin["`Private`"];
 measuredLoopNormalizeSource[reduced_,card_,request_,e_]:=<|
  "Source"->Join[reduced,Association@Table[key->Map[
@@ -306,5 +307,40 @@ ReduceMeasuredCurrentOneLoopInclusiveSource[card_Association,mode_String:"resume
    "InputCompanions"-><|"IntegralDecomposition"->data|>,"IntegralEvaluated"->False,
    "ConjugateInterferenceAdded"->False|>;
  projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterReduction.wl"];output
+],"ProjectCards"];
+EvaluateMeasuredCurrentOneLoopInclusiveMasters[card_Association,mode_String:"resume"]:=Catch[Module[
+ {reduced,masters,families,definitions,e=Global`Epsilon,values=<||>,unresolved=<||>,demands=<||>,
+  coefficients,valuation,definition,family,record,seconds,output,library},
+ reduced=projectCheck[FeynFacet`ReduceMeasuredCurrentOneLoopInclusiveSource[card,mode],"InclusiveScalarMasterReductionRequired"];
+ coefficients=reduced["MasterCoefficients"];masters=Union[Flatten[Keys/@Values[coefficients],1]];
+ families=Map[Function[f,Join[f,<|"Prescription"->(If[MemberQ[Most[f["FinalMomenta"]],#],0,1]&/@f["Topology"][[3]])|>]],
+   reduced["Reduction"]["Families"]];
+ definitions=projectCheck[FeynFacet`ConstructMasterIntegralDefinitions[<|"MasterIntegralBasis"->masters,
+   "Topologies"->families,"DimensionalRegulator"->e|>],"InclusivePhysicalMasterDefinitionsRequired"];
+ If[Length[definitions["MasterIntegralDefinitions"]]=!=Length[masters],
+  projectFail["CompleteInclusivePhysicalMasterDefinitionsRequired",<|"Cause"->definitions["UnresolvedIntegralDefinitions"]|>]];
+ library=<|"Provenance"-><|"Project"->card["Project"],"Card"->card["CardFile"],
+   "Producer"->"OneLoopPhaseSpaceScalarProvider"|>|>;
+ Do[
+  definition=definitions["MasterIntegralDefinitions"][i];
+  family=SelectFirst[families,#["Topology"][[1]]===master[[1]]&];
+  valuation=FeynFacet`DetermineMeromorphicLaurentLowerBound[#,e]&/@
+    DeleteCases[Lookup[Values[coefficients],master,0],0];
+  If[!VectorQ[valuation,IntegerQ],projectFail["InclusiveScalarCoefficientLaurentOrdersRequired"]];
+  AssociateTo[demands,master->(Last[card["EpsilonRange"]]-Min[valuation])];
+  {seconds,record}=AbsoluteTiming[FeynFacet`EvaluateWithMasterIntegralLibrary[definition,{Min[-4,demands[master]],demands[master]},
+    Function[{},Module[{value=FeynFacet`EvaluateOneLoopPhaseSpaceBubble[family,master,e]},
+      If[AssociationQ[value],Join[value,<|"ExactValue"->value["AnalyticExpression"]|>],
+        FeynFacet`EvaluateOneLoopPhaseSpaceBox[family,master,e,{Min[-4,demands[master]],demands[master]}]]]],library]];
+  If[AssociationQ[record],AssociateTo[values,master->Join[record,<|"Definition"->definition,"Seconds"->seconds|>]],
+    AssociateTo[unresolved,master->record]];
+  Print["INCLUSIVE SCALAR EVALUATION ",i," / ",Length[masters]," ",If[AssociationQ[record],"COMPLETE","UNRESOLVED"],
+    " SECONDS ",seconds],{i,Length[masters]},{master,{masters[[i]]}}];
+ output=<|"Format"->"FeynFacet-InclusiveScalarMasterValues","CalculationDefinition"->reduced["CalculationDefinition"],
+   "Values"->values,"Unresolved"->unresolved,"RequiredUpperOrders"->demands,
+   "DimensionalRegulator"->e,"MasterCoefficients"->coefficients,"AllMasterValuesEvaluated"->(unresolved===<||>),
+   "UniversalScalarSources"->"Causal massless bubble Gamma formulas, normalized Dirichlet moments, and the separately derived inclusive one-mass scalar box when an exact momentum map and sufficient Laurent coverage exist; no measured hard-function input.",
+   "InclusiveRateEvaluated"->False|>;
+ projectWrite[output,card["WorkDirectory"]<>"/InclusiveScalarMasterValues.wl"];output
 ],"ProjectCards"];
 End[];EndPackage[];

@@ -589,3 +589,31 @@ review is pending. The next useful mathematical step is to evaluate the remainin
 scalar types with generic subloop/phase-space machinery and the independently
 derived universal box, after establishing the actual required epsilon orders.
 The measured NLO hard coefficient remains uncomputed and un-compared.
+
+### Inclusive scalar values (14:43 UTC)
+
+All seven nonzero inclusive RV scalar integrals are now evaluated. Six have
+exact Gamma-function expressions from full-dimensional tensor reduction and
+Dirichlet moments; the last is mapped to the independently derived causal
+inclusive one-mass box. The actual coefficients require this box through
+epsilon^0 and two of the bubble moments through epsilon^3. The provider checks
+the actual momentum map, family measure, phase and requested expansion order.
+The universal box input is documented separately in Design/InclusiveOneLoopScalars.md;
+no measured NLO hard coefficient has been imported or compared. All new scalar
+values are recorded in the shared master library and the card-owned
+RealVirtual/Work/InclusiveScalarMasterValues.wl. This is not an inclusive rate.
+
+Eight bubble tests pass in17.062s; seven box tests pass in17.977s. The initial
+six-of-seven evaluation took37.342s. The completed seven-of-seven evaluation
+took26.821s, reusing the native reduction and six library values. These are
+supervisor elapsed times including kernel startup, not fresh complete RV times.
+Actual Pro review13 is retained in the review records. It approves the prior
+source rewrite and recommends the direct scalar moment approach. Its minimum
+signature completeness caveat remains: accepted momentum maps are valid, but
+some equivalent families could fail to match.
+
+The RR continuation has progressed beyond its first51-dependency solve and is
+now resolving203 further dependencies while retaining959 exact exported rows.
+Main PGID335582/kernel335613 remains healthy; Kira345117 is using all8 cores.
+Inspect fresh process state before starting another job. There is still no
+closed RR DE or complete NLO result.
