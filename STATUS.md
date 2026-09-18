@@ -6,7 +6,7 @@ Preserve healthy jobs, dirty/private files, accepted lower orders and read-only
 ~/FACET. Do not read/compare a published measured NLO EEC coefficient until our
 complete result is derived and saved. Identified universal scalar inputs are allowed.
 
-Latest pushed revision:fb974069eb257c2f07286a281f5a1112169b89ac.
+Latest pushed revision:f688f4596f0e184fc81e45031ea6049e6bcde80e.
 Actual GPT-6 Pro23-28 reviews are saved. Pro28 confirms the signed unit-cut
 Jacobian and exact moment-combination algebra. Its all-coefficient exactness
 and retained-reduction findings are repaired;10 assertions pass2.966s.
@@ -42,12 +42,14 @@ and replacement are in OrdinaryBasisSuperseded.json. It is NOT a running job.
 
 The identical-quark DE has CLOSED EXACTLY and is saved in
 IdenticalQuarks/Work/DifferentialSystem.wl. Successful recovered permanent-card
-run1426.822s including startup; previous equation preparation and failures are
+run1426.822s including startup; completed log is Archive/Runs/2026-09-18/
+NLOEECChecks/ControlledDECompleted.log. Previous equation preparation and failures are
 separate costs. Supervisor559791/PGID559792 has completed. The second derivative
 closure used56840 equations after the retained first exact search.
 
-ACTIVE: permanent-card IdenticalQuarks physical-basis/master evaluation;
-inspect PhysicalMastersState.json and PhysicalMasters.log under its component
+ACTIVE: permanent-card IdenticalQuarks physical-basis/master evaluation,
+supervisor563305/PGID563306/Wolfram563337. The42-coordinate affine equivalence
+check has no further identifications. Inspect PhysicalMastersState.json and PhysicalMasters.log under its component
 owner. Eight CPUs; no other main computation is running. Do not duplicate it.
 
 Previous supervisor559162 was stopped by the memory guard after244.556s while

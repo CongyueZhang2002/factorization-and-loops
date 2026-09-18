@@ -68,6 +68,36 @@ The order-alpha_s^2 EEC (conventional NLO EEC) is being developed in `Raw/NNLO`.
 No complete result at that order has been obtained yet. Follow the
 [campaign record](../../Reports/2026-09-18/NLOEECOvernight.md).
 
+Current alpha_s^2 progress is recorded in
+[the physical-coefficient report](../../Reports/2026-09-18/NLOEECPhysicalCoefficients.md)
+and the repository STATUS.md. The real-virtual, two-parton virtual and UV raw
+distributions are saved. All inclusive double-real components have explicit
+rates, and the inclusive sum cancels its poles exactly. This does not establish
+the angular distribution or its endpoint contacts.
+
+The different-flavor four-quark interior is evaluated. The identical-quark
+measured DE now closes exactly; physical coefficients are the next stage.
+Each component owns its state under
+`Raw/NNLO/q-qb/DoubleReal/Work/Components/<component>/`.
+Inspect live processes and the supervisor state before restarting anything.
+`ControlledDE.json` records the completed DE recovery; `PhysicalMastersState.json`
+and `PhysicalMasters.log` describe its subsequent physical-master run.
+The stage command is:
+
+```text
+Scripts/run_measured_contribution.wls Projects/EE_EEC/Raw/NNLO/q-qb/DoubleReal/Card.wl masters resume IdenticalQuarks
+```
+
+Invoke it through the timed supervisor above. Its success marker is
+`MEASURED CONTRIBUTION STAGE COMPLETE masters`. `PartialMasterValues.wl`
+means physical values or sufficient epsilon orders are still missing; it is
+not an accepted completed master result. `SourceBasisMomentConstraints.wxf`
+and `InclusiveMomentValues.wxf` retain physical moment identities and their
+evaluated inclusive right-hand sides. Their row count is not a count of fixed
+constants: the rank on unresolved homogeneous DE modes and the epsilon depth
+for that inversion must still be established. These large intermediate records
+use the same `FamilyArtifactRead` API as the readable final results.
+
 The current cards sum a unit-charge vector current over `nf` massless flavors.
 All are represented by one degenerate model flavor class; `u` and `c` are
 distinct dummy labels, not independently counted primary-current attachments.
