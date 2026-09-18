@@ -444,3 +444,35 @@ closure. A new diagnostic (26.781 s) finds the original source closes without
 undeclared terminals, while required derivatives still expose 13. No final DE
 or physical result is claimed. This needs a native export/resume fix, not a
 relabelling of unresolved targets as solved masters.
+
+
+### Native master declarations: source-level diagnosis and permanent repair
+
+The Kira 3.1 source (official GitLab checkout aadf067) resolves the apparent
+contradiction. `record_masters` records the initial IBP-system masters and removes
+them from reconstruction targets. FireFly `write_to_database` inserts every
+reconstructed RHS column into its final list. Consequently `masters.final`
+omits identity-only masters and can include unresolved selected-system columns.
+It is not interchangeable with the initial declaration.
+
+Typed reductions now close against the initial system declaration, first try
+an export-only dependency query, then reconstruct only still-missing dependencies
+while retaining existing exact rules. A no-progress condition fails explicitly.
+Old saved reductions without this closure convention are re-imported from their
+native workspace. No integral is promoted to a master merely because it appears
+on a right-hand side. The native scale/resume/declaration test passes 9 assertions
+in16.074 s, and12 DE convention assertions pass in10.520 s. A preceding run had
+all12 assertions pass but a mistaken supervisor completion string; its failed
+receipt is retained separately.
+
+The retained RR solve actually has51 unresolved RHS dependencies against its
+initial master declaration. The new job reconstructs925 coefficients instead of
+reconstructing the preceding3527 again. It remains running; no timing speedup
+or closed DE is claimed yet. The initial16 missing identities are already valid
+members of the native initial declaration and require no new solve.
+
+The freshly regenerated Hermitian RV interiors also pass all three direct
+scalar-density numerical comparisons, with errors below10^-30. Mixed cut/virtual
+scalar decomposition passes6 assertions (3.216 s); actual inclusive production
+still needs its endpoint continuation before opposite external prescriptions
+can be identified.

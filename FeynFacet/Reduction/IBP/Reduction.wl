@@ -1193,7 +1193,7 @@ ibpImportRules[project_Association, records_List] := Module[
   result
 ];
 
-ibpDeclaredMasters[project_Association, identityTargets_:Automatic] := Module[
+ibpDeclaredMasters[project_Association, identityTargets_:Automatic, masterFile_String:"masters.final"] := Module[
   {
     directory, manifest, nameMap, paths, lines, parseInteger, parseLine,
     masters, initialList=False
@@ -1207,10 +1207,10 @@ ibpDeclaredMasters[project_Association, identityTargets_:Automatic] := Module[
       directory,
       "results",
       ToString[#1["Name"], InputForm],
-      "masters.final"
+      masterFile
     }] & /@ manifest;
   If[! AllTrue[paths, FileExistsQ],
-    If[!ListQ[identityTargets],
+    If[masterFile=!= "masters.final"||!ListQ[identityTargets],
       ibpFail["Kira master validation", "a masters.final file is missing"]];
     paths=If[FileExistsQ[#],#,FileNameJoin[{DirectoryName[#],"masters"}]]&/@paths;
     If[!AllTrue[paths,FileExistsQ],

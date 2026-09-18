@@ -117,41 +117,73 @@ cutKiraIdentityTargets[project_Association,rules_List,targets_List]:=Module[{ima
  If[AllTrue[MapThread[(#1===#2||#1===0)&,{images,targets}],TrueQ],
   ibpEncodeProjectIntegrals[project,DeleteCases[images,0]],Automatic]
 ];
+(* FireFly's masters.final enumerates reconstructed right-hand-side columns.
+   It omits requested identity masters and can include unselected pivots.
+   Kira's initial masters file is the declaration from the supplied IBP system.
+   Close exports against that declaration; never promote an arbitrary RHS. *)
+cutKiraExportSelectedDependencies[project_,frontier_,iteration_]:=Module[
+ {directory=project["Directory"],encoded,file,job,output,process,imported},
+ encoded=ibpEncodeProjectIntegrals[project,frontier];
+ file="export_dependencies_"<>IntegerString[iteration,10,3];
+ Export[directory<>"/"<>file,StringRiffle[ibpKiraIntegralText/@encoded,"\n"]<>"\n","String"];
+ job="jobs_"<>file<>".yaml";
+ Export[directory<>"/"<>job,"jobs:\n  - kira2math:\n      target:\n        - [FeynFacetIBP, "<>file<>"]\n","String"];
+ process=RunProcess[{project["Runtime"]["KiraExecutable"],"--parallel=1",job},All,
+   ProcessDirectory->directory,ProcessEnvironment-><|"FERMATPATH"->project["Runtime"]["FermatExecutable"]|>];
+ Export[directory<>"/"<>file<>".log",Lookup[process,"StandardOutput",""]<>Lookup[process,"StandardError",""],"String"];
+ If[Lookup[process,"ExitCode",1]=!=0,cutFamilyFail["KiraDependencyExportFailed"]];
+ output=directory<>"/results/FeynFacetIBP/kira_"<>file<>".m";
+ imported=ibpDecodeProjectIntegrals[project,ibpImportRuleTable[project["IdentifierHead"],output]];
+ If[!ContainsAll[frontier,First/@imported]||!DuplicateFreeQ[First/@imported],
+  cutFamilyFail["ExactRequestedDependencyExportsRequired"]];
+ imported
+];
 cutKiraCloseSelectedReduction[project_,initialRules_,targets_,initialDeclared_,records_,request_]:=Module[
- {rules=initialRules,declared=initialDeclared,closed,frontier,selected=targets,diagnostics={},
+ {rules=initialRules,declared=initialDeclared,closed,frontier,diagnostics={},newRules,missing,oldFrontier,
   iteration=0,limit=Lookup[request,"MaximumSelectionClosureIterations",12],directory,
-  currentProject=project,selectionDefinition,encoded,inputFile,seconds,imported},
+  currentProject=project,selectionDefinition,encoded,inputFile,seconds,imported,newDeclared},
  closed=ibpCloseReductionRules[rules,targets];
  frontier=Complement[closed["Masters"],declared,SameTest->SameQ];
  inputFile=FileNameJoin[{project["Directory"],"equations.kira"}];
  While[frontier=!={},
   iteration++;If[iteration>limit,cutFamilyFail["KiraSelectionClosureIncomplete",
    <|"UnreducedDependencies"->frontier,"Iterations"->diagnostics|>]];
-  selected=Union[selected,frontier];
-  directory=FileNameJoin[{project["Directory"],"SelectionClosure"<>IntegerString[iteration,10,3]}];
-  encoded=ibpEncodeProjectIntegrals[project,selected];
-  selectionDefinition=<|"Format"->"FeynFacet-KiraSelectionInput",
-   "OriginalInputDefinition"->FamilyArtifactRead[FileNameJoin[{project["Directory"],"InputDefinition.wl"}]],
-   "SelectedIdentifiers"->encoded|>;
-  cutKiraWorkspaceDefinition[directory,selectionDefinition];
-  Export[FileNameJoin[{directory,"selected_integrals"}],
-   StringRiffle[ibpKiraIntegralText/@encoded,"\n"]<>"\n","String"];
-  Export[FileNameJoin[{directory,"jobs.yaml"}],cutKiraEquationJob[
-   Lookup[request,"RationalSolver","Fermat"],"points",inputFile,"selected_integrals"],"String"];
-  currentProject=Join[project,<|"Directory"->directory|>];
-  Print["Extending the Kira selection by ",Length[frontier]," unresolved exported dependencies"];
-  {seconds,imported}=AbsoluteTiming[
-   ibpRunKira[currentProject,Lookup[request,"Threads",1]];
-   ibpImportRuleTable[project["IdentifierHead"],FileNameJoin[{directory,"results","FeynFacetIBP","kira_selected_integrals.m"}]]];
-  rules=ibpDecodeProjectIntegrals[project,imported];
-  declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[currentProject,cutKiraIdentityTargets[project,rules,selected]]];
-  closed=ibpCloseReductionRules[rules,targets];
-  AppendTo[diagnostics,<|"Iteration"->iteration,"AddedDependencies"->frontier,
-   "SelectedIntegralCount"->Length[selected],"Seconds"->seconds,"Workspace"->directory|>];
-  frontier=Complement[closed["Masters"],declared,SameTest->SameQ]];
+  oldFrontier=frontier;
+  {seconds,newRules}=AbsoluteTiming[cutKiraExportSelectedDependencies[currentProject,frontier,iteration]];
+  missing=Complement[frontier,First/@newRules];
+  If[missing=!={},
+   directory=FileNameJoin[{project["Directory"],"DependencyReduction"<>IntegerString[iteration,10,3]}];
+   encoded=ibpEncodeProjectIntegrals[project,missing];
+   selectionDefinition=<|"Format"->"FeynFacet-KiraDependencyInput",
+    "OriginalInputDefinition"->FamilyArtifactRead[FileNameJoin[{project["Directory"],"InputDefinition.wl"}]],
+    "SelectedIdentifiers"->encoded|>;
+   cutKiraWorkspaceDefinition[directory,selectionDefinition];
+   Export[directory<>"/selected_integrals",StringRiffle[ibpKiraIntegralText/@encoded,"\n"]<>"\n","String"];
+   Export[directory<>"/jobs.yaml",cutKiraEquationJob[
+    Lookup[request,"RationalSolver","Fermat"],"points",inputFile,"selected_integrals"],"String"];
+   currentProject=Join[project,<|"Directory"->directory|>];
+   Print["Reducing ",Length[missing]," unresolved dependencies while retaining ",Length[rules]," exact export rows"];
+   seconds+=First@AbsoluteTiming[
+    If[!FileExistsQ[directory<>"/results/FeynFacetIBP/kira_selected_integrals.m"],
+      ibpRunKira[currentProject,Lookup[request,"Threads",1]]];
+    imported=ibpDecodeProjectIntegrals[project,ibpImportRuleTable[project["IdentifierHead"],
+      directory<>"/results/FeynFacetIBP/kira_selected_integrals.m"]];
+    newDeclared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[currentProject,Automatic,"masters"]]];
+   If[!ContainsAll[missing,First/@imported],cutFamilyFail["ExactRequestedDependencyReductionsRequired"]];
+   newRules=Join[newRules,imported];declared=Union[declared,newDeclared]];
+  If[validateCutGLIs[newRules,records]=!=True||
+    !DuplicateFreeQ[Join[First/@rules,First/@newRules]],cutFamilyFail["DistinctPhysicalDependencyRulesRequired"]];
+  rules=Join[rules,newRules];closed=ibpCloseReductionRules[rules,targets];
+  AppendTo[diagnostics,<|"Iteration"->iteration,"AddedDependencies"->oldFrontier,
+    "ExportedRuleCount"->Length[newRules],"ReconstructionTargetCount"->Length[missing],
+    "Seconds"->seconds,"Workspace"->currentProject["Directory"]|>];
+  frontier=Complement[closed["Masters"],declared,SameTest->SameQ];
+  If[frontier===oldFrontier,cutFamilyFail["KiraDependencyClosureMadeNoProgress",
+    <|"UnreducedDependencies"->frontier,"Iterations"->diagnostics|>]]];
  ibpValidateMasters[closed["Masters"],declared,records];
- Join[closed,<|"SelectionClosure"-><|"Status"->If[diagnostics==={},"AlreadyClosed","ClosedByExtendedSelection"],
-  "Iterations"->diagnostics|>,"SolutionWorkspace"->currentProject["Directory"]|>]
+ Join[closed,<|"SelectionClosure"-><|"Status"->If[diagnostics==={},"AlreadyClosed","ClosedByDependencyReduction"],
+  "DeclaredMasterSource"->"InitialIBPSystem","Iterations"->diagnostics|>,
+  "SolutionWorkspace"->currentProject["Directory"]|>]
 ];
 (* Family equations are independent; preserve family and equation ordering
    while the managed pool schedules the actual symbolic work. *)
@@ -247,7 +279,8 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
   result];
  If[TrueQ[Lookup[request,"ReuseSavedReduction",True]]&&FileExistsQ[FileNameJoin[{directory,"Reduction.wl"}]],
   cachedResult=FamilyArtifactRead[FileNameJoin[{directory,"Reduction.wl"}]];
-  If[AssociationQ[cachedResult]&&Lookup[cachedResult,"Format",None]==="FeynFacet-CutFamilyReduction",
+  If[AssociationQ[cachedResult]&&Lookup[cachedResult,"Format",None]==="FeynFacet-CutFamilyReduction"&&
+    Lookup[Lookup[cachedResult,"SelectionClosure",<||>],"DeclaredMasterSource",None]==="InitialIBPSystem",
    Return[Join[cachedResult,<|"ReusedSolvedReduction"->True|>]]]];
  If[TrueQ[Lookup[request,"ReuseSavedReduction",True]]&&
    AllTrue[{"IntegralIdentifiers.wxf","equations.kira","targets"},
@@ -271,7 +304,7 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
      ibpRunKira[project,Lookup[request,"Threads",1]]];
     ibpDecodeProjectIntegrals[project,
      ibpImportRuleTable[head,FileNameJoin[{directory,"results","FeynFacetIBP","kira_targets.m"}]]]];
-   declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project,cutKiraIdentityTargets[project,imported,targets]]];
+   declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project,Automatic,"masters"]];
    Print["Reusing the existing typed IBP equations and initial reduction"];
    Return[finish[imported,declared,seconds,Missing["RetainedEquationFile"],
     Missing["RetainedEquationFile"],0]]]];
@@ -325,7 +358,7 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
   ibpRunKira[project,Lookup[request,"Threads",1]];
   ibpImportRuleTable[head,FileNameJoin[{directory,"results","FeynFacetIBP","kira_targets.m"}]]];
  imported=ibpDecodeProjectIntegrals[project,imported];
- declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project,cutKiraIdentityTargets[project,imported,targets]]];
+ declared=ibpDecodeProjectIntegrals[project,ibpDeclaredMasters[project,Automatic,"masters"]];
  If[!FreeQ[{imported,declared},FeynCalc`GLI[head,_]],cutFamilyFail["UnmappedKiraIntegralIdentifier"]];
  finish[imported,declared,seconds,totalEquationCount,familySeedCounts,
   generationSeconds]

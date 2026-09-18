@@ -2,16 +2,34 @@
    Ordinary prescriptions are retained. No forward-cut theorem is invoked. *)
 BeginPackage["FeynFacet`"];
 DecomposeVirtualLoopIntegrands::usage="DecomposeVirtualLoopIntegrands[values,loops,external,kinematicRules,request] converts full-D scalar virtual integrands to explicit GLI coefficient rules and complete ordinary integral families. Equal denominator products share one family across named tensor structures. Ordinary prescriptions and the original density are retained.";
+DecomposeCutLoopIntegrands::usage="DecomposeCutLoopIntegrands[values,cutDefinition,virtualLoops,request] decomposes scalar loop corrections on explicitly directed unit cuts without removing ordinary prescriptions. It retains the cut definition, adds the declared virtual integration momenta, and uses the same prescribed-product numerator algebra as virtual-only decomposition. The default additional virtual measure is d^D ell per loop; request may explicitly set VirtualLoopMeasurePrefactor. Dependent original denominators fail pending a prescription-preserving partial fraction reduction.";
 Begin["`Private`"];
 DecomposeVirtualLoopIntegrands[values_Association,loops:{__Symbol},external:{__Symbol},
- kin_List,request_Association:<||>]:=Catch[Module[
+ kin_List,request_Association:<||>]:=decomposePrescribedLoopIntegrands[values,loops,external,kin,request,None];
+DecomposeCutLoopIntegrands[values_Association,input_Association,virtualLoops:{__Symbol},request_Association:<||>]:=
+ Catch[Module[{definition,top,loops,routed,measure},
+  definition=FeynFacet`CreateCutIntegralDefinition[input];
+  If[!AssociationQ[definition]||definition["CutIndices"]==={},cutFamilyFail["ExplicitDirectedUnitCutDefinitionRequired"]];
+  top=definition["Topology"];loops=Join[top[[3]],virtualLoops];
+  If[!DuplicateFreeQ[Join[loops,top[[4]]]],cutFamilyFail["DistinctVirtualCutAndExternalMomentaRequired"]];
+  routed=Map[FeynCalc`FCI[#]/.Lookup[input,"MomentumConservationRules",{}]&,values];
+  measure=definition["MeasurePrefactor"]Lookup[request,"VirtualLoopMeasurePrefactor",1];
+  definition=FeynFacet`CreateCutIntegralDefinition[Join[definition,<|"Topology"->ReplacePart[top,3->loops],
+    "MeasurePrefactor"->measure|>]];
+  If[!AssociationQ[definition],cutFamilyFail["MixedCutLoopDefinitionRequired",<|"Cause"->definition|>]];
+  decomposePrescribedLoopIntegrands[routed,loops,top[[4]],top[[5]],Join[request,<|"MeasurePrefactor"->measure|>],definition]
+ ],"CutFamily"];
+decomposePrescribedLoopIntegrands[values_Association,loops_List,external_List,kin_List,request_Association,cutDefinition_]:=Catch[Module[
  {internal,objects,aliases,polynomials,products,product,families={},records=<||>,top,converted,
   base,complete,mapped,master,rules,basis,scalar,coordinateRules,powers,coefficients,
   output=<||>,targets={},family,prefix,assumptions,name,positions,allProducts,
-  unitPropagators,propagatorPowers,standard,unit,index},
+  unitPropagators,propagatorPowers,standard,unit,index,cutProps={},cuts={},cutCount=0,allProps,allPowers},
  If[!DuplicateFreeQ[Join[loops,external]]||!AllTrue[kin,MatchQ[#,_Rule]&],
   cutFamilyFail["DistinctVirtualLoopAndExternalMomentaRequired"]];
  internal=FeynCalc`FCI/@values;
+ If[AssociationQ[cutDefinition],
+  cutProps=cutDefinition["Topology"][[2,cutDefinition["CutIndices"]]];cutCount=Length[cutProps];
+  cuts=MapIndexed[Join[#1,<|"Index"->First[#2]|>]&,cutDefinition["Cuts"]]];
  If[!FreeQ[internal,_FeynCalc`Eps|_FeynCalc`DiracGamma|_FeynCalc`LorentzIndex|_Real|_Failure],
   cutFamilyFail["FullDimensionScalarVirtualDensityRequired"]];
  objects=DeleteDuplicates[Cases[Values[internal],_FeynCalc`FeynAmpDenominator,{0,Infinity}]];
@@ -38,14 +56,18 @@ DecomposeVirtualLoopIntegrands[values_Association,loops:{__Symbol},external:{__S
    {prop,List@@standard}],
   {j,Length[objects]}];
   name=Symbol["FeynFacet`IntegralFamilies`"<>prefix<>ToString[Length[families]+1]];
-  top=FeynCalc`FCTopology[name,FeynCalc`FeynAmpDenominator/@unitPropagators,
+  allProps=Join[cutProps,FeynCalc`FeynAmpDenominator/@unitPropagators];
+  allPowers=Join[ConstantArray[1,cutCount],propagatorPowers];
+  top=FeynCalc`FCTopology[name,allProps,
    loops,external,FeynCalc`FCI[kin],{}];
   complete=FeynFacet`CompleteAffineIntegralTopology[top];
   If[!MatchQ[complete,_FeynCalc`FCTopology],Throw[complete,"CutFamily"]];
-  master=FeynCalc`GLI[name,PadRight[propagatorPowers,Length[complete[[2]]]]];
+  master=FeynCalc`GLI[name,PadRight[allPowers,Length[complete[[2]]]]];
   mapped=master;
-  family=FeynFacet`CreateLoopIntegralFamily[<|"Topology"->complete,
-   "MeasurePrefactor"->Lookup[request,"MeasurePrefactor",1],"Assumptions"->assumptions|>];
+  family=If[AssociationQ[cutDefinition],
+   FeynFacet`CreateCutIntegralFamily[Join[cutDefinition,<|"Topology"->complete,"Cuts"->cuts|>]],
+   FeynFacet`CreateLoopIntegralFamily[<|"Topology"->complete,
+    "MeasurePrefactor"->Lookup[request,"MeasurePrefactor",1],"Assumptions"->assumptions|>]];
   If[!AssociationQ[family],Throw[family,"CutFamily"]];
   AppendTo[families,family];AssociateTo[records,powers-><|"Family"->family,"Master"->master,
    "Coefficient"->(mapped/.master->1)|>],
@@ -62,6 +84,7 @@ DecomposeVirtualLoopIntegrands[values_Association,loops:{__Symbol},external:{__S
     cutFamilyFail["PolynomialVirtualNumeratorRequired"]];
    Do[
     base=FeynCalc`GLI[master[[1]],master[[2]]-First[rule]];
+    If[cutCount>0&&!AllTrue[Take[base[[2]],cutCount],#>0&],Continue[]];
     AssociateTo[coefficients,base->(Lookup[coefficients,base,0]+
      records[[Key[powers]]]["Coefficient"]Last[rule])],
    {rule,coordinateRules}],
@@ -70,7 +93,7 @@ DecomposeVirtualLoopIntegrands[values_Association,loops:{__Symbol},external:{__S
   targets=Join[targets,Keys[coefficients]];
   AssociateTo[output,label->coefficients]
  ],polynomials];
- <|"Format"->"FeynFacet-VirtualIntegralFamilies","FormatVersion"->1,
+ <|"Format"->If[AssociationQ[cutDefinition],"FeynFacet-CutLoopIntegralFamilies","FeynFacet-VirtualIntegralFamilies"],"FormatVersion"->1,
   "Families"->families,"CoefficientRules"->output,"Targets"->DeleteDuplicates[targets],
   "SourceValues"->values,"LoopMomenta"->loops,"ExternalMomenta"->external,
   "KinematicRules"->kin,"OrdinaryPrescriptionLimitEstablished"->False,

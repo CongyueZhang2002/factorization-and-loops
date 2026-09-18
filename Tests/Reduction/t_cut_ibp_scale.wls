@@ -47,6 +47,7 @@ FTTest`FTAssert["finite-field reconstruction agrees with direct rational reducti
    Express one symmetric dotted target through the other, omitting the latter
    export. The original equation system and declared masters are unchanged. *)
 ffDirectory=directory<>"/Reconstructed";
+
 ffIds=FeynFacet`FamilyArtifactRead[ffDirectory<>"/IntegralIdentifiers.wxf"];
 ffObjects=FeynCalc`GLI[Global`FeynFacetIBP,{First@FirstPosition[ffIds["IndexedIntegrals"],#]}]&/@targets;
 ffFile=ffDirectory<>"/results/FeynFacetIBP/kira_targets.m";
@@ -73,7 +74,15 @@ closedImport=FeynFacet`KiraReduction[{family},targets,Join[request,<|"WorkingDir
  "HomogeneousScale"->ss,"RationalSolver"->"FireFly"|>]];
 FTTest`FTAssert["partial native exports close in normalized units and restore the scale only once",
  AssociationQ[closedImport]&&closedImport["SelectionClosure"]["Iterations"]=!={}&&
+ Total[Lookup[closedImport["SelectionClosure"]["Iterations"],"ReconstructionTargetCount"]]===0&&
  AllTrue[Factor/@((targets/.original["Rules"])-(targets/.closedImport["Rules"])),#===0&]];
+masterDir=directory<>"/MasterDeclaration";CreateDirectory[masterDir<>"/results/FeynFacetIBP",CreateIntermediateDirectories->True];
+Export[masterDir<>"/results/FeynFacetIBP/masters","FeynFacetIBP[1] # 1\nFeynFacetIBP[2] # 1\n","String"];
+Export[masterDir<>"/results/FeynFacetIBP/masters.final","FeynFacetIBP[1] # 1\nFeynFacetIBP[3] # 1\n","String"];
+masterProject=<|"Directory"->masterDir,"Manifest"->{<|"Name"->Global`FeynFacetIBP|>}|>;
+initialMasters=FeynFacet`Private`ibpDeclaredMasters[masterProject,Automatic,"masters"];
+FTTest`FTAssert["initial-system masters retain identity targets and exclude final-only unresolved columns",
+ initialMasters==={FeynCalc`GLI[Global`FeynFacetIBP,{1}],FeynCalc`GLI[Global`FeynFacetIBP,{2}]}];
 If[StringStartsQ[ExpandFileName[directory],ExpandFileName[$TemporaryDirectory]<>"/"],DeleteDirectory[directory,DeleteContents->True]];
 Print["CUT IBP SCALE TEST COMPLETE"];
 FTTest`FTReport[];
