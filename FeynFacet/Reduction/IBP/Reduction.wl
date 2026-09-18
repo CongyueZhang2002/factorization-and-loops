@@ -1256,8 +1256,20 @@ ibpDeclaredMasters[project_Association, identityTargets_:Automatic, masterFile_S
 ibpCloseReductionRules[rules_List, targets_List] := Module[
   {
     uniqueRules, leftSides, dispatch, current, next,
-    converged = False, unresolved, closedRules, masters
+    converged = False, unresolved, closedRules, masters, parsed,
+    coefficient, cache=<||>, cacheBytes=0, canonical
   },
+  coefficient[value_] := If[KeyExistsQ[cache,value],cache[value],Module[{result},
+    result=Cancel[Together[value]];
+    If[cacheBytes+ByteCount[value]+ByteCount[result]<4*1024^2,
+      AssociateTo[cache,value->result];cacheBytes+=ByteCount[value]+ByteCount[result]];
+    result]];
+  canonical[expression_] := Module[{terms},
+    parsed=linearIntegralSum[expression];
+    If[!linearIntegralSumQ[parsed]||coefficient[parsed["Remainder"]]=!=0,
+      ibpFail["Kira rule closure","homogeneous linear integral expressions are required"]];
+    terms=Select[Map[coefficient,parsed["Terms"]],#=!=0&];
+    Total[KeyValueMap[Times,terms]]];
   uniqueRules = rules;
   leftSides = First /@ uniqueRules;
   dispatch = Dispatch[uniqueRules];
@@ -1271,6 +1283,11 @@ ibpCloseReductionRules[rules_List, targets_List] := Module[
     current = next,
     {Length[uniqueRules] + 2}
   ];
+  (* Substituting closed rational identities can leave identically zero
+     coefficients in uncollected sums. Cancel coefficient-wise before counting
+     terminal integrals; otherwise these false columns seed unnecessary IBPs
+     and, more seriously, become provisional differential-equation masters. *)
+  current=canonical/@current;
   unresolved = Intersection[
     DeleteDuplicates @ Cases[current, _FeynCalc`GLI, {0, Infinity}],
     leftSides,

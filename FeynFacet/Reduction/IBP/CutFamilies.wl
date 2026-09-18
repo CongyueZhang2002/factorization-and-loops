@@ -312,7 +312,8 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
   cachedResult=FamilyArtifactRead[FileNameJoin[{directory,"Reduction.wl"}]];
   If[AssociationQ[cachedResult]&&Lookup[cachedResult,"Format",None]==="FeynFacet-CutFamilyReduction"&&
     Lookup[Lookup[cachedResult,"SelectionClosure",<||>],"DeclaredMasterSource",None]==="InitialIBPSystem",
-   Return[Join[cachedResult,<|"ReusedSolvedReduction"->True|>]]]];
+   closed=ibpCloseReductionRules[cachedResult["Rules"],cachedResult["Targets"]];
+   Return[Join[cachedResult,KeyTake[closed,{"Rules","Masters"}],<|"ReusedSolvedReduction"->True|>]]]];
  If[TrueQ[Lookup[request,"ReuseSavedReduction",True]]&&
    AllTrue[{"IntegralIdentifiers.wxf","equations.kira","targets"},
     FileExistsQ[FileNameJoin[{directory,#}]]&],

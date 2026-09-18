@@ -170,3 +170,36 @@ checks pass17.474s;20 actual native/reuse checks pass37.134s. The active older
 job retains its loaded code, while the improved job uses compact snapshots.
 Physical result files remain readable. Hidden-pole rate2 assertions pass16.574s;
 cold/warm provenance25 assertions pass19.676s.
+
+
+## Exact rational cancellation and controlled DE construction
+
+The mixed cut-compatible basis search used275494 equations for4234 identical-quark
+source targets. A377.559s exact solve appeared to leave248 nonpreferred columns.
+A coefficient-level audit proved every one had an identically zero rational
+coefficient; raw transitive substitution had counted syntactically present GLIs.
+The shared reduction closure now collects coefficients and cancels them exactly
+before declaring terminal integrals. Three regressions pass17.925s. The actual
+saved solve canonicalizes to43 unit-cut integrals, no unmatched columns, in51.746s.
+This is an exact spanning set, not a master-minimality claim. Saved output:
+IdenticalQuarks/Work/UnitCutTangentBasisExactCanonical.wl.
+The old ordinary-vector search was stopped as superseded; its owner record
+OrdinaryBasisSuperseded.json retains the reason and replacement artifact.
+
+Actual Pro23 reviewed pushed66be3cfe and confirmed the vector mathematics. Its
+operator-aware predecessor and bounded derivative-promotion recommendations are
+implemented: searches use the actual selected operators, particle/all-cut
+protection is explicit, and unresolved derivative symbols cannot automatically
+become the next differentiated basis. The original source map is preserved;
+derivative solves seed only the current basis and derivative targets.
+A quadratic angular measurement independently checks the exact DE, and a
+one-seed bound fails without promoting its frontier:5 assertions,5.768s.
+The existing residual/native-reuse test also passes20 assertions.
+
+The permanent measured-card path now constructs an exact unit-cut source span
+before DE generation and retains it as Work/UnitCutReduction.wl. The reduce stage
+is separately callable. Matching saved source definitions can be resumed; the
+verified identical-quark solve is adopted only after checking identical typed
+families and original target inventory. No physical constant was supplied by hand.
+All stated times are Python monotonic elapsed times including startup; none is
+a complete cold NLO EEC timing. The measured RR endpoints and full EEC remain open.

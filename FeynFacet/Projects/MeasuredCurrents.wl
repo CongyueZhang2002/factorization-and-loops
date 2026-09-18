@@ -4,6 +4,7 @@
 BeginPackage["FeynFacet`"];
 PrepareMeasuredCurrentContribution::usage="PrepareMeasuredCurrentContribution[compiledCard,mode] generates the current integrand, instantiates the card's FinalStateMeasurement on its PhaseSpace, and decomposes noncontact terms into native polynomial-cut families. All files belong to the raw contribution Work directory. mode is all or resume.";
 PrepareMeasuredContributionIntegralDecomposition::usage="PrepareMeasuredContributionIntegralDecomposition[card,prepared] merges the card-generated noncontact families, identifies equivalent integral targets and saves the exact coefficient input without starting an IBP solve. Explicit contact sectors remain separate.";
+PrepareMeasuredContributionReduction::usage="PrepareMeasuredContributionReduction[card,decomposition] constructs bounded unit-cut candidates, identifies their affine equivalences and obtains an exact source reduction before differentiating any master. Saved reductions require identical typed families and original targets. Sampling only guides the search; exact rational identities establish the source span.";
 ConstructMeasuredContributionDifferentialSystems::usage="ConstructMeasuredContributionDifferentialSystems[compiledCard,prepared] reduces the noncontact families and constructs their shared Kira differential systems. Explicit contact sectors remain separate from rational generic-variable reduction.";
 CheckMeasuredContributionInterior::usage="CheckMeasuredContributionInterior[compiledCard,prepared] directly integrates supported native three-particle polynomial cuts in four dimensions and evaluates inclusive contact moments. It writes an explicit interior check, not Results.wl or an endpoint-complete hard function.";
 PrepareMeasuredContributionPhysicalBasis::usage="PrepareMeasuredContributionPhysicalBasis[card,record] identifies exact affine master equivalences and selects a unit-cut spanning basis from the card-generated targets, verifying its differential compatibility. It updates the canonical differential-system record; physical values and endpoint distributions remain separate.";
@@ -83,22 +84,63 @@ PrepareMeasuredContributionIntegralDecomposition[card_Association,prepared_Assoc
    "StageSeconds"-><|"IntegralMomentumRelabeling"->relabelingSeconds|>|>];
  projectWrite[merged,card["WorkDirectory"]<>"/IntegralDecomposition.wl"];merged
 ],"ProjectCards"];
+measuredBasisSamplingPoints[card_]:=Module[{variables=card["Assembly"]["Variables"],scale=card["Assembly"]["Scale"]},
+ Lookup[Lookup[card["Assembly"],"Reduction",<||>],"SamplingPoints",
+  Table[Join[Thread[variables->Table[1/Prime[7k+j+3],{j,Length[variables]}]],
+    {D->4-2/Prime[7k+Length[variables]+4]},If[MatchQ[scale,_Symbol],{scale->1},{}]],{k,2}]]
+];
+PrepareMeasuredContributionReduction[card_Association,merged_Association]:=Catch[Module[
+ {path=card["WorkDirectory"],request,plan,equiv,rows,preferred,initial,definition,closed,seconds},
+ request=Lookup[card["Assembly"],"Reduction",<||>];
+ definition[record_]:=Join[cutDefinitionConventions[record],KeyTake[record,{"Topology","Cuts"}]];
+ If[FileExistsQ[path<>"/UnitCutReduction.wl"],
+  initial=FeynFacet`FamilyArtifactRead[path<>"/UnitCutReduction.wl"];
+  If[AssociationQ[initial]&&Lookup[initial,"Format",None]==="FeynFacet-CutFamilyReduction"&&
+    TrueQ[Lookup[initial,"TargetSpanVerifiedExactly",False]]&&
+    Sort[initial["Targets"]]===Sort[merged["Targets"]]&&
+    (definition/@initial["Families"])===(definition/@merged["Families"]),
+   closed=ibpCloseReductionRules[initial["Rules"],merged["Targets"]];
+   If[Complement[closed["Masters"],initial["CandidateMasterBasis"]]==={},
+    Return[Join[initial,KeyTake[closed,{"Rules","Masters"}],<|"ReusedSolvedReduction"->True|>],Module]]]];
+ {seconds,initial}=facetElapsedTiming[
+  plan=projectCheck[FeynFacet`ConstructUnitCutMasterCandidates[merged["Families"],merged["Targets"],
+    Lookup[request,"UnitCutCandidates",<||>]],"MeasuredUnitCutCandidatesRequired"];
+  equiv=projectCheck[FeynFacet`FindCutIntegralEquivalences[plan["Masters"],merged["Families"],
+    "Normalization"->"DeclaredTypedCutMeasures"],"MeasuredCandidateEquivalencesRequired"];
+  rows=DeleteCases[(Select[Merge[{#["Source"]->1,#["Representative"]->(-#["Factor"])},Total],#=!=0&]&/@equiv["Mappings"]),<||>];
+  preferred=DeleteDuplicates[Lookup[equiv["Mappings"],"Representative"]];
+  projectWrite[<|"Candidates"->plan,"Equivalences"->equiv|>,path<>"/UnitCutCandidates.wl"];
+  FeynFacet`ReduceCutIntegralsToBasis[merged["Families"],merged["Targets"],preferred,
+   Join[<|"Threads"->card["Execution"]["KiraThreads"],"IBPVectorMethod"->"Mixed",
+    "HomogeneousScale"->card["Assembly"]["Scale"],"RationalSolver"->"FireFly"|>,request,<|
+    "WorkingDirectory"->path<>"/UnitCutReduction","SamplingPoints"->measuredBasisSamplingPoints[card],
+    "ExtraEquations"->Join[Lookup[request,"ExtraEquations",{}],rows]|>]]];
+ initial=projectCheck[initial,"ExactMeasuredSourceBasisRequired"];
+ initial=Join[initial,<|"StageSeconds"-><|"UnitCutSourceReduction"->seconds|>|>];
+ projectWrite[initial,path<>"/UnitCutReduction.wl"];initial
+],"ProjectCards"];
 ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Association]:=Catch[Module[
- {merged,variables,system,seconds,path=card["WorkDirectory"],execution=card["Execution"],output},
- merged=projectCheck[FeynFacet`PrepareMeasuredContributionIntegralDecomposition[card,prepared],
-   "PolynomialMeasurementFamiliesRequired"];
+ {merged,variables,system,seconds,path=card["WorkDirectory"],execution=card["Execution"],output,initial,request},
+ merged=If[FileExistsQ[path<>"/IntegralDecomposition.wl"],FeynFacet`FamilyArtifactRead[path<>"/IntegralDecomposition.wl"],None];
+ If[!AssociationQ[merged]||Lookup[merged,"CalculationDefinition",None]=!=prepared["CalculationDefinition"],
+  merged=projectCheck[FeynFacet`PrepareMeasuredContributionIntegralDecomposition[card,prepared],
+    "PolynomialMeasurementFamiliesRequired"]];
  If[KeyExistsQ[merged,"DifferentialSystems"],Return[merged,Module]];
  variables=card["Assembly"]["Variables"];
+ initial=projectCheck[FeynFacet`PrepareMeasuredContributionReduction[card,merged],"ExactMeasuredSourceBasisRequired"];
+ request=Lookup[card["Assembly"],"Reduction",<||>];
  {seconds,system}=facetElapsedTiming[FeynFacet`ConstructCutDifferentialSystem[merged["Families"],merged["Targets"],variables,
    Join[<|"WorkingDirectory"->path<>"/DifferentialEquations","Threads"->execution["KiraThreads"],
-    "SeedPolicy"->"TargetDownsets","PrintTimings"->True,
+    "SeedPolicy"->"TargetDownsets","PrintTimings"->True,"IBPVectorMethod"->"Mixed","CutProtection"->"Particle",
+    "RationalSolver"->"FireFly","SamplingPoints"->measuredBasisSamplingPoints[card],
     "NewWorkspaceForChangedInputs"->True|>,
     If[MatchQ[card["Assembly"]["Scale"],_Symbol],<|"HomogeneousScale"->card["Assembly"]["Scale"]|>,<||>],
-    Lookup[card["Assembly"],"Reduction",<||>]]]];
+    request,<|"InitialReduction"->initial,"CandidateMasterBasis"->initial["CandidateMasterBasis"]|>]]];
  system=projectCheck[system,"PolynomialMeasurementDifferentialSystemFailed"];
  output=<|"DifferentialSystem"->system,"IntegralDecomposition"->merged,
   "ContactTerms"->prepared["ContactTerms"],"CalculationDefinition"->prepared["CalculationDefinition"],
-  "StageSeconds"->Join[merged["StageSeconds"],<|"ReductionAndDifferentialClosure"->seconds|>],
+  "StageSeconds"->Join[merged["StageSeconds"],Lookup[initial,"StageSeconds",<||>],
+    <|"ReductionAndDifferentialClosure"->seconds|>],
   "Scope"->"Generic measured variables; physical boundary constants and endpoint contacts are separate inputs."|>;
  projectWrite[output,path<>"/DifferentialSystem.wl"];output
 ],"ProjectCards"];
@@ -116,7 +158,8 @@ PrepareMeasuredContributionPhysicalBasis[card_Association,record_Association]:=C
  selected=projectCheck[selected,"ExactMeasuredMasterEquivalencesRequired"];
  AssociateTo[timings,"ExactMasterEquivalences"->seconds];
  {seconds,selected}=facetElapsedTiming[FeynFacet`SelectMasterIntegralBasis[selected,selected["Reduction"],
-   <|"CandidateIntegrals"->source["Targets"],"ValidationPoints"->points,"RequireUnitCutBasis"->True|>]];
+   <|"CandidateIntegrals"->Union[source["Targets"],system["MasterIntegralBasis"]],
+     "ValidationPoints"->points,"RequireUnitCutBasis"->True|>]];
  selected=projectCheck[selected,"UnitCutPhysicalMasterBasisRequired"];
  AssociateTo[timings,"UnitCutBasisSelection"->seconds];
  output=Join[record,<|"DifferentialSystem"->selected,"PhysicalMasterBasisPrepared"->True,
