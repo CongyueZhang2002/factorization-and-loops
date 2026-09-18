@@ -34,6 +34,7 @@ EliminateKnownIntegralRules[rows_List,targets_List,rules_List]:=Catch[Module[
  <|"Format"->"FeynFacet-ResidualIntegralEquations","Rows"->output,
    "Targets"->Union[Cases[images,_FeynCalc`GLI,{0,Infinity}]],"OriginalTargets"->targets,
    "TargetImages"->images,"KnownRules"->rules,"OriginalEquationCount"->Length[rows],
+   "ResidualEquationCount"->Length[output],
    "OriginalColumnCount"->Length[Union[Flatten[Keys/@rows]]],
    "ResidualColumnCount"->Length[Union[Flatten[Keys/@output]]],
    "Scope"->"Exact substitution of supplied closed identities into all equations. Every remaining integral column is retained; no master minimality or new physical relation is inferred."|>

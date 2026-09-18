@@ -235,7 +235,7 @@ The raw RV result is now accepted at `Raw/NNLO/q-qb/RealVirtual/Results.wl`,
 with its metadata companion. All Laurent coefficients and both endpoint contacts
 are explicit. The exact accepted interior, contact proof and inclusive source
 are retained in the companion. `Work/MeasuredRawAcceptanceAudit.json` records
-eight passing actual-result checks. Double-real DE/master work remains running;
+eight passing actual-result checks. Double-real physical-master and endpoint work remains unfinished;
 this is not a completed full order-alpha_s-squared result.
 
 Source binding compares actual scalar inputs, the complete tuple/density
@@ -253,3 +253,15 @@ No running reconstruction is migrated. The corresponding low-level option is
 `KnownIntegralRules` in `KiraReduction`. The supplied identities must be exact,
 closed, linear and compatible with the typed families. Their physical validity
 comes from the earlier reduction, not from substitution itself.
+
+The DifferentQuarks double-real component now has a closed source DE. The
+completed native selection has1000targets and382 terminal spanning entries,
+but restriction to its original468 amplitude targets in7families gives37 DE
+coordinates. Exact affine master equivalences give24 classes; differential
+relations reduce them to18, and the general selector finds18 unit-cut masters.
+The source DE is `DoubleReal/Work/Components/DifferentQuarks/Work/DifferentialSystem.wl`;
+the physical basis DE is `PhysicalDifferentialSystem.wl` beside it, with
+`MasterIntegralDefinitions.wl`. These18 have no physical boundary values yet.
+They are not the master count for all double-real components. No further Kira
+solve was required for closure on this component after the completed dependency
+import. The other components and full endpoint assembly remain unfinished.

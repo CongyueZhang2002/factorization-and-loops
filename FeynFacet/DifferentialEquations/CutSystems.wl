@@ -8,6 +8,10 @@ ReduceMasterDifferentialSystem::usage="ReduceMasterDifferentialSystem[system,red
 ReduceEquivalentMasterIntegrals::usage="ReduceEquivalentMasterIntegrals[system,request] identifies exactly equivalent typed cut integrals under allowed loop changes, closes their differential consequences with the existing subset reducer, and updates every original reduction and requested value. It does not claim master minimality.";
 SelectMasterIntegralBasis::usage="SelectMasterIntegralBasis[system,reduction,request] selects a subset of exact candidate integral images as DE coordinates. It prefers nonnegative indices and smaller total denominator powers. Rational sampling chooses a candidate subset; exact inversion and differential compatibility certify its map. This makes no minimality or global nonsingularity claim.";
 Begin["`Private`"];
+cutRetainedIntegralRuleEquations[rules_List]:=DeleteCases[Map[Function[rule,
+  With[{parsed=linearIntegralSum[First[rule]-Last[rule]]},
+   If[!linearIntegralSumQ[parsed]||Together[parsed["Remainder"]]=!=0,
+    cutFamilyFail["LinearInitialIntegralReductionRequired"]];parsed["Terms"]]],rules],<||>];
 (* Cumulative maps always express the earliest recorded integrals in the
    current basis. Immediate step maps may coexist as diagnostic provenance. *)
 cutOriginalMasterEmbedding[system_Association] := Module[{stored},
@@ -50,7 +54,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   derivativeRequest,rows,residual,flatness,points,checks,unknown,coefficients,regulator,seconds,
   seedRefinement,seedPlans,seeds,frontier,local,extra,added,refinementHistory={},
   initial=Lookup[request,"InitialReduction",None],definition,initialRelations,restrictedTargets,restricted,
-   eliminateKnown=Lookup[request,"EliminateKnownRules",False],knownRequest},
+   eliminateKnown=Lookup[request,"EliminateKnownRules",False],knownRequest,suppliedKnown},
  If[!DuplicateFreeQ[parameters]||!StringQ[Lookup[request,"WorkingDirectory",None]],
   cutFamilyFail["DistinctDEParametersAndWorkingDirectoryRequired"]];
  records=FeynFacet`CreateCutIntegralFamily/@families;
@@ -69,6 +73,15 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   If[!MemberQ[{True,False},eliminateKnown],cutFamilyFail["BooleanKnownRuleEliminationRequired"]];
   knownRequest[prior_]:=If[TrueQ[eliminateKnown],
     <|"KnownIntegralRules"->Select[prior["Rules"],First[#]=!=Last[#]&]|>,<||>];
+  suppliedKnown=Lookup[request,"KnownIntegralRules",{}];
+  If[suppliedKnown=!={},
+   If[validateCutGLIs[suppliedKnown,records]=!=True||
+     !AssociationQ[FeynFacet`EliminateKnownIntegralRules[{},targets,suppliedKnown]],
+    cutFamilyFail["ExactCompatibleKnownIntegralRulesRequired"]];
+   (* A later export may omit identities outside its target selection.
+      Retain the original pool as equations independently of that export. *)
+   AssociateTo[baseRequest,"ExtraEquations"->Join[Lookup[baseRequest,"ExtraEquations",{}],
+     cutRetainedIntegralRuleEquations[suppliedKnown]]]];
  seedRefinement=Lookup[request,"RefineDerivativeSeeds",Lookup[request,"SeedPolicy","Rectangular"]==="TargetDownsets"];
  If[!MemberQ[{True,False},seedRefinement],cutFamilyFail["BooleanDerivativeSeedRefinementRequired"]];
  allTargets=Sort[DeleteDuplicates[targets]];
@@ -83,10 +96,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
     !MatchQ[initial["Rules"],{(_Rule)...}]||!ContainsAll[initial["Targets"],allTargets]||
     validateCutGLIs[{initial["Rules"],initial["Targets"],initial["Masters"]},records]=!=True,
    cutFamilyFail["CompatibleInitialCutReductionRequired"]];
-  initialRelations=Map[Function[rule,With[{parsed=linearIntegralSum[First[rule]-Last[rule]]},
-    If[!linearIntegralSumQ[parsed]||parsed["Remainder"]=!=0,
-      cutFamilyFail["LinearInitialIntegralReductionRequired"]];parsed["Terms"]]],initial["Rules"]];
-  initialRelations=DeleteCases[initialRelations,<||>];
+  initialRelations=cutRetainedIntegralRuleEquations[initial["Rules"]];
   AssociateTo[baseRequest,"ExtraEquations"->Join[Lookup[baseRequest,"ExtraEquations",{}],initialRelations]];
   reduction=initial;
   Print["Resuming differential closure from ",Length[ibpCloseReductionRules[initial["Rules"],allTargets]["Masters"]]," spanning integrals and ",

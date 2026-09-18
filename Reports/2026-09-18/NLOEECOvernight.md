@@ -739,3 +739,59 @@ retention, exact zero targets, cached/unfinished imports, empty residuals and
 changed-input rejection. The earlier scale/dependency regression also passes in
 38.712s. Receipts are `Archive/Runs/2026-09-18/NLOEECChecks/Residual*.json`.
 This is implementation validation, not a measured RR production speedup.
+
+The bounded sample of the actual completed parent equations used64 evenly
+spaced rows and32 longest input rows (96 total) from539711 exported equations,
+plus923 transitive exact native rules. Residual construction took2.539s; rows
+went96->88, columns931->915, and in-memory expression bytes3457296->2836992.
+The largest row grew from5178 to5798 expression leaves. This mixed sample is not
+representative enough to predict the full solve time; it shows no extreme swell
+in these rows and only a modest column reduction. The read-only sample and paired
+report are under DoubleReal/Work/Components/DifferentQuarks/Work/
+DifferentialEquations/FireFlyContinuation/ResidualBenchmark. The native equations,
+selection and reconstruction state were not changed. Four existing sparse
+coefficient-application assertions also pass in16.576s after batching.
+
+Actual6Pro review16 was submitted against pushed8c92f11b5e1539f748e85b36d3f8235d7e65dcda.
+It is pending at this entry. No large solve uses the new elimination option yet.
+
+### Different-quark RR DE closed and reduced
+
+NativeDependencyClosureResumed2 completed successfully in2224.850s measured by
+the Python supervisor, including startup; the Mathematica internal stage clock
+printed2433.924s and must not replace that external receipt. Earlier attempts
+and their native work remain separately charged. The420-coefficient dependency
+step finished, followed by3 remaining dependencies/4 coefficient functions in
+DependencyReduction003. There is no native reconstruction left running.
+
+The completed reduction covers1000targets with382 terminal spanning entries.
+Its ORIGINAL468targets in7families use only37 spanning integrals. All236 required
+first-derivative targets are already covered and reduce to the same37-dimensional
+span. The general constructor saves a closed source DE without another Kira solve.
+Coverage inspection took10.972s; the closure/materialization run23.381s, including
+startup, with receipts ClosedReductionCoverage.json and
+ClosedSourceDifferentialSystem.json in the component's owned directory.
+
+The general exact-equivalence/differential-relation reduction maps37 to24 direct
+classes and then18 DE coordinates. Selection from source integrals gives18
+unit-cut masters; the defining DE identities are checked exactly. This took
+17.094s including startup (0.881s equivalences/differential relations and1.766s
+basis selection internally). Paired artifacts in the component Work directory:
+EquivalentMasterDifferentialSystem.wl, PhysicalDifferentialSystem.wl,
+MasterIntegralDefinitions.wl and PhysicalBasisPreparation.wl. These are not
+physical master values and do not establish completion of the other RR components.
+
+Pro16 has completed static source review, confirming residual algebra, scaling,
+composition, native restart and the repaired RV input binding. It identified
+retention of a caller-supplied off-target identity pool across DE iterations,
+rejection of the unsupported NativeDiagnostic option, and recording residual
+row counts. These repairs are under a targeted regression run. The previous
+16-assertion DE/scale regression passed in35.836s. Pro17 is pending on the
+independent general pair-resolved four-particle coordinate derivation recorded
+in Design/PairResolvedPhaseSpace.md. No measured literature coefficient was used.
+
+All three Pro16 implementation findings are repaired and the18-assertion
+regression passes in34.387s (ResidualProReviewRepairs.json). No large production
+solve has yet enabled residual elimination. The active native job completed
+with the unchanged equation system; the new option was not the cause of its
+completion or the subsequent37->18 exact basis reduction.

@@ -10,7 +10,7 @@ residual=FeynFacet`EliminateKnownIntegralRules[rows,{a,c},known];
 FTTest`FTAssert["substitution retains constraints outside the requested target span",
  AssociationQ[residual]&&residual["Rows"]==={<|c->2|>,<|d->1,f->-rx|>}&&residual["Targets"]==={b,c}];
 FTTest`FTAssert["exact zero equations disappear without deleting a nonzero column",
- residual["OriginalEquationCount"]===3&&residual["ResidualColumnCount"]===3];
+ residual["OriginalEquationCount"]===3&&residual["ResidualEquationCount"]===2&&residual["ResidualColumnCount"]===3];
 FTTest`FTAssert["the residual has exactly the original equations on the known relation",
  AllTrue[MapThread[Factor[#1-#2]&,{(Total[KeyValueMap[Times,#]]&/@rows)/.known,
   {2c,0,d-rx f}}],#===0&]];
@@ -78,6 +78,25 @@ identityResumed=FeynFacet`KiraReduction[{family},Take[targets,2],<|"WorkingDirec
 FTTest`FTAssert["empty residual imports require neither a native solve nor a scale-normalization record",
  AssociationQ[identityResumed]&&identityResumed["Rules"]===identity["Rules"]&&
  !FileExistsQ[work<>"/Identity/jobs.yaml"]];
+partial=Join[full,<|"Targets"->targets[[{1,4}]],
+ "Rules"->Select[full["Rules"],First[#]===targets[[4]]&]|>];
+system=FeynFacet`ConstructCutDifferentialSystem[{family},{First[targets]},{rs},
+ Join[request,<|"WorkingDirectory"->work<>"/DifferentialClosure","InitialReduction"->partial,
+  "KnownIntegralRules"->Select[full["Rules"],First[#]===targets[[5]]&],
+  "EliminateKnownRules"->True,"MomentumDerivatives"-><|rs-><|rq->rq/(2rs)|>|>|>]];
+FTTest`FTAssert["differential closure reuses prior identities in a new residual native system",
+ AssociationQ[system]&&AssociationQ[system["Reduction"]["KnownRuleElimination"]]&&
+ FileExistsQ[system["Reduction"]["InputWorkspace"]<>"/EquationElimination.wl"]];
+FTTest`FTAssert["the residual DE gives the exact two-particle phase-volume scaling",
+ AssociationQ[system]&&system["MasterIntegralBasis"]==={First[targets]}&&
+ Factor[Normal[First[system["ConnectionMatrices"]]][[1,1]]-(D-4)/(2rs)]===0];
+nativeDefinition=FeynFacet`FamilyArtifactRead[system["Reduction"]["InputWorkspace"]<>"/InputDefinition.wl"];
+FTTest`FTAssert["a supplied identity outside the prior target set survives automatic DE propagation",
+ AssociationQ[nativeDefinition]&&MemberQ[Flatten[Keys/@nativeDefinition["ExtraEquations"]],targets[[5]]]];
+FTTest`FTAssert["the diagnostic native route refuses to silently ignore known identities",
+ MatchQ[FeynFacet`KiraReduction[{family},targets,<|"WorkingDirectory"->work<>"/Diagnostic",
+  "EquationSource"->"NativeDiagnostic","KnownIntegralRules"->prior["Rules"]|>],
+  Failure["KnownIntegralRulesRequireTypedIBP",_]]];
 If[StringStartsQ[ExpandFileName[work],ExpandFileName[$TemporaryDirectory]<>"/"],DeleteDirectory[work,DeleteContents->True]];
 Print["RESIDUAL INTEGRAL EQUATIONS TEST COMPLETE"];
 FTTest`FTReport[];

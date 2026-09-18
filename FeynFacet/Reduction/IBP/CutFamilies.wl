@@ -242,6 +242,7 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
    eliminationSeconds=0,composed,residualIsZero=False,
   solver=Lookup[request,"RationalSolver","Fermat"]},
  If[Lookup[request,"EquationSource","TypedIBP"]==="NativeDiagnostic",
+  If[KeyExistsQ[request,"KnownIntegralRules"],cutFamilyFail["KnownIntegralRulesRequireTypedIBP"]];
   Return[kiraNativeCutFamilyReduction[families,targets,request]]];
  If[Lookup[request,"EquationSource","TypedIBP"]=!="TypedIBP",cutFamilyFail["TypedIBPEquationSourceRequired"]];
  If[!MemberQ[{"Fermat","FireFly"},solver],cutFamilyFail["SupportedKiraRationalSolverRequired"]];
@@ -286,7 +287,7 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
     "EquationGenerationKernels"->generationKernelCount,
     "KnownRuleEliminationSeconds"->eliminationSeconds,
     "KnownRuleElimination"->If[AssociationQ[elimination],KeyTake[elimination,
-      {"OriginalEquationCount","OriginalColumnCount","ResidualColumnCount","Scope"}],None],
+      {"OriginalEquationCount","ResidualEquationCount","OriginalColumnCount","ResidualColumnCount","Scope"}],None],
    "EquationCount"->equationCount,"SeedCounts"->seedCounts,
    "IndexedIntegralCount"->Length[unknowns],"OrdinaryPrescriptionLimitEstablished"->False,
    "MasterMinimality"->"Not asserted beyond the supplied IBP seed closure",
