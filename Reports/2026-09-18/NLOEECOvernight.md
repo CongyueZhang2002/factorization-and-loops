@@ -418,3 +418,29 @@ amplitude integral itself has not yet been evaluated.
 The optimized Hermitian result now has an exact prepared-input companion, and
 its subsequent full-input/coverage/proof-checked resume took 8.72 s. There remains
 no complete alpha_s-squared EEC result or literature hard-coefficient comparison.
+
+
+## Regulator-complete RV proof and reduction-resume diagnosis
+
+The full prefactor and coordinate-independent scalar factors now participate
+in the sufficient finite-meromorphy test. Essential regulator dependence is
+rejected. The closed-cube test passes 11 assertions (5.969 s); the density,
+contact and exact-input reuse test passes 27 assertions (7.471 s), including
+agreement of saved tensor labels with actual branch coefficient labels.
+RV Hermitian interiors were regenerated in 161.919 s and all 24 complete-domain
+contact charts re-proved in 257.283 s. These remain development intermediates;
+the inclusive rate and complete distribution are not yet evaluated.
+Actual GPT-6 Pro reviewed the preceding pushed code and its mathematical
+findings are retained in consultation record 10. No EEC NLO reference coefficient
+has been used. Universal scalar inputs remain separate.
+
+The long RR continuation was deliberately stopped after 3487.033 s when its
+selection-closure stage repeated exactly the same 1000 requested identifiers,
+reconstructing the same 3527 coefficients. The successful initial native export
+is retained. Kira's initial and final declared master lists disagree on 16
+requested identity targets; the exporter calls these initial masters but they
+are absent from masters.final. Repeating identical selections cannot establish
+closure. A new diagnostic (26.781 s) finds the original source closes without
+undeclared terminals, while required derivatives still expose 13. No final DE
+or physical result is claimed. This needs a native export/resume fix, not a
+relabelling of unresolved targets as solved masters.

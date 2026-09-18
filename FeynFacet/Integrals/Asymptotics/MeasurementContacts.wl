@@ -25,7 +25,7 @@ VerifyOneLoopMeasurementContactOrder[density_Association,order_Integer:0,request
   If[!TrueQ[FullSimplify[Implies[parameters&&0<x<1&&0<z<1,branch["PhysicalDomain"]]]],
    cutFamilyFail["WholeUnitEnergyMeasurementSquareRequired"]];
   values=Map[#["ScalarCoefficient"]#["InteriorExternalProduct"]*
-    Times@@(Power@@#&/@branch["RegulatorFactors"])weight&,branch["ExternalPrescriptionComponents"]];
+    Times@@(Power@@#&/@branch["RegulatorFactors"])branch["Prefactor"]weight&,branch["ExternalPrescriptionComponents"]];
   Do[
    halfRules=Thread[{z,x}->(corner+(1-2corner)halfVariables/2)];
    Do[
@@ -52,6 +52,7 @@ VerifyOneLoopMeasurementContactOrder[density_Association,order_Integer:0,request
  <|"Format"->"FeynFacet-MeasuredEndpointContactOrder","Variable"->z,"Interval"->{0,1},
   "ContactDerivativeOrderBound"->order,"SubtractionWeight"->weight,"ChartVerifications"->records,
   "OriginalExternalPrescriptionsIncluded"->True,"CompleteEnergyMeasurementCoverVerified"->True,
+  "RegulatorMeromorphicityVerified"->True,
   "ContactCoefficientsDetermined"->False,
   "Argument"->"Any smooth test function with vanishing endpoint jets through the stated order is [z(1-z)]^(order+1) times a smooth function. Every prescribed-product component times this weight has a uniform integrable majorant after clearing finite regulator poles, on a complete disjoint-interior chart cover including its seams. Its meromorphic continuation is therefore fixed by the interior on that test-function subspace. Remaining endpoint-supported terms can contain only delta derivatives through the stated order. Original external factors obey their modulus bounds and virtual causal functions remain continued on their specified branches."|>
 ],"CutFamily"];

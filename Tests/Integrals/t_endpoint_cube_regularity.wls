@@ -24,4 +24,10 @@ FTTest`FTAssert["empty assumptions cannot establish an endpoint proof vacuously"
 FTTest`FTAssert["caller assumptions cannot exclude part of the normal-coordinate cube",
  MatchQ[FeynFacet`VerifyResolvedEndpointCube[record[1/(1-rx)],rx<1/2],
  Failure["CoordinateIndependentEndpointParameterConditionsRequired",_]]];
+FTTest`FTAssert["coordinate-independent essential regulator singularities cannot be cleared as finite poles",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[Exp[1/re]/(1+rx)]]]];
+FTTest`FTAssert["an essential regulator dependence in a hypergeometric parameter is rejected",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[Hypergeometric2F1[Exp[1/re],1,2,-rx]]]]];
+FTTest`FTAssert["constant Gamma poles and causal scale powers have an explicit meromorphic check",
+ AssociationQ[FeynFacet`VerifyResolvedEndpointCube[record[Gamma[-re]Exp[I Pi re]rs^-re/(2-rx)],rs>0]]];
 Print["ENDPOINT CUBE REGULARITY TEST COMPLETE"];FTTest`FTReport[];

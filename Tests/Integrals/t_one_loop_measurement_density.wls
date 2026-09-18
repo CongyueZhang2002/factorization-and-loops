@@ -101,6 +101,11 @@ FTTest`FTAssert["stronger measured-angle poles are not silently assumed to have 
  Failure["RequestedMeasuredContactOrderNotEstablished",_]]];
 FTTest`FTAssert["a sufficient higher endpoint subtraction order can be established from the same density",
  AssociationQ[FeynFacet`VerifyOneLoopMeasurementContactOrder[higherContact,1]]];
+essentialPrefactor=Join[density,<|"Branches"->Map[Join[#,<|"Prefactor"->#["Prefactor"]Exp[1/pe]|>]&,density["Branches"]]|>];
+FTTest`FTAssert["the complete energy density includes the meromorphicity of its external prefactor",
+ FailureQ[FeynFacet`ResolveOneLoopMeasurementIntegrationEndpoints[essentialPrefactor]]];
+FTTest`FTAssert["the contact-order proof cannot bypass an essential regulator prefactor",
+ FailureQ[FeynFacet`VerifyOneLoopMeasurementContactOrder[essentialPrefactor,0]]];
 cacheDefinition=<|"EpsilonRange"->{-1,0},"IntegrationSchema"->2|>;
 cacheRow=Join[hermitian,<|"IntegrationDefinition"->cacheDefinition,"InputCompanions"-><|"Density"->density|>|>];
 FTTest`FTAssert["integrated-row reuse requires the actual prepared density and complete proof",
@@ -110,6 +115,9 @@ FTTest`FTAssert["integrated-row reuse requires the actual prepared density and c
 FTTest`FTAssert["partial Laurent rows cannot satisfy a wider cached coverage claim",
  !FeynFacet`Private`measuredLoopInteriorReusableQ[
   Join[cacheRow,<|"Coefficients"->KeyDrop[cacheRow["Coefficients"],{{1,0}}]|>],cacheDefinition,density]];
+FTTest`FTAssert["cached structure labels must agree with the actual input density",
+ !FeynFacet`Private`measuredLoopInteriorReusableQ[
+  Join[cacheRow,<|"StructureFunctions"->{"DifferentStructure"}|>],cacheDefinition,density]];
 cacheDirectory=CreateDirectory[];cacheFile=cacheDirectory<>"/IntegratedRow.wl";
 FeynFacet`FamilyArtifactWrite[cacheRow,cacheFile];cacheRead=FeynFacet`FamilyArtifactRead[cacheFile];
 FTTest`FTAssert["exact row inputs round-trip in binary metadata without duplicating readable formulas",

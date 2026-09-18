@@ -15,8 +15,9 @@ measuredLoopInteriorReusableQ[row_,definition_,density_]:=Module[{range,labels,k
    !AssociationQ[Lookup[row,"Coefficients",None]],Return[False]];
  range=definition["EpsilonRange"];labels=Lookup[row,"StructureFunctions",{}];
  keys=Flatten[Table[{j,k},{j,Length[labels]},{k,First[range],Last[range]}],1];
- labels=!={}&&Lookup[row,"EpsilonRange",None]===range&&ContainsAll[Keys[row["Coefficients"]],keys]&&
+ AllTrue[Lookup[density,"Branches",{}],labels===Keys[Lookup[#,"Coefficients",<||>]]&]&&labels=!={}&&Lookup[row,"EpsilonRange",None]===range&&ContainsAll[Keys[row["Coefficients"]],keys]&&
   TrueQ[Lookup[Lookup[row,"IntegrationEndpointProof",<||>],"WholeEnergyIntervalVerified",False]]&&
+  TrueQ[Lookup[row["IntegrationEndpointProof"],"RegulatorMeromorphicityVerified",False]]&&
   TrueQ[Lookup[row["IntegrationEndpointProof"],"ExternalPrescriptionLimitEstablished",False]]
 ];
 PrepareMeasuredCurrentOneLoopContribution[card_Association,mode_String:"resume"]:=Catch[Module[
@@ -97,7 +98,7 @@ IntegrateMeasuredCurrentOneLoopInterior[card_Association,mode_String:"resume"]:=
  Do[
   density=prepared["NoncontactTerms"][[i]];
   definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],
-   "ParticleTuples"->density["ParticleTuples"],"EpsilonRange"->range,"IntegrationSchema"->2,
+   "ParticleTuples"->density["ParticleTuples"],"EpsilonRange"->range,"IntegrationSchema"->3,
    "Conjugation"->KeyTake[request,{"ConjugateInterference","Assumptions","ComplexParameters"}]|>;
   file=path<>"/IntegratedScalarLoopRow"<>ToString[i]<>".wl";saved=None;
   If[mode=!="all"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file]];
@@ -128,7 +129,7 @@ VerifyMeasuredCurrentOneLoopContactOrder[card_Association,mode_String:"resume"]:
  {prepared,file,saved,definition,inputs,rows={},seconds,proof,output,moments},
  prepared=projectCheck[FeynFacet`PrepareMeasuredCurrentOneLoopContribution[card,mode],"PreparedMeasuredLoopContributionRequired"];
  file=card["WorkDirectory"]<>"/MeasuredContactOrder.wl";
- definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],"ContactDerivativeOrder"->0,
+ definition=<|"CalculationDefinition"->prepared["CalculationDefinition"],"ContactDerivativeOrder"->0,"ContactOrderSchema"->2,
    "Assumptions"->card["Assembly"]["Assumptions"]|>;
  inputs=prepared["NoncontactTerms"];
  moments=projectCheck[FeynFacet`ConstructFinalStateMeasurementMoments[

@@ -5,7 +5,7 @@ BeginPackage["FeynFacet`"];
 VerifyResolvedEndpointCube::usage="VerifyResolvedEndpointCube[resolved,parameterConditions] proves that every smooth factor of a resolved causal scalar density is uniformly analytic in its normal coordinates on the closed unit cube, after finite regulator poles are cleared. It verifies rational denominator units, positive power bases and supported real Gauss/Appell branches. Parameter conditions must be independent of normal coordinates. Unsupported or unproved factors return Failure; integer endpoint powers are reported separately.";
 Begin["`Private`"];
 VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
- {xs,e,conditions,variables,nonempty,prove,rational,analytic,factors,powers,unverified={},gauss},
+ {xs,e,conditions,variables,nonempty,prove,rational,analytic,meromorphic,factors,powers,unverified={},gauss},
  If[!TrueQ[Lookup[resolved,"JointAnalyticFactorsVerified",False]],
   loopEndpointFail["VerifiedAnalyticResolvedEndpointFactorsRequired"]];
  {xs,e}=Lookup[resolved,{"NormalVariables","DimensionalRegulator"}];
@@ -23,23 +23,39 @@ VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
   If[!IntegerQ[order],Return[False]];
   unit=Coefficient[den,e,order];
   AllTrue[First/@Rest[FactorList[unit]],prove[#!=0]&]];
+ (* Coordinate-independent factors still need a finite Laurent principal
+    part. In particular Exp[1/epsilon] cannot be cleared by a finite pole. *)
+ meromorphic[value_]:=meromorphic[value]=Which[
+  !FreeQ[value,Indeterminate|_DirectedInfinity],False,
+  FreeQ[value,e],True,
+  MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,meromorphic],
+  Head[value]===Power&&IntegerQ[value[[2]]],meromorphic[value[[1]]],
+  Head[value]===Power&&value[[1]]===E,PolynomialQ[value[[2]],e],
+  Head[value]===Power&&FreeQ[value[[1]],e]&&PolynomialQ[value[[2]],e],prove[value[[1]]!=0],
+  Head[value]===Gamma&&PolynomialQ[value[[1]],e]&&Exponent[value[[1]],e]<=1,
+   VectorQ[CoefficientList[value[[1]],e],MatchQ[#,_Integer|_Rational]&],
+  MemberQ[{Sin,Cos,Tan,Cot,Sec,Csc},Head[value]],PolynomialQ[value[[1]],e],
+  rational[value],True,
+  True,False];
  gauss[value_]:=Module[{tests},
   tests=<|"ParametersIndependentOfCoordinates"->FreeQ[Take[List@@value,3],Alternatives@@xs],
+    "AffineRegulatorParameters"->AllTrue[Take[List@@value,3],PolynomialQ[#,e]&&Exponent[#,e]<=1&],
     "ArgumentIndependentOfRegulator"->FreeQ[value[[4]],e],
     "RegularRationalArgument"->rational[value[[4]]],"ArgumentBelowOne"->prove[value[[4]]<1],
     "PositiveLowerParameter"->TrueQ[(value[[3]]/.e->0)>0]|>;
   If[!AllTrue[Values[tests],TrueQ],AppendTo[unverified,<|"Function"->value,"Conditions"->tests|>]];
   AllTrue[Values[tests],TrueQ]];
  analytic[value_]:=analytic[value]=With[{ok=Which[
-  FreeQ[value,Alternatives@@xs],True,
+  FreeQ[value,Alternatives@@xs],meromorphic[value],
   rational[value],True,
   MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,analytic],
-  Head[value]===Power&&!IntegerQ[value[[2]]]&&FreeQ[value[[2]],Alternatives@@xs],
+  Head[value]===Power&&!IntegerQ[value[[2]]]&&FreeQ[value[[2]],Alternatives@@xs]&&PolynomialQ[value[[2]],e],
    FreeQ[value[[1]],e]&&rational[value[[1]]]&&prove[value[[1]]>0],
   MatchQ[value,_Hypergeometric2F1|Inactive[Hypergeometric2F1][___]],
    gauss[value],
   Head[value]===AppellF1,
    FreeQ[Take[List@@value,4],Alternatives@@xs]&&
+    AllTrue[Take[List@@value,4],PolynomialQ[#,e]&&Exponent[#,e]<=1&]&&
     TrueQ[(value[[1]]/.e->0)>0]&&TrueQ[((value[[4]]-value[[1]])/.e->0)>0]&&
     AllTrue[Take[List@@value,-2],FreeQ[#,e]&&rational[#]&&prove[#<1]&],
   True,False]},
@@ -50,6 +66,7 @@ VerifyResolvedEndpointCube[resolved_Association,parameters_:True]:=Catch[Module[
   {factor,factors}];
  powers=Flatten[Lookup[resolved["Terms"],"Powers"]]/.e->0;
  <|"Status"->"AnalyticClosedEndpointCubeVerified","NormalVariables"->xs,
+  "RegulatorMeromorphicityVerified"->True,
   "ParameterConditions"->parameters,"ClosedCubeConditions"->conditions,
   "DistinctSmoothFactors"->Length[factors],"IntegerPowers"->powers,
   "NonnegativeIntegerPowers"->AllTrue[powers,IntegerQ[#]&&#>=0&],

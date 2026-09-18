@@ -7,12 +7,13 @@ Begin["`Private`"];
 oneLoopMeasurementValues[branch_Association]:=Map[Function[row,
  Total[KeyValueMap[#2 If[#1===1,1,branch["ScalarFunctions"][#1]]&,row]]*
  Times@@(Power@@#&/@branch["RegulatorFactors"])],branch["Coefficients"]];
-ResolveOneLoopMeasurementIntegrationEndpoints[density_Association]:=Catch[Module[
+ResolveOneLoopMeasurementIntegrationEndpoints[density_Association,additionalAssumptions_:True]:=Catch[Module[
  {e,x,normal=Unique["integrationEndpoint"],records={},values,conditions,resolved,powers,parameters,regularity,mapping},
  If[Lookup[density,"Format",None]=!="FeynFacet-OneLoopMeasurementDensity"||
    !TrueQ[Lookup[density,"ExactInRegulator",False]]||!TrueQ[density["PhaseSpaceDensityIncluded"]],
   cutFamilyFail["ExactMeasuredScalarLoopDensityRequired"]];
  {e,x}=Lookup[density,{"DimensionalRegulator","IntegrationVariable"}];
+ If[!FreeQ[additionalAssumptions,x|e],cutFamilyFail["EnergyIndependentPhysicalParameterAssumptionsRequired"]];
  Do[
   If[!FreeQ[branch["Prefactor"],x],cutFamilyFail["ExternalLoopMeasurementPrefactorRequired"]];
   If[!TrueQ[Lookup[branch,"ExternalFactorModulusBoundsEstablished",False]]||
@@ -22,8 +23,8 @@ ResolveOneLoopMeasurementIntegrationEndpoints[density_Association]:=Catch[Module
      cancellation between different products after eta->0 would not supply
      a uniform bound for the prescribed product before that limit. *)
   values=Map[#["ScalarCoefficient"]#["InteriorExternalProduct"]*
-    Times@@(Power@@#&/@branch["RegulatorFactors"])&,branch["ExternalPrescriptionComponents"]];
-  parameters=branch["PhysicalDomain"]/.x->1/2;
+    Times@@(Power@@#&/@branch["RegulatorFactors"])branch["Prefactor"]&,branch["ExternalPrescriptionComponents"]];
+  parameters=(branch["PhysicalDomain"]/.x->1/2)&&additionalAssumptions;
   If[!FreeQ[parameters,x|normal]||
     !TrueQ[FullSimplify[Implies[parameters&&0<x<1,branch["PhysicalDomain"]]]],
    cutFamilyFail["WholeUnitEnergyIntervalRequired"]];
@@ -46,6 +47,7 @@ ResolveOneLoopMeasurementIntegrationEndpoints[density_Association]:=Catch[Module
  <|"Format"->"FeynFacet-MeasuredLoopIntegrationEndpoints","Endpoints"->records,
   "IntegrationVariable"->x,"DimensionalRegulator"->e,
   "WholeEnergyIntervalVerified"->True,
+  "RegulatorMeromorphicityVerified"->True,
   "LaurentExpansionUnderIntegralEstablished"->True,"MeasurementEndpointDistributionsEstablished"->False,
   "ExternalPrescriptionLimitEstablished"->True,
   "ExternalPrescriptionArgument"->"Each original external factor has a real nonzero core on the open domain, positive integer power and eta=+1 or -1. The bound |(g+i eta delta)^(-n)| <= |g|^(-n) holds for delta>0. Every prescribed-product component, with its causal scalar-loop kernel, has separately verified integrable endpoint powers. Dominated convergence therefore removes those external prescriptions under this fixed-measurement energy integral. Virtual loop prescriptions remain.",
@@ -58,7 +60,7 @@ IntegrateOneLoopMeasurementInterior[density_Association,range:{_Integer,_Integer
   cutFamilyFail["ExplicitMeasuredLoopConjugationRequestRequired"]];
  If[hermitian&&TrueQ[Lookup[density,"ConjugateInterferenceAdded",False]],
   cutFamilyFail["MeasuredLoopConjugateAlreadyIncluded"]];
- endpoints=FeynFacet`ResolveOneLoopMeasurementIntegrationEndpoints[density];
+ endpoints=FeynFacet`ResolveOneLoopMeasurementIntegrationEndpoints[density,Lookup[request,"Assumptions",True]];
  If[!AssociationQ[endpoints],Throw[endpoints,"CutFamily"]];
  {e,x}=Lookup[density,{"DimensionalRegulator","IntegrationVariable"}];
  If[DownValues[FeynFacetSolution`IntegrateGPL]==={},
