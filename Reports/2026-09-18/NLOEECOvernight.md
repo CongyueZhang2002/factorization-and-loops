@@ -504,3 +504,15 @@ its exact hypergeometric representation. A separate local Euler/hypergeometric
 check at epsilon=-1/4 agrees to1.4e-21 in9.012s. This universal scalar input is
 separate from the still-uncomputed EEC hard coefficient. It has not yet been
 registered as a production physical master value.
+
+
+###13:32UTC continuation
+
+The51-dependency reconstruction reached the first-prime high-degree phase and
+the1800s supervisor limit (1801.153s). Saved native states were retained. It is
+now resumed with the SAME mathematical input on all8 CPUs and a7200s supervisor
+allowance. NativeDependencyContinuation.json records the owned PID/process group;
+NativeDependencyClosureResumed.log records progress. This run only completes
+native reduction import, not full DE closure. No second symbolic job should
+consume the8-core allocation concurrently. Source and workflow directions are
+pushed at3229fdbe; a further actual Pro review of that revision is pending.
