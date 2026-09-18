@@ -7,7 +7,7 @@ ConstructMeasuredContributionDifferentialSystems::usage="ConstructMeasuredContri
 CheckMeasuredContributionInterior::usage="CheckMeasuredContributionInterior[compiledCard,prepared] directly integrates supported native three-particle polynomial cuts in four dimensions and evaluates inclusive contact moments. It writes an explicit interior check, not Results.wl or an endpoint-complete hard function.";
 ConstructMeasuredContributionMasterValues::usage="ConstructMeasuredContributionMasterValues[card,prepared,system] evaluates supported unit-cut three-particle masters as explicit beta/Gauss functions with exact regulator dependence. It retains physical normalization and separate contact sectors. Unsupported geometry fails rather than inserting boundary constants.";
 AssembleMeasuredContributionInterior::usage="AssembleMeasuredContributionInterior[card,system,values] reconstructs the declared scalar structures from explicit physical masters and expands through the requested epsilon range with sufficient orders for every spurious reduction pole. It stores only the interior result; it never infers endpoint contacts.";
-IntegrateMeasuredCurrentVirtual::usage="IntegrateMeasuredCurrentVirtual[card,mode] generates a one-loop interference, reduces its loop before phase space, and integrates constant measurement sectors. It retains exact dimensional dependence and the causal timelike continuation. The current implementation requires a massless two-body final state and no incoming partons.";
+IntegrateMeasuredCurrentVirtual::usage="IntegrateMeasuredCurrentVirtual[card,mode] generates a virtual interference, reduces its loops before phase space, and integrates constant measurement sectors. One-loop interference retains exact dimensional dependence; two-loop interference and one-loop squares return sufficient explicit Laurent coefficients from verified scalar-library reductions. The current implementation requires a massless two-body final state and no incoming partons.";
 RunMeasuredRawContribution::usage="RunMeasuredRawContribution[card,mode] computes independent full unit-interval Laurent distributions from card-declared polynomial measurements, including explicit contacts and radiative endpoint continuation. Native master reduction and physical solutions are used for the nonconstant spectrum.";
 RunMeasuredProjectResult::usage="RunMeasuredProjectResult[resultCard,mode] evaluates the selected raw measured-current contributions, sums their common partonic results, checks pole cancellation, and applies the declared generated Born normalization. No reference coefficient is used in production.";
 Begin["`Private`"];
@@ -196,6 +196,8 @@ IntegrateMeasuredCurrentVirtual[card_Association,mode_String:"resume"]:=Catch[Mo
  {setup,request,path,file,definition,saved,source,reduced,values,geometry,momenta,q,s,e=Global`Epsilon,
   kinematics,rows,contacts=<||>,timings=<||>,seconds,one,index,output,loop},
  setup=projectCheck[FeynFacet`ReadProcessCard[card],"MeasuredVirtualProcessRequired"];
+ If[MemberQ[{{2,0},{1,1}},Lookup[card,"AmplitudeLoops",None]],
+  Return[measuredCurrentTwoLoopVirtual[card,setup,mode],Module]];
  If[setup["ForwardAmplitudes"]["LoopOrder"]=!=1||setup["ConjugateAmplitudes"]["LoopOrder"]=!=0||
   Length[card["UnobservedPartons"]]=!=2||Lookup[card["Channels"][card["Channel"]],"Incoming",{}]=!={},
   projectFail["OneLoopTwoBodyDecayInterferenceRequired"]];
@@ -245,6 +247,106 @@ IntegrateMeasuredCurrentVirtual[card_Association,mode_String:"resume"]:=Catch[Mo
   "CalculationDefinition"->definition,"StageSeconds"->timings,"Reused"->False|>;
  projectWrite[output,file];output
 ],"ProjectCards"];
+
+(* Integrate the constant two-body measurements before truncating any loop
+   master. Their dimensional phase-space factor belongs in the same epsilon
+   order calculation as the amplitude coefficients and bare couplings. *)
+measuredCurrentTwoLoopVirtual[card_,setup_,mode_]:=Module[
+ {request,path,file,geometry,definition,saved,source,values,momenta,q,s,e,kin,loops,
+  decomposition,reduction,library,matching,rows,phaseValues,phase,scalar,coefficients,
+  contacts=<||>,timings=<||>,seconds,one,output,addConjugate,conditions,index,name,
+  range,orders,prefactor,reductionDefinition,realAtoms,realRules},
+ If[Length[card["UnobservedPartons"]]=!=2||Lookup[card["Channels"][card["Channel"]],"Incoming",{}]=!={},
+  projectFail["TwoBodyDecayVirtualContributionRequired"]];
+ request=projectCheck[FeynFacet`ProjectAssemblyRequest[card],"MeasuredVirtualAssemblyRequired"];
+ e=request["DimensionalRegulator"];range=card["EpsilonRange"];
+ path=card["WorkDirectory"];file=path<>"/VirtualIntegration.wl";
+ geometry=Join[card["Assembly"]["PhaseSpace"],<|"Name"->measuredVirtualPhaseSpace,
+   "FinalMomenta"->Take[card["FinalMomenta"],2]|>];
+ definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
+   "FinalStateMeasurement"->card["Assembly"]["FinalStateMeasurement"],"EpsilonRange"->range|>;
+ If[mode==="resume"&&FileExistsQ[file],saved=FeynFacet`FamilyArtifactRead[file];
+  If[AssociationQ[saved]&&Lookup[saved,"CalculationDefinition",None]===definition,
+   Return[Join[saved,<|"Reused"->True,"StageSeconds"-><||>|>],Module]]];
+ source=If[mode==="resume"&&FileExistsQ[path<>"/Integrands.wl"],
+   FeynFacet`FamilyArtifactRead[path<>"/Integrands.wl"],None];
+ If[!AssociationQ[source]||Lookup[source,"ProcessDefinition",None]=!=setup||
+    Lookup[source,"CurrentProjectors",None]=!=request["CurrentProjectors"],
+  {seconds,source}=facetElapsedTiming[FeynFacet`ConstructCurrentIntegrands[setup,Join[request,
+    <|"PrintTimings"->True,"KernelCount"->card["Execution"]["Kernels"]|>]]];
+  source=projectCheck[source,"MeasuredVirtualGenerationFailed"];
+  AssociateTo[timings,"AmplitudeGenerationAndContraction"->seconds];projectWrite[source,path<>"/Integrands.wl"]];
+ momenta=geometry["FinalMomenta"];q=geometry["TotalMomentum"];
+ s=FeynCalc`FCI[FeynCalc`SPD[q]]/.FeynCalc`FCI[geometry["KinematicRules"]];
+ kin={FeynCalc`SPD[momenta[[1]]]->0,FeynCalc`SPD[momenta[[2]]]->0,FeynCalc`SPD@@momenta->s/2};
+ loops=Join[setup["ForwardAmplitudes"]["LoopMomenta"],setup["ConjugateAmplitudes"]["LoopMomenta"]];
+ values=Map[(FeynCalc`ExpandScalarProduct[#/.q->Total[momenta]]/.FeynCalc`FCI[kin])&,source["Values"]];
+ rows=FeynFacet`PrepareFinalStateMeasurementIntegrands[1,geometry,card["Assembly"]["FinalStateMeasurement"]];
+ If[!ListQ[rows]||!AllTrue[rows,# ["ContactMeasurements"]=!={}&],projectFail["ConstantTwoBodyMeasurementsRequired"]];
+ phaseValues=Map[projectCheck[FeynFacet`IntegrateMasslessInvariantMoments[#["PreparedIntegrand"],e],
+   "VirtualContactMeasureFailed"]["Value"]&,rows];
+ addConjugate=card["AmplitudeLoops"]==={2,0};conditions=request["Assumptions"]&&s>0&&Element[e,Reals];
+ If[AllTrue[Values[values],#===0&],
+  Do[AssociateTo[contacts,name<>ToString[index]-><|"Value"->0,
+    "ContactMeasurements"->rows[[index]]["ContactMeasurements"]|>],
+    {name,Keys[values]},{index,Length[rows]}];
+  output=<|"ContactIntegrals"->contacts,"ExactInRegulator"->True,"GeneratedExactZero"->True|>,
+  {seconds,decomposition}=facetElapsedTiming[FeynFacet`DecomposeVirtualLoopIntegrands[values,loops,momenta,kin,
+    <|"Assumptions"->request["Assumptions"],"FamilyNamePrefix"->"MeasuredVirtualFamily"|>]];
+  decomposition=projectCheck[decomposition,"MeasuredVirtualIntegralDecompositionFailed"];
+  AssociateTo[timings,"VirtualIntegralDecomposition"->seconds];
+  decomposition=Join[decomposition,<|"ProcessDefinition"->setup,
+    "IntegrationMeasureConversion"->(I Pi^(D/2))^Length[loops]|>];
+  projectWrite[decomposition,path<>"/IntegralFamilies.wl"];
+  library=FeynFacet`MasslessVertexMasterLibrary[loops,momenta,momenta,kin,s,e,"Timelike"];
+  If[!MatchQ[library,{__Association}],projectFail["TimelikeScalarLibraryRequired",<|"Cause"->library|>]];
+  reductionDefinition=KeyTake[decomposition,{"Families","Targets"}];
+  saved=If[mode==="resume"&&FileExistsQ[path<>"/Reduction.wl"],FeynFacet`FamilyArtifactRead[path<>"/Reduction.wl"],None];
+  If[AssociationQ[saved]&&Lookup[saved,"ReductionInput",None]===reductionDefinition,reduction=saved,
+   {seconds,reduction}=facetElapsedTiming[FeynFacet`ReduceToVirtualMasterLibrary[
+     decomposition["Families"],decomposition["Targets"],library,<|"WorkingDirectory"->path<>"/IBP",
+      "Threads"->card["Execution"]["KiraThreads"],"Assumptions"->request["Assumptions"]|>]];
+   reduction=projectCheck[reduction,"MeasuredVirtualScalarLibraryReductionFailed"];
+   AssociateTo[timings,"VirtualIBPReduction"->seconds];
+   reduction=Join[reduction,<|"ReductionInput"->reductionDefinition|>];projectWrite[reduction,path<>"/Reduction.wl"]];
+  matching=projectCheck[FeynFacet`MatchVirtualMastersToLibrary[reduction["Masters"],decomposition["Families"],library],
+    "MeasuredVirtualScalarLibraryMatchingFailed"];
+  If[matching["Status"]=!="AllMastersMatched",projectFail["CompleteVirtualLibraryMatchingRequired"]];
+  projectWrite[matching,path<>"/VerifiedMasterLibraryMatching.wl"];
+  {seconds,one}=facetElapsedTiming[Do[
+   prefactor=phase decomposition["IntegrationMeasureConversion"]request["CurrentNormalization"]*
+     Lookup[card,"SymmetryFactor",1]Lookup[card,"FlavorMultiplicity",1];
+   scalar=projectCheck[FeynFacet`ExpandMatchedVirtualIntegralCombination[decomposition,reduction,matching,e,range,
+     Function[{master,needed},FeynFacet`EvaluateMasslessVertexMaster[master,s,e,needed,"Timelike"]],
+     <|"Prefactor"->prefactor,"ScalarCoefficientRules"->Join[request["BareCouplingRules"],
+       Lookup[request,"ColorRules",{}]],"RetainAllPoles"->True,"PrintTimings"->True|>],"MeasuredVirtualLaurentExpansionFailed"];
+   coefficients=Map[Function[value,partonicCollect[FeynFacet`ExpandPositiveLogarithms[ComplexExpand[
+     If[addConjugate,value+Conjugate[value],value],Lookup[setup,"ComplexParameters",{}]],conditions]]],
+     scalar["Coefficients"]];
+   (* Refine branch/reality atoms individually. FullSimplify of the complete
+      high-weight coefficient spent minutes proving that positive scales
+      have zero argument. The exact scalar assumptions suffice locally. *)
+   realAtoms=DeleteDuplicates[Cases[Values[coefficients],_Arg|_Abs|_Re|_Im,Infinity]];
+   realRules=(#->Refine[#,conditions])&/@realAtoms;
+   coefficients=partonicCollect/@(coefficients/.Dispatch[realRules]);
+   If[!FreeQ[coefficients,_Conjugate|_Re|_Im|_Arg|_Complex|_FeynCalc`GLI|_Failure],
+    projectFail["ExplicitRealVirtualLaurentCoefficientsRequired"]];
+   Do[
+    name=scalar["StructureFunctions"][[i]];orders=scalar["OutputEpsilonRanges"][[i]];
+    Do[If[phaseValues[[index]]===phase,
+     AssociateTo[contacts,name<>ToString[index]-><|
+      "Value"->Sum[Lookup[coefficients,Key[{i,n}],0]e^n,{n,First[orders],Last[orders]}],
+      "KnownThroughOrder"->Last[orders],"LaurentLowerBound"->First[orders],
+      "ScalarMasterUpperOrders"->scalar["ScalarMasterUpperOrders"],
+      "ContactMeasurements"->rows[[index]]["ContactMeasurements"]|>]],{index,Length[rows]}],
+   {i,Length[scalar["StructureFunctions"]]}],{phase,DeleteDuplicates[phaseValues]}]];
+  AssociateTo[timings,"VirtualMasterAndPhaseSpaceEvaluation"->seconds];
+  output=<|"ContactIntegrals"->contacts,"ExactInRegulator"->False,"KnownThroughOrder"->Last[range]|>];
+ output=Join[output,<|"DimensionalRegulator"->e,"ConjugateInterferenceAdded"->addConjugate,
+  "LoopNormalization"->"Generated d^D ell/(2 pi)^D; verified timelike masters use d^D ell/(i pi^(D/2))",
+  "CalculationDefinition"->definition,"StageSeconds"->timings,"Reused"->False|>];
+ projectWrite[output,file];output
+];
 
 measuredCurrentPartonicMetadata[card_,range_]:=<|"Project"->card["Project"],"Channel"->card["Channel"],
  "Order"->card["Order"],"Contribution"->card["Contribution"],"StructureFunctions"->card["StructureFunctions"],

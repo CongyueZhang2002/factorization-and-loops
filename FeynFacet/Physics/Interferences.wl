@@ -24,7 +24,10 @@ interferencePairSetup[setup_,pair_]:=Join[setup,<|
    Mask denominators during scalar/tensor conjugation and reverse their signs
    explicitly, once. Cut distributions never pass through this function. *)
 conjugatePhysicalAmplitude[expression_,setup_,rename_:True]:=Module[{internal,objects,tags,rules,scalar,denominators},
- internal=FeynCalc`ToSFAD[FeynCalc`FCI[expression]];
+ (* FeynArts may leave commuting color matrices inside a closed Dirac
+    trace. Separate the two tensor spaces before reversing the spin chain;
+    ComplexConjugate does not promise mixed-chain conjugation. *)
+ internal=FeynCalc`FCTraceFactor[FeynCalc`ToSFAD[FeynCalc`FCI[expression]],FeynCalc`FCI->True];
  objects=DeleteDuplicates[Cases[internal,_FeynCalc`FeynAmpDenominator,{0,Infinity}],SameQ];
  tags=Table[Unique["ordinaryDenominator"],{Length[objects]}];rules=Thread[objects->tags];
  scalar=FeynCalc`ComplexConjugate[internal/.rules,

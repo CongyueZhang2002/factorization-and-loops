@@ -66,6 +66,7 @@
     "Reduction/VirtualMasterMatching.wl",
     "Reduction/FamilyRegistry.wl",
     "Reduction/CutEquivalence.wl",
+    "Reduction/CutFamilyMaps.wl",
     "Reduction/FamilyEquivalence.wl",
     "Integrals/DimensionalShift.wl",
     "Physics/CollinearFactorization.wl",

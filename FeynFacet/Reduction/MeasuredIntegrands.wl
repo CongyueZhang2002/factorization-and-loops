@@ -502,7 +502,8 @@ MergeCutIntegralDecompositions[contributions_Association]:=Catch[Module[
   "EquivalenceScope"->"Exact equality of the complete typed definitions; no momentum routing or period symmetry inferred."|>
  ],"MeasuredIntegrand"];
 ReduceEquivalentCutIntegralTargets[data_Association,request_Association:<||>]:=Catch[Module[
- {equivalences,mappings,rows,coefficients,values,targets,names,groups,labels},
+ {equivalences,mappings,rows,coefficients,values,targets,names,groups,labels,
+  familyMaps,familyByName,images=<||>,image,terms,sourceData=data},
  If[Lookup[data,"Format",None]=!="FeynFacet-CombinedCutIntegralDecompositions",
   measuredIntegrandFail["CombinedCutIntegralDecompositionRequired"]];
  If[data["Targets"]==={},Return[data,Module]];
@@ -510,14 +511,29 @@ ReduceEquivalentCutIntegralTargets[data_Association,request_Association:<||>]:=C
  groups=Lookup[request,"CoefficientGroups",AssociationThread[labels,labels]];
  If[!AssociationQ[groups]||Sort[Keys[groups]]=!=Sort[labels]||!AllTrue[Values[groups],StringQ],
   measuredIntegrandFail["CompleteScalarCoefficientGroupingRequired"]];
- equivalences=FeynFacet`FindCutIntegralEquivalences[data["Targets"],data["Families"],
+ familyMaps=FeynFacet`FindCutIntegralFamilyMaps[data["Targets"],data["Families"]];
+ If[!AssociationQ[familyMaps],measuredIntegrandFail["ExactCutFamilyMapsRequired",<|"Cause"->familyMaps|>]];
+ familyByName=Association[(#["SourceFamily"]->#)&/@familyMaps["Mappings"]];
+ Do[
+  image=FeynFacet`ApplyCutIntegralFamilyMap[integral,familyByName[integral[[1]]]];
+  If[FailureQ[image],measuredIntegrandFail["CutFamilyNumeratorMapFailed",<|"Cause"->image|>]];
+  terms=DeleteDuplicates[Cases[image,_FeynCalc`GLI,{0,Infinity}]];
+  AssociateTo[images,integral->Association@Table[target->Coefficient[image,target],{target,terms}]],
+ {integral,data["Targets"]}];
+ coefficients=Map[Function[source,rows=KeyValueMap[Function[{integral,coefficient},
+    Map[coefficient #&,images[integral]]],source];If[rows==={},<||>,Select[Merge[rows,Total],#=!=0&]]],data["Coefficients"]];
+ targets=Union[Flatten[Keys/@Values[coefficients],1]];names=DeleteDuplicates[First/@targets];
+ sourceData=Join[data,<|"Coefficients"->coefficients,"Targets"->targets,
+   "Families"->Select[data["Families"],MemberQ[names,#["Topology"][[1]]]&]|>];
+ If[targets==={},Return[Join[sourceData,<|"FamilyMaps"->familyMaps|>],Module]];
+ equivalences=FeynFacet`FindCutIntegralEquivalences[sourceData["Targets"],sourceData["Families"],
    "Normalization"->"DeclaredTypedCutMeasures"];
  If[!AssociationQ[equivalences],measuredIntegrandFail["ExactCutIntegralEquivalencesRequired",<|"Cause"->equivalences|>]];
  mappings=Association[(#["Source"]->{#["Representative"],#["Factor"]})&/@equivalences["Mappings"]];
  coefficients=Map[Function[source,
   rows=KeyValueMap[Function[{integral,coefficient},With[{entry=mappings[integral]},
     entry[[1]]->entry[[2]]coefficient]],source];
-  If[rows==={},<||>,Merge[rows,Total]]],data["Coefficients"]];
+  If[rows==={},<||>,Merge[rows,Total]]],sourceData["Coefficients"]];
  coefficients=Map[Function[sourceLabels,
    rows=Merge[Lookup[coefficients,sourceLabels],Total];
    values=FeynFacet`CancelRationalCoefficients[Values[rows]];
@@ -526,6 +542,7 @@ ReduceEquivalentCutIntegralTargets[data_Association,request_Association:<||>]:=C
  targets=Union[Flatten[Keys/@Values[coefficients],1]];names=DeleteDuplicates[First/@targets];
  Join[data,<|"Coefficients"->coefficients,"Targets"->targets,
    "Families"->Select[data["Families"],MemberQ[names,#["Topology"][[1]]]&],
-   "IntegralEquivalences"->equivalences,"CoefficientGroups"->groups|>]
+   "IntegralEquivalences"->equivalences,"FamilyMaps"->familyMaps,"CoefficientGroups"->groups,
+   "ExceptionalDivisors"->DeleteDuplicates[Join[Lookup[data,"ExceptionalDivisors",{}],familyMaps["ExceptionalDivisors"]]]|>]
 ],"MeasuredIntegrand"];
 End[];EndPackage[];

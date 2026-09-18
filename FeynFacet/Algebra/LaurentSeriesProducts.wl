@@ -30,7 +30,7 @@ ExpandLaurentCoefficientVector[expressions_List,e_Symbol,ranges_List]:=Catch[Mod
 ],"LaurentProduct"];
 
 ExpandLaurentCoefficientMatrix[input_?MatrixQ,e_Symbol,upper_List]:=Catch[Module[
- {a=Normal[input],rows,cols,lower,start,coefficients,cache=<||>,entry,exact},
+ {a=Normal[input],rows,cols,lower,start,coefficients,cache=<||>,entry,exact,demands,series},
  {rows,cols}=Dimensions[a];
  If[Length[upper]=!=cols||!AllTrue[upper,IntegerQ],
   laurentProductFail["LaurentMatrixColumnOrdersRequired"]];
@@ -41,10 +41,15 @@ ExpandLaurentCoefficientMatrix[input_?MatrixQ,e_Symbol,upper_List]:=Catch[Module
  If[!AllTrue[Flatten[lower],IntegerQ[#]||#===Infinity&],
   laurentProductFail["MeromorphicLaurentMatrixRequired"]];
  start=If[DeleteCases[Flatten[lower],Infinity]==={},0,Min[Flatten[lower]]];
- entry[expr_,q_]:=If[KeyExistsQ[cache,{expr,q}],cache[[Key[{expr,q}]]],
-  With[{series=regulatorSeriesCoefficients[expr,e,{q,q}]},
-   If[FailureQ[series],Throw[series,"LaurentProduct"]];
-   With[{value=series[q]},AssociateTo[cache,{expr,q}->value];value]]];
+ (* Expand each distinct matrix entry once through its largest column
+    demand. Repeating Series for every single coefficient repeats the
+    expensive Gamma/power expansion at all preceding orders. *)
+ demands=Merge[Flatten[Table[a[[i,j]]->upper[[j]],{i,rows},{j,cols}],1],Max];
+ KeyValueMap[Function[{expr,hi},
+  series=If[hi<start,<||>,regulatorSeriesCoefficients[expr,e,{start,hi}]];
+  If[FailureQ[series],Throw[series,"LaurentProduct"]];
+  AssociateTo[cache,expr->series]],demands];
+ entry[expr_,q_]:=cache[[Key[expr]]][q];
  coefficients=Association@Table[q->Table[If[q>upper[[j]],0,entry[a[[i,j]],q]],
   {i,rows},{j,cols}],{q,start,Max[upper]}];
  exact=Table[a[[i,j]]===0||IntegerQ[lower[[i,j]]]&&

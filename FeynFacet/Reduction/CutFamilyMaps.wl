@@ -1,0 +1,84 @@
+(* Momentum equivalence of covered sectors, including polynomial numerator
+   images. A positive unmatched auxiliary slot is outside the proved map. *)
+BeginPackage["FeynFacet`"];
+FindCutIntegralFamilyMaps::usage="FindCutIntegralFamilyMaps[targets,families] identifies the unions of occupied positive denominator supports under exact, prescription-preserving, unit-Jacobian momentum changes. The returned maps cover arbitrary powers of matched denominators and polynomial powers of the remaining slots, including dotted cuts. They do not assert a minimal IBP master count.";
+ApplyCutIntegralFamilyMap::usage="ApplyCutIntegralFamilyMap[integral,map] applies a verified family map to one integral, returning a finite linear combination in the representative family. Positive slots outside the recorded support are rejected; only mandatory cut pinches vanish.";
+Begin["`Private`"];
+FindCutIntegralFamilyMaps[targets_List,families_List]:=Catch[Module[
+ {byName,grouped,supports,anchors,equivalences,maps,makeMap},
+ If[!AllTrue[targets,MatchQ[#,_FeynCalc`GLI]&]||!AllTrue[families,
+    Lookup[#,"Format",None]==="FeynFacet-CutIntegralFamily"&],
+  cutFamilyFail["TypedCutFamilyMapInputsRequired"]];
+ byName=Association[(#["Topology"][[1]]->#)&/@families];
+ If[Length[byName]=!=Length[families]||!ContainsAll[Keys[byName],First/@targets],
+  cutFamilyFail["DistinctCompleteCutFamilyMapCatalogRequired"]];
+ grouped=GroupBy[targets,First];
+ supports=Association@KeyValueMap[Function[{name,integrals},name->Union[byName[name]["CutIndices"],
+    Flatten[Map[Flatten[Position[#[[2]],_?Positive]]&,integrals]]]],grouped];
+ anchors=KeyValueMap[Function[{name,slots},FeynCalc`GLI[name,
+    Table[Boole[MemberQ[slots,i]],{i,Length[byName[name]["InversePropagators"]]}]]],supports];
+ equivalences=FeynFacet`FindCutIntegralEquivalences[anchors,families,"Normalization"->"DeclaredTypedCutMeasures"];
+ If[!AssociationQ[equivalences],cutFamilyFail["CutFamilySupportEquivalencesRequired",<|"Cause"->equivalences|>]];
+ makeMap[entry_]:=Module[
+  {source=byName[entry["Source"][[1]]],representative=byName[entry["Representative"][[1]]],
+   st,rt,l,n,ts,tr,transform,rules,images,sourceCuts,targetCuts,sourceCut,targetCut,
+   support,targetSupport,permutation=<||>,available,candidates,j,valid,affineImages,divisors},
+  st=source["Topology"];rt=representative["Topology"];l=Length[st[[3]]];n=l+Length[st[[4]]];
+  support=supports[st[[1]]];targetSupport=supports[rt[[1]]];
+  If[st[[1]]===rt[[1]],transform=IdentityMatrix[n][[1;;l]],
+   ts=Lookup[entry["SourceFrame"],"LoopTransformation",None];
+   tr=Lookup[entry["RepresentativeFrame"],"LoopTransformation",None];
+   If[Dimensions[ts]=!={l,n}||Dimensions[tr]=!={l,n},cutFamilyFail["ExplicitCutFamilyMomentumFramesRequired"]];
+   transform=ts.Inverse[Join[tr,IdentityMatrix[n][[l+1;;n]]]]];
+  If[!MemberQ[{1,-1},Factor[Det[transform[[All,1;;l]]]]],cutFamilyFail["UnitCutFamilyMapJacobianRequired"]];
+  rules=Thread[st[[3]]->(transform.Join[rt[[3]],rt[[4]]])];
+  images=(Expand[FeynCalc`ExpandScalarProduct[#/.rules]/.rt[[5]]])&/@source["InversePropagators"];
+  sourceCuts=Association[(#["Index"]->#)&/@source["Cuts"]];
+  targetCuts=Association[(#["Index"]->#)&/@representative["Cuts"]];available=targetSupport;
+  Do[
+   candidates=Select[available,Factor[images[[i]]-representative["InversePropagators"][[#]]]===0&];
+   candidates=Select[candidates,Function[k,
+    If[KeyExistsQ[sourceCuts,i]=!=KeyExistsQ[targetCuts,k],False,
+     If[!KeyExistsQ[sourceCuts,i],
+      source["OrdinaryPropagatorPrescriptions"][[i]]===representative["OrdinaryPropagatorPrescriptions"][[k]],
+      sourceCut=sourceCuts[i];targetCut=targetCuts[k];
+      sourceCut["Type"]===targetCut["Type"]&&If[sourceCut["Type"]==="Particle",
+       Expand[(sourceCut["EnergyDirection"]sourceCut["Momentum"]/.rules)-
+         targetCut["EnergyDirection"]targetCut["Momentum"]]===0,True]]]]];
+   If[candidates==={},cutFamilyFail["ExactCutFamilySlotMapRequired",<|"SourceSlot"->i|>]];
+   j=First[candidates];AssociateTo[permutation,i->j];available=DeleteCases[available,j],{i,support}];
+  If[available=!={},cutFamilyFail["BijectiveCoveredCutFamilySupportRequired"]];
+  affineImages=Expand[#/.representative["ScalarProductRules"]]&/@images;
+  If[!AllTrue[affineImages,PolynomialQ[#,representative["DenominatorVariables"]]&]||
+     !FreeQ[affineImages,_FeynCalc`Pair|_FeynCalc`Momentum],cutFamilyFail["CompleteAffineNumeratorImagesRequired"]];
+  divisors=DeleteDuplicates[Flatten[(First/@Rest[FactorList[Denominator[Together[#]]]])&/@
+    (Last/@representative["ScalarProductRules"])]];
+  <|"SourceFamily"->st[[1]],"RepresentativeFamily"->rt[[1]],
+    "AllowedPositiveIndices"->support,"SlotPermutation"->permutation,"LoopMomentumRules"->rules,
+    "LoopJacobian"->Factor[Det[transform[[All,1;;l]]]],"MappedInversePropagators"->affineImages,
+    "ExceptionalDivisors"->divisors,"SourceDefinition"->source,"RepresentativeDefinition"->representative,
+    "OffShellPropagatorsAndDirectedCutsVerified"->True,
+    "Scope"->"Covered positive sectors and arbitrary polynomial numerator powers; original causal and physical definitions retained."|>
+ ];
+ maps=makeMap/@equivalences["Mappings"];
+ <|"Format"->"FeynFacet-CutIntegralFamilyMaps","Mappings"->maps,
+   "InputFamilyCount"->Length[grouped],"RepresentativeFamilyCount"->Length[DeleteDuplicates[Lookup[maps,"RepresentativeFamily"]]],
+   "ExceptionalDivisors"->DeleteDuplicates[Flatten[Lookup[maps,"ExceptionalDivisors"]]],
+   "MinimalIBPMasterCountDetermined"->False|>
+],"CutFamily"];
+ApplyCutIntegralFamilyMap[integral_FeynCalc`GLI,map_Association]:=Catch[Module[
+ {source,representative,powers,positive,base,numerator},
+ If[!TrueQ[Lookup[map,"OffShellPropagatorsAndDirectedCutsVerified",False]],cutFamilyFail["VerifiedCutFamilyMapRequired"]];
+ source=map["SourceDefinition"];representative=map["RepresentativeDefinition"];powers=integral[[2]];
+ If[integral[[1]]=!=source["Topology"][[1]]||Length[powers]=!=Length[source["InversePropagators"]]||
+    !VectorQ[powers,IntegerQ],cutFamilyFail["MatchingCutFamilyMapIntegralRequired"]];
+ If[AnyTrue[powers[[source["CutIndices"]]],#<=0&],Return[0,Module]];
+ positive=Flatten[Position[powers,_?Positive]];
+ If[!ContainsAll[map["AllowedPositiveIndices"],positive],cutFamilyFail["IntegralOutsideMappedPositiveSectors",<|"Integral"->integral|>]];
+ If[map["SourceFamily"]===map["RepresentativeFamily"],Return[integral,Module]];
+ base=ConstantArray[0,Length[representative["InversePropagators"]]];
+ Do[base[[map["SlotPermutation"][i]]]=powers[[i]],{i,positive}];
+ numerator=Times@@Table[If[powers[[i]]<0,map["MappedInversePropagators"][[i]]^-powers[[i]],1],{i,Length[powers]}];
+ FeynFacet`MultiplyCutIntegral[representative,FeynCalc`GLI[representative["Topology"][[1]],base],numerator]
+],"CutFamily"];
+End[];EndPackage[];

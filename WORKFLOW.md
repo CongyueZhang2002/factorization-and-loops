@@ -213,8 +213,8 @@ wl8() { taskset -c 0-7 env FACET_CPU_COUNT=8 wolframscript -file "$@"; }
 
 Do not run two `wl8` calculations concurrently. On a different host choose valid
 CPU IDs from its allocation. Long runs need an external supervisor and regular
-progress inspection; a heartbeat is not required. The existing heartbeat is
-paused and must not be assumed to be supervising anything.
+progress inspection; a heartbeat is not required. Consult the active campaign
+record for any monitor; do not assume an old heartbeat supervises a new run.
 
 ## Cards, files and stage meanings
 

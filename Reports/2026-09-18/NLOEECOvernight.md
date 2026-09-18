@@ -197,3 +197,53 @@ The full order-alpha_s-squared coefficient remains unfinished: four-body master
 solving and boundary data, measured real-virtual integration, two-body two-loop
 and one-loop-square orchestration, and final endpoint assembly are still required.
 Do not compare the published NLO EEC coefficient until our complete result is saved.
+
+## Two-body virtual completion and family numerator maps
+
+The null-reference qqbgg preparation completed in 385.32 s including startup,
+versus 645.90 s for the previous timelike reference. This is preparation only.
+
+The complete two-body virtual raw contribution is now saved in
+Raw/NNLO/q-qb/Virtual/Results.wl (67,579 bytes of readable text, 3,177 bytes of
+metadata). Its generated components are two-loop/tree interference (17 forward
+diagrams), one-loop square, and a generated exact zero from the four diagrams
+of the vector-current two-gluon candidate. The latter exposed commuting color
+matrices inside closed Dirac traces: FCTraceFactor now separates tensor spaces
+before color contraction and complex conjugation in the general algebra code.
+
+Both nonzero components reduce to verified timelike scalar-library definitions.
+The one-loop square closes its first 220-seed reduction. The two-loop term closes
+after targeted refinement from 1,521 to 2,285 seeds. An unrestricted FullSimplify
+of the expanded coefficients caused two stopped attempts (282.04 and 257.88 s);
+this was not a master-integration cost. Exact coefficient collection and local
+refinement of branch atoms replace it. Matrix Laurent expansion now computes
+each distinct entry once through its greatest demand. RetainAllPoles preserves
+the complete derived lower bound in raw virtual output.
+
+With retained reductions, component integration took 6.52 s and 8.01 s. The full
+raw virtual driver regenerated amplitudes and assembled all components in 12.37 s,
+including startup and compatible IBP/library reuse. This is not a cold total.
+The independent check uses one-loop tensor reduction and its Gamma functions,
+rather than the two-loop IBP or conjugate-bubble library value: every coefficient
+from epsilon^-4 through epsilon^0 agrees at two physical scale choices. Five
+assertions pass in 17.81 s. No published EEC coefficient is used.
+
+Actual Pro reviewed a023942a in 11m56s, confirming the affine Gauss expansion and
+the mathematical family-map proposal. Record 05 lists the covered-sector and
+causal qualifications. Fifteen Gauss checks now include coefficientwise DE
+residuals through epsilon^3 and both complex sides of the argument cut (5.97 s).
+
+The new CutFamilyMaps module identifies denominator supports once, reconstructs
+and verifies the exact loop/slot maps, then uses the existing MultiplyCutIntegral
+for numerator images and dotted cuts. Positive powers of unmatched auxiliary
+slots are rejected. Six focused tests pass in 5.05 s. Combined with scalar
+coefficient collection, the distinct four-quark source drops from 4,637 targets
+in 36 families to 468 targets in 7 families (5.51 s within a 19.58 s supervised
+read/transform/write run). These are pre-IBP targets, not a master count.
+
+A new distinct-flavor DE attempt runs on CPUs 0..3, with the latest adaptive
+predecessor refinement and family maps. Its receipt is the component's
+DifferentialSystem.json; the old reduction tree is retained as
+Work/BeforeFamilyMapsDifferentialEquations. Inspect the actual job before
+relaunching. Full four-body physical masters and real-virtual integration remain
+unfinished, so the complete order-alpha_s-squared result does not yet exist.

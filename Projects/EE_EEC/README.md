@@ -140,3 +140,11 @@ with no collinear legs. Its consumer-owned lower-order source range is determine
 by the UV pole. Shared Born/real/virtual templates are epsilon independent; direct
 cards only choose the final requested range. See the campaign record for the
 completed UV contribution and the unfinished remaining NNLO integration stages.
+
+The NNLO two-body Virtual raw contribution is also generated and integrated,
+including the two-loop/tree interference, the one-loop square and the exactly
+vanishing generated two-gluon candidate. It retains its Laurent poles. An
+independent one-loop form-factor product checks the square through its finite
+coefficient. Four-body physical master integration and measured real-virtual
+integration are still required for the complete result. See the campaign record
+for timing, reuse and the current DE job.

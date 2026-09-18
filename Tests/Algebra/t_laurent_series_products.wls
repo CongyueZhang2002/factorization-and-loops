@@ -1,3 +1,4 @@
+Print["FEYNFACET DRIVER ENTERED"];
 $HistoryLength=0;$MaxExtraPrecision=50;
 root=DirectoryName[ExpandFileName[$InputFileName],3];
 Get[root<>"/Tests/TestKit.wl"];
@@ -43,4 +44,24 @@ vector=ExpandLaurentCoefficientVector[{1/eps},eps,{{-1,-1}}];
 product=MultiplyLaurentCoefficientMatrix[matrix,vector,{{0,0}}];
 FTAssert["analytic normalization factors retain their positive orders multiplying a pole",
  AssociationQ[product]&&product["Coefficients"]===<|{1,0}->scaleLog|>];
+matrix=ExpandLaurentCoefficientMatrix[{{Exp[eps scaleLog],Exp[eps scaleLog]},
+ {0,Exp[eps scaleLog]}},eps,{1,3}];
+FTAssert["a repeated matrix entry is expanded through the largest requested column order",
+ matrix["CoefficientMatrices"][3]==={{0,scaleLog^3/6},{0,scaleLog^3/6}}&&
+ matrix["CoefficientMatrices"][1]==={{scaleLog,scaleLog},{0,scaleLog}}];
+matrix=ExpandLaurentCoefficientMatrix[{{eps^2,0}},eps,{0,0}];
+FTAssert["entries beginning above the requested range retain their proved lower bounds",
+ matrix["CoefficientMatrices"]===<||>&&matrix["EntryLaurentLowerBounds"]==={{2,Infinity}}];
+source=<|"Format"->"FeynFacet-VirtualIntegralFamilies","CoefficientRules"->
+ <|"Scalar"-><|FeynCalc`GLI[virtualSource,{1}]->1/eps^2|>|>|>;
+reduction=<|"Rules"->{FeynCalc`GLI[virtualSource,{1}]->FeynCalc`GLI[virtualMaster,{1}]}|>;
+matching=<|"Status"->"AllMastersMatched","MasterLabels"->{FeynCalc`GLI[virtualMaster,{1}]->"scalar"},
+ "Library"->{<|"Name"->"scalar","LaurentLowerBound"->-1|>}|>;
+retained=ExpandMatchedVirtualIntegralCombination[source,reduction,matching,eps,{0,0},
+ Function[{name,orders},ExpandLaurentCoefficientVector[{1/(eps(1-eps))},eps,{orders}]],
+ <|"RetainAllPoles"->True|>];
+FTAssert["raw virtual contraction retains derived poles below a caller's requested lower order",
+ AssociationQ[retained]&&retained["OutputEpsilonRanges"]==={{-3,0}}&&
+ retained["Coefficients"]===<|{1,-3}->1,{1,-2}->1,{1,-1}->1,{1,0}->1|>];
+Print["LAURENT SERIES PRODUCT TEST COMPLETE"];
 FTReport[];

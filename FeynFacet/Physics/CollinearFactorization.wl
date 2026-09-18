@@ -672,7 +672,7 @@ factorizePair[config_Association, conjugateSeed_:Automatic] := Catch[
 (* Isolate color products so SUNSimplify never expands their Lorentz
    coefficients. Equivalent color products are evaluated only once. *)
 contractColorFactors[expression_]:=Module[{head,isolated,objects},
- isolated=FeynCalc`FCColorIsolate[expression,Head->head,
+ isolated=FeynCalc`FCColorIsolate[FeynCalc`FCTraceFactor[expression,FeynCalc`FCI->True],Head->head,
   FeynCalc`Collecting->False,FeynCalc`Factoring->False,FeynCalc`FCI->True];
  objects=DeleteDuplicates[Cases[isolated,object_head:>object,{0,Infinity}]];
  isolated/.((#->FeynCalc`SUNSimplify[First[#],Explicit->False])&/@objects)

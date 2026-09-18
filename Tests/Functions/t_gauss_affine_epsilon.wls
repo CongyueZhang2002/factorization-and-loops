@@ -30,5 +30,26 @@ Do[
  FTTest`FTAssert["integer contiguous transformations preserve the independently evaluated function "<>ToString[integers],
   NumberQ[value]&&Abs[value-reference]<10^-13],
  {integers,{{1,1,3},{2,1,3},{1,2,4},{2,2,2}}}];
+Do[
+ pars=integers+{1/5,-2/7,3/2}ge;
+ coefficients=FeynFacetSolution`GaussHypergeometricEpsilonCoefficients[pars,gz,ge,3];
+ polynomial=Total[KeyValueMap[ge^#1 #2&,coefficients]];
+ derivative=FeynFacetSolution`Private`gaussEpsilonDerivative[polynomial,gz];
+ residual=gz(1-gz)FeynFacetSolution`Private`gaussEpsilonDerivative[derivative,gz]+
+  (pars[[3]]-(pars[[1]]+pars[[2]]+1)gz)derivative-pars[[1]]pars[[2]]polynomial;
+ residual=FeynFacetSolution`Private`gaussEpsilonClassical[Expand[residual]];
+ FTTest`FTAssert["the hypergeometric DE vanishes coefficientwise through epsilon cubed "<>ToString[integers],
+  AllTrue[Table[Factor[Coefficient[residual,ge,j]],{j,0,3}],#===0&]],
+ {integers,{{1,1,2},{2,2,3}}}];
+pars={1+ge/5,1-2ge/7,2+3ge/2};
+coefficients=FeynFacetSolution`GaussHypergeometricEpsilonCoefficients[pars,gz,ge,2];
+Do[
+ step=1/10^10;
+ samples=Table[N[Hypergeometric2F1[Sequence@@(pars/.ge->m step),point],65],{m,{-1,0,1}}];
+ reference={(samples[[3]]-samples[[1]])/(2step),(samples[[3]]+samples[[1]]-2samples[[2]])/(2step^2)};
+ values=N[Lookup[coefficients,{1,2}]/.gz->point,60];
+ FTTest`FTAssert["complex Gauss coefficients use consistent continuation on the side "<>ToString[Sign[Im[point]]],
+  VectorQ[values,NumberQ]&&Max[Abs[values-reference]]<10^-17],
+ {point,{(3+I)/2,(3-I)/2}}];
 Print["AFFINE GAUSS EPSILON TEST COMPLETE"];
 FTTest`FTReport[];
