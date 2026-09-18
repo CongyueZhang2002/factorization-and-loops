@@ -30,4 +30,8 @@ FTTest`FTAssert["an essential regulator dependence in a hypergeometric parameter
  FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[Hypergeometric2F1[Exp[1/re],1,2,-rx]]]]];
 FTTest`FTAssert["constant Gamma poles and causal scale powers have an explicit meromorphic check",
  AssociationQ[FeynFacet`VerifyResolvedEndpointCube[record[Gamma[-re]Exp[I Pi re]rs^-re/(2-rx)],rs>0]]];
+FTTest`FTAssert["parameter-domain zeros in regulator-independent denominators are rejected",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[1/(re (ca-cb))],ca==cb]]];
+FTTest`FTAssert["analytic regulator exponents require finite coefficients on the parameter domain",
+ FailureQ[FeynFacet`VerifyResolvedEndpointCube[record[Exp[re/(ca-cb)]],ca==cb]]];
 Print["ENDPOINT CUBE REGULARITY TEST COMPLETE"];FTTest`FTReport[];

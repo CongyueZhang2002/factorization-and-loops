@@ -476,3 +476,31 @@ scalar-density numerical comparisons, with errors below10^-30. Mixed cut/virtual
 scalar decomposition passes6 assertions (3.216 s); actual inclusive production
 still needs its endpoint continuation before opposite external prescriptions
 can be identified.
+
+
+## Card-owned inclusive RV preparation and exact subtractions
+
+`loop-inclusive-prepare` derives the unweighted source with the same generated
+normalization, constructs all eight complete charts and proves a common
+negative-epsilon convergence neighborhood for every original external-prescribed
+product. It completed in115.559s. This justifies its external prescription limit
+after causal loop integration; virtual phases remain. `loop-inclusive-subtract`
+automatically constructs exact-in-epsilon Taylor subtractions, full face terms
+and their intersections, in14.172s. Both are saved under the raw RV Work folder.
+No inclusive rate has yet been evaluated and no RV Results.wl is claimed.
+
+The shared subtraction routine supports automatically determined higher Taylor
+depths, not only simple poles. Six independent Euler-moment/overlap assertions
+pass in4.419s. The scalar-density/inclusive-limit tests pass29 assertions.
+The parameter-domain guard now rejects both undefined reciprocal germs and
+undefined coefficients in analytic exponents:13 assertions pass in5.255s.
+All eight saved physical inclusive charts pass the stronger parameter-domain
+proof in12.521s. The prototype and failed first card wrapper invocation are
+separate receipts; the latter was a list passed to an association-only check,
+repaired in the shared card wrapper before the successful run.
+
+Pro review11 independently derives the complex universal inclusive box U8 and
+its exact hypergeometric representation. A separate local Euler/hypergeometric
+check at epsilon=-1/4 agrees to1.4e-21 in9.012s. This universal scalar input is
+separate from the still-uncomputed EEC hard coefficient. It has not yet been
+registered as a production physical master value.

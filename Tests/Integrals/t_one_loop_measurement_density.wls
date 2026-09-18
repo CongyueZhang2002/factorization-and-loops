@@ -106,6 +106,11 @@ FTTest`FTAssert["the complete energy density includes the meromorphicity of its 
  FailureQ[FeynFacet`ResolveOneLoopMeasurementIntegrationEndpoints[essentialPrefactor]]];
 FTTest`FTAssert["the contact-order proof cannot bypass an essential regulator prefactor",
  FailureQ[FeynFacet`VerifyOneLoopMeasurementContactOrder[essentialPrefactor,0]]];
+inclusiveCharts=FeynFacet`ResolveOneLoopMeasurementEndpointCharts[density,1];
+FTTest`FTAssert["inclusive external-prescription limits require a common convergent regulator half-plane",
+ AssociationQ[inclusiveCharts]&&AssociationQ[FeynFacet`VerifyOneLoopInclusivePrescriptionLimit[inclusiveCharts]]];
+FTTest`FTAssert["a weighted contact bound cannot be used as an unweighted inclusive prescription proof",
+ FailureQ[FeynFacet`VerifyOneLoopInclusivePrescriptionLimit[Join[inclusiveCharts,<|"Weight"->pz(1-pz)|>]]]];
 cacheDefinition=<|"EpsilonRange"->{-1,0},"IntegrationSchema"->2|>;
 cacheRow=Join[hermitian,<|"IntegrationDefinition"->cacheDefinition,"InputCompanions"-><|"Density"->density|>|>];
 FTTest`FTAssert["integrated-row reuse requires the actual prepared density and complete proof",

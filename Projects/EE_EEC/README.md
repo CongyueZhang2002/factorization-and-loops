@@ -175,3 +175,21 @@ optional `HomogeneousScale` removes a dimensionful variable by verifying a
 change of unknowns on every generated equation, including the quadratic cut's
 actual degree, and restores the units in the returned rules. Neither option
 changes the integral definitions or asserts master minimality.
+
+
+The developing real-virtual path also provides `loop-inclusive-prepare` and
+`loop-inclusive-subtract`. The first regenerates the unweighted scalar-loop
+source from the same card-owned amplitude, derives a complete integration-chart
+cover, and establishes the external-prescription limit in a convergent
+negative-epsilon neighborhood. It retains the virtual causal phase. The second
+constructs exact regulator-dependent Taylor subtractions and partially integrated
+face/corner terms. Results are `Work/InclusiveScalarLoopEndpointCharts.wl` and
+`Work/InclusiveScalarLoopSubtractions.wl`. They are integration inputs: the finite
+strata still must be integrated before an inclusive rate or accepted RV result
+exists. These stages never insert a measured literature coefficient.
+
+Typed Kira imports now use the native initial IBP-system master declaration.
+FireFly's `masters.final` instead lists reconstructed RHS identifiers and can
+omit identity-only targets. Dependency closure first exports available rules,
+then reduces only missing dependencies in separate native workspaces, preserving
+completed exact rows. A no-progress closure fails explicitly.
