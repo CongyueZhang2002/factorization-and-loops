@@ -113,3 +113,25 @@ Both gluon and distinct-flavor preparations are now rerunning with this reductio
 on CPUs 0..3 and 4..7 respectively. Inspect their latest Prepare logs/receipts;
 the preceding records have the prefix BeforePolynomialReduction. No new DE is
 currently running. Restart the DE with the new inputs after successful preparation.
+
+
+The subsequent global common-denominator attempt enlarged the distinct-flavor
+last measurement from a few products to 192 products and 124,976 monomials.
+The general rational optimizer now rejects increases in denominator support or
+positive total power, and tuple preparation reuses the common source cancellation
+rather than repeating it for every weight. An intermediate guarded preparation
+completed in 168.66 s. Its successor is running with the repeated work removed;
+the distinct-flavor DE follows automatically with target-based downward-closed
+seed sets instead of the previous rectangular dot/rank extension. The old gluon
+attempt was stopped after 1122.39 s; this is an unsuccessful attempt, not a total.
+
+Current jobs: supervised gluon preparation on CPUs 0..3, and distinct-flavor
+preparation followed by DE construction on CPUs 4..7. Read component Prepare and
+DifferentialSystem receipts for completion; no full NLO coefficient exists yet.
+
+The latest checks pass: shared preparation (17 assertions, 8.32 s), physical
+coordinates including angular variances and the exact Gram determinant (19,
+8.41 s), state counts (6, 5.57 s), and target-based IBP seed selection (10,
+6.14 s). These are internal checks, not NLO literature comparisons. Actual Pro's
+static review of f126f874 is saved in External/ChatGPT/Records/2026-09-18/
+03_four_body_review.md, including the remaining tests and UV source requirement.

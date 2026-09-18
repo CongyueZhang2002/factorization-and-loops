@@ -75,7 +75,8 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
  projectWrite[merged,path<>"/IntegralDecomposition.wl"];
  {seconds,system}=facetElapsedTiming[FeynFacet`ConstructCutDifferentialSystem[merged["Families"],merged["Targets"],variables,
    Join[<|"WorkingDirectory"->path<>"/DifferentialEquations","Threads"->execution["KiraThreads"],
-    "SeedExtension"->{2,2},"NewWorkspaceForChangedInputs"->True|>,Lookup[card["Assembly"],"Reduction",<||>]]]];
+    "SeedPolicy"->"TargetDownsets","PrintTimings"->True,
+    "NewWorkspaceForChangedInputs"->True|>,Lookup[card["Assembly"],"Reduction",<||>]]]];
  system=projectCheck[system,"PolynomialMeasurementDifferentialSystemFailed"];
  output=<|"DifferentialSystem"->system,"IntegralDecomposition"->merged,
   "ContactTerms"->prepared["ContactTerms"],"CalculationDefinition"->prepared["CalculationDefinition"],

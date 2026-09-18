@@ -52,7 +52,7 @@ MasslessInvariantPhaseSpaceCoordinates[particles_List,total_Symbol,s_,e_Symbol,p
    "FinalMomenta"->particles,"TotalMomentum"->total,"Scale"->s,"DimensionalRegulator"->e,
    "Parameters"->parameters,"Bounds"->({#,0,1}&/@parameters),
    "PhysicalDomain"->(s>0&&And@@(0<#<1&/@parameters)),
-   "AngularConvergenceCondition"->e<1/2,"ScalarProductRules"->rules,
+   "AngularConvergenceCondition"->Re[e]<1/2,"ScalarProductRules"->rules,
    "PairInvariants"->AssociationThread[pairs,invariants],"GramMatrix"->gram,
    "EnergyFractions"->(2Total[#]/s&/@gram),"Density"->density,
    "RadialDensity"->radial,"NormalizedAngularDensities"->angular,

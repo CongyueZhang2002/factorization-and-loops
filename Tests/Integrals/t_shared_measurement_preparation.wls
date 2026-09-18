@@ -29,7 +29,7 @@ Do[
   FeynFacet`RequireOrdinaryPrescriptionCertificate[shared[[i]]["PreparedIntegrand"],"GenericKinematics"]===True],
  {i,Length[definitions]}];
 FTTest`FTAssert["dimensional scale powers remain coefficients of rational cancellation",
- FreeQ[Lookup[# ["PreparedIntegrand"]["RationalCancellation"],"Reason",None]&/@shared,
+ FreeQ[Lookup[# ["UnmeasuredPreparation"]["RationalCancellation"],"Reason",None]&/@shared,
    "RationalCoefficientDependenceRequired"]];
 FTTest`FTAssert["quadratic cuts reduce the degree of the measured numerator before amplitude expansion",
  AllTrue[Select[shared,#["ContactMeasurements"]==={}&],

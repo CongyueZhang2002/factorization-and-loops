@@ -88,12 +88,14 @@ PrepareFinalStateMeasurementIntegrands[expression_,geometry_Association,specific
   Do[
    index++;If[TrueQ[Lookup[settings,"PrintTimings",False]],Print["PREPARING MEASUREMENT ",index,"/",Length[rows]]];
    weighted=measuredUnitCutWeight[row,base];
-   prepared=FeynFacet`PrepareCutIntegrand[reduced weighted["Weight"],weighted["Definition"],settings];
+   prepared=FeynFacet`PrepareCutIntegrand[reduced weighted["Weight"],weighted["Definition"],
+    Join[<|"CancelDenominators"->False|>,settings]];
    If[!AssociationQ[prepared],measuredIntegrandFail["FinalStateMeasurementPreparationFailed",<|"Cause"->prepared|>]];
    If[AssociationQ[weighted["PolynomialReduction"]],
     prepared=Join[prepared,<|"UnitMeasurementPolynomialReduction"->weighted["PolynomialReduction"]|>]];
    AppendTo[result,Join[KeyDrop[row,"Definition"],<|"PreparedIntegrand"->prepared,
-    "UnmeasuredPreparation"-><|"Seconds"->seconds,"OrdinaryPrescriptionCertificate"->base["OrdinaryPrescriptionCertificate"]|>,
+    "UnmeasuredPreparation"-><|"Seconds"->seconds,"OrdinaryPrescriptionCertificate"->base["OrdinaryPrescriptionCertificate"],
+      "RationalCancellation"->Lookup[base,"RationalCancellation",None]|>,
    "ContactMeasurements"->row["Definition"]["ContactMeasurements"]|>]],{row,rows}];
  result
  ],"MeasuredIntegrand"];
@@ -202,7 +204,7 @@ CancelMeasuredCutIntegrandDenominators[prepared_Association,request_Association:
   {terms=prepared["Terms"],variables=prepared["FreeScalarProductVariables"],polynomials,
    numerators,spectators,denominatorFactors,commonCoefficientDenominator,coefficientRules,
    monomials,sectorNumerators,expression,reduced,denominator,powers,numerator,variable,
-    output={},inputPowers,outputPowers,cancelled,shiftedSymbols,coefficient,nonalgebraic},
+    output={},inputPowers,outputPowers,cancelled,shiftedSymbols,coefficient,nonalgebraic,inputCost,outputCost},
   polynomials=Expand/@prepared["OrdinaryUnitCutPolynomials"];
   If[terms==={},Return[prepared,Module]];
   numerators=Lookup[terms,"Numerator"];
@@ -246,7 +248,17 @@ CancelMeasuredCutIntegrandDenominators[prepared_Association,request_Association:
   {monomial,monomials}];
   inputPowers=Max/@Transpose[Lookup[terms,"Powers"]];
   outputPowers=If[output==={},ConstantArray[0,Length[polynomials]],Max/@Transpose[Lookup[output,"Powers"]]];
-  cancelled=Select[Range[Length[polynomials]],inputPowers[[#]]>0&&outputPowers[[#]]===0&];
+   cancelled=Select[Range[Length[polynomials]],inputPowers[[#]]>0&&outputPowers[[#]]===0&];
+   inputCost={Max[Count[#,_Integer?Positive]&/@Lookup[terms,"Powers"]],
+     Max[Total[Select[#,Positive]]&/@Lookup[terms,"Powers"]]};
+   outputCost=If[output==={},{0,0},{Max[Count[#,_Integer?Positive]&/@Lookup[output,"Powers"]],
+     Max[Total[Select[#,Positive]]&/@Lookup[output,"Powers"]]}];
+   If[TrueQ[Lookup[request,"PrintTimings",False]],
+    Print["RATIONAL DENOMINATOR SUPPORT AND DEGREE ",inputCost," -> ",outputCost]];
+   If[AnyTrue[outputCost-inputCost,Positive],
+    Return[Join[prepared,<|"RationalCancellation"-><|"Status"->"OriginalDensityRetained",
+     "Reason"->"CommonDenominatorIncreasesIBPOrders","InputCost"->inputCost,"CandidateCost"->outputCost,
+     "Seconds"->facetElapsedClock[]-started|>|>],Module]];
   (* A full common denominator can greatly enlarge partial fractions even
      when it shortens the numerator. Keep the original product decomposition
      unless a kinematic denominator has disappeared completely. *)
