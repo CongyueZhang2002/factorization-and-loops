@@ -15,6 +15,7 @@ masslessInvariantCoordinateRecord[particles_,total_,s_,e_,parameters_,invariants
    {FeynCalc`FCI[FeynCalc`SPD[total]]->s}];
  <|"Format"->"FeynFacet-InvariantPhaseSpaceCoordinates","Method"->method,
    "FinalMomenta"->particles,"TotalMomentum"->total,"Scale"->s,"DimensionalRegulator"->e,
+   "Dimension"->4-2e,
    "Parameters"->parameters,"Bounds"->({#,0,1}&/@parameters),
    "PhysicalDomain"->(s>0&&And@@(0<#<1&/@parameters)),
    "AngularConvergenceCondition"->Re[e]<1/2,"ScalarProductRules"->rules,

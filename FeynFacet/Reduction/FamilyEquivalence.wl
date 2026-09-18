@@ -127,8 +127,7 @@ MapIntegralFamilyCoordinates[integrals_List,source_Association,representative_As
   !ContainsAll[Keys[representative],{"InversePropagators","ScalarProductRules","DenominatorVariables","CutIndices","OrdinaryPropagatorPrescriptions","Definition"}],
   cutFamilyEquivalenceFail["CompleteIntegralCoordinateDefinitionsRequired"]];
  If[Map[Identity,a[[3;;5]],{0,Infinity}]=!=Map[Identity,b[[3;;5]],{0,Infinity}]||
-  KeyTake[source,{"MeasurePrefactor","TimeDirection","Assumptions","Definition","AdditionalAcceptanceBoundaries"}]=!=
-   KeyTake[representative,{"MeasurePrefactor","TimeDirection","Assumptions","Definition","AdditionalAcceptanceBoundaries"}],
+  cutDefinitionConventions[source]=!=cutDefinitionConventions[representative],
   cutFamilyEquivalenceFail["SameIntegralFrameAndMeasureRequired"]];
  (* A dependent polynomial denominator has its own formal index but is not
     an affine scalar-product coordinate. Preserve an exactly identical

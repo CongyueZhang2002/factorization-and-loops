@@ -828,3 +828,38 @@ DifferentQuarks source contraction/profile took26.827s. Its exact coefficient
 valuations require at least epsilon^1 for some masters at interior kinematics;
 physical master pole bounds and endpoint requirements are still needed for the
 complete order plan. None of these stage timings is a whole-NLO cold timing.
+
+### Explicit derivative periods and recoil angular integration
+
+The general DE consequence operation derives basis entries3 and5 from physical
+seeds1 and2 without integration constants. Its five regression assertions pass
+in15.573s; actual derivation and shared-library publication took20.176s. All four
+values are exact in epsilon. Explicit GPL Laurent coefficients through epsilon^1
+were subsequently generated in19.775s with the omitted-order audit, saved in
+PhysicalSeedLaurentCoefficients.wl. These are open-interval coefficients; the full
+endpoint order plan is not inferred from them.
+
+Actual Pro18 reviewed pushed a46db76779339b4cd7d5a8896876388f8a2f0d09.
+It confirmed normalization, physical-root handling and equation reuse, and found
+missing dimension/analytic-branch compatibility checks. Both are repaired.
+Fourteen coordinate-reuse assertions pass in15.925s;21 pair-coordinate/Euler
+assertions pass in18.230s, including the tagged complement mass and the internally
+collinear 1/s34 period. Positive denominators now require the shared original
+prescription certificate plus a nonempty initial Euler convergence domain.
+
+PreparePairMeasurementRecoilIntegration connects actual four-particle masters
+to the existing two-body angular solver. It derives the recoil frame and keeps
+propagator descriptors through the momentum change so the common prescription
+proof still sees physical momenta. Converting these prematurely to anonymous
+polynomials caused one rejected attempt; no proof was bypassed. Actual entries4
+and13 have their recoil angles integrated exactly in21.131s, leaving two tagged
+energy integrations. Their records are RecoilAngularIntegral4.wl and13.wl. These
+are intermediate representations, not solved master values.
+
+IdenticalQuarks reduction is running in DifferentialEquationsWithReuse with
+429 verified extra equations. Its initial native reconstruction of74402 functions
+completed in506.069s of backend time; the full supervised stage is still running
+and this is not its total timing. Remaining native dependencies are being closed.
+The owner state is ReductionWithReuseState.json; dynamic CPU affinity reserves
+CPU7 only while the second main Wolfram kernel is active and restores all eight
+otherwise. Preserve this job and inspect its actual state before further launches.

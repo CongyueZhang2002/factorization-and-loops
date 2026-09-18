@@ -29,6 +29,10 @@ ConstructPhaseSpaceMeasurementPushforward[input_Association,coordinates_Associat
      ConstantArray[1,Length[definition["CutIndices"]]],
   cutFamilyFail["StandardUnitPositiveParticleAndMeasurementCutsRequired"]];
  s=FeynCalc`FCI[FeynCalc`SPD[total]]/.top[[5]];e=coordinates["DimensionalRegulator"];
+ If[Cancel[(Lookup[definition,"Dimension",D]/.D->4-2e)-(4-2e)]=!=0,
+  cutFamilyFail["CompatiblePhysicalIntegralDimensionRequired"]];
+ If[Lookup[coordinates,"Dimension",None]=!=4-2e,
+  cutFamilyFail["CompatibleFourMinusTwoEpsilonCoordinatesRequired"]];
  parameters=coordinates["Parameters"];
  If[!MatchQ[parameters,{_Symbol..}],cutFamilyFail["NonemptyPhysicalCoordinateListRequired"]];
  r=Lookup[request,"EliminateVariable",First[parameters]];
@@ -80,6 +84,7 @@ ConstructThreeParticleMeasurementPushforward[input_Association,request_Associati
   selected={},inside,outside,slope,jacobian,e,dimension,normalization,gram,numerator,cutSlots},
  definition=FeynFacet`CreateCutIntegralDefinition[input];
  If[!AssociationQ[definition],cutFamilyFail["TypedMeasurementGeometryRequired",<|"Cause"->definition|>]];
+ If[Lookup[definition,"Dimension",D]=!=D,cutFamilyFail["AmbientDPhaseSpaceRequired"]];
  top=definition["Topology"];particles=Lookup[definition,"FinalMomenta",{}];total=definition["TimeDirection"];
  If[Length[particles]=!=3||Length[top[[3]]]=!=2||Length[top[[4]]]=!=1||total=!=First[top[[4]]]||
    Complement[Range[Length[top[[2]]]],definition["CutIndices"]]=!={}||

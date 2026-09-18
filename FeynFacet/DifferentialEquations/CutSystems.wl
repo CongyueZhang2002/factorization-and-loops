@@ -7,7 +7,39 @@ ReduceMasterDifferentialSystem::usage="ReduceMasterDifferentialSystem[system,red
 
 ReduceEquivalentMasterIntegrals::usage="ReduceEquivalentMasterIntegrals[system,request] identifies exactly equivalent typed cut integrals under allowed loop changes, closes their differential consequences with the existing subset reducer, and updates every original reduction and requested value. It does not claim master minimality.";
 SelectMasterIntegralBasis::usage="SelectMasterIntegralBasis[system,reduction,request] selects a subset of exact candidate integral images as DE coordinates. It prefers nonnegative indices and smaller total denominator powers. Rational sampling chooses a candidate subset; exact inversion and differential compatibility certify its map. This makes no minimality or global nonsingularity claim.";
+ExtendMasterValuesUsingDifferentialEquations::usage="ExtendMasterValuesUsingDifferentialEquations[system,known] derives further exact physical master functions when the derivative of a known master has exactly one still-unknown integral in a declared DE row. known maps basis integrals to exact functions with fixed physical constants. It iterates these algebraic consequences, reports unresolved integrals and retains closed-row compatibility residuals. It does not choose any integration constant, infer endpoint distributions, or claim that untested input functions satisfy the whole DE.";
 Begin["`Private`"];
+ExtendMasterValuesUsingDifferentialEquations[system_Association,known_Association]:=Catch[Module[
+ {basis,variables,matrices,n,values=known,derived={},changed=True,indices,missing,j,value,closed,residuals={}},
+ basis=system["MasterIntegralBasis"];variables=system["KinematicVariables"];
+ matrices=cutConnectionMatrices[system]/.system["DimensionRule"];n=Length[basis];
+ If[!ContainsAll[basis,Keys[known]]||!FreeQ[Values[known],_FeynCalc`GLI|_Integrate|_NIntegrate|_Inactive|_SeriesData|_Failure|_Missing],
+  cutFamilyFail["ExplicitKnownPhysicalMasterFunctionsRequired"]];
+ While[changed,changed=False;indices=Select[Range[n],KeyExistsQ[values,basis[[#]]]&];
+  Do[
+   missing=Select[Range[n],matrices[[axis,i,#]]=!=0&&!KeyExistsQ[values,basis[[#]]]&];
+   If[Length[missing]=!=1,Continue[]];j=First[missing];
+   value=(D[values[basis[[i]]],variables[[axis]]]-Sum[
+     matrices[[axis,i,k]]Lookup[values,basis[[k]],0],{k,Complement[Range[n],{j}]}])/matrices[[axis,i,j]];
+   If[!FreeQ[value,_Derivative|_Integrate|_Inactive|_Failure|_Missing|Indeterminate|_DirectedInfinity],
+    cutFamilyFail["ExplicitDifferentiatedMasterValueRequired",<|"Integral"->basis[[j]]|>]];
+   AssociateTo[values,basis[[j]]->value];changed=True;
+   AppendTo[derived,<|"Integral"->basis[[j]],"DifferentiatedIntegral"->basis[[i]],
+     "Variable"->variables[[axis]],"SolvedCoefficient"->matrices[[axis,i,j]]|>],
+  {axis,Length[variables]},{i,indices}]];
+ indices=Select[Range[n],KeyExistsQ[values,basis[[#]]]&];
+ Do[
+  closed=AllTrue[Range[n],matrices[[axis,i,#]]===0||KeyExistsQ[values,basis[[#]]]&];
+  If[closed,AppendTo[residuals,<|"Integral"->basis[[i]],"Variable"->variables[[axis]],
+   "Residual"->(D[values[basis[[i]]],variables[[axis]]]-Sum[
+      matrices[[axis,i,k]]Lookup[values,basis[[k]],0],{k,n}])|>]],
+ {axis,Length[variables]},{i,indices}];
+ <|"Format"->"FeynFacet-DifferentialConsequencesOfMasterValues","Values"->values,
+  "Derivations"->derived,"UnresolvedMasterIntegrals"->Complement[basis,Keys[values]],
+  "KnownRowCompatibilityResiduals"->residuals,"AllBasisValuesKnown"->(Length[values]===n),
+  "EndpointDistributionsSolved"->False,
+  "Scope"->"Algebraic consequences of the exact DE and supplied physical functions. Every new value follows without integration. Closed-row compatibility residuals are retained for independent verification."|>
+],"CutFamily"];
 cutRetainedIntegralRuleEquations[rules_List]:=DeleteCases[Map[Function[rule,
   With[{parsed=linearIntegralSum[First[rule]-Last[rule]]},
    If[!linearIntegralSumQ[parsed]||Together[parsed["Remainder"]]=!=0,

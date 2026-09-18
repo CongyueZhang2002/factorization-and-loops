@@ -65,5 +65,8 @@ FTTest`FTAssert["partial equation reuse keeps only whole relations with complete
  partial["UnmappedRules"]==={oppositeIntegral->oppositeIntegral}&&partial["Rows"]==={}];
 FTTest`FTAssert["complete equation reuse still rejects missing physical maps",
  FailureQ[FeynFacet`TransformIntegralReductionEquations[{rep},retained]]];
+FTTest`FTAssert["coordinate reuse rejects differently declared dimensions and analytic branches",
+ FailureQ[FeynFacet`MapIntegralFamilyCoordinates[{si},Join[src,<|"Dimension"->6-2ep|>],rep]]&&
+ FailureQ[FeynFacet`MapIntegralFamilyCoordinates[{si},Join[src,<|"BranchPrescription"->"DifferentSheet"|>],rep]]];
 Print["CUT FAMILY NUMERATOR MAP TEST COMPLETE"];
 FTTest`FTReport[];

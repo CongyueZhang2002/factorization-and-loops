@@ -85,5 +85,27 @@ FTTest`FTAssert["explicit seed periods have no coordinates or free boundary cons
 FTTest`FTAssert["the physical seed evaluator rejects dotted cut periods",
  FailureQ[FeynFacet`EvaluatePairMeasurementEulerMaster[definition,
   FeynCalc`GLI[definition["Topology"][[1]],{1,1,1,1,2}],pe]]];
+FTTest`FTAssert["a dimension declaration cannot be silently replaced by four minus two epsilon",
+ FailureQ[FeynFacet`ConstructPhaseSpaceMeasurementPushforward[Join[definition,<|"Dimension"->6-2pe|>],coordinates]]&&
+ FailureQ[FeynFacet`ConstructPhaseSpaceMeasurementPushforward[definition,Join[coordinates,<|"Dimension"->6-2pe|>]]]];
+complementFamily=FeynFacet`CreateCutIntegralDefinition[Join[definition,<|"Topology"->
+ ReplacePart[definition["Topology"],2->Join[definition["Topology"][[2]],
+  FeynCalc`FCI[{FeynCalc`SFAD[pq-pk1],FeynCalc`SFAD[pq-pk1-pk2]}]]]|>]];
+complementIntegral=FeynCalc`GLI[definition["Topology"][[1]],{1,1,1,1,1,1,0}];
+recoilIntegral=FeynCalc`GLI[definition["Topology"][[1]],{1,1,1,1,1,0,1}];
+complementPeriod=FeynFacet`EvaluatePairMeasurementEulerMaster[complementFamily,complementIntegral,pe];
+recoilPeriod=FeynFacet`EvaluatePairMeasurementEulerMaster[complementFamily,recoilIntegral,pe];
+complementExpected=2coordinates["Prefactor"]ps^(-1-3pe)(pz(1-pz))^-pe*
+ Beta[1-2pe,1-pe]Beta[1-2pe,1-3pe]Hypergeometric2F1[1-2pe,1-2pe,2-5pe,pz];
+recoilExpected=complementExpected*Beta[1-2pe,-pe]/Beta[1-2pe,1-pe];
+FTTest`FTAssert["positive complement masses require and obtain the original-product prescription certificate",
+ AssociationQ[complementPeriod]&&AssociationQ[recoilPeriod]&&
+ FeynFacet`RequireOrdinaryPrescriptionCertificate[complementPeriod["OriginalOrdinaryPrescriptionCertificate"],"GenericKinematics"]===True&&
+ FeynFacet`RequireOrdinaryPrescriptionCertificate[recoilPeriod["OriginalOrdinaryPrescriptionCertificate"],"GenericKinematics"]===True];
+FTTest`FTAssert["tagged complement and internal-collinear periods agree with independent beta integration",
+ AssociationQ[complementPeriod]&&AssociationQ[recoilPeriod]&&AllTrue[
+  {{complementPeriod["Value"],complementExpected},{recoilPeriod["Value"],recoilExpected}},
+  Abs[(N[First[#]/.{pe->-1/3,ps->2,pz->2/7},35]-N[Last[#]/.{pe->-1/3,ps->2,pz->2/7},35])/
+    N[Last[#]/.{pe->-1/3,ps->2,pz->2/7},35]]<10^-28&]];
 Print["PAIR PHASE SPACE COORDINATES TEST COMPLETE"];
 FTTest`FTReport[];

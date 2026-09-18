@@ -3,34 +3,54 @@
 BeginPackage["FeynFacet`"];
 IntegrateMasslessInvariantMoments::usage="IntegrateMasslessInvariantMoments[prepared,epsilon] evaluates two-body constants or three-body Laurent monomials in pair invariant masses using the normalized Dirichlet measure. It requires no extra external direction, unit particle cuts, no measurement cut, and the original prescription certificate.";
 EvaluateThreeParticleMeasurementInterior::usage="EvaluateThreeParticleMeasurementInterior[prepared,request] integrates a native polynomial measurement on massless three-body phase space at epsilon=0, or exactly in a supplied DimensionalRegulator through Euler beta/Gauss functions. It includes all real roots whose membership in the declared open integration interval is proved. Root domains requiring partitions are rejected. This is a direct interior check, not endpoint continuation or a replacement for DE construction.";
-EvaluatePairMeasurementEulerMaster::usage="EvaluatePairMeasurementEulerMaster[family,integral,epsilon] evaluates a unit-cut massless four-particle scalar integral when a pair-resolved chart leaves an angle-independent polynomial moment and successive beta/Gauss energy integrals. Positive ordinary propagator powers are currently unsupported. The explicit meromorphic value fixes this integral's physical constants on the open measured interval; it does not infer endpoint distributions.";
+EvaluatePairMeasurementEulerMaster::usage="EvaluatePairMeasurementEulerMaster[family,integral,epsilon] evaluates a unit-cut massless four-particle scalar integral when a pair-resolved chart leaves angle-independent successive beta/Gauss energy integrals. Positive ordinary propagator powers require the shared original-product prescription certificate and a nonempty initial Euler convergence domain. The explicit meromorphic value fixes this integral's physical constants on the open measured interval; it does not infer endpoint distributions.";
+PreparePairMeasurementRecoilIntegration::usage="PreparePairMeasurementRecoilIntegration[family,integral,epsilon] integrates the recoil angles of a unit-cut four-particle pair-measurement master with the shared two-body angular solver. It certifies the original ordinary prescription, derives the recoil frame from actual particle labels and restores the exact dimensional measure. The resulting two-energy integral is an intermediate representation, not a solved master or endpoint distribution.";
 Begin["`Private`"];
-EvaluatePairMeasurementEulerMaster[family_Association,integral_FeynCalc`GLI,e_Symbol]:=Catch[Module[
- {definition,top,powers,slots,ordinary,pure,cuts,particles,total,s,parameters,r,x,y,a,b,
-  orders,coordinates,push,branch,root,moment,inner,outer,value,normalization,domain,failures={}},
+pairMeasurementIntegralCharts[family_,integral_,e_]:=Module[
+ {definition,top,powers,slots,ordinary,pure,cuts,particles,total,s,parameters,orders,coordinates,push,branch,charts={}},
  definition=FeynFacet`CreateCutIntegralDefinition[family];
  If[!AssociationQ[definition],Throw[definition,"CutFamily"]];
  top=definition["Topology"];powers=integral[[2]];slots=definition["CutIndices"];
  ordinary=Complement[Range[Length[top[[2]]]],slots];particles=Lookup[definition,"FinalMomenta",{}];
  If[integral[[1]]=!=First[top]||Length[powers]=!=Length[top[[2]]]||!VectorQ[powers,IntegerQ]||
    Length[particles]=!=4||Length[definition["ParticleCutIndices"]]=!=4||
-   Length[definition["MeasurementCutIndices"]]=!=1||powers[[slots]]=!=ConstantArray[1,Length[slots]]||
-   !AllTrue[powers[[ordinary]],#<=0&],
-  cutFamilyFail["UnitFourParticleCutsAndPolynomialMomentRequired"]];
+   Length[definition["MeasurementCutIndices"]]=!=1||powers[[slots]]=!=ConstantArray[1,Length[slots]],
+  cutFamilyFail["UnitFourParticleMeasurementMasterRequired"]];
  total=definition["TimeDirection"];s=FeynCalc`FCI[FeynCalc`SPD[total]]/.top[[5]];
  cuts=Map[Join[#,<|"Index"->First@FirstPosition[slots,#["Index"]]|>]&,definition["Cuts"]];
  pure=FeynFacet`CreateCutIntegralDefinition[Join[definition,<|
   "Topology"->ReplacePart[top,2->top[[2,slots]]],"Cuts"->cuts,"MeasurementNumerator"->1|>]];
  If[!AssociationQ[pure],Throw[pure,"CutFamily"]];
- parameters=Table[Unique["pairEuler$"],{5}];{r,x,y,a,b}=parameters;
+ parameters=Table[Unique["pairIntegration$"],{5}];
  orders=Map[Join[#,Complement[Range[4],#]]&,Permutations[Range[4],{2}]];
  Do[
   coordinates=FeynFacet`MasslessPairPhaseSpaceCoordinates[particles[[order]],total,s,e,parameters];
   push=FeynFacet`ConstructPhaseSpaceMeasurementPushforward[pure,coordinates];
-  If[!AssociationQ[push]||Length[push["Branches"]]=!=1,AppendTo[failures,push];Continue[]];
-  branch=First[push["Branches"]];root=branch["Root"];domain=push["Domain"];
-  If[!FreeQ[root,Alternatives@@{x,y,a,b}],Continue[]];
-  moment=Cancel[Together[FullSimplify[branch["Jacobian"],Assumptions->domain]Times@@MapThread[Power,
+  If[!AssociationQ[push]||Length[push["Branches"]]=!=1,Continue[]];
+  branch=First[push["Branches"]];
+  If[!FreeQ[branch["Root"],Alternatives@@Rest[parameters]],Continue[]];
+  AppendTo[charts,<|"Coordinates"->coordinates,"Pushforward"->push,"Branch"->branch,"ParticleOrder"->order|>],
+ {order,orders}];
+ If[charts==={},cutFamilyFail["IndependentPairAngleMeasurementChartRequired"]];
+ <|"Definition"->definition,"PureCutDefinition"->pure,"OrdinaryIndices"->ordinary,
+   "Scale"->s,"Parameters"->parameters,"Charts"->charts|>
+];
+EvaluatePairMeasurementEulerMaster[family_Association,integral_FeynCalc`GLI,e_Symbol]:=Catch[Module[
+ {data,definition,powers,ordinary,pure,s,parameters,r,x,y,a,b,coordinates,push,branch,root,
+  moment,inner,outer,value,normalization,domain,failures={},certificate,convergence,realRegulator},
+ data=pairMeasurementIntegralCharts[family,integral,e];
+ {definition,pure,ordinary,s,parameters}=Lookup[data,{"Definition","PureCutDefinition","OrdinaryIndices","Scale","Parameters"}];
+ powers=integral[[2]];{r,x,y,a,b}=parameters;
+ certificate=If[AllTrue[powers[[ordinary]],#<=0&],
+  <|"Status"->"NoOrdinaryDenominators"|>,
+  FeynFacet`CertifyOrdinaryPrescriptionRemoval[definition,integral,
+    <|"ExternalKinematicConditions"->definition["Assumptions"],"DimensionalRegulator"->e|>]];
+ If[!AssociationQ[certificate]||FeynFacet`RequireOrdinaryPrescriptionCertificate[certificate,"GenericKinematics"]=!=True,
+  cutFamilyFail["OriginalPairEulerPrescriptionCertificateRequired",<|"Cause"->certificate|>]];
+ Do[
+  {coordinates,push,branch}=Lookup[chart,{"Coordinates","Pushforward","Branch"}];
+  root=branch["Root"];domain=push["Domain"];
+  moment=Cancel[Together[branch["Jacobian"]Times@@MapThread[Power,
     {definition["InversePropagators"][[ordinary]],-powers[[ordinary]]}]/.branch["ScalarProductRules"]/.D->4-2e]];
   If[!FreeQ[moment,Alternatives[a,b,_FeynCalc`Pair,_FeynCalc`Momentum]],Continue[]];
   inner=FeynFacet`IntegrateUnivariateEulerProduct[moment,{{y,1-2e},{1-y,-e}},{y,0,1},domain];
@@ -38,24 +58,80 @@ EvaluatePairMeasurementEulerMaster[family_Association,integral_FeynCalc`GLI,e_Sy
   outer=FeynFacet`IntegrateUnivariateEulerProduct[inner["Value"],
    {{x,1-2e},{1-x,2-3e},{1-root x,-2+2e}},{x,0,1},domain];
   If[!AssociationQ[outer],AppendTo[failures,outer];Continue[]];
+  convergence=e<0&&And@@(#> -1&/@Join[inner["EndpointPowers"],outer["EndpointPowers"]]);
+  realRegulator=Unique["realEulerRegulator$"];
+  If[!TrueQ[With[{v=realRegulator,c=convergence/.e->realRegulator},Resolve[Exists[{v},c],Reals]]],
+   cutFamilyFail["CommonPairEulerConvergenceDomainRequired"]];
   normalization=(pure["MeasurePrefactor"]/(2Pi)^(4-3D))/.D->4-2e;
   value=normalization coordinates["Prefactor"]s^(2-3e)root^-e(1-root)^-e outer["Value"];
   If[!FreeQ[value,Alternatives@@parameters]||!FreeQ[value,_Integrate|_Failure|_Missing],Continue[]];
   Return[<|"Value"->value,"AnalyticExpression"->value,"ExactInRegulator"->True,
    "DimensionalRegulator"->e,"Integral"->integral,"Variable"->push["Variable"],
    "Domain"->definition["Assumptions"]&&0<push["Variable"]<1,
-   "Method"->"PairResolvedEulerIntegral","ParticleOrder"->order,"MeasurementRoot"->root,
+   "Method"->"PairResolvedEulerIntegral","ParticleOrder"->chart["ParticleOrder"],"MeasurementRoot"->root,
    "ConvergenceEndpointPowers"->{inner["EndpointPowers"],outer["EndpointPowers"]},
-   "NoOrdinaryCausalDenominators"->True,"PhysicalBoundaryConstantsFixed"->True,
+   "NoOrdinaryCausalDenominators"->AllTrue[powers[[ordinary]],#<=0&],
+   "OriginalOrdinaryPrescriptionCertificate"->certificate,"InitialRealRegulatorDomain"->convergence,
+   "PhysicalBoundaryConstantsFixed"->True,
    "EndpointDistributionIncluded"->False,
    "Definition"->"The labeled physical phase-space period, initially convergent and continued meromorphically in epsilon; no measured coefficient or free DE constant is inserted."|>,Module],
- {order,orders}];
+ {chart,data["Charts"]}];
  cutFamilyFail["PairResolvedPolynomialEulerIntegralUnsupported",<|"Causes"->DeleteDuplicates[failures]|>]
+],"CutFamily"];
+PreparePairMeasurementRecoilIntegration[family_Association,integral_FeynCalc`GLI,e_Symbol]:=Catch[Module[
+ {data,definition,ordinary,chart,coordinates,push,branch,parameters,r,x,y,a,b,s,particles,total,order,
+  rr,pa,pb,l,lb,routing,kin,conditions,x2,rho,kernel,child,prepared,decomposition,angular,
+  certificate,normalization,density,mean,scale},
+ data=pairMeasurementIntegralCharts[family,integral,e];
+ {definition,ordinary,s,parameters}=Lookup[data,{"Definition","OrdinaryIndices","Scale","Parameters"}];
+ chart=First[data["Charts"]];{coordinates,push,branch,order}=Lookup[chart,{"Coordinates","Pushforward","Branch","ParticleOrder"}];
+ {r,x,y,a,b}=parameters;particles=definition["FinalMomenta"];total=definition["TimeDirection"];
+ certificate=FeynFacet`CertifyOrdinaryPrescriptionRemoval[definition,integral,
+  <|"ExternalKinematicConditions"->definition["Assumptions"],"DimensionalRegulator"->e|>];
+ If[!AssociationQ[certificate]||FeynFacet`RequireOrdinaryPrescriptionCertificate[certificate,"GenericKinematics"]=!=True,
+  cutFamilyFail["OriginalFourParticlePrescriptionCertificateRequired",<|"Cause"->certificate|>]];
+ {rr,pa,pb,l,lb}=Table[Unique["recoilMomentum$"],{5}];
+ x2=(1-x)y/(1-r x);rho=(1-x)(1-y);
+ kin={FeynCalc`SPD[pa]->0,FeynCalc`SPD[pb]->0,FeynCalc`SPD[rr]->s rho,
+  FeynCalc`SPD[pa,pb]->s r x x2/2,FeynCalc`SPD[rr,pa]->s x(1-r x2)/2,
+  FeynCalc`SPD[rr,pb]->s x2(1-r x)/2}/.branch["EliminationRule"];
+ conditions=definition["Assumptions"]&&0<x<1&&0<y<1&&0<branch["Root"]<1;
+ routing=Append[Thread[particles[[order]]->{pa,pb,l,rr-l}],total->rr+pa+pb];
+ (* Preserve the ordinary propagator descriptors through the frame change.
+    Converting a shifted propagator prematurely to a generic polynomial
+    hides its physical momentum from the shared prescription proof. *)
+ kernel=Times@@Table[If[integral[[2,j]]>0,
+   definition["Topology"][[2,j]]^integral[[2,j]],
+   definition["InversePropagators"][[j]]^(-integral[[2,j]])],{j,ordinary}];
+ kernel=FeynCalc`FCI[kernel/.routing];
+ child=FeynFacet`CreateMasslessPhaseSpaceDefinition[<|"Name"->PairRecoilIntegral,
+  "FinalMomenta"->{l,lb},"TotalMomentum"->rr,"ExternalMomenta"->{rr,pa,pb},
+  "KinematicRules"->kin,"Assumptions"->conditions|>];
+ If[!AssociationQ[child],Throw[child,"CutFamily"]];
+ prepared=FeynFacet`PrepareCutIntegrand[kernel,child,<|"ExternalKinematicConditions"->conditions,
+  "CancelDenominators"->False|>];
+ If[!AssociationQ[prepared],cutFamilyFail["RecoilIntegrandPreparationFailed",<|"Cause"->prepared|>]];
+ decomposition=FeynFacet`DecomposeMeasuredCutIntegrand[prepared];
+ If[!AssociationQ[decomposition],cutFamilyFail["RecoilIntegralDecompositionFailed",<|"Cause"->decomposition|>]];
+ angular=FeynFacet`EvaluateTwoBodyIntegralCombination[decomposition,<|"DimensionalRegulator"->e|>];
+ If[!AssociationQ[angular],cutFamilyFail["RecoilAngularIntegralUnsupported",<|"Cause"->angular|>]];
+ mean=angular["Values"]["Scalar"]/FeynFacet`MasslessPhaseSpaceVolume[2,s rho,e];
+ normalization=(data["PureCutDefinition"]["MeasurePrefactor"]/(2Pi)^(4-3D))/.D->4-2e;
+ density=normalization branch["Jacobian"](coordinates["RadialDensity"]/.branch["EliminationRule"])mean;
+ <|"Format"->"FeynFacet-PairMeasurementRecoilIntegral","Integral"->integral,"Definition"->definition,
+  "DimensionalRegulator"->e,"Variable"->push["Variable"],"IntegrationVariables"->{x,y},
+  "Density"->density,"NormalizedAngularValue"->mean,"Domain"->conditions,"ParticleOrder"->order,
+  "Coordinates"->coordinates,"MeasurementRoot"->branch["Root"],"RecoilAngularIntegral"->angular,
+  "OriginalOrdinaryPrescriptionCertificate"->certificate,
+  "RemainingIntegrationDimension"->2,"PhysicalBoundaryConstantsFixed"->False,
+  "EndpointDistributionIncluded"->False,
+  "Scope"->"Exact recoil-angle integration of the original unit-cut period. Tagged energy integrations and all singular measurement-endpoint limits remain."|>
 ],"CutFamily"];
 invariantPhaseSpaceData[prepared_]:=Module[{d,top,particles,total,s,rule,nu},
  If[Lookup[prepared,"Format",None]=!="FeynFacet-MeasuredCutIntegrand",
    cutFamilyFail["PreparedInvariantPhaseSpaceRequired"]];
  d=prepared["SourceDefinition"];top=d["Topology"];particles=Lookup[d,"FinalMomenta",{}];
+ If[Lookup[d,"Dimension",D]=!=D,cutFamilyFail["AmbientDPhaseSpaceRequired"]];
  total=d["TimeDirection"];
  If[!MemberQ[{2,3},Length[particles]]||Length[top[[4]]]=!=1||total=!=First[top[[4]]]||
    Length[d["ParticleCutIndices"]]=!=Length[particles]||!AllTrue[prepared["CutPowers"],#===1&],
