@@ -123,6 +123,13 @@ and support `0<G/F<1`, inserting `F^(N+1)` gives
     integral dz z^p (1-z)^q J_R,N(z)
       = integral dPhi R F^(N-p-q) G^p (F-G)^q,   N >= p+q.
 
+For an original negative slope, the code proves its sign and uses
+`Fplus=sign(F)*F`, `Gplus=sign(F)*G` in these insertions. The original family
+and its cut polynomial stay unchanged: a unit delta is invariant under a
+sign reversal. This does not authorize the same replacement for dotted cuts.
+Automatic chart selection identifies the measured particle pair by an exact
+identity on the particle cuts; it does not assume the first two labels.
+
 The factor of `F` compensates the delta Jacobian. The operation retains the
 same labeled particle measure, ordinary prescriptions and dimension on both
 sides. It checks the support in compatible physical coordinates and uses the

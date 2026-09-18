@@ -1,7 +1,8 @@
 (* Moments of polynomial measurement cuts. The measured and unmeasured sides
    retain the same labeled particle measure. No physical constants are supplied. *)
 BeginPackage["FeynFacet`"];
-ConstructPolynomialMeasurementMoment::usage="ConstructPolynomialMeasurementMoment[family,integral,coordinates,{p,q},N,request] constructs the exact moment with weight z^p (1-z)^q of the integral with numerator F^(N+1), for a unit cut z F-G and N>=p+q. It proves positive F and support in (0,1) in compatible physical coordinates, retains the common compact-cut convergence proof, and returns measured and unmeasured GLI combinations with unchanged particle measure. Request supplies ExternalKinematicConditions and DimensionalRegulator. It does not reduce the inserted integrals, evaluate the moment, determine epsilon orders or fix DE constants.";
+ConstructPolynomialMeasurementMoment::usage="ConstructPolynomialMeasurementMoment[family,integral,coordinates,{p,q},N,request] constructs the exact moment with weight z^p (1-z)^q of the integral with numerator |F|^(N+1), for a unit cut z F-G with proved fixed nonzero slope sign and N>=p+q. It verifies support in (0,1), retains the common compact-cut convergence proof, and returns measured and unmeasured GLI combinations with unchanged particle measure. Automatic coordinates select a supported massless four-particle pair chart from the actual cut. Request supplies ExternalKinematicConditions and DimensionalRegulator. It does not evaluate the moment, determine epsilon orders or fix DE constants.";
+
 Begin["`Private`"];
 ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  Automatic,degrees:{_Integer,_Integer},n_Integer,request_Association]:=Catch[Module[{e,data},
@@ -14,7 +15,7 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  coordinates_Association,{p_Integer,q_Integer},n_Integer,request_Association]:=Catch[Module[
  {family,top,powers,slots,slot,z,e,conditions,keep,cuts,pure,push,polynomial,f,g,
   rules,domain,slope,observable,proof,certificate,unmeasured,name,measuredValue,
-  unmeasuredValue,insertion,parameterVariables,nonempty,baseRequest,normalization},
+  unmeasuredValue,insertion,parameterVariables,nonempty,baseRequest,normalization,checks,slopeSign},
  If[Min[p,q,n]<0||n<p+q,cutFamilyFail["NonnegativePolynomialMomentDegreesRequired"]];
  family=FeynFacet`CreateCutIntegralFamily[input];
  If[!AssociationQ[family],Throw[family,"CutFamily"]];
@@ -58,10 +59,18 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  rules=coordinates["ScalarProductRules"];domain=conditions&&coordinates["PhysicalDomain"];
  slope=Cancel[Together[f/.rules]];observable=Cancel[Together[(g/f)/.rules]];
  proof[claim_]:=TrueQ[TimeConstrained[FullSimplify[claim,Assumptions->domain],10,False]];
- If[!FreeQ[{slope,observable},_FeynCalc`Pair|_FeynCalc`Momentum]||
-   !proof[slope>0&&Element[slope,Reals]&&0<observable<1]||
-   !proof[family["Assumptions"]/.z->observable],
-  cutFamilyFail["PositiveMeasurementSlopeAndFullSupportRequired"]];
+ slopeSign=Which[proof[slope>0&&Element[slope,Reals]],1,
+   proof[slope<0&&Element[slope,Reals]],-1,True,0];
+ checks=<|"AllScalarProductsReplaced"->FreeQ[{slope,observable},_FeynCalc`Pair|_FeynCalc`Momentum],
+   "FixedNonzeroRealSlopeSign"->MemberQ[{1,-1},slopeSign],
+   "FullObservableSupport"->proof[0<observable<1],
+   "OriginalDomainCovered"->proof[family["Assumptions"]/.z->observable]|>;
+ If[!AllTrue[Values[checks],TrueQ],cutFamilyFail["PositiveMeasurementSlopeAndFullSupportRequired",
+   <|"Checks"->checks,"Slope"->slope,"Observable"->observable,"ChartDomain"->domain|>]];
+ (* Unit delta cuts are unchanged by M -> -M. Keep the original family,
+    but insert the derived positive slope |F| so no cut-orientation sign is
+    lost in the unmeasured moment. Dotted cuts were rejected above. *)
+ f=slopeSign f;g=slopeSign g;
  (* Use the existing parent Gram-domination proof also when no ordinary
     denominator is present: the measurement Jacobian still needs a proof. *)
  certificate=Catch[polynomialMeasuredPrescriptionCertificate[family,integral,request],"EpsilonOrders"];
@@ -85,7 +94,9 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
  <|"Format"->"FeynFacet-PolynomialMeasurementMoment","Variable"->z,
    "DimensionalRegulator"->e,"Interval"->{0,1},"Weight"->z^p(1-z)^q,
    "Degrees"->{p,q},"JacobianInsertionDegree"->n+1,"SourceIntegral"->integral,
-   "MeasurementPolynomial"->polynomial,"MeasurementSlope"->f,"ObservableNumerator"->g,
+   "MeasurementPolynomial"->polynomial,"MeasurementSlope"->slopeSign f,
+   "ObservableNumerator"->slopeSign g,"AbsoluteMeasurementSlope"->f,
+   "OrientedObservableNumerator"->g,"MeasurementSlopeSign"->slopeSign,
    "MeasuredFamily"->family,"MeasuredIntegrals"->measuredValue,
    "UnmeasuredFamily"->unmeasured,"UnmeasuredIntegrals"->unmeasuredValue,
    "SourceToUnmeasuredSlots"->AssociationThread[keep,Range[Length[keep]]],
@@ -97,7 +108,7 @@ ConstructPolynomialMeasurementMoment[input_Association,integral_FeynCalc`GLI,
    "MeasureUnchanged"->True,"OriginalParticleLabelsRetained"->True,
    "MomentEvaluated"->False,"InsertedIntegralsReduced"->False,
    "PhysicalBoundaryConstantsFixed"->False,"EndpointCoefficientsComputed"->False,
-   "Identity"->"Integral_0^1 dz z^p (1-z)^q J_R,N = Integral dPhi R F^(N-p-q) G^p (F-G)^q; J_R,N has numerator R F^(N+1) and the original cut delta(z F-G)."|>
+   "Identity"->"For sigma=sign(F), Fplus=sigma F, Gplus=sigma G: Integral_0^1 dz z^p (1-z)^q J_R,N = Integral dPhi R Fplus^(N-p-q) Gplus^p (Fplus-Gplus)^q. J_R,N has numerator R Fplus^(N+1) and the unchanged original unit cut delta(z F-G)."|>
 ],"CutFamily"];
 ConstructPolynomialMeasurementMoment[___]:=Failure["TypedPolynomialMomentArgumentsRequired",<||>];
 End[];EndPackage[];

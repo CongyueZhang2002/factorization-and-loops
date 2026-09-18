@@ -78,4 +78,15 @@ otherPair=FeynFacet`ConstructPolynomialMeasurementMoment[otherPairFamily,
  ReplacePart[master,1->otherPairFamily["Topology"][[1]]],Automatic,{0,0},0,request];
 FTTest`FTAssert["the chart is selected from the actual measured pair rather than its position",
  AssociationQ[otherPair]&&otherPair["PhysicalChart"]["ResolvedPair"]==={k1,k3}];
+slot=First[family["MeasurementCutIndices"]];
+negative=FeynFacet`CreateCutIntegralFamily[Join[family,<|"Topology"->ReplacePart[family["Topology"],
+  {2,slot}->FeynCalc`FeynAmpDenominator[FeynCalc`GenericPropagatorDenominator[
+    -family["InversePropagators"][[slot]],{1,1}]]],
+  "MeasurementDefinitions"->(Join[#,<|"CutPolynomial"->-#["CutPolynomial"]|>]&/@family["MeasurementDefinitions"])|>]];
+negativeMoment=FeynFacet`ConstructPolynomialMeasurementMoment[negative,master,Automatic,{0,0},0,request];
+FTTest`FTAssert["reversing a unit measurement cut retains the absolute Jacobian and the original family",
+ AssociationQ[negativeMoment]&&negativeMoment["MeasurementSlopeSign"]===-1&&
+ negativeMoment["AbsoluteMeasurementSlope"]===moment["AbsoluteMeasurementSlope"]&&
+ negativeMoment["UnmeasuredIntegrals"]===moment["UnmeasuredIntegrals"]&&
+ negativeMoment["MeasuredFamily"]["InversePropagators"][[slot]]===-family["InversePropagators"][[slot]]];
 Print["POLYNOMIAL MEASUREMENT MOMENTS TEST COMPLETE"];FTTest`FTReport[];
