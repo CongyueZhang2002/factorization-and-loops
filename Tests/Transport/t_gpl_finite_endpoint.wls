@@ -54,4 +54,16 @@ FTAssert["a moving letter meeting the tangential endpoint needs resolution",
  FailureQ[FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{-x},1/2],{x,0}]]];
 FTAssert["a singular prefactor requires a letter jet rather than its limit",
  FailureQ[FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{-1/x},1/2]/x,{x,0}]]];
+FTAssert["assumed vanishing of a leading coefficient changes the moving-letter valuation",
+ FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{2+(c-d)/x},1/2],{x,0},
+  "Assumptions"->c==d]===FeynFacetSolution`G[{2},1/2]];
+FTAssert["an unresolved leading coefficient cannot be treated as nonzero generically",
+ FailureQ[FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{2+c/x},1/2],{x,0}]]];
+FTAssert["symmetric weight-two words are products, not independent constants",
+ Simplify[FeynFacetSolution`ReduceGPLWeightOne[FeynFacetSolution`ReduceGPLWeightTwo[
+  FeynFacetSolution`G[{1-I,2},1]+FeynFacetSolution`G[{2,1-I},1]+
+  FeynFacetSolution`G[{1+I,2},1]+FeynFacetSolution`G[{2,1+I},1]]]-Log[2]^2]===0];
+FTAssert["a repeated letter retains its shuffle multiplicity",
+ FeynFacetSolution`ReduceGPLWeightTwo[FeynFacetSolution`G[{-2,-2},x]]===
+ FeynFacetSolution`G[{-2},x]^2/2];
 Print["FINITE GPL ENDPOINT TEST COMPLETE"];FTReport[];

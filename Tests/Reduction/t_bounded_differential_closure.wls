@@ -41,5 +41,14 @@ failed=FeynFacet`ConstructCutDifferentialSystem[{qf},{qi},{qz},Join[request,
 FTTest`FTAssert["an insufficient bounded search preserves its derivative frontier and refuses promotion",
  MatchQ[failed,Failure["DerivativeCandidateSpanNotEstablished",_Association]]&&
  !failed[[2]]["ProvisionalIntegralsPromoted"]&&failed[[2]]["InputBasis"]==={qi}];
+physical=Block[{FeynFacet`SelectMasterIntegralBasis=
+ Function[Null,Failure["UnexpectedUnitCutReselection",<||>],HoldAll]},
+ FeynFacet`PrepareMeasuredContributionPhysicalBasis[
+  <|"WorkDirectory"->qwork<>"/Physical","Assembly"-><|"Scale"->qs|>|>,
+  <|"DifferentialSystem"->qsystem,"IntegralDecomposition"-><|"Targets"->{qi}|>|>]];
+FTTest`FTAssert["an already physical unit-cut basis needs no dense candidate reselection",
+ AssociationQ[physical]&&physical["PhysicalBasisPreparation"]==="RetainedExistingUnitCutBasis"&&
+ physical["DifferentialSystem"]["MasterIntegralBasis"]==={qi}&&
+ physical["DifferentialSystem"]["ConnectionMatrices"]===qsystem["ConnectionMatrices"]];
 DeleteDirectory[qwork,DeleteContents->True];
 Print["BOUNDED DIFFERENTIAL CLOSURE TEST COMPLETE"];FTTest`FTReport[];

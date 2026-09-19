@@ -46,7 +46,7 @@ gplAffinePathScale[data_,assumptions_,mode_]:=Module[{vars,base,path,t,delta,sca
 ];
 Options[FeynFacetSolution`ConvertMasterIntegralSolutionToGPL]=Join[
  Options[FeynFacetSolution`IntegrateGPL],{"FunctionTimeLimit"->15,"Verbose"->False,
-  "RescalePathParameter"->Automatic}];
+  "RescalePathParameter"->Automatic,"PriorSolution"->None}];
 FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPattern[]]:=
  Module[
  {started=AbsoluteTime[],limits,fnSeconds=OptionValue["FunctionTimeLimit"],verbose=OptionValue["Verbose"],
@@ -54,7 +54,9 @@ FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPat
   converted=<||>,reused=0,repeated=0,integrated=0,failures={},closure,needed,parameter=Unique["gplParameter"],
   upper=FeynFacetSolution`s,expandKernel,integrateBody,body,dependencies,value,options,result,
   assumptions=OptionValue["Assumptions"],memoSettings,functionStarted,
-  rescale=OptionValue["RescalePathParameter"],pathScale},
+  rescale=OptionValue["RescalePathParameter"],pathScale,
+  prior=OptionValue["PriorSolution"],priorBodies=<||>,priorReused=0,
+  priorKernels,priorIntegrals,priorExpressions,priorParameter,expandPriorKernel},
  limits=OptionValue["TimeLimit"];
  options=FilterRules[{"Assumptions"->assumptions,"MaxExpressionLeaves"->OptionValue["MaxExpressionLeaves"],
   "MaxTerms"->OptionValue["MaxTerms"],"MaxWeight"->OptionValue["MaxWeight"],
@@ -62,7 +64,9 @@ FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPat
   "MaxEndpointExpansionOrder"->OptionValue["MaxEndpointExpansionOrder"]},Options[FeynFacetSolution`IntegrateGPL]];
  memoSettings={assumptions,OptionValue["MaxExpressionLeaves"],OptionValue["MaxTerms"],
   OptionValue["MaxWeight"],OptionValue["MaxPoleDegree"],OptionValue["MaxEndpointExpansionOrder"]};
- integrateBody[z_]:=Module[{v},integrated++;
+ integrateBody[z_]:=Module[{v},
+  If[KeyExistsQ[priorBodies,z],priorReused++;Return[priorBodies[z]]];
+  integrated++;
   v=FeynFacetSolution`IntegrateGPL[(z/.parameter->parameter/pathScale)/pathScale,
     {parameter,0,pathScale upper},"TimeLimit"->fnSeconds,Sequence@@options];
   If[!FailureQ[v],With[{answer=v},integrateBody[z]:=(repeated++;answer)]];v];
@@ -74,6 +78,30 @@ FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPat
    numericalFailure["InvalidGPLConversionInputOrOptions"]];
   validateFiniteDependencies[data];closure=gplDefinitionClosure[data];needed=closure["IntegralIndices"];
   pathScale=gplAffinePathScale[data,assumptions,rescale];
+  If[prior=!=None,
+   If[!AssociationQ[prior]||!gplRepresentationCurrentQ[prior]||
+     !gplAssumptionsImpliedQ[Lookup[prior["GPLRepresentation"],"Assumptions",True],assumptions]||
+     KeyTake[prior,{"KinematicVariables","BasePoint","Path","AnalyticDomain","BranchPrescription"}]=!=
+      KeyTake[data,{"KinematicVariables","BasePoint","Path","AnalyticDomain","BranchPrescription"}],
+    numericalFailure["CompatiblePriorGPLSolutionRequired"]];
+   priorKernels=prior["KernelDefinitions"];priorIntegrals=prior["IntegralDefinitions"];
+   priorExpressions=prior["GPLRepresentation"]["IntegralExpressions"];
+   priorParameter=prior["GPLRepresentation"]["Parameter"];
+   expandPriorKernel[i_Integer]:=expandPriorKernel[i]=Module[{z},
+    z=priorKernels[[i,"Expression"]]/.priorKernels[[i,"Parameter"]]->parameter;
+    z/.FeynFacetSolution`K[j_Integer,_]:>expandPriorKernel[j]];
+   (* Compare actual integrands after substituting their already explicit
+      lower-weight primitives. Kernel IDs may change when the DE order grows;
+      neither IDs nor an unverified matching prefix justify reuse. *)
+   Do[
+    dependencies=DeleteDuplicates[Cases[priorIntegrals[[i,"Integrand"]],
+      FeynFacetSolution`F[j_Integer,_]:>j,{0,Infinity}]];
+    If[!AllTrue[dependencies,KeyExistsQ[priorExpressions,#]&],Continue[]];
+    body=priorIntegrals[[i,"Integrand"]]/.priorIntegrals[[i,"IntegrationVariable"]]->parameter;
+    body=body/.{FeynFacetSolution`K[j_Integer,_]:>expandPriorKernel[j],
+      FeynFacetSolution`F[j_Integer,_]:>(priorExpressions[j]/.priorParameter->parameter)};
+    AssociateTo[priorBodies,body->(priorExpressions[i]/.priorParameter->upper)],
+    {i,Keys[priorExpressions]}]];
   If[gplRepresentationCurrentQ[data]&&
     gplAssumptionsImpliedQ[Lookup[data["GPLRepresentation"],"Assumptions",True],assumptions],
    converted=KeyTake[data["GPLRepresentation"]["IntegralExpressions"],needed];
@@ -111,11 +139,12 @@ FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPat
    "BranchConvention"->"Continuous branches along the stored ordinary-point path, fixed by the lower-end logarithms. No independent deformation of auxiliary integrals.",
    "CoefficientPrefactors"->"Original explicit prefactors are retained; GPL integrals alone do not classify those prefactors.",
    "ConversionSeconds"->AbsoluteTime[]-started,"ReusedIntegralExpressions"->reused,
+   "PriorSolutionIntegrandsReused"->priorReused,
    "RepeatedIntegrandsReused"->repeated,"DistinctIntegrandsAttempted"->integrated,
    "GPLCount"->Length[DeleteDuplicates[Cases[Values[converted],_FeynFacetSolution`G,Infinity]]],
    "MaximumGPLWeight"->Max[Append[Cases[Values[converted],FeynFacetSolution`G[w_List,_]:>Length[w],Infinity],0]]
   |>|>],"NumericalSolution"]];
- Clear[expandKernel,integrateBody];result
+ Clear[expandKernel,expandPriorKernel,integrateBody];result
 ];
 gplRepresentationCurrentQ[data_]:=Module[{rep=Lookup[data,"GPLRepresentation",None]},
  AssociationQ[rep]&&Lookup[rep,"DataType",None]==="FiniteGPLRepresentation"&&

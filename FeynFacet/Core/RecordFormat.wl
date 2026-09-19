@@ -58,13 +58,18 @@ recordSymbols[value_]:=Join[
  Cases[value,s_Symbol/;Context[Unevaluated[s]]=!="System`":>HoldComplete[s],
   {0,Infinity},Heads->True],
  Flatten[recordSymbols/@Cases[value,a_Association:>Keys[a],{0,Infinity},Heads->True],1]];
-replaceRecordSymbols[value_,rules_]:=Module[{result=value,positions,association,mapped},
+replaceRecordSymbols[value_,rules_]:=Module[{result=value,positions,association,mapped,replacements},
  positions=Reverse@SortBy[Position[result,_Association,{0,Infinity},Heads->True],Length];
+ (* Updates at equal depth have disjoint subtrees. Apply them together so
+    a large record is copied once per nesting depth, rather than once per
+    coefficient association. Deeper keys are still restored before parents. *)
  Do[
-  association=If[position==={},result,Extract[result,position]];
-  mapped=Association@KeyValueMap[Function[{key,item},replaceRecordSymbols[key,rules]->item],association];
-  result=ReplacePart[result,position->mapped],
- {position,positions}];
+  replacements=Table[
+   association=If[position==={},result,Extract[result,position]];
+   mapped=Association@KeyValueMap[Function[{key,item},replaceRecordSymbols[key,rules]->item],association];
+   position->mapped,{position,level}];
+  result=ReplacePart[result,replacements],
+ {level,SplitBy[positions,Length]}];
  result/.rules
 ];
 (* InputForm abbreviations such as I are not structurally exact under HoldComplete.

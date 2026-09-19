@@ -171,7 +171,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   initial=Lookup[request,"InitialReduction",None],definition,initialRelations,restrictedTargets,restricted,
    eliminateKnown=Lookup[request,"EliminateKnownRules",False],knownRequest,suppliedKnown,
    candidateBasis=Lookup[request,"CandidateMasterBasis",None],accepted,priorRules,composed,
-   basisRequest,acceptedClosure},
+   basisRequest,acceptedClosure,initialClosure,parsed},
  If[!DuplicateFreeQ[parameters]||!StringQ[Lookup[request,"WorkingDirectory",None]],
   cutFamilyFail["DistinctDEParametersAndWorkingDirectoryRequired"]];
  records=FeynFacet`CreateCutIntegralFamily/@families;
@@ -219,10 +219,12 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   initialRelations=cutRetainedIntegralRuleEquations[initial["Rules"]];
   AssociateTo[baseRequest,"ExtraEquations"->Join[Lookup[baseRequest,"ExtraEquations",{}],initialRelations]];
   reduction=initial;
-  Print["Resuming differential closure from ",Length[ibpCloseReductionRules[initial["Rules"],allTargets]["Masters"]]," spanning integrals and ",
+  initialClosure=ibpCloseReductionRules[initial["Rules"],allTargets];
+  Print["Resuming differential closure from ",Length[initialClosure["Masters"]]," spanning integrals and ",
    Length[initialRelations]," retained exact relations"]];
  If[!AssociationQ[reduction],cutFamilyFail["InitialCutReductionFailed",<|"Cause"->reduction|>]];
- basis=Sort[ibpCloseReductionRules[reduction["Rules"],allTargets]["Masters"]];
+ basis=Sort[If[AssociationQ[initialClosure],initialClosure,
+   ibpCloseReductionRules[reduction["Rules"],allTargets]]["Masters"]];
  If[basis==={},cutFamilyFail["NonzeroCutMasterBasisRequired"]];
  Do[
   {seconds,derivatives}=AbsoluteTiming[Table[
@@ -248,6 +250,7 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
      "DerivativeTargets"->newTargets,"CandidateMasterBasis"->candidateBasis,
      "Cause"->accepted,"RetainedSourceReduction"->reduction,
      "ProvisionalIntegralsPromoted"->False|>]];
+   If[TrueQ[Lookup[request,"PrintTimings",False]],Print["Composing source identities after derivative reduction ",iteration]];
    composed=cutComposeIntegralReduction[reduction,accepted["Rules"],accepted["Masters"]];
    allTargets=Union[allTargets,newTargets];
    acceptedClosure=ibpCloseReductionRules[composed["Rules"],allTargets];
@@ -287,6 +290,8 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
   AppendTo[history,<|"Iteration"->iteration,"InputBasisCount"->Length[basis],
    "ReducedBasisCount"->Length[nextBasis],"TargetCount"->Length[allTargets],
    "DifferentiationSeconds"->seconds|>];
+  If[TrueQ[Lookup[request,"PrintTimings",False]],Print["Differential closure iteration ",iteration,
+    ": ",Length[basis]," -> ",Length[nextBasis]," spanning integrals"]];
   If[nextBasis===basis,closed=True;Break[]];
   basis=nextBasis,
  {iteration,iterations}];
@@ -297,13 +302,18 @@ ConstructCutDifferentialSystem[families:{__Association},targets:{__FeynCalc`GLI}
  If[Sort[restricted["Masters"]]=!=basis,cutFamilyFail["RestrictedCutReductionMustSpanDEBasis"]];
  reduction=Join[reduction,<|"Targets"->restrictedTargets,"Rules"->restricted["Rules"],"Masters"->basis,
    "Restriction"->"Requested source integrals and derivatives of the closed DE basis. The complete native solve remains in its recorded workspace."|>];
- images=Map[Factor,derivatives/.Dispatch[reduction["Rules"]],{2}];
+ If[TrueQ[Lookup[request,"PrintTimings",False]],Print["Collecting exact differential connection coefficients"]];
+ (* Integral labels are linear basis elements, not extra polynomial variables
+    to factor. Cancel only their rational coefficients in one native batch. *)
+ images=Partition[ibpCanonicalIntegralImages[
+   Flatten[derivatives/.Dispatch[reduction["Rules"]],1]],Length[basis]];
  unknown=Complement[DeleteDuplicates[Cases[images,_FeynCalc`GLI,Infinity]],basis];
  If[unknown=!={},cutFamilyFail["UnreducedCutDerivatives",<|"Integrals"->unknown|>]];
  matrices=Table[
-  rows=Table[coefficients=Coefficient[expression,#]&/@basis;
-    If[Factor[expression-coefficients.basis]=!=0,cutFamilyFail["LinearCutDerivativeRequired"]];
-    coefficients,{expression,images[[axis]]}];
+  rows=Table[parsed=linearIntegralSum[expression];
+    If[!linearIntegralSumQ[parsed]||Together[parsed["Remainder"]]=!=0,
+     cutFamilyFail["LinearCutDerivativeRequired"]];
+    Lookup[parsed["Terms"],basis,0],{expression,images[[axis]]}];
   SparseArray[rows],{axis,Length[parameters]}];
  points=Lookup[request,"ValidationPoints",{}];
  If[!MatchQ[points,{{(_Rule)..}...}],cutFamilyFail["ExactRationalValidationPointsRequired"]];

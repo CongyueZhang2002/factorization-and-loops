@@ -159,7 +159,7 @@ ConstructMeasuredContributionDifferentialSystems[card_Association,prepared_Assoc
 ],"ProjectCards"];
 PrepareMeasuredContributionPhysicalBasis[card_Association,record_Association]:=Catch[Module[
  {system=record["DifferentialSystem"],source=record["IntegralDecomposition"],selected,points,e,variables,scale,
-  seconds,timings=<||>,output,path=card["WorkDirectory"]},
+  seconds,timings=<||>,output,path=card["WorkDirectory"],cuts,alreadyUnit},
  If[TrueQ[Lookup[record,"PhysicalMasterBasisPrepared",False]],Return[record,Module]];
  e=system["DimensionalRegulator"];variables=system["KinematicVariables"];scale=card["Assembly"]["Scale"];
  points=Lookup[Lookup[card["Assembly"],"Reduction",<||>],"ValidationPoints",Automatic];
@@ -170,12 +170,18 @@ PrepareMeasuredContributionPhysicalBasis[card_Association,record_Association]:=C
    <|"ValidationPoints"->points,"Verbose"->True|>]];
  selected=projectCheck[selected,"ExactMeasuredMasterEquivalencesRequired"];
  AssociateTo[timings,"ExactMasterEquivalences"->seconds];
- {seconds,selected}=facetElapsedTiming[FeynFacet`SelectMasterIntegralBasis[selected,selected["Reduction"],
+ cuts=Association[(#["Topology"][[1]]->#["CutIndices"])&/@selected["Families"]];
+ alreadyUnit=AllTrue[selected["MasterIntegralBasis"],Function[master,
+   With[{indices=Lookup[cuts,master[[1]],None]},
+    ListQ[indices]&&AllTrue[master[[2,indices]],#===1&]]]];
+ {seconds,selected}=facetElapsedTiming[If[alreadyUnit,selected,
+  FeynFacet`SelectMasterIntegralBasis[selected,selected["Reduction"],
    <|"CandidateIntegrals"->Union[source["Targets"],system["MasterIntegralBasis"]],
-     "ValidationPoints"->points,"RequireUnitCutBasis"->True|>]];
+     "ValidationPoints"->points,"RequireUnitCutBasis"->True|>]]];
  selected=projectCheck[selected,"UnitCutPhysicalMasterBasisRequired"];
  AssociateTo[timings,"UnitCutBasisSelection"->seconds];
  output=Join[record,<|"DifferentialSystem"->selected,"PhysicalMasterBasisPrepared"->True,
+   "PhysicalBasisPreparation"->If[alreadyUnit,"RetainedExistingUnitCutBasis","SelectedUnitCutBasis"],
    "StageSeconds"->Join[Lookup[record,"StageSeconds",<||>],timings]|>];
  projectWrite[record,path<>"/SourceDifferentialSystem.wl"];
  projectWrite[output,path<>"/DifferentialSystem.wl"];output

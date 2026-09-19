@@ -423,3 +423,11 @@ remaining homogeneous freedoms are independently detected by moments20 and43.
 KnownPhysicalBoundaryOutputCoefficients.wxf currently retains31 coefficients and
 an explicit extraction timeout for{15,0}. Missing coefficients/tails are never zero.
 See STATUS.md for the current exact ranks and owned gluon continuation.
+
+The two leading physical boundary orders are now determined in
+PhysicalBoundaryCoefficientsThroughMinus3.wxf. They are insufficient for the final
+result. Source contraction reduces the required boundary tails to order0 for14
+amplitudes and order-1 for6. Higher steps should use the contracted moment/endpoint
+maps on known lower coefficient vectors; completing every higher-order matrix
+entry is unnecessary. The gluon DE is now closed on96 spanning coordinates;
+physical-basis preparation and remaining physical values are separate.

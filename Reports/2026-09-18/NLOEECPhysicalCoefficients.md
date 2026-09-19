@@ -693,3 +693,43 @@ definition during dependency closure is now permanent, avoiding a redundant
 multi-gigabyte deserialization; the four-assertion adaptive IBP check passes8.369s.
 The complete measured NLO EEC remains unfinished and no published measured
 coefficient has been read or used in production.
+
+
+### Fixed leading boundary coefficients and projected continuation
+
+The exact combined19+1 matrix gives a one-pole inverse, hence c=O(epsilon^-4).
+The nonzero leading amplitude is c_7,-4=-5/(4096 Pi^5 Q2^2); all other19 coefficients
+at that order vanish. All surplus leading equations verify exactly (6.404s).
+The next delayed projection requires only15 finite integrals after contraction,
+although the full order5 matrix contains656. It evaluates in9.169s to
+215/(49152 Pi^5 Q2^3), after weight-two shuffle identities. The resulting complete
+20-vector at epsilon^-3 is saved in PhysicalBoundaryCoefficientsThroughMinus3.wxf;
+its full leading residuals and selected next projected equation agree (6.867s).
+This is partial physical boundary data, not the complete measured NLO result.
+
+The all-column order5 construction costs11.521s; GPL conversion retains623/656
+in579.098s, with33 failures/dependent definitions. The successful projected solve
+uses an already converted subset. Subsequent extension should contract each
+known lower amplitude vector before requesting integrals, rather than complete
+all higher-order columns indiscriminately.
+
+The original source contraction (170.826s) cancels formal epsilon^-3,-2,-1
+connection rows exactly. Fourteen amplitudes are needed through0, the remaining
+six through-1. The order plan is in ContractedPhysicalBoundaryOrderPlan.wxf;
+higher necessary connection/moment coefficients and donor tails remain work.
+
+The gluon DE continuation completed1319.726s including startup with96 spanning
+entries. The earlier direct exact import284.043s and the source/reconstruction
+attempts remain separately charged. Its first physical-basis pass timed out
+605.009s after reading large text records and finding96 exact affine classes.
+Two permanent repairs are now being exercised: association symbol restoration
+updates disjoint nodes once per depth, and the physical-basis producer retains
+an existing unit-cut basis instead of building a dense alternative-candidate map.
+Neither changes the readable format, symbol identities or exact DE.
+
+Actual6Pro review40 is retained with exact source8b7fed8c. It accepts the uniform
+pole construction and bound, and required a symbolic leading-coefficient guard
+for moving GPL letters. That guard and the counterexample are fixed. Twenty-three
+GPL endpoint/shuffle tests pass0.915s; five incremental GPL conversion tests0.864s;
+seven bounded-DE/unit-basis tests6.568s;52 record tests across five drivers11.152s.
+No published measured EEC coefficient or PSLQ fit has been used.

@@ -14,16 +14,21 @@ constraint orders; these are not automatically satisfied by a rank calculation.
 
 ## Inspect actual jobs before launching
 
-The gluon state is DoubleReal/Work/Components/Gluons/MeasuredDEState.json.
-Its supervisor owns CPUs0–3; sequential auxiliary work uses4–7.
-GluonsMeasuredDEBoundedReuse stopped at the memory guard after3002.135s, preserving
-791671 equations and completed native reconstruction. A direct verified import
-completed284.043s, including dependency closure, with96 spanning entries.
-The current card-driven continuation is GluonsMeasuredDEAfterExactImport.log
-under Archive/Runs/2026-09-18/NLOEECChecks. Inspect actual state: no duplicate
-source reduction, exact import or auxiliary launch. Source reduction2820.171s
-and earlier failed/redundant attempts remain separately charged.
-The auxiliary launcher does not prevent two auxiliaries; check live kernels.
+The gluon DE is closed, dimension96, with no minimality claim. The final
+card-driven continuation took1319.726s including startup, after the direct
+verified import284.043s and earlier separate reconstruction/source costs.
+GluonsPhysicalBasisOptimizedState.json/log in Archive/Runs/2026-09-18/NLOEECChecks
+is the current physical-basis continuation; inspect it and actual processes.
+The previous physical-basis attempt timed out605.009s after reading the large
+record and finding96 exact affine classes. Record traversal now batches disjoint
+association updates; an already unit-cut basis is retained without another dense
+candidate-selection problem. The first optimization rerun is still being timed.
+
+At most two main kernels total. A separate standalone_nlo_qcd campaign sometimes
+occupies the other licence; preserve it. Campaign auxiliary queues wait for a free
+licence and use at most four CPUs while another main kernel is present. Their
+state files are under Archive/Runs/2026-09-18/NLOEECChecks. Do not start duplicate
+queues or rerun completed exact reductions/conversions.
 
 ## Accepted physics and remaining work
 
@@ -67,8 +72,8 @@ rank2 after exact GPL constant identities. An earlier apparent next rank3 was
 spurious and superseded. Adding row-normalized known-output equations gives
 leading rank19 and next rank1 (KnownAndMomentBoundaryRank.wxf). Its first failed
 rank attempt divided zero rows by epsilon^Infinity; the corrected receipt is
-IdenticalKnownAndMomentRankCorrected.json,5.667s. No constant has been declared
-fixed by these rank-only files.
+IdenticalKnownAndMomentRankCorrected.json,5.667s. No constant is fixed by those rank-only files; the subsequent projected solves
+below now supply the two leading orders.
 
 KnownPhysicalBoundaryOutputCoefficients.wxf has31 accepted coefficients, one
 remaining {15,0} extraction timeout; unknown tails are not zero. The fixed-path
@@ -76,7 +81,37 @@ GPL parameter limit now recovers {3,0} and{10,0} exactly by uniformly separated
 letters. The remaining coefficient should be simplified locally, not expanded
 into a large global pullback. Partial donor coverage is still explicit.
 
-Next: finish gluon differential closure; fix physical amplitudes with the joint
+The joint19+1 system proves amplitudes no worse than epsilon^-4. Its leading
+projection fixes only c_7,-4=-5/(4096 Pi^5 Q2^2), with every other coefficient at
+that order zero. All surplus equations at the leading order agree exactly;
+the other19 bounds improve to-3. PhysicalBoundaryLeadingLaurentCoefficients.wxf
+retains the proof and maps (surplus run6.404s). A projected next-order calculation
+needs only15 finite integrals from the656-entry order5 connection and completes
+9.169s. After exact weight-two shuffle identities its value is215/(49152 Pi^5 Q2^3).
+PhysicalBoundaryCoefficientsThroughMinus3.wxf now fixes all20 coefficients at-3;
+all full equations through-3 and the selected delayed equation through-2 agree
+(6.867s). Higher amplitude orders remain unknown.
+
+ContractedPhysicalBoundaryOrderPlan.wxf contracts the original41 source columns
+before deciding amplitude orders (170.826s). The formal source row has valuation-3,
+but contracted connection orders-3,-2,-1 vanish exactly. Fourteen amplitudes are
+needed through0 and six through-1; this does not imply sufficient higher connection
+coefficients are already computed. Future high-order work should calculate only
+the necessary matrix-vector contractions on already fixed lower coefficients.
+The all-column order5 GPL attempt retained600/633 required definitions converted (656 definitions total) but timed
+out on33 definitions/dependencies (579.098s). Do not simply raise all limits;
+the first required contraction already reused the available15-integral subset.
+
+Actual Pro40 inspected8b7fed8c, accepted uniform moment subtraction and the19+1
+Laurent bound, and identified an assumption-sensitive moving-letter valuation.
+It is repaired by specializing zero leading coefficients and proving the surviving
+ones nonzero and finite. Twenty-three GPL endpoint/shuffle assertions pass0.915s.
+Five incremental GPL-conversion assertions pass0.864s, seven bounded-DE/unit-basis
+assertions6.568s, and52 readable/binary record assertions across five drivers pass
+11.152s including startup. Current relevant code may be newer than the Pro40
+revision; see git HEAD and retained review40 for its exact inspection scope.
+
+Next: finish gluon physical-basis preparation and reuse; fix physical amplitudes with the joint
 moment/endpoint/known-output system and sufficient orders; complete RR interiors,
 endpoint/contact data, exact angular poles and final explicit Mathematica results.
 No imported, inclusive-only, interior-only or master-only result completes NLO EEC.

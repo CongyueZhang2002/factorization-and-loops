@@ -5,6 +5,11 @@ FeynFacetSolution`ExpandGPLAtOrigin::usage="ExpandGPLAtOrigin[expression,{t,uppe
 FeynFacetSolution`ExpandGPLAtFiniteEndpoint::usage="ExpandGPLAtFiniteEndpoint[expression,{x,a},{rho,upper}] expands at x=a-rho with a>0 and rho approaching zero from above. It uses path composition and shuffle-regularized endpoint constants, preserving tangential logarithms and trailing zeros. Nonzero GPL letters on the open path (0,a), or unresolved letter collisions, are refused. Constants are convergent GPLs at one; no independent contour prescription is chosen.";
 FeynFacetSolution`RegularizeGPLTrailingZeros::usage="RegularizeGPLTrailingZeros[expression] removes trailing zero letters using the exact shuffle identity and G[{0},z]=Log[z]. In particular it resolves identities involving GPL constants at argument one without treating the different words as algebraically independent.";
 FeynFacetSolution`ReduceGPLWeightOne::usage="ReduceGPLWeightOne[expression,assumptions] replaces one-letter GPLs by their logarithms only when the positive endpoint and absence of a letter on the integration segment establish the principal branch. Other GPLs are retained.";
+FeynFacetSolution`ReduceGPLWeightTwo::usage="ReduceGPLWeightTwo[expression] uses the shuffle identity to express weight-two GPLs in deterministically ordered letter pairs and products of weight-one GPLs. Equal letters give one half of the square. This is an algebraic identity on the same path and does not select a new branch.";
+FeynFacetSolution`ReduceGPLWeightTwo[expression_]:=Expand[expression/.
+ FeynFacetSolution`G[{a_,b_},z_]:>Which[a===b,FeynFacetSolution`G[{a},z]^2/2,
+  OrderedQ[{a,b}],FeynFacetSolution`G[{a,b},z],
+  True,FeynFacetSolution`G[{a},z]FeynFacetSolution`G[{b},z]-FeynFacetSolution`G[{b,a},z]]];
 FeynFacetSolution`RegularizeGPLTrailingZeros[expression_]:=Module[{regularize,objects,result},
  regularize[word_List,z_]:=regularize[word,z]=Module[{rest,shuffles,count,others},
   Which[word==={},1,AllTrue[word,#===0&],If[word==={},1,Log[z]^Length[word]/Factorial[Length[word]]],
@@ -51,11 +56,22 @@ gplFixedPathParameterLimit[expression_,t_]:=Module[
  objects=DeleteDuplicates[Cases[expression,g:FeynFacetSolution`G[w_List,a_]/;
    !FreeQ[w,t]&&FreeQ[a,t]:>g,{0,Infinity}]];
  If[objects==={},Return[expression]];
- letterLimit[a_]:=letterLimit[a]=Module[{q=Cancel[a],v,value},
+ letterLimit[a_]:=letterLimit[a]=Module[{q=Cancel[Together[a]],v,value,nd,orders,leading,specialize},
   If[FreeQ[q,t],Return[q]];
   If[!PolynomialQ[Numerator[q],t]||!PolynomialQ[Denominator[q],t],
    gplFail["RationalFixedPathGPLLettersRequired"]];
-  v=Exponent[Numerator[q],t,Min]-Exponent[Denominator[q],t,Min];
+  specialize[p_]:=Sum[With[{coefficient=Coefficient[p,t,j]},
+    If[TrueQ[Refine[coefficient==0,$gplAssumptions]],0,coefficient]t^j],
+    {j,0,Max[0,Exponent[p,t]]}];
+  nd=specialize/@NumeratorDenominator[q];
+  If[Last[nd]===0,gplFail["FixedPathGPLLetterDenominatorVanishes"]];
+  q=Cancel[First[nd]/Last[nd]];
+  If[FreeQ[q,t],Return[q]];
+  nd=NumeratorDenominator[q];orders=Exponent[#,t,Min]&/@nd;
+  leading=MapThread[Coefficient[#1,t,#2]&,{nd,orders}];
+  If[!AllTrue[leading,TrueQ[Refine[#!=0&&Element[#,Complexes],$gplAssumptions]]&],
+   gplFail["FixedPathGPLLetterLeadingCoefficientNotEstablished"]];
+  v=Subtract@@orders;
   If[v<0,Return[DirectedInfinity[]]];
   value=If[v>0,0,Cancel[SeriesCoefficient[q,{t,0,0}]]];value];
  wordLimit[g_]:=Module[{},
