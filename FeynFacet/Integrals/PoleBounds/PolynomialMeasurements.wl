@@ -6,6 +6,8 @@ DeterminePolynomialMeasurementLaurentBound::usage=
  "DeterminePolynomialMeasurementLaurentBound[family,integral,coordinates,request] verifies a supported complete algebraic parent measure, the bounded measurement map and its common causal convergence domain. It bounds the regulator-pole multiplicity of the original unit-cut distribution by the parent dimension plus the normalization pole order. It does not establish a scalar restriction, contact order or boundary values. Automatic coordinates select the measured pair from the actual cut.";
 DeterminePolynomialMeasurementFiberLaurentBound::usage=
  "DeterminePolynomialMeasurementFiberLaurentBound[family,integral,coordinates,request] bounds the original scalar unit-cut integral at generic interior measurement values. It verifies that the actual measurement fixes the pair angle, matches the retained parent convergence Gram to the physical chart, and proves a common fixed-fiber convergence half-plane by its endpoint powers. It does not fix constants or measurement-endpoint contacts.";
+DeterminePolynomialMeasurementEndpointScalingBound::usage=
+ "DeterminePolynomialMeasurementEndpointScalingBound[family,integral,coordinates,request] derives a uniform bound proportional to [z(1-z)]^(-Re(epsilon)-M), for a finite epsilon-independent Gram loss M, from the original scalar density. Its beta-function witness controls both endpoints at sufficiently negative epsilon. It constrains Frobenius amplitudes, not coordinate components or endpoint contact terms.";
 Begin["`Private`"];
 polynomialPeriodAlgebraicQ[expression_,variables_,conditions_]:=Which[
  FreeQ[expression,Alternatives@@variables],normalizationFiniteConstantQ[expression,conditions],
@@ -156,4 +158,37 @@ DeterminePolynomialMeasurementFiberLaurentBound[input_Association,integral_FeynC
   "Argument"->"The original finite Gram loss remains finite on a fixed pair-angle fiber. Its exact Gram determinant is the displayed positive unit times the cube-face monomial. All resulting face powers exceed -1 in the retained half-plane. Four-dimensional resolution of fixed algebraic divisors with affine regulator powers then gives at most four simultaneous simple epsilon poles, plus normalization poles."|>
 ],"CutFamily"];
 DeterminePolynomialMeasurementFiberLaurentBound[___]:=Failure["TypedPolynomialFiberBoundArgumentsRequired",<||>];
+DeterminePolynomialMeasurementEndpointScalingBound[input_Association,integral_FeynCalc`GLI,
+ coordinates_,request_Association]:=Catch[Module[
+ {fiber,parent,chart,r,x,y,a,b,e,loss,sigma,kappa,measure,unit,conditions,beta},
+ fiber=DeterminePolynomialMeasurementFiberLaurentBound[input,integral,coordinates,request];
+ If[!AssociationQ[fiber],Throw[fiber,"CutFamily"]];
+ parent=fiber["ParentBound"];chart=parent["PhysicalChart"];
+ {r,x,y,a,b}=chart["Parameters"];e=parent["DimensionalRegulator"];
+ conditions=parent["ParameterConditions"];loss=fiber["FiniteGramLossParameter"];
+ sigma=Unique["realEpsilon"];kappa=sigma+loss;
+ measure=(r(1-r))^-e x^(1-2e)(1-x)^(2-3e)y^(1-2e)(1-y)^-e*
+   (a(1-a))^-e*(b(1-b))^(-1/2-e)*(1-r x)^(-2+2e);
+ (* All bases are positive in the original physical chart. Check the actual
+    density, including its angular normalization, before using this estimate. *)
+ unit=FullSimplify[chart["Density"]/measure,
+   Assumptions->chart["PhysicalDomain"]&&Element[e,Reals]];
+ If[!FreeQ[unit,Alternatives@@chart["Parameters"]],
+  cutFamilyFail["CanonicalEndpointMeasureIdentityRequired",<|"Ratio"->unit|>]];
+ beta=Beta[2-2kappa,1-kappa]^2 Beta[1-kappa,1-kappa]*
+   Beta[1/2-kappa,1/2-kappa];
+ <|"Format"->"FeynFacet-PolynomialMeasurementEndpointScalingBound",
+  "OriginalIntegral"->integral,"Variable"->parent["Variable"],"DimensionalRegulator"->e,
+  "FiberCertificate"->fiber,"FiniteGramLossParameter"->loss,
+  "RealRegulatorParameter"->sigma,"SufficientRealEpsilonUpperBound"->1/2-loss,
+  "EndpointRegulatorSlope"->-1,"EndpointIntegerPower"->-loss,
+  "Endpoints"->{0,1},"ScalarCompositionOnly"->True,
+  "UniformEndpointMajorant"->(parent["Variable"](1-parent["Variable"]))^-kappa beta,
+  "BetaIntegralWitness"->beta,"OriginalAngularNormalization"->unit,
+  "GramLossIndependentOfRegulator"->True,"EndpointScalingEstablished"->True,
+  "EndpointContactOrderEstablished"->False,"PhysicalBoundaryConstantsFixed"->False,
+  "Argument"->"The original semialgebraic Gram domination has fixed integer powers, hence finite epsilon-independent loss M. With kappa=Re(epsilon)+M<1/2, 1-r x>=1-x and -2+2 kappa<0 bound its denominator by (1-x)^(-2+2 kappa). The four remaining Euler integrals give the displayed finite beta product. Constants, including original angular normalization, may depend on epsilon. No uniform limit as epsilon tends to minus infinity is needed.",
+  "Scope"->"Scalar endpoint bound in the common physical convergence half-plane, continued meromorphically. Under a coordinate of ramification p the slope is -p; no density Jacobian is included. Forbidden slopes constrain full Frobenius amplitudes only."|>
+],"CutFamily"];
+DeterminePolynomialMeasurementEndpointScalingBound[___]:=Failure["TypedPolynomialEndpointBoundArgumentsRequired",<||>];
 End[];EndPackage[];

@@ -585,3 +585,36 @@ The fresh exact candidate-span check now uses the same rational coefficient
 cancellation as the already repaired resume path, preventing zero-coefficient
 GLIs from being mistaken for new terminal integrals. This edit postdates the
 running gluon kernel and does not change its native reconstruction.
+
+## Physical endpoint scaling and a smaller boundary connection
+
+The original parent Gram bound now gives a uniform scalar endpoint estimate
+proportional to [z(1-z)]^(-Re(epsilon)-M), with finite epsilon-independent M.
+The explicit beta witness controls the overlapping recoil endpoint. Actual Pro
+review37 accepted this mathematical argument (not a source review). The two
+ramified endpoints exclude slopes greater than -2 from full Frobenius amplitude
+spaces, not from finite-point residue coordinates. No contact-order theorem or
+physical constant value is inferred. All42 original master bounds were derived
+in20.525s, stored in PhysicalEndpointScalingBounds.wxf.
+
+At u=1 the retained20-column space was prepared in11.039s, including rational
+gauges, Laurent column saturation and conservative amplitude-order bounds.
+The boundary connection through epsilon^1 took5.218s. Its164 finite definitions
+all convert in7.368s (131 distinct integrands,10 GPL objects,weight<=2). Files:
+AdmissibleEndpointPreparation.wxf,
+AdmissibleEndpointConnectionThroughOrder1.wxf and the GPL companion record.
+This low-order connection is for incremental physical matching; no sufficient
+full-source epsilon depth or fixed physical amplitudes is claimed yet.
+
+Permanent additions are a physical endpoint-scaling certificate, algebraic
+selection of complete generalized eigenspaces, and finite-endpoint GPL expansion
+using path composition and shuffle regularization. Ten GPL endpoint assertions
+pass0.765s;14 parent/fiber/endpoint assertions pass6.768s;13 affine-path assertions
+pass0.965s, including a singular-boundary path origin without an invented ordinary
+basepoint. A scale-one zero-power error found by the new tests was fixed.
+
+The gluon measured source reduction completed in2820.171s including startup.
+Its first derivative-closure search stopped at the bounded seed limit after
+352.557s (6425seeds,194261equations,912uncovered sampled columns). This is an
+unsuccessful DE attempt, not a completed gluon DE. The exact source reduction
+and sampled derivative inputs remain available for targeted continuation.

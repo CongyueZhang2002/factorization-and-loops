@@ -23,13 +23,21 @@ gplAssumptionsImpliedQ[prior_,current_]:=prior===True||prior===current||
 (* Positive rescaling preserves the original approach to the lower endpoint.
    For a one-dimensional straight path it removes the variable endpoint from
    the rational alphabet, without changing the stored finite definitions. *)
-gplAffinePathScale[data_,assumptions_,mode_]:=Module[{vars,base,path,t,delta,scale},
+gplAffinePathScale[data_,assumptions_,mode_]:=Module[{vars,base,path,t,delta,scale,coordinates},
  If[mode===False,Return[1]];
  vars=Lookup[data,"KinematicVariables",{}];base=Lookup[data,"BasePoint",{}];
  path=Lookup[data,"Path",None];
- If[Length[vars]=!=1||Length[base]=!=1||!AssociationQ[path],
+ If[Length[vars]=!=1||!AssociationQ[path],
   If[mode===True,numericalFailure["OneDimensionalAffineGPLPathRequired"],Return[1]]];
- t=Lookup[path,"Parameter",None];delta=First[vars]-First[base];
+ t=Lookup[path,"Parameter",None];coordinates=Lookup[path,"Coordinates",{}];
+ (* A singular-boundary solution has a path origin, not an ordinary point
+    with an identity fundamental matrix. Infer only the affine path origin. *)
+ If[base==={}&&MatchQ[t,_Symbol]&&Length[coordinates]===1,
+  base=coordinates/.t->0;
+  If[!FreeQ[base,Alternatives@@vars],base={}]];
+ If[Length[base]=!=1,
+  If[mode===True,numericalFailure["OneDimensionalAffineGPLPathRequired"],Return[1]]];
+ delta=First[vars]-First[base];
  If[!MatchQ[t,_Symbol]||Lookup[path,"Coordinates",None]=!={First[base]+t delta},
   If[mode===True,numericalFailure["OneDimensionalAffineGPLPathRequired"],Return[1]]];
  scale=Which[TrueQ[Refine[delta>0,assumptions]],delta,

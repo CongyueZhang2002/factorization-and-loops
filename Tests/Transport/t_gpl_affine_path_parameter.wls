@@ -64,4 +64,12 @@ Do[
     " at "<>ToString[point],NumberQ[value]&&Abs[value-N[expected,60]]<10^-25],
   {side,{{1/2<x<1,3/4},{0<x<1/2,1/4}}}],
  {row,{{Log[t],-1},{FeynFacetSolution`G[{2,0},t],1-PolyLog[2,1/2]}}}];
+boundaryData=Join[KeyDrop[data,{"BasePoint"}],<|
+ "Path"-><|"Parameter"->t,"Coordinates"->{t x}|>,
+ "KernelDefinitions"->{<|"Index"->1,"Parameter"->t,"Expression"->x/(1-x t)|>}|>];
+boundaryGPL=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[boundaryData,
+ "Assumptions"->0<x<1,"RescalePathParameter"->True];
+FTAssert["a boundary path origin permits rescaling without assigning ordinary-point constants",
+ AssociationQ[boundaryGPL]&&boundaryGPL["GPLRepresentation"]["Status"]==="RequiredIntegralsConvertedToGPL"&&
+ boundaryGPL["GPLRepresentation"]["PathParameterScale"]===x&&!KeyExistsQ[boundaryGPL,"BasePoint"]];
 Print["AFFINE GPL PATH TEST COMPLETE"];FTReport[];

@@ -217,6 +217,7 @@
     "Boundary/Connection.wl",
     "Boundary/ApplyConnection.wl",
     "Boundary/Preparation.wl",
+    "Boundary/RegulatorScaling.wl",
     "Boundary/PhysicalMatching.wl",
     "Boundary/MeasuredIntegrals.wl",
     "Boundary/OrderedEvolution.wl",

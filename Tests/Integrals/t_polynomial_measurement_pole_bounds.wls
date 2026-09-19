@@ -65,4 +65,22 @@ FTTest`FTAssert["a rational DE coordinate is mapped back before checking physica
  FeynFacet`Private`epsOrderPhysicalPointQ[{mappedPoint},{uu},{1/2}]&&
  !FeynFacet`Private`epsOrderPhysicalPointQ[{mappedPoint},{uu},{-1/2}]&&
  !FeynFacet`Private`epsOrderPhysicalPointQ[{mappedPoint},{uu},{1}]];
+endpoint=FeynFacet`DeterminePolynomialMeasurementEndpointScalingBound[family,master,coordinates,request];
+FTTest`FTAssert["the parent measure gives a uniform physical bound at both measured endpoints",
+ AssociationQ[endpoint]&&endpoint["EndpointScalingEstablished"]&&
+ endpoint["EndpointRegulatorSlope"]===-1&&endpoint["GramLossIndependentOfRegulator"]&&
+ !endpoint["EndpointContactOrderEstablished"]&&endpoint["ScalarCompositionOnly"]];
+If[AssociationQ[endpoint],
+ witness=endpoint["BetaIntegralWitness"];
+ FTTest`FTAssert["all Euler integrals in the uniform witness converge in its half-plane",
+  FullSimplify[And@@Flatten[Cases[witness,Beta[aa_,bb_]:>{aa>0,bb>0},Infinity]],
+   Assumptions->endpoint["RealRegulatorParameter"]<1/2-endpoint["FiniteGramLossParameter"]]===True]];
+normal=FeynFacet`NormalizeRegularSingularSystem[<|"Variable"->rr,"DimensionalRegulator"->ee,
+ "ConnectionMatrix"->{{-2ee/rr,0,0},{1,-2ee/rr,0},{1,0,0}}|>];
+primary=FeynFacet`DecomposeResidueEigenspaces[normal];
+selection=FeynFacet`SelectFrobeniusModesByRegulatorSlope[primary,-2];
+FTTest`FTAssert["regulator slopes select full amplitude spaces, preserving sourced coordinates",
+ AssociationQ[selection]&&Length[selection["RetainedColumns"]]===2&&
+ Length[selection["ExcludedColumns"]]===1&&selection["FullGeneralizedEigenspacesRetained"]&&
+ !selection["PhysicalBoundProvedByThisSelection"]];
 Print["POLYNOMIAL MEASUREMENT POLE BOUND TEST COMPLETE"];FTTest`FTReport[];

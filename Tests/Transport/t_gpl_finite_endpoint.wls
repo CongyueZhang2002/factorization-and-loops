@@ -1,0 +1,35 @@
+Print["FEYNFACET DRIVER ENTERED"];$HistoryLength=0;$MaxExtraPrecision=50;
+root=DirectoryName[ExpandFileName[$InputFileName],3];
+Get[root<>"/Tests/TestKit.wl"];Get[root<>"/FeynFacet/Solution.m"];
+Clear[x,rho,c];
+constants={FeynFacetSolution`G[{0,1},1]->-Zeta[2],
+ FeynFacetSolution`G[{0,1,1},1]->Zeta[3]};
+rows={
+ {{1},1,Log[rho]},
+ {{0,1},1,-Zeta[2]+rho-rho Log[rho]+rho^2/4-rho^2 Log[rho]/2},
+ {{1,0},1,Zeta[2]-rho-rho^2/4},
+ {{0,0},1,rho^2/2},
+ {{2},2,Log[rho]-Log[2]},
+ {{0},2,Log[2]-rho/2-rho^2/8},
+ {{1,1,0},1,Zeta[3]+Zeta[2]Log[rho]-rho-rho^2/8}};
+Do[
+ {word,endpoint,expected}=row;
+ value=FeynFacetSolution`ExpandGPLAtFiniteEndpoint[
+  FeynFacetSolution`G[word,x],{x,endpoint},{rho,2}];
+ FTAssert["finite-endpoint word "<>ToString[word]<>" at "<>ToString[endpoint],
+  !FailureQ[value]&&Expand[(value/.constants)-expected]===0];
+ If[FailureQ[value],Print[InputForm[value]]],{row,rows}];
+value=FeynFacetSolution`ExpandGPLAtFiniteEndpoint[
+ FeynFacetSolution`G[{1,1,0},x]/(1-x)^2,{x,1},{rho,0}];
+FTAssert["rational endpoint pole requests sufficient inner GPL depth",
+ !FailureQ[value]&&Expand[(value/.constants)-
+  ((Zeta[3]+Zeta[2]Log[rho])/rho^2-1/rho-1/8)]===0];
+FTAssert["an interior GPL letter is not assigned an invented contour",
+ FailureQ[FeynFacetSolution`ExpandGPLAtFiniteEndpoint[
+  FeynFacetSolution`G[{1/2},x],{x,1},{rho,1}]]];
+FTAssert["symbolic off-contour letters require their domain",
+ FailureQ[FeynFacetSolution`ExpandGPLAtFiniteEndpoint[
+  FeynFacetSolution`G[{c},x],{x,1},{rho,1}]]&&
+ !FailureQ[FeynFacetSolution`ExpandGPLAtFiniteEndpoint[
+  FeynFacetSolution`G[{c},x],{x,1},{rho,1},"Assumptions"->c>1]]];
+Print["FINITE GPL ENDPOINT TEST COMPLETE"];FTReport[];
