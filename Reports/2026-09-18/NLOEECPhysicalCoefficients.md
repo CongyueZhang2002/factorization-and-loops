@@ -498,3 +498,32 @@ A supervised permanent-card Gluons reduce stage is now running on CPUs0-3;
 its state is Components/Gluons/MeasuredReductionState.json and its log is
 Archive/Runs/2026-09-18/NLOEECChecks/GluonsMeasuredReduction.log. CPUs4-7 are
 available for physical-master work. Inspect actual state before launching.
+
+## Physical order planning and Pro35 repairs
+
+Pro35 inspected d88d6195 and accepted the implemented fixed-fiber argument and
+positive path scaling. It found that policy-changing GPL reuse could overwrite
+the old positive-scale guard. Nonstationary numerical evaluation now requires
+the full saved conversion assumptions, preserving the separately proved
+stationary path. Twelve focused assertions pass0.964s.
+
+The order planner previously applied an affine-propagator physical-domain test
+to the polynomial measurement, rejecting the ordinary lifted point. It now
+checks the original physical pair-angle fiber and maps the DE point back through
+the retained rational-coordinate substitution. Interior/outside/endpoint and
+coordinate-map regressions pass (eleven fiber/point assertions,7.368s).
+
+PhysicalExpansionOrders.wxf records proved original scalar bounds and stronger
+existing physical-record bounds, and the actual source order demands. The
+generic planner reports SufficientForAssumedLaurentBounds because the bounds
+are supplied through its existing explicit-bound interface; their full derived
+evidence is retained alongside the plan. They are not guessed epsilon cutoffs.
+The transformed order is5 with662 retained matrix coefficients. Planning took
+17.272s including startup; the requested finite evolution took18.669s and is
+saved as FiniteEvolutionPhysicalOrders.wxf. It contains619 finite integral
+definitions, with explicit physical constants still unassigned.
+
+A5.117s sampled rank inventory of derivatives of the16known partial functions
+shows rank16 and no first-derivative increase. No coupled recovery has been
+implemented on that evidence: exact closure must be checked, and the actual
+remaining physical moment constraints are the next target.

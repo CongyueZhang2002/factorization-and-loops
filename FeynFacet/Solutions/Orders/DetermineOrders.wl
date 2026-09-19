@@ -83,11 +83,28 @@ epsOrderPointIntegralDefinitions[system_,request_,e_] := Module[
  Do[
   d=Catch[miRepDefinition[miRepFamilyData[source,master],master,e],"EpsilonOrders"];
   If[AssociationQ[d] && d["VirtualLoopCount"]===0 && d["CutIndices"]=!={},
-    AppendTo[result,d]],{master,families}];
+    AppendTo[result,Join[d,<|"PointKinematicSubstitution"->
+      Lookup[Replace[Lookup[system,"RationalizingCoordinates",<||>],Except[_Association]-><||>],
+        "SourceVariableSubstitution",{}]|>]]],
+ {master,families}];
  result
 ];
-epsOrderPhysicalPointQ[definitions_,vars_,point_] := AllTrue[definitions,
- AssociationQ[Catch[cutOrderGeometry[#/.Thread[vars->point]],"EpsilonOrders"]]&];
+epsOrderPhysicalPointQ[definitions_,vars_,point_] := AllTrue[definitions,Function[definition,Module[
+ {family=Lookup[definition,"SourceCutDefinition",None],bound,conditions,substitution,rules},
+ rules=Thread[vars->point];substitution=Lookup[definition,"PointKinematicSubstitution",{}];
+ If[AssociationQ[family]&&Lookup[family,"MeasurementDefinitions",{}]=!={}&&
+    Length[Lookup[family,"FinalMomenta",{}]]===4,
+  (* Polynomial measurements are not affine particle propagators. Verify the
+     original physical fiber before applying a DE coordinate map; substituting
+     the rational map into the cut first destroys its affine measured variable. *)
+  bound=FeynFacet`DeterminePolynomialMeasurementFiberLaurentBound[family,
+    definition["MasterIntegral"],Automatic,<|"DimensionalRegulator"->definition["DimensionalRegulator"],
+      "ExternalKinematicConditions"->definition["KinematicConditions"]|>];
+  If[!AssociationQ[bound],Return[False,Module]];
+  conditions=definition["KinematicConditions"]/.substitution/.rules;
+  conditions=!=False&&normalizationProve[bound["GenericInteriorConditions"]/.substitution/.rules,conditions],
+  AssociationQ[Catch[cutOrderGeometry[definition/.substitution/.rules],"EpsilonOrders"]]
+ ]]]];
 epsOrderSelectBasePoint[frame_,vars_,e_,requested_,region_,definitions_:{}] := Module[{points,chosen=None,qr,signs},
  signs=DeleteDuplicates[Join[{ConstantArray[1,Length[vars]],ConstantArray[-1,Length[vars]]},
    Table[1-2 IntegerDigits[j,2,Length[vars]],{j,0,Min[63,2^Length[vars]-1]}]]];

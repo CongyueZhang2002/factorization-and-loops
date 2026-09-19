@@ -148,6 +148,9 @@ evaluateGPLMaster[data_,point_,options_]:=TimeConstrained[Catch[Module[
  If[!zeroAtBase&&!TrueQ[Refine[Lookup[rep,"PathParameterScale",1]>0/.
      Thread[data["KinematicVariables"]->point]]],
   numericalFailure["GPLPathRescalingDomainNotEstablished"]];
+ If[!zeroAtBase&&!TrueQ[Refine[Lookup[rep,"Assumptions",True]/.
+     Thread[data["KinematicVariables"]->point]]],
+  numericalFailure["GPLConversionAssumptionsNotEstablished"]];
  expressions=If[zeroAtBase,ConstantArray[0,Length[needed]],
   Lookup[rep["IntegralExpressions"],needed]/.rep["Parameter"]->1];
  gs=DeleteDuplicates[Cases[expressions,_FeynFacetSolution`G,{0,Infinity}]];

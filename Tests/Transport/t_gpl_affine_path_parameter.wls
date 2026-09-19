@@ -34,6 +34,12 @@ FTAssert["leftward paths retain their sign under a positive parameter scale",
 FTAssert["a conversion cannot be evaluated on the opposite scale domain",
  MatchQ[FeynFacetSolution`EvaluateMasterIntegralSolution[right,{1/4},"NumericalBackend"->"GiNaC"],
   Failure["GPLPathRescalingDomainNotEstablished",_]]];
+reused=FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[right,
+ "Assumptions"->1/2<x<1,"RescalePathParameter"->False];
+FTAssert["changing the rescaling policy cannot discard reused expression domains",
+ reused["GPLRepresentation"]["ReusedIntegralExpressions"]===2&&
+ MatchQ[FeynFacetSolution`EvaluateMasterIntegralSolution[reused,{1/4},"NumericalBackend"->"GiNaC"],
+  Failure["GPLConversionAssumptionsNotEstablished",_]]];
 base=FeynFacetSolution`EvaluateMasterIntegralSolution[right,{1/2},"NumericalBackend"->"GiNaC"];
 FTAssert["the stationary path uses its original exact value",
  AssociationQ[base]&&Flatten[Values[base["EpsilonCoefficients"]]]=={1,0,0}];

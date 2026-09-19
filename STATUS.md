@@ -1,171 +1,111 @@
 # Active — conventional NLO electron-positron EEC
 
-Full alpha_s^2 result is NOT complete. Continue the authorized calculation.
-No subagents; maximum eight aggregate CPUs and two main Wolfram kernels.
-Preserve healthy jobs, dirty/private files, accepted lower orders and read-only
-~/FACET. Do not read/compare a published measured NLO EEC coefficient until our
-complete result is derived and saved. Identified universal scalar inputs are allowed.
+The complete alpha_s^2 distribution is NOT finished. Continue this calculation
+only; PSLQ/numerical reconstruction is deferred. No subagents. At most eight
+aggregate CPUs and two main Wolfram kernels. Preserve accepted lower orders,
+the dirty/private tree, healthy jobs and read-only ~/FACET. Derive/save the full
+measured result before comparing a published measured NLO EEC coefficient.
+Universal unmeasured scalar inputs are separately identified and allowed.
 
-Latest prior pushed revision:25b643f1134775fbfbd439d7c9a2ad72f496fecc.
-The current continuation adds partial-order DE extension and explicit symbolic
-root-chart domains; consult git log for the subsequent recorded revision.
-Actual GPT-6 Pro23-31 reviews are saved. Pro28 confirms the signed unit-cut
-Jacobian and exact moment-combination algebra. Its all-coefficient exactness
-and retained-reduction findings are repaired;10 assertions pass2.966s.
+Read Projects/EE_EEC/README.md and Reports/2026-09-18/NLOEECPhysicalCoefficients.md.
+The older NLOEECOvernight.md is the chronological campaign record. Completed
+logs/receipts and one-off scripts are in Archive/Runs/2026-09-18/NLOEECChecks.
+Current code revision before the latest point/domain repairs: d88d6195;
+consult git log for their subsequent commit. Actual GPT-6 Pro reviews26–35
+are retained under External/ChatGPT/Records/2026-09-18.
 
-PHYSICS: RV, Virtual and UV raw distributions remain accepted. DifferentQuarks
-has16 physical master records sufficient for every nonzero column of its18-entry
-measured DE; two zero-coefficient entries remain unsolved. Its affected master16,
-library entry and downstream interior were corrected after the Pro20 dependency
-bug. The original DE rows were checked numerically. RR endpoints are unfinished.
+## Inspect these jobs before launching anything
 
-NEW: all three inclusive RR rates are explicit through epsilon^0 with all lower
-poles and exact scalar provenance. Permanent card runs: Gluons711.418s,
-DifferentQuarks21.697s, IdenticalQuarks23.417s (startup included, reuse noted).
-The scalar demands after contraction/routing are6/3/3 respectively; not a minimal
-master claim. Internal sum RR+RV+Virtual+UV has EXACT zero inclusive pole
-coefficients from epsilon^-4 through epsilon^-1. Audit21.526s:
-Projects/EE_EEC/Raw/NNLO/q-qb/DoubleReal/Work/GeneratedInclusivePoleAudit.wl.
-This is inclusive consistency, NOT the measured result or a literature comparison.
+- Gluons measured source reduction runs on CPUs0–3 through the permanent card.
+  State: Projects/EE_EEC/Raw/NNLO/q-qb/DoubleReal/Work/Components/Gluons/
+  MeasuredReductionState.json. Initial supervisor586559, process group586560.
+  Log: Archive/Runs/2026-09-18/NLOEECChecks/GluonsMeasuredReduction.log.
+  The sampled span closes after32911seeds/682466equations; exact Kira/FireFly
+  reconstruction is running. A sampled closure is not an accepted reduction.
+- IdenticalPhysicalOrderGPL currently converts the newly sufficient finite
+  evolution on CPUs4–7. Inspect its .log/.json and actual processes. The bounded
+  pass retains partial progress, so completion of the supervisor alone does
+  not mean every GPL was converted.
+- Old identical-quark ControlledDE and physical-provider supervisors completed.
+  Do not restart earlier failed or superseded attempts. The parallel auxiliary
+  runner chooses CPUs4–7 while the gluon supervisor is alive, otherwise0–7.
 
-The identical-quark source now has an EXACT43-integral unit-cut spanning set
-for all4234 original source targets. The apparent248 unmatched exact columns
-all had identically zero rational coefficients. Shared ibpCloseReductionRules
-now collects/cancels coefficients before identifying terminal integrals.
-3 regression assertions pass17.925s; existing native/residual20 assertions pass.
-Recovery from the377.559s exact solve took51.746s, no new Kira reconstruction.
-Saved: IdenticalQuarks/Work/UnitCutTangentBasisExactCanonical.wl and the verified
-permanent-stage input Work/UnitCutReduction.wl. No minimality claim.
+## Accepted physics and remaining work
 
-Old ordinary search supervisor550024/PGID550028 was stopped as superseded by
-this exact result. SIGTERM was ignored; owned group was SIGKILLed after checking
-its identity. Receipt2811.348s includes the377.562s scheduling pause. The reason
-and replacement are in OrdinaryBasisSuperseded.json. It is NOT a running job.
+RealVirtual, two-parton Virtual/contact and Counter-UV raw distributions are
+accepted. All three inclusive RR rates are explicit through epsilon^0, with
+all lower poles. RR+RV+Virtual+UV cancels inclusive poles epsilon^-4..^-1
+EXACTLY (GeneratedInclusivePoleAudit.wl,21.526s). This does not establish
+angular pole cancellation, RR endpoint contacts, or the full EEC result.
 
-The identical-quark DE has CLOSED EXACTLY and is saved in
-IdenticalQuarks/Work/DifferentialSystem.wl. Successful recovered permanent-card
-run1426.822s including startup; completed log is Archive/Runs/2026-09-18/
-NLOEECChecks/ControlledDECompleted.log. Previous equation preparation and failures are
-separate costs. Supervisor559791/PGID559792 has completed. The second derivative
-closure used56840 equations after the retained first exact search.
+DifferentQuarks has16 physical master records sufficient for every nonzero
+column of its18-entry measured DE; the other two columns vanish exactly. Its
+interior is evaluated. The earlier master16 dependency bug and downstream
+library/interior were repaired; original DE residuals were checked. The corrected
+finite interior value at the retained internal point is -5.962453423298079809…
+(the older -5.91645 is invalid). Its RR endpoints are unfinished.
 
-Physical-basis/provider evaluation finished465.697s with a truthful partial
-result:42 coordinates,12 records with some coefficients,34 unmet source order
-requests. Thus7 of41 directly requested integrals have sufficient coverage.
-PartialMasterValues.wl retains these values and pending epsilon requirements.
-No physical master result or identical-quark interior is yet complete.
+IdenticalQuarks has an exact43-integral unit-cut source span for4234 original
+source targets, then an exact closed42-coordinate DE. No minimality claim.
+Successful DE recovery1426.822s including startup; earlier failures/preparation
+remain separately counted. Its physical provider465.697s returned12 partial
+records, only7/41 sufficient source requests. Feasible DE-order extension adds
+four partial records in50.632s; still34 unmet full requests. Current extended
+values are in Work/ExtendedPhysicalMasterOrders.wxf, not yet merged into the
+original PartialMasterValues.wl. They are not a complete master result.
 
-The physical-mode inventory took128.191s. Ten moment rows also close in the
-selected DE basis. Exact epsilon rescaling succeeds; zero-order blocks have
-size at most2. Existing general finite-integration preparation then completed
-in124.323s with AllTransformationsVerified->True. Its source/preparation are
-saved in Work/FiniteIntegrationPreparation.wxf. This is an exact basis/DE
-preparation, not evaluated physical constants or endpoint completion.
-Finite evolution coefficients U^(0),U^(1) for all42 coordinates have now been
-constructed with the existing solver,10.870s, using connection terms through
-order3 as derived by its basis-convolution planner. They are saved in
-Work/FiniteEvolutionThroughOrder1.wxf. Physical boundary values and complete
-source-order coverage remain explicitly unestablished. GPL conversion now covers
-418/437 finite definitions. The latest incremental pass took76.128s including
-startup, reusing415 prior conversions. Six timeouts, one rational partial-fraction
-failure and twelve dependent definitions remain. No limit was raised: rational
-coefficients are collected before the existing expression-size bound is applied.
-Inspect actual jobs before launching; prior conversion supervisors have completed.
+## Identical-quark physical solution preparation
 
-A permanent DE-consequence repair allows extension of already-known but too-short
-master expansions, excluding the solved column from the subtraction and retaining
-accepted coefficients. Ten tests pass3.316s. The actual identical-quark replay
-4.203s finds no additional sufficient coefficients: still7/41 requests covered.
-This repairs a general omission but does not fix missing physical constants.
-Symbolic root charts now retain validity conditions and reject basepoints proved
-zero under supplied assumptions.26 assertions pass1.633s. Pro31 confirms the
-positive-scale branch rule; its proposed dimension-based pole bound remains
-conditional on a fixed-fiber convergence certificate and is NOT installed.
+- All43 source-basis moment insertions are constructed. Ten combinations are
+  covered by retained reductions and have evaluated inclusive RHS values
+  (eleven targets to six separately identified universal scalars,37.986s).
+  SourceBasisMomentConstraints.wxf, DifferentialBasisMomentConstraints.wxf,
+  InclusiveMomentValues.wxf retain definitions/provenance. Rank on physical
+  homogeneous constants and sufficient RHS epsilon depth remain unestablished.
+- Exact finite-integration preparation124.323s succeeds. The root field is
+  sqrt(z),sqrt(1-z). The common rational coordinate uses u*=1/2, mapped by the
+  actual root ordering to z*=9/25 with positive rational roots. This is a new
+  normalization point with no assigned physical constants.
+- The original distributional parent bound is -5 for all42 coordinates
+  (16.424s). The separately Gram-matched fixed-fiber proof establishes scalar
+  bounds -4 at generic interior kinematics (16.124s). PhysicalScalarPoleBounds.wxf
+  retains the proof. Neither bound fixes constants or measurement endpoints.
+- Known physical bounds plus these scalar bounds now feed the actual order
+  planner: transformed evolution through epsilon^5,662 retained matrix
+  coefficients. Requested original upper orders are3 for3masters,1 for13,
+  0 for22 and-1 for3. Boundary requirements are retained entrywise.
+  Planning17.272s; construction18.669s. PhysicalExpansionOrders.wxf and
+  FiniteEvolutionPhysicalOrders.wxf contain the sufficient finite evolution
+  up to constants. No physical constant or full master completion is claimed.
+- A positive affine path rescaling removes artificial endpoint-dependent GPL
+  letters. All438 definitions of the earlier evolution through order1 convert
+  in90.623+42.789s,780 distinct GPL objects, weight<=4. The final pass allowed
+  the two measured359k/519k-leaf expressions within a1million-leaf caller limit.
+  FiniteEvolutionRescaledGPLThroughOrder1.wxf is complete for that limited order.
+  The new sufficient physical evolution has619 definitions; its conversion is
+  the active pass above.
+- The known16 physical records give sampled differential-span rank16, with no
+  gain from the first derivative (5.117s). Establish exact closure before
+  concluding that further derivatives supply no new information. More physical
+  moment/endpoint constraints are needed for the remaining directions.
 
-PSLQ on actual DE rational entries with supplied sparse support recovers4/8/16
-numerator coefficients.80 digits produced a false16-term candidate, rejected by
-exact comparison;160 digits with a higher iteration limit recovers it. Numerical
-samples came from saved formulas, so this is not an end-to-end speed claim.
-See Reports/2026-09-18/PSLQBoundaryStrategy.md; production remains unchanged.
+Permanent recent repairs: feasible intermediate Laurent orders; both overlap
+lower-bound directions; meromorphic regulator/reciprocal normalization; preserved
+conic inverse metadata; explicit GPL root domains; positive affine path scaling
+with tangential-log tests; full saved GPL assumptions checked after reuse; and
+physical point selection for polynomial measurements in pulled-back coordinates.
+The last repair preserves original physical cuts while mapping the proposed DE
+point back to their measurement variable. It does not pretend a quadratic
+measurement is an affine propagator. Eleven fiber/point assertions pass7.368s;
+twelve GPL scale/domain assertions pass0.964s.
 
-Previous supervisor559162 was stopped by the memory guard after244.556s while
-reloading/rebuilding the same large exact input. Scoped single-snapshot reuse
-and preserving sparse equation rows repaired this. Four snapshot and six exact
-resume/closure assertions pass. ControlledDEAttempt3.* retains the failed cost.
-
-Previous supervisor555068 was killed by the WSL OOM mechanism after3116.165s;
-dmesg confirms roughly48GB resident plus8GB swap. It had closed all sampled
-remainders and saved the1,087,863-row native exact input, identifiers and scale
-normalization. Logs/receipt are Archive/Runs/2026-09-18/NLOEECChecks/ControlledDEAttempt2.*.
-The permanent search now resumes its retained Exact003 request, bypassing seed
-regeneration/sampling. Removed two unused full-equation fingerprint computations
-from the typed path; exact workspace-definition comparisons remain. The log
-stopped between native-input preparation and that unused fingerprint, so the
-fingerprint is the suspected final allocation, not a measured isolated profile.
-Six bounded DE/replay assertions pass5.821s, including unchanged exact connection.
-
-New code, not retroactively loaded into the running kernel, includes batch
-physical-library lookup retaining partial epsilon coverage; exact predecessor
-incidence after summing operator terms; bounded factor caching and one index
-substitution per seed; and managed parallel generation with256-seed jobs.
-The128-seed actual generator benchmark is3.126s ->1.718s, identical3842 equations.
-Two workers reproduce the same set; library26, seed/scale15, compatible-vector5,
-and bounded-DE5 assertions pass. Timings/review scope are in the running report.
-An identity-only inventory of43 source coordinates finds2 direct library hits;
-that neither establishes required orders nor means41 new physical integrations.
-
-The moment constructor now covers ALL43 source-basis unit-cut integrals.
-Automatic pair identification and the derived absolute-slope Jacobian resolve
-all prior chart/sign refusals. Ten combinations cancel their uncovered GLIs
-exactly. SourceBasisMomentConstraints.wxf includes full source and reduction
-provenance; Pro28 validation refresh reproduces the same rows exactly15.222s.
-These are not ten independently fixed physical constants.
-
-InclusiveMomentValues.wxf evaluates their ten right-hand sides through the
-card-requested finite order, with all implied lower poles and omitted-tail
-checking. Eleven inclusive targets reduce to six evaluated physical scalars;
-37.986s including startup and the small exact inclusive reduction. Universal
-scalar inputs are identified separately. Rank on unresolved homogeneous DE
-modes and epsilon coverage for moment-matrix inversion remain explicitly false.
-
-Equation scale analysis benchmark on4096 actual rows:1.773s ->0.476s, identical
-exact output; total benchmark19.924s and15 seed/scale assertions20.374s. This is
-one preparation step, not an end-to-end speed claim.
-
-The two earlier measured derivative attempts FAILED at memory limits after
-3833.674s and2036.548s. Completed initial native reduction is preserved.
-Do not resume those obsolete derivative supervisors. Initial source restriction
-found4424 provisional integrals,2638 affine classes; differentiating that set was
-the wrong performance starting point.
-
-Permanent repairs now include bounded coefficient text cache, symbol collection
-per distinct coefficient, release of obsolete rows, compact exact binary snapshots
-above1MiB, no rewrite of matching snapshots, and constant-time preferred membership.
-Small mathematical records/results remain readable. No new hashes.
-Binary snapshot4 tests and20 native/reuse assertions pass.
-
-CutCompatible.wl constructs polynomial momentum vectors tangent to protected
-cuts individually, with exact off-shell residuals and the full polynomial
-divergence. Five assertions include equality to ordinary derivatives of shifted
-seeds. An actual four-particle family gives24 particle-protecting vectors and12
-all-cut-protecting vectors (45.442s including load/I/O). Mixed-vector Dirichlet
-test closes at29 rows in one iteration instead of114 rows over three;4 assertions
-pass24.280s. This is not a full-EEC speed claim.
-
-MeasuredTaylorSubtractions.wl retains test-function derivatives and overlap poles;
-six assertions pass3.716s. It explicitly does NOT certify coverage, weighted L1
-or contact order. Physical endpoint charts and strong pushforward bounds remain.
-Hidden lower-pole rate2 assertions pass16.574s; cold/warm scalar provenance25
-assertions pass19.676s. Pro22 recommendations on deeper predecessor shells and
-sector-local numerators are implemented.
-
-Next: complete physical values for the closed identical-quark DE; obtain the
-measured gluon DE/physical values; complete original-source RR endpoint proof
-and full distributions; only then literature comparison. Cut-compatible code
-and snapshot/search repairs were pushed and reviewed at66be3cfe. Never git add .
-Read Reports/2026-09-18/NLOEECPhysicalCoefficients.md for the running record.
-
----
+Next: finish exact gluon reduction; use sufficient evolution and actual physical
+moment/endpoint equations to determine the missing identical-quark constants;
+then complete measured gluons, original-source RR endpoint proof/contacts,
+exact angular pole cancellation and explicit final Mathematica coefficients.
+Do not call an inclusive, interior-only, master-only, or imported-reference
+calculation a complete NLO EEC reproduction. Actual monotonic receipts include
+startup; reuse and prior failed attempts must remain distinguished.
 
 # Completed — derived normalization and observable definitions
 

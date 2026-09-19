@@ -53,4 +53,16 @@ shiftedFiber=FeynFacet`DeterminePolynomialMeasurementFiberLaurentBound[
  Join[family,<|"MasterIntegralPrefactor"->ee^-2|>],master,coordinates,request];
 FTTest`FTAssert["fixed-fiber bounds include independent dimensional normalization poles",
  AssociationQ[shiftedFiber]&&shiftedFiber["LaurentLowerBound"]===-6];
+pointDefinition=FeynFacet`Private`miRepDefinition[
+ Join[family,<|"Prescription"->{0,0,0},"KinematicConditions"->ss>0|>],master,ee];
+FTTest`FTAssert["ordinary-point selection uses the measured fiber instead of an affine-propagator test",
+ AssociationQ[pointDefinition]&&
+ FeynFacet`Private`epsOrderPhysicalPointQ[{pointDefinition},{zz},{1/3}]&&
+ !FeynFacet`Private`epsOrderPhysicalPointQ[{pointDefinition},{zz},{2}]&&
+ !FeynFacet`Private`epsOrderPhysicalPointQ[{pointDefinition},{zz},{0}]];
+mappedPoint=Join[pointDefinition,<|"PointKinematicSubstitution"->{zz->4uu/(1+uu)^2}|>];
+FTTest`FTAssert["a rational DE coordinate is mapped back before checking physical measurement support",
+ FeynFacet`Private`epsOrderPhysicalPointQ[{mappedPoint},{uu},{1/2}]&&
+ !FeynFacet`Private`epsOrderPhysicalPointQ[{mappedPoint},{uu},{-1/2}]&&
+ !FeynFacet`Private`epsOrderPhysicalPointQ[{mappedPoint},{uu},{1}]];
 Print["POLYNOMIAL MEASUREMENT POLE BOUND TEST COMPLETE"];FTTest`FTReport[];

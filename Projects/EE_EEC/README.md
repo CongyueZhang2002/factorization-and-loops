@@ -113,6 +113,23 @@ For this campaign, derive and save the full new coefficient before comparing it
 with published EEC coefficients. Internal consistency checks and universal scalar
 integral inputs remain separate from that final comparison.
 
+## Current physical-order evolution (18 September continuation)
+
+The identical-quark scalar fiber bounds are now established for all42 coordinates,
+and the general order planner requires transformed evolution through epsilon^5
+with662 matrix coefficients. Work/PhysicalExpansionOrders.wxf retains the actual
+bound evidence and requests; Work/FiniteEvolutionPhysicalOrders.wxf contains its
+finite evolution up to physical constants. Construction took18.669s including
+startup and the order recheck, with the existing DE/preparation reused.
+
+The earlier order-one evolution has all438 auxiliary definitions converted to
+explicit GPLs after positive affine path rescaling. This is not sufficient by
+itself for the physical source. The new619-definition physical-order GPL pass
+and measured gluon source reduction are the current jobs; inspect STATUS.md,
+actual processes and their state/receipt files before restarting anything.
+Missing physical constants, RR endpoint data and full measured pole cancellation
+still prevent acceptance of Results/NNLO/q-qb/Results.wl.
+
 ## Read the answer
 
 `Results/NLO/q-qb/Results.wl` is a readable Mathematica association without
