@@ -39,4 +39,18 @@ FTTest`FTAssert["nonaffine exponents, moving divisors and explicit singular logs
 FTTest`FTAssert["a measurement-dependent prefactor cannot be silently moved outside the distribution",
  FailureQ[FeynFacet`DeterminePolynomialMeasurementLaurentBound[Join[family,<|"MasterIntegralPrefactor"->1/zz|>],
   master,coordinates,request]]];
+fiber=FeynFacet`DeterminePolynomialMeasurementFiberLaurentBound[family,master,coordinates,request];
+If[!AssociationQ[fiber],Print[InputForm[fiber]];Exit[1]];
+FTTest`FTAssert["fixed pair-angle fibers have a separately established scalar pole bound",
+ fiber["LaurentLowerBound"]===-4&&fiber["FiberDimension"]===4&&
+ fiber["ScalarRestrictionEstablished"]&&fiber["CommonInitialFiberConvergenceEstablished"]&&
+ !fiber["EndpointContactOrderEstablished"]&&!fiber["PhysicalBoundaryConstantsFixed"]];
+FTTest`FTAssert["the actual parent Gram is matched to the fiber face product",
+ fiber["GramFactorization"]["PositiveExternalFactor"]===ss^3&&
+ FullSimplify[fiber["ConvergenceGramInChart"]+coordinates["GramDeterminant"]/ss]===0&&
+ fiber["SufficientRealEpsilonUpperBound"]===1/2-fiber["FiniteGramLossParameter"]];
+shiftedFiber=FeynFacet`DeterminePolynomialMeasurementFiberLaurentBound[
+ Join[family,<|"MasterIntegralPrefactor"->ee^-2|>],master,coordinates,request];
+FTTest`FTAssert["fixed-fiber bounds include independent dimensional normalization poles",
+ AssociationQ[shiftedFiber]&&shiftedFiber["LaurentLowerBound"]===-6];
 Print["POLYNOMIAL MEASUREMENT POLE BOUND TEST COMPLETE"];FTTest`FTReport[];

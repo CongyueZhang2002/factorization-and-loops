@@ -466,3 +466,35 @@ as a source of unnecessary algebra. These are not physical master solutions.
 No Wolfram job was running at the start of this continuation. Completed timings
 include startup; input reuse and failed earlier attempts remain in their receipts.
 Full measured RR, physical constants and endpoints remain incomplete.
+
+## Fixed fibers and constant GPL letters
+
+Actual Pro34 approved the Gram-matched fixed-fiber convergence argument. The new
+public fiber-bound constructor regenerates the parent proof, matches its actual
+spatial Gram to the pair chart, verifies the unit angle root, positive coordinate
+denominators and every regulated cube-face exponent. It derives the common
+half-plane Re(epsilon)<1/2-M, with finite but uncomputed Gram loss M. All42
+original scalar bounds are -4, established in16.124s. PhysicalScalarPoleBounds.wxf
+retains the evidence. Nine bound assertions pass3.716s. Generic interior bounds
+do not determine constants, endpoint contacts or critical-value continuation.
+
+The generic GPL converter now permits a proved positive rescaling of a
+one-dimensional affine path parameter, preserving its original finite source
+and lower tangent. Both directions and trailing-zero/logarithmic tests pass
+(11 assertions,0.914s). Whole-solution numerical evaluation still conservatively
+refuses a source Log[t] at the endpoint; that test evaluates the explicit GPL
+primitive with the standalone evaluator, without changing source path checks.
+
+On the rational identical-quark coordinate, the first fresh pass converts433/438
+definitions in90.623s. The only direct failures are expression-size limits
+(359370 and518516 leaves); three other definitions depend on one of those. A
+second pass with the caller's leaf limit1000000 and per-definition limit30s
+converts all five in42.789s, reusing433. All438 definitions of the saved
+fundamental evolution through order1 now have explicit GPLs (780 distinct GPL
+objects, weight at most4). This is not a complete physical epsilon expansion.
+Output: IdenticalQuarks/Work/FiniteEvolutionRescaledGPLThroughOrder1.wxf.
+
+A supervised permanent-card Gluons reduce stage is now running on CPUs0-3;
+its state is Components/Gluons/MeasuredReductionState.json and its log is
+Archive/Runs/2026-09-18/NLOEECChecks/GluonsMeasuredReduction.log. CPUs4-7 are
+available for physical-master work. Inspect actual state before launching.

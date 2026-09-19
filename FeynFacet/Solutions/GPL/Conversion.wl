@@ -20,15 +20,33 @@ gplDefinitionClosure[data_]:=Module[{aa=Lookup[data,"AlgebraicDefinitions",{}],
 ];
 gplAssumptionsImpliedQ[prior_,current_]:=prior===True||prior===current||
  TrueQ[Refine[prior,current]];
+(* Positive rescaling preserves the original approach to the lower endpoint.
+   For a one-dimensional straight path it removes the variable endpoint from
+   the rational alphabet, without changing the stored finite definitions. *)
+gplAffinePathScale[data_,assumptions_,mode_]:=Module[{vars,base,path,t,delta,scale},
+ If[mode===False,Return[1]];
+ vars=Lookup[data,"KinematicVariables",{}];base=Lookup[data,"BasePoint",{}];
+ path=Lookup[data,"Path",None];
+ If[Length[vars]=!=1||Length[base]=!=1||!AssociationQ[path],
+  If[mode===True,numericalFailure["OneDimensionalAffineGPLPathRequired"],Return[1]]];
+ t=Lookup[path,"Parameter",None];delta=First[vars]-First[base];
+ If[!MatchQ[t,_Symbol]||Lookup[path,"Coordinates",None]=!={First[base]+t delta},
+  If[mode===True,numericalFailure["OneDimensionalAffineGPLPathRequired"],Return[1]]];
+ scale=Which[TrueQ[Refine[delta>0,assumptions]],delta,
+   TrueQ[Refine[delta<0,assumptions]],-delta,True,None];
+ If[scale===None,If[mode===True,numericalFailure["PositiveGPLPathScaleNotEstablished"],1],scale]
+];
 Options[FeynFacetSolution`ConvertMasterIntegralSolutionToGPL]=Join[
- Options[FeynFacetSolution`IntegrateGPL],{"FunctionTimeLimit"->15,"Verbose"->False}];
+ Options[FeynFacetSolution`IntegrateGPL],{"FunctionTimeLimit"->15,"Verbose"->False,
+  "RescalePathParameter"->Automatic}];
 FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPattern[]]:=
  Module[
  {started=AbsoluteTime[],limits,fnSeconds=OptionValue["FunctionTimeLimit"],verbose=OptionValue["Verbose"],
   kd=Lookup[data,"KernelDefinitions",{}],fd=Lookup[data,"IntegralDefinitions",{}],
   converted=<||>,reused=0,repeated=0,integrated=0,failures={},closure,needed,parameter=Unique["gplParameter"],
   upper=FeynFacetSolution`s,expandKernel,integrateBody,body,dependencies,value,options,result,
-  assumptions=OptionValue["Assumptions"],memoSettings,functionStarted},
+  assumptions=OptionValue["Assumptions"],memoSettings,functionStarted,
+  rescale=OptionValue["RescalePathParameter"],pathScale},
  limits=OptionValue["TimeLimit"];
  options=FilterRules[{"Assumptions"->assumptions,"MaxExpressionLeaves"->OptionValue["MaxExpressionLeaves"],
   "MaxTerms"->OptionValue["MaxTerms"],"MaxWeight"->OptionValue["MaxWeight"],
@@ -37,15 +55,17 @@ FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPat
  memoSettings={assumptions,OptionValue["MaxExpressionLeaves"],OptionValue["MaxTerms"],
   OptionValue["MaxWeight"],OptionValue["MaxPoleDegree"],OptionValue["MaxEndpointExpansionOrder"]};
  integrateBody[z_]:=Module[{v},integrated++;
-  v=FeynFacetSolution`IntegrateGPL[z,{parameter,0,upper},"TimeLimit"->fnSeconds,Sequence@@options];
+  v=FeynFacetSolution`IntegrateGPL[(z/.parameter->parameter/pathScale)/pathScale,
+    {parameter,0,pathScale upper},"TimeLimit"->fnSeconds,Sequence@@options];
   If[!FailureQ[v],With[{answer=v},integrateBody[z]:=(repeated++;answer)]];v];
  result=gplWithMemoization[memoSettings,Catch[
   If[!NumericQ[limits]||limits<=0||!NumericQ[fnSeconds]||fnSeconds<=0||
-    !MemberQ[{True,False},verbose]||!ListQ[kd]||!ListQ[fd]||
+    !MemberQ[{True,False},verbose]||!MemberQ[{Automatic,True,False},rescale]||!ListQ[kd]||!ListQ[fd]||
     !ListQ[Lookup[data,"AlgebraicDefinitions",None]]||
     !AssociationQ[Lookup[data,"Coefficients",None]],
    numericalFailure["InvalidGPLConversionInputOrOptions"]];
   validateFiniteDependencies[data];closure=gplDefinitionClosure[data];needed=closure["IntegralIndices"];
+  pathScale=gplAffinePathScale[data,assumptions,rescale];
   If[gplRepresentationCurrentQ[data]&&
     gplAssumptionsImpliedQ[Lookup[data["GPLRepresentation"],"Assumptions",True],assumptions],
    converted=KeyTake[data["GPLRepresentation"]["IntegralExpressions"],needed];
@@ -76,6 +96,7 @@ FeynFacetSolution`ConvertMasterIntegralSolutionToGPL[data_Association,OptionsPat
    "DataType"->"FiniteGPLRepresentation","SchemaVersion"->1,
    "Status"->If[failures==={},"RequiredIntegralsConvertedToGPL","PartiallyConvertedToGPL"],
    "SourceDefinitions"->gplSource[data],"Parameter"->upper,"Assumptions"->assumptions,
+   "PathParameterScale"->pathScale,
    "RequiredIntegralIndices"->needed,"IntegralExpressions"->converted,
    "UnconvertedIntegrals"->failures,
    "FunctionConvention"->"G[{a1,...,an},z] with kernels dt/(t-ai); letters are constant in t.",

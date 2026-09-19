@@ -144,7 +144,10 @@ evaluateGPLMaster[data_,point_,options_]:=TimeConstrained[Catch[Module[
   numericalFailure["GPLSourcePathNotVerified",<|"PathCheck"->pathReport|>]];
  branchReport=gplSourceBranchCheck[data,point,options["PathCheckTimeLimit"]];
  closure=gplDefinitionClosure[data];needed=closure["IntegralIndices"];
- zeroAtBase=gplZeroIntegralsAtBasePointQ[data,point,needed];
+  zeroAtBase=gplZeroIntegralsAtBasePointQ[data,point,needed];
+ If[!zeroAtBase&&!TrueQ[Refine[Lookup[rep,"PathParameterScale",1]>0/.
+     Thread[data["KinematicVariables"]->point]]],
+  numericalFailure["GPLPathRescalingDomainNotEstablished"]];
  expressions=If[zeroAtBase,ConstantArray[0,Length[needed]],
   Lookup[rep["IntegralExpressions"],needed]/.rep["Parameter"]->1];
  gs=DeleteDuplicates[Cases[expressions,_FeynFacetSolution`G,{0,Infinity}]];
