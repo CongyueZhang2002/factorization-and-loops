@@ -229,6 +229,7 @@
     "Boundary/Integration.wl",
     "Boundary/IntegralOrders.wl",
     "Boundary/PrimaryExpansion.wl",
+    "Boundary/MomentPoles.wl",
     "Boundary/TangentialSystem.wl",
     "Boundary/Intersections.wl",
     "Boundary/EndpointAtlas.wl",

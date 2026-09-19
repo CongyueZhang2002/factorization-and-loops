@@ -305,7 +305,12 @@ KiraReduction[families:{__Association},targets:{__FeynCalc`GLI},request_Associat
  finish[initialRules_,initialDeclared_,solveSeconds_,equationCount_,seedCounts_,generationTime_]:=Module[{result},
    closed=If[solveTargets==={},<|"Rules"->{},"Masters"->{},"SolutionWorkspace"->directory,
      "SelectionClosure"-><|"Status"->"AllTargetsZeroByKnownRules","DeclaredMasterSource"->"SuppliedExactRules","Iterations"->{}|>|>,
-     cutKiraCloseSelectedReduction[project,initialRules,solveTargets,initialDeclared,records,request]];
+      (* This definition has already passed the workspace comparison. Keep
+         that same value while closing selected dependencies; rereading its
+         large equation snapshot duplicates gigabytes of symbolic storage. *)
+      Block[{$cutKiraReadCache=Join[If[AssociationQ[$cutKiraReadCache],$cutKiraReadCache,<||>],
+        <|ExpandFileName[directory]->definition|>]},
+       cutKiraCloseSelectedReduction[project,initialRules,solveTargets,initialDeclared,records,request]]];
   restoredRules=If[AssociationQ[scaleNormalization],
     FeynFacet`RestoreIntegralEquationScale[closed["Rules"],scaleNormalization],closed["Rules"]];
    If[!ListQ[restoredRules],cutFamilyFail["OriginalIntegralScaleRestorationFailed",<|"Cause"->restoredRules|>]];

@@ -648,3 +648,48 @@ The bounded IBP increment regression passes four assertions in6.804s, including
 an independent three-particle Dirichlet moment. The gluon search now reaches
 iteration2 with16425seeds/485715equations rather than exceeding the100000-seed
 budget before a second sample. Exact derivative closure is still pending.
+
+
+### Uniform moment integration and exact physical-constraint ranks
+
+The actual20-column endpoint connection has533/533 GPL definitions through
+epsilon^4. The exact opposite-endpoint constraints have rank8 on the10 directions
+invisible to the closed16-output subsystem: an8x8 minor starts64/27 epsilon,
+and the exact known-subsystem restriction supplies the matching rank upper bound.
+Two homogeneous amplitude series remain. All43 inclusive RHS values are explicit.
+
+Moment integration now adds the coefficientwise Hadamard finite part and the
+local t^(-1+beta epsilon) Log[t]^p correction (-1)^p p!/(beta epsilon)^(p+1)
+at both ends. The original density and inward-coordinate Jacobians are retained.
+Automatic rational joint-divisor checks establish regulator-uniform local
+Frobenius subtraction; t+epsilon is rejected. The accepted production endpoint
+pole run takes22.926s, with sufficient normal depths8 and0. Meromorphic moment
+matrices through epsilon^0 take10.320s. Their use remains conditional on the
+full physical forbidden-amplitude equations at sufficient epsilon order.
+
+Rows20 and43 resolve the two residual directions independently, with leading
+responses {-Q2^2/2,0} and{0,-Q2^2/2}; analysis4.917s. Without known outputs,
+the combined moment/endpoint matrix has leading rank15 and next rank2. A
+spurious rank3 before removing GPL trailing-zero identities is superseded.
+With known-output row normalization the ranks are19 and1 (corrected5.667s).
+These ranks alone do not fix physical constants or imply enough epsilon orders.
+
+Known boundary extraction initially accepted29 coefficients and failed three
+fixed-path, moving-letter GPL limits. Uniform separated-letter limits recover
+two more; {15,0} still hits30s and remains explicitly missing. Its direct
+classical-series retry also timed out (31.533s total). No donor tail was zeroed.
+Nineteen GPL endpoint assertions pass0.815s; nine Hadamard assertions0.832s;
+six automatic uniform-moment assertions5.657s. Actual Pro39 reviewed the prior
+closed-subsystem implementation and joint moment mathematics, requiring the
+uniformity and order qualifications now explicit in the code/records.
+
+The gluon exact derivative reconstruction reached791671 equations before its
+supervisor stopped memory growth at3002.135s. Native reconstruction had completed
+and was preserved. A direct import with the same verified input finished284.043s,
+closing288 then13 dependencies, giving96 spanning entries. A card-driven DE
+continuation is running; inspect MeasuredDEState.json and
+GluonsMeasuredDEAfterExactImport.log. Reusing the already verified equation
+definition during dependency closure is now permanent, avoiding a redundant
+multi-gigabyte deserialization; the four-assertion adaptive IBP check passes8.369s.
+The complete measured NLO EEC remains unfinished and no published measured
+coefficient has been read or used in production.

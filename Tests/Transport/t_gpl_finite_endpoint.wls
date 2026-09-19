@@ -32,4 +32,26 @@ FTAssert["symbolic off-contour letters require their domain",
   FeynFacetSolution`G[{c},x],{x,1},{rho,1}]]&&
  !FailureQ[FeynFacetSolution`ExpandGPLAtFiniteEndpoint[
   FeynFacetSolution`G[{c},x],{x,1},{rho,1},"Assumptions"->c>1]]];
+FTAssert["trailing-zero shuffle identities do not become spurious constant pivots",
+ Expand[FeynFacetSolution`RegularizeGPLTrailingZeros[
+  FeynFacetSolution`G[{0,2},1]+FeynFacetSolution`G[{2,0},1]]]===0];
+FTAssert["one-letter conjugate constants retain their principal phases",
+ Simplify[FeynFacetSolution`ReduceGPLWeightOne[
+  FeynFacetSolution`G[{1-I},1]+FeynFacetSolution`G[{1+I},1]-FeynFacetSolution`G[{2},1]]]===0];
+FTAssert["weight-one reduction does not select a branch through a real interior letter",
+ FeynFacetSolution`ReduceGPLWeightOne[FeynFacetSolution`G[{1/2},1]]===FeynFacetSolution`G[{1/2},1]];
+FTAssert["classical polylogarithms use the same local GPL series machinery",
+ Expand[FeynFacetSolution`ExpandGPLAtOrigin[PolyLog[2,x],{x,2},"Assumptions"->0<x<1]-x-x^2/4]===0];
+FTAssert["a fixed-path letter escaping to infinity vanishes uniformly",
+ FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{0,-1/x^2},1/2],{x,0}]===0];
+FTAssert["separated finite parameter letters have their ordinary fixed-path limits",
+ FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{-1-x,0},1/2],{x,0}]===
+ FeynFacetSolution`G[{-1,0},1/2]];
+FTAssert["logarithmic coefficient growth cannot spoil a positive-power vanishing kernel",
+ FeynFacetSolution`ExpandGPLAtOrigin[Log[x]^2 FeynFacetSolution`G[{1/x},1/2],{x,0},
+  "Assumptions"->0<x<1]===0];
+FTAssert["a moving letter meeting the tangential endpoint needs resolution",
+ FailureQ[FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{-x},1/2],{x,0}]]];
+FTAssert["a singular prefactor requires a letter jet rather than its limit",
+ FailureQ[FeynFacetSolution`ExpandGPLAtOrigin[FeynFacetSolution`G[{-1/x},1/2]/x,{x,0}]]];
 Print["FINITE GPL ENDPOINT TEST COMPLETE"];FTReport[];

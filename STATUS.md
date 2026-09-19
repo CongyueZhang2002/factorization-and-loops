@@ -4,105 +4,84 @@ The complete alpha_s^2 distribution is NOT finished. Continue only this
 calculation; PSLQ is deferred. No subagents. At most eight aggregate CPUs and
 two main Wolfram kernels. Preserve accepted lower orders, dirty/private work,
 healthy jobs and read-only ~/FACET. Derive and save the complete measured result
-before any comparison to a published measured NLO EEC hard coefficient.
-Universal unmeasured scalar inputs remain separately identified.
+before comparing any published measured NLO EEC hard coefficient. Universal
+unmeasured scalar inputs remain separately identified.
 
 Read Projects/EE_EEC/README.md and Reports/2026-09-18/NLOEECPhysicalCoefficients.md.
-Code through endpoint scaling/GPL continuation is pushed at2c463840; subsequent
-closed-subsystem and bounded IBP increment changes may still be dirty. Actual
-GPT-6 Pro reviews37 and38 are retained under External/ChatGPT/Records/2026-09-18.
+Actual GPT-6 Pro reviews37–39 are retained. Review39 accepts joint moment and
+endpoint equations subject to regulator-uniform local subtraction and sufficient
+constraint orders; these are not automatically satisfied by a rank calculation.
 
 ## Inspect actual jobs before launching
 
-- Gluons measured DE: component MeasuredDEState.json, supervisor-owned CPUs0–3.
-  Current log is Archive/Runs/2026-09-18/NLOEECChecks/GluonsMeasuredDEBoundedReuse.log.
-  The exact source reduction completed2820.171s:9944targets/91families to101
-  spanning integrals (1554 preferred candidates; no minimality assertion).
-  First derivative search failed its seed limit after352.557s:6425seeds,
-  194261equations,912uncovered sampled columns. The new search samples bounded,
-  family-balanced increments instead of generating all harder predecessors.
-  A card-budget cache invalidation caused redundant source regeneration;
-  the first such attempt was stopped115.743s. The current attempt is preserved.
-- The free CPUs4–7 run sequential boundary work. Inspect the latest
-  IdenticalOppositeEndpointConstraints4State.json/log; the auxiliary runner
-  accounts for either the gluon reduction or gluon DE supervisor.
-  It does not protect against launching two auxiliaries simultaneously.
-- Earlier reduction, endpoint preparation and GPL supervisors completed.
-  Do not relaunch an old exact source reduction or completed conversion.
+The gluon state is DoubleReal/Work/Components/Gluons/MeasuredDEState.json.
+Its supervisor owns CPUs0–3; sequential auxiliary work uses4–7.
+GluonsMeasuredDEBoundedReuse stopped at the memory guard after3002.135s, preserving
+791671 equations and completed native reconstruction. A direct verified import
+completed284.043s, including dependency closure, with96 spanning entries.
+The current card-driven continuation is GluonsMeasuredDEAfterExactImport.log
+under Archive/Runs/2026-09-18/NLOEECChecks. Inspect actual state: no duplicate
+source reduction, exact import or auxiliary launch. Source reduction2820.171s
+and earlier failed/redundant attempts remain separately charged.
+The auxiliary launcher does not prevent two auxiliaries; check live kernels.
 
-## Accepted physics
+## Accepted physics and remaining work
 
 RealVirtual, two-parton Virtual/contact and Counter-UV distributions are saved.
-All three inclusive RR rates are explicit through epsilon^0. The inclusive sum
-cancels epsilon^-4..^-1 EXACTLY (GeneratedInclusivePoleAudit.wl,21.526s).
-This does not prove angular cancellation or measured RR endpoint contacts.
+All inclusive RR rates are explicit through epsilon^0. The inclusive sum cancels
+epsilon^-4..^-1 exactly (GeneratedInclusivePoleAudit.wl,21.526s). Angular pole
+cancellation and RR endpoint contacts are not established by this inclusive check.
 
-DifferentQuarks has16 physical records sufficient for every nonzero source
-column in its18-entry measured DE. Two zero-source columns need no value.
-The repaired master16 and original DE residual checks give finite interior
--5.962453423298079809... at the retained point (the old -5.91645 is invalid).
-Its endpoint distributions remain unfinished.
+DifferentQuarks has16 physical records covering every nonzero source column in
+its18-coordinate DE. Two zero-source columns need no value. The corrected finite
+interior is -5.962453423298079809... at the retained test point; the previous
+-5.91645 value is invalid. Endpoint distribution completion remains.
 
-IdenticalQuarks has an exact43-integral source span for4234targets and a closed
-42-coordinate DE (1426.822s successful recovery, failed attempts separate).
-Sixteen partial master records exist; only7/41 full source requests are covered.
-ExtendedPhysicalMasterOrders.wxf adds four records but does not complete tails.
-Exact closure A_KU=0 means derivatives of those16 outputs expose no new modes.
+IdenticalQuarks has a closed42-coordinate DE and43 inclusive moment equations,
+all with explicit universal unmeasured scalar RHS through epsilon^0. Endpoint
+scaling of the actual Gram/density excludes slopes beta>-2 in the ramified
+coordinate at both ends. At rho=1-u the selected, Laurent-saturated boundary
+space has20 amplitudes. The exact closed16-output subsystem has rank10.
+The opposite endpoint supplies rank8 on its10D invisible subspace, leaving
+exactly2 new homogeneous amplitude series beyond the known outputs. This does
+not fill missing known-output epsilon tails.
 
-All43 Jacobian-corrected source moment insertions now reduce to the42 basis
-(187inserted targets,125.048s). Every inclusive RHS is explicit through epsilon^0
-(43targets/17families,29 evaluated scalar records,107.979s). Files:
-ExtendedDifferentialBasisMomentConstraints.wxf and ExtendedInclusiveMomentValues.wxf.
-These are global equations; their physical-constant rank and inversion-order
-requirements are not implied by the number43.
+The endpoint connection through epsilon^4 has all533 GPL definitions converted.
+KnownOutputBoundaryAmplitudeMap.wxf is the exact closed-subsystem map.
+OppositeEndpointAmplitudeConstraints4.wxf has complete matrices through epsilon^1.
+PhysicalBoundaryConstraintRank.wxf establishes the exact rank8 by a matching
+upper bound and nonzero minor64/27 at epsilon^1.
 
-## Physical endpoint and boundary connection
+Regulator-uniform moment poles are now constructed from exact local Frobenius
+jets, including logarithmic modes, both Jacobians and endpoint pole terms.
+Starting normal depth8 and opposite depth0 are derived from actual density poles.
+MomentPoles.wl automatically rejects moving regulator/endpoint divisors.
+MeromorphicMomentMatricesThroughOrder0.wxf contains43x20 matrices through epsilon^0,
+valid jointly with the forbidden-amplitude equations. ResidualPhysicalMomentRank.wxf
+shows rows20 and43 independently determine the two remaining freedoms: leading
+responses {-Q2^2/2,0} and {0,-Q2^2/2}. Required higher matrix/constraint orders
+must still be propagated through the physical amplitude Laurent bounds.
 
-Original parent bound -5 (distributional), separately proved fixed-fiber bound
--4 (scalar) and stronger available master bounds feed the ordinary-point plan:
-transformed evolution through epsilon^5,662matrix coefficients,619finite
-integrals. FiniteEvolutionPhysicalOrders.wxf is complete up to constants;
-its GPL representation converts614/619. Do not raise the five outstanding
-conversion limits before physical constraints justify their necessity.
+All moment rows without known-output equations have leading rank15 and next
+rank2 after exact GPL constant identities. An earlier apparent next rank3 was
+spurious and superseded. Adding row-normalized known-output equations gives
+leading rank19 and next rank1 (KnownAndMomentBoundaryRank.wxf). Its first failed
+rank attempt divided zero rows by epsilon^Infinity; the corrected receipt is
+IdenticalKnownAndMomentRankCorrected.json,5.667s. No constant has been declared
+fixed by these rank-only files.
 
-The common rational coordinate is z=(1-u^2)^2/(1+u^2)^2, with ordinary u*=1/2,
-z*=9/25 and positive roots. Its ramification is2 at both endpoints.
-PhysicalEndpointScalingBounds.wxf derives all42 uniform large-dimension bounds
-in20.525s from the actual Gram and density. The beta witness proves
-O([z(1-z)]^(-Re(epsilon)-M)), finite epsilon-independent M. This excludes
-Frobenius slopes beta>-2 at each local u endpoint, retaining32 amplitudes at
-u=0 and20 at u=1. Pro37 accepted the math; Pro38 inspected the implementation.
-The restrictions apply to amplitudes, not finite-point residue coordinates.
-They do not establish epsilon-zero contact order.
+KnownPhysicalBoundaryOutputCoefficients.wxf has31 accepted coefficients, one
+remaining {15,0} extraction timeout; unknown tails are not zero. The fixed-path
+GPL parameter limit now recovers {3,0} and{10,0} exactly by uniformly separated
+letters. The remaining coefficient should be simplified locally, not expanded
+into a large global pullback. Partial donor coverage is still explicit.
 
-AdmissibleEndpointPreparation.wxf selects/saturates the20-column space at
-rho=1-u (11.039s). The existing exact finite residual constructor gives its
-connection through epsilon^1 in5.218s; all164 definitions convert7.368s.
-Through epsilon^4 construction takes8.969s; its GPL pass completed195.425s,
-including two startup retries. Inspect actual conversion coverage in the record
-before using it. These connection depths are not final source-order claims.
-
-KnownOutputBoundaryAmplitudeMap.wxf has an exact generic-epsilon rank10,
-leaving10 amplitude series invisible to the known16 closed outputs (6.567s).
-The sufficient normal jet has depth0, derived from the exact rational gauge.
-A permanent ConstructClosedSubsystemBoundaryMap now also checks the exact
-residue intertwiner; four focused assertions pass4.366s. Rerun the production
-map through that permanent implementation before final acceptance.
-Partial donor coefficients still have their stated epsilon coverage only.
-
-The opposite-endpoint forbidden-amplitude gauge has epsilon valuation-3.
-The order1 connection yields identically zero constraints at orders-3,-2;
-higher connection orders are needed. The order4 endpoint-constraint pass is
-being constructed; inspect its accepted matrices and failures before claiming
-rank or fixed constants. No physical amplitude has yet been fixed by this step.
-
-Next: continue exact gluon differential closure; combine the opposite endpoint,
-known coefficients and43 continued moments to fix physical amplitudes; complete
-RR endpoint/contact data, exact angular pole cancellation and final explicit
-Mathematica coefficients. No imported, inclusive-only, interior-only or
-master-only calculation completes the requested NLO EEC reproduction.
-All quoted times are Python monotonic elapsed seconds including startup;
-failed attempts and reuse remain separately recorded.
+Next: finish gluon differential closure; fix physical amplitudes with the joint
+moment/endpoint/known-output system and sufficient orders; complete RR interiors,
+endpoint/contact data, exact angular poles and final explicit Mathematica results.
+No imported, inclusive-only, interior-only or master-only result completes NLO EEC.
+All quoted successful/failed times are Python monotonic elapsed seconds including
+startup. Check receipts; a completion marker alone does not certify a rank/result.
 
 # Completed — derived normalization and observable definitions
 

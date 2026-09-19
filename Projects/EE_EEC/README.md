@@ -326,9 +326,9 @@ remaining tagged-energy integrations are still separate work.
 Positive powers in supported pair Euler periods are accepted only after the
 original prescribed product is certified and the common initial Euler convergence
 domain is nonempty. Integral dimensions and analytic branches are compared during
-coordinate reuse. Extra verified equations are being reused in the independently
-supervised IdenticalQuarks DE reduction; inspect STATUS.md and its owned state
-record before starting another kernel or reconstruction.
+coordinate reuse. Extra verified equations were reused in the completed IdenticalQuarks DE
+reduction. The current gluon stage and owned process state are in STATUS.md;
+inspect them before starting another kernel or reconstruction.
 
 
 The finite four-particle path now contracts only nonzero source-master columns.
@@ -338,8 +338,8 @@ consequences. `AssembleMeasuredContributionInterior` accepts their explicit
 Laurent records and rejects missing input orders. The DifferentQuarks component
 has16 needed master records and an explicit interior through epsilon^0; its
 first nonzero interior pole is epsilon^-1. This remains an interior contribution,
-not an accepted complete RR distribution. IdenticalQuarks, Gluons and inclusive
-RR moments/endpoints remain in progress. General raw-card completion must still
+not an accepted complete RR distribution. IdenticalQuarks, Gluons and measured
+RR endpoints remain in progress; the inclusive RR moments are now evaluated. General raw-card completion must still
 connect the finite four-particle interior to proved endpoint/moment data.
 
 The library expands supported exact Gauss functions through the shared GPL
@@ -414,3 +414,12 @@ contains its complete forbidden-amplitude equations through epsilon^1. Continue
 with the43 global moments and the order-aware physical coefficient system.
 The source/gluon DE jobs and current process IDs are recorded in STATUS.md and
 component state files; inspect them before launching another main kernel.
+
+The43x20 moment matrices through finite epsilon order are now saved in
+MeromorphicMomentMatricesThroughOrder0.wxf, with automatically verified uniform
+local endpoint subtraction. They are joint equations with the forbidden-amplitude
+constraints; higher required epsilon orders still need propagation. The two
+remaining homogeneous freedoms are independently detected by moments20 and43.
+KnownPhysicalBoundaryOutputCoefficients.wxf currently retains31 coefficients and
+an explicit extraction timeout for{15,0}. Missing coefficients/tails are never zero.
+See STATUS.md for the current exact ranks and owned gluon continuation.
