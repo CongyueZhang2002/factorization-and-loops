@@ -250,7 +250,8 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
      "WorkingDirectory"->work<>"/Exact"<>IntegerString[iteration,10,3],
      "SeedIntegrals"->{},"ExtraEquations"->rows,"PreferredMasterIntegrals"->preferred|>]];
    If[!AssociationQ[exact],cutFamilyFail["ExactCandidateBasisReductionRequired",<|"Cause"->exact|>]];
-   images=targets/.Dispatch[exact["Rules"]];
+   images=ibpCanonicalIntegralImages[targets/.Dispatch[exact["Rules"]]];
+   If[!ListQ[images],cutFamilyFail["CanonicalExactCandidateImagesRequired"]];
    unmatched=Complement[DeleteDuplicates[Cases[images,_FeynCalc`GLI,{0,Infinity}]],preferred];
    If[unmatched==={},Return[Join[exact,<|"CandidateMasterBasis"->preferred,
      "TargetSpanVerifiedExactly"->True,"SeedSearchHistory"->history|>],Module]];

@@ -527,3 +527,61 @@ A5.117s sampled rank inventory of derivatives of the16known partial functions
 shows rank16 and no first-derivative increase. No coupled recovery has been
 implemented on that evidence: exact closure must be checked, and the actual
 remaining physical moment constraints are the next target.
+
+## Physical constants: exact closure and expanded moment targets
+
+The16known-coordinate subsystem is now closed EXACTLY: A[known,unknown] is
+identically zero. KnownPhysicalSubsystemClosure.wxf retains the residual. This
+leaves26structurally invisible homogeneous series; the16partial records still
+have separate missing higher-order tails. The closure/moment inventory took
+5.836s, finding43source moments,187inserted targets and110uncovered integrals.
+
+Pro36 accepts the point/guard repairs and recommends completing these existing
+insertions before generating new physical endpoint regions. It emphasizes
+regulated one-dimensional endpoint integration of the global moment matrix and
+separate epsilon demands from endpoint poles and delayed inversion pivots.
+Record36 retains the details. No moment has been substituted as a point value.
+
+The sufficient-source GPL passes took333.750s and455.285s. They now cover614/619
+definitions, with11478distinct GPL objects and maximum weight6. Definitions606,
+614,617hit time limits;618,619were not attempted before the total budget. The
+finite solution itself is explicit through its requested orders, but conversion
+is still partial and physical constants remain unassigned. Further conversion
+should be prioritized after physical constraints remove irrelevant directions.
+
+The bounded identical-quark moment-insertion reduction is running on CPUs4–7,
+using187targets,42preferred masters,42exact equivalence rows and4395retained
+source relations. First sampled iteration:728seeds/19405equations,63uncovered
+columns. Second:5245seeds/117178equations. Inspect the current log/state before
+reporting further progress. State/log stem: IdenticalMomentInsertionReduction
+in Archive/Runs/2026-09-18/NLOEECChecks. The gluon reduction continues on CPUs0–3;
+its first exact export produced9915rows and is closing872dependencies.
+
+The inserted-moment reduction has completed in125.048s: all187targets reduce
+exactly to the existing preferred basis, with43covered moments and no uncovered
+GLIs. ExtendedDifferentialBasisMomentConstraints.wxf retains all rows. Their
+inclusive right sides also completed in107.979s:43targets/17families reduce to
+29evaluated scalar records (not a minimal-master claim), all moment values
+explicit through the finite coefficient with lower poles and order audits.
+ExtendedInclusiveMomentValues.wxf retains the universal-input provenance.
+This is43global equations with known RHS, not43fixed physical constants.
+
+The auxiliary job now normalizes the exact one-dimensional DE at both moment
+endpoints, to integrate regulated endpoint models before epsilon expansion.
+This is preparation of the global moment matrix. Its log/state stem is
+IdenticalMomentEndpoints. Gluons still uses CPUs0–3; this job uses4–7.
+
+The exact one-dimensional endpoint normalization and eigenspace decomposition
+completed at both ends in9.521s. These are moment-matrix preparation, not
+physical mode selection. The rational coordinate has source z=1 at u=0 and
+z=0 at u=1, with ramification2 at both. At u=0, normalized epsilon slopes are
+-2(10columns),-4(20),0(10),-8(2). At u=1 they are8(11),-2(6),6(2),-4(14),
+4(2),2(4),0(3). MomentEndpointNormalization{0,1}.wxf and corresponding
+Eigenspaces files retain the exact local transformations and full Jordan data.
+
+A stronger physical large-dimension endpoint bound is being derived from the
+original Gram majorant; no slope sector has yet been selected as physical.
+The fresh exact candidate-span check now uses the same rational coefficient
+cancellation as the already repaired resume path, preventing zero-coefficient
+GLIs from being mistaken for new terminal integrals. This edit postdates the
+running gluon kernel and does not change its native reconstruction.
