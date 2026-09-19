@@ -322,7 +322,7 @@ algebraCoefficientPresentationNormalize[input_Association] := Which[
         Map[If[AssociationQ[#],
             algebraCoefficientPresentationNormalize[#], #] &,
           Lookup[input, "ParentParametrizations", <||>]]|>,
-      KeyTake[input, {"InverseParametrizationByRootValues", "Notes"}]],
+      KeyTake[input, {"InverseParametrizationByRootValues", "ParameterFromRootValues", "Notes"}]],
   Lookup[input, "DataType", None] ===
       "SquareRootGeneratorsAndQuadraticRelations" &&
       Lookup[input, "SchemaVersion", None] === 2 &&

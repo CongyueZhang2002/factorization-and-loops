@@ -140,6 +140,7 @@
     "Integrals/Parametric/InvariantPhaseSpace.wl",
     "Integrals/Parametric/MeasurementPushforward.wl",
     "Integrals/Parametric/MeasurementMoments.wl",
+    "Integrals/PoleBounds/PolynomialMeasurements.wl",
     "Reduction/MeasurementMoments.wl",
     "Integrals/Parametric/OneLoopMeasurement.wl",
     "Integrals/Parametric/MeasuredPhaseSpace.wl",

@@ -19,7 +19,7 @@ normalizationFiniteConstantQ[value_,conditions_]:=Which[
  MemberQ[{Cot,Csc},Head[value]],normalizationFiniteConstantQ[value[[1]],conditions]&&normalizationProve[Sin[value[[1]]]!=0,conditions],
  True,False];
 normalizationNonzeroGermQ[value_,e_,conditions_]:=Module[{lower,leading},
- lower=FeynFacet`DetermineMeromorphicLaurentLowerBound[value,e];
+ lower=FeynFacet`DetermineLaurentValuation[value,e];
  If[!IntegerQ[lower],Return[False]];
  leading=TimeConstrained[Quiet[SeriesCoefficient[value,{e,0,lower}]],10,$Failed];
  FreeQ[leading,e|$Failed|_SeriesCoefficient]&&normalizationFiniteConstantQ[leading,conditions]&&
@@ -27,6 +27,7 @@ normalizationNonzeroGermQ[value_,e_,conditions_]:=Module[{lower,leading},
 ];
 normalizationMeromorphicQ[value_,e_,conditions_]:=Which[
  !FreeQ[value,Indeterminate|_DirectedInfinity],False,
+ value===e,True,
  FreeQ[value,e],normalizationFiniteConstantQ[value,conditions],
  MemberQ[{Plus,Times},Head[value]],AllTrue[List@@value,normalizationMeromorphicQ[#,e,conditions]&],
  Head[value]===Power&&IntegerQ[value[[2]]],normalizationMeromorphicQ[value[[1]],e,conditions]&&

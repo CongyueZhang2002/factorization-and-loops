@@ -21,7 +21,9 @@ orderSystem=<|"KinematicVariables"->{x},"DimensionalRegulator"->e,"DimensionRule
 short=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
  <|basis[[1]]-><|"Coefficients"-><|0->1|>,"LaurentLowerBound"->0,"KnownThroughOrder"->0,"ExactTail"->False|>|>,<|basis[[2]]->0|>];
 FTTest`FTAssert["division by an epsilon-valued DE coefficient refuses a missing input order",
- AssociationQ[short]&&KeyExistsQ[short["UnresolvedRequests"],basis[[2]]]&&!KeyExistsQ[short["Values"],basis[[2]]]];
+ AssociationQ[short]&&KeyExistsQ[short["UnresolvedRequests"],basis[[2]]]&&
+ short["Values"][basis[[2]]]["KnownThroughOrder"]===-1&&
+ short["Values"][basis[[2]]]["Coefficients"]===<|-1->0|>];
 sufficient=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
  <|basis[[1]]-><|"Coefficients"-><|0->1,1->x|>,"LaurentLowerBound"->0,"KnownThroughOrder"->1,"ExactTail"->False|>|>,<|basis[[2]]->0|>];
 FTTest`FTAssert["the next input order determines the finite partner with the omitted-tail audit",
@@ -63,4 +65,19 @@ FTTest`FTAssert["conflicting old coefficients and a violated lower bound leave e
  inconsistent["Values"][basis[[2]]]["Coefficients"][0]===7&&
  First[inconsistent["KnownCoefficientCompatibilityResiduals"]]["ResidualCoefficients"]===<|-1->1,0->-6|>&&
  !TrueQ[First[inconsistent["KnownCoefficientCompatibilityResiduals"]]["ExactlyZero"]]];
+intermediate=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[orderSystem,
+ <|basis[[1]]-><|"Coefficients"-><|0->1,1->x,2->2x|>,
+     "LaurentLowerBound"->0,"KnownThroughOrder"->2,"ExactTail"->False|>,
+   basis[[2]]->record[1]|>,<|basis[[2]]->3|>];
+FTTest`FTAssert["useful intermediate orders are retained without claiming the full request",
+ intermediate["Values"][basis[[2]]]["KnownThroughOrder"]===1&&
+ intermediate["Values"][basis[[2]]]["Coefficients"]===<|0->1,1->2|>&&
+ KeyExistsQ[intermediate["UnresolvedRequests"],basis[[2]]]&&
+ Length[intermediate["Derivations"]]===1];
+higherBoundSystem=Join[orderSystem,<|"ConnectionMatrices"->{{{0,1},{0,0}}}|>];
+higherBound=FeynFacet`ExtendMasterLaurentCoefficientsUsingDifferentialEquations[higherBoundSystem,
+ <|basis[[1]]-><|"Coefficients"-><|2->x|>,"LaurentLowerBound"->2,"KnownThroughOrder"->2,"ExactTail"->False|>,
+  basis[[2]]->record[7]|>,<|basis[[2]]->2|>];
+FTTest`FTAssert["a higher derived lower bound also checks old coefficients against zero",
+ First[higherBound["KnownCoefficientCompatibilityResiduals"]]["ResidualCoefficients"]===<|0->-7|>];
 Print["DIFFERENTIAL MASTER VALUES TEST COMPLETE"];FTTest`FTReport[];

@@ -43,7 +43,7 @@ ExtendMasterValuesUsingDifferentialEquations[system_Association,known_Associatio
 ],"CutFamily"];
 ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,known_Association,upperOrders_Association]:=Catch[Module[
  {basis,variables,matrices,n,e,values=known,derived={},pending={},changed=True,indices,missing,j,
-  ratios,records,derivative,low,high,lowers,uppers,vector,matrix,result,one,offset,derivativeFunction,valid,knownIndices,oldRecord,oldLow,oldHigh,overlapResiduals={},overlap},
+  ratios,records,derivative,low,high,lowers,uppers,vector,matrix,result,one,offset,derivativeFunction,valid,knownIndices,oldRecord,oldLow,oldHigh,overlapResiduals={},overlap,requestedHigh,valuations,feasible},
  basis=system["MasterIntegralBasis"];variables=system["KinematicVariables"];e=system["DimensionalRegulator"];
  matrices=cutConnectionMatrices[system]/.system["DimensionRule"];n=Length[basis];
  valid[row_]:=AssociationQ[row]&&IntegerQ[Lookup[row,"LaurentLowerBound",None]]&&
@@ -65,7 +65,7 @@ ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,kno
      (!KeyExistsQ[values,basis[[#]]]||values[basis[[#]]]["KnownThroughOrder"]<upperOrders[basis[[#]]])&];
    Do[
    If[AnyTrue[Range[n],#=!=j&&matrices[[axis,i,#]]=!=0&&!KeyExistsQ[values,basis[[#]]]&],Continue[]];
-   high=upperOrders[basis[[j]]];
+   requestedHigh=upperOrders[basis[[j]]];high=requestedHigh;
    (* values grows during this pass. A newly derived coefficient must already
       contribute to every later row, although the outer source-row list is fixed. *)
    knownIndices=Select[Range[n],#=!=j&&KeyExistsQ[values,basis[[#]]]&];
@@ -75,7 +75,17 @@ ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,kno
    If[!FreeQ[derivative,_Failure|_Derivative],cutFamilyFail["ExplicitMasterCoefficientDerivativeRequired",<|"Integral"->basis[[i]]|>]];
    records=Prepend[Lookup[values,basis[[knownIndices]]],derivative];
    lowers=Lookup[records,"LaurentLowerBound"];uppers=Lookup[records,"KnownThroughOrder"];
-   low=Min[high,Min[MapThread[#1+FeynFacet`DetermineLaurentValuation[#2,e]&,{lowers,ratios}]]];
+   valuations=FeynFacet`DetermineLaurentValuation[#,e]&/@ratios;
+   If[!AllTrue[valuations,IntegerQ[#]||#===Infinity&],
+    cutFamilyFail["RationalDifferentialCoefficientValuationsRequired"]];
+   feasible=MapThread[If[TrueQ[Lookup[#1,"ExactTail",False]]||#2===Infinity,
+     Infinity,#3+#2]&,{records,valuations,uppers}];
+   high=Min[requestedHigh,Min[feasible]];
+   If[high<requestedHigh,AppendTo[pending,<|"Integral"->basis[[j]],"SourceIntegral"->basis[[i]],
+     "Cause"->Failure["RequestedMasterOrderNotYetCovered",<|
+       "RequestedThroughOrder"->requestedHigh,"FeasibleThroughOrder"->high|>]|>]];
+   If[KeyExistsQ[values,basis[[j]]]&&high<=values[basis[[j]]]["KnownThroughOrder"],Continue[]];
+   low=Min[high,Min[MapThread[Plus,{lowers,valuations}]]];
    If[!IntegerQ[low],cutFamilyFail["RationalDifferentialCoefficientValuationsRequired"]];
    vector=<|"DimensionalRegulator"->e,"Dimension"->Length[records],
     "Coefficients"->Association@Flatten[Table[KeyValueMap[{k,#1}->#2&,records[[k]]["Coefficients"]],{k,Length[records]}],1],
@@ -91,7 +101,7 @@ ExtendMasterLaurentCoefficientsUsingDifferentialEquations[system_Association,kno
    If[KeyExistsQ[values,basis[[j]]],
     oldRecord=values[basis[[j]]];oldLow=oldRecord["LaurentLowerBound"];oldHigh=oldRecord["KnownThroughOrder"];
     overlap=Association@Table[k->(Lookup[one["Coefficients"],k,0]-
-      Lookup[oldRecord["Coefficients"],k,0]),{k,low,Min[oldHigh,high]}];
+      Lookup[oldRecord["Coefficients"],k,0]),{k,Min[low,oldLow],Min[oldHigh,high]}];
     AppendTo[overlapResiduals,<|"Integral"->basis[[j]],"SourceIntegral"->basis[[i]],
       "ResidualCoefficients"->overlap,
       "ExactlyZero"->AllTrue[Values[overlap],#===0&]|>];

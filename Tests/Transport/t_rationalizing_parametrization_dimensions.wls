@@ -44,4 +44,8 @@ FTTest`FTAssert["affine conic construction derives a common root parametrization
 FTTest`FTAssert["an unavailable rational conic point makes no nonexistence claim",
  MatchQ[FeynFacet`ConstructAffineRootPairParametrization[{z,2-z},z,u],
   Failure["RationalConicPointNotFound",KeyValuePattern["RationalizabilityRuledOut"->False]]]];
+normalized=FeynFacet`Private`algebraCoefficientPresentationNormalize[generated];
+FTTest`FTAssert["normalization preserves the conic inverse hint without an inverse proof claim",
+ normalized["ParameterFromRootValues"]===generated["ParameterFromRootValues"]&&
+ !TrueQ[FeynFacet`VerifyRationalizingParametrization[normalized]["RationalInverseVerified"]]];
 Print["PARAMETRIZATION DIMENSIONS TEST COMPLETE"];FTTest`FTReport[];

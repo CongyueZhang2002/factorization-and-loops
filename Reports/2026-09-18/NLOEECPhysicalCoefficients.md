@@ -433,3 +433,36 @@ The parent distribution pole theorem in Pro32 is accepted mathematically only
 with the stated class-membership evidence, including1/Abs[F]. No automatic
 physical bound is installed yet. A compatible smooth meromorphic restriction
 to an interior chamber is still required to use it for scalar DE coefficients.
+
+## Continued physical-order work
+
+PSLQ and numerical reconstruction are deferred at the user’s request. The current
+work is exclusively completion of the measured NLO EEC calculation.
+
+Feasible intermediate DE order extension adds four partial master records in
+50.632 s. It still leaves 34 unmet full requests (7/41 sufficiently covered);
+`ExtendedPhysicalMasterOrders.wxf` preserves the new records. The permanent
+extension now keeps useful intermediate orders and checks both lower-bound
+overlap directions; 14 assertions pass in 3.566 s.
+
+The new polynomial-parent pole-bound module verifies all 42 original measured
+masters in 16.424 s. Each has distributional lower bound -5. This is a bound on
+regulator poles, not physical coefficients, a scalar restriction, endpoint
+contact order, or a resolved-sector construction. Pro33 describes a separate
+distributional-DE route to smooth restriction; its hypotheses must be retained
+before such a claim is made. Six parent-bound assertions pass in 3.803 s.
+
+A shared normalization verification defect rejected the regulator itself and
+reciprocals of expressions whose constant term cancels. It now recognizes the
+regulator and checks the true Laurent valuation of reciprocal bases. Three
+assertions pass in 2.865 s; no physical normalization is changed.
+
+Conic inverse metadata is retained (eight assertions, 2.834 s). The common
+rational coordinate with lift u=1/2 maps to z=9/25 for the actual root ordering.
+Fundamental evolution through order one took 11.772 s. Its GPL pass took
+137.938 s and remains partial; endpoint-dependent path scaling is being inspected
+as a source of unnecessary algebra. These are not physical master solutions.
+
+No Wolfram job was running at the start of this continuation. Completed timings
+include startup; input reuse and failed earlier attempts remain in their receipts.
+Full measured RR, physical constants and endpoints remain incomplete.
