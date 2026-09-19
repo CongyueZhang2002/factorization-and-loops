@@ -1,6 +1,8 @@
 <|
   "Contribution" -> "DoubleReal", "AmplitudeLoops" -> {0, 0},
   "EpsilonRange" -> {-4, 0},
+  "Assembly" -> <|"Reduction" -> <|"MaximumSeedIterations" -> 16,
+    "MaximumNewSeedsPerIteration" -> 10000|>|>,
   "Components" -> <|
     "Gluons" -> <|
       "UnobservedPartons" -> {{"q", "u"}, {"qb", "u"}, "g", "g"}, "FlavorSum" -> {"u"},

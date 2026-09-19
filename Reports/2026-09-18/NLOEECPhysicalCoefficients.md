@@ -618,3 +618,33 @@ Its first derivative-closure search stopped at the bounded seed limit after
 352.557s (6425seeds,194261equations,912uncovered sampled columns). This is an
 unsuccessful DE attempt, not a completed gluon DE. The exact source reduction
 and sampled derivative inputs remain available for targeted continuation.
+
+## Exact boundary restriction rank and epsilon-delayed constraint
+
+The reusable ConstructClosedSubsystemBoundaryMap reproduces rank10 for the
+16 known outputs in7.455s and verifies its exact residue intertwiner. Four
+focused closed-subsystem/Jordan/amplitude-change assertions pass4.366s.
+Its sufficient normal jet has depth0 here; no epsilon truncation determines
+this structural rank.
+
+The20-column physical-endpoint connection through epsilon^4 was built8.969s.
+All533 finite definitions converted195.425s including two startup retries.
+The opposite-endpoint forbidden-amplitude gauge has epsilon valuation-3;
+this gives complete constraint matrices through epsilon^1. Endpoint extraction
+and cancellation take9.470s. Orders-3,-2,-1 vanish exactly.
+
+On the10 amplitude directions invisible to the known subsystem, the leading
+constraint matrix has rank7. Its three initially free columns have another
+pivot at epsilon^1. An8x8 minor has leading coefficient64/27 at that order.
+The opposite-endpoint exact known-subsystem restriction has rank2 on its10
+forbidden modes, so at most8 constraints can act independently on globally
+zero known outputs. The lower bound8 attains this upper bound: the generic
+constraint rank is8 and exactly2 homogeneous amplitude series remain. The
+successful finite certificate took5.604s. PhysicalBoundaryConstraintRank.wxf
+retains it. This does not claim that missing upper coefficients in the known
+physical records have been supplied; they remain separate order demands.
+
+The bounded IBP increment regression passes four assertions in6.804s, including
+an independent three-particle Dirichlet moment. The gluon search now reaches
+iteration2 with16425seeds/485715equations rather than exceeding the100000-seed
+budget before a second sample. Exact derivative closure is still pending.

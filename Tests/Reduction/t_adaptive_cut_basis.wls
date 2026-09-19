@@ -21,7 +21,7 @@ reduced=FeynFacet`ReduceCutIntegralsToBasis[{family},data["Targets"],{base},<|
  "WorkingDirectory"->directory,"Threads"->1,"HomogeneousScale"->s,
  "IBPVectorMethod"->"Mixed",
  "RationalSolver"->"FireFly","SamplingPoints"->{{D->13/5,s->1},{D->17/7,s->1}},
- "MaximumSeedIterations"->5,"MaximumSeeds"->10000|>];
+ "MaximumSeedIterations"->24,"MaximumSeeds"->10000,"MaximumNewSeedsPerIteration"->8|>];
 If[FailureQ[reduced],Print[InputForm[reduced]]];
 FTTest`FTAssert["sample-guided search yields exact target identities in the requested scalar span",
  AssociationQ[reduced]&&TrueQ[reduced["TargetSpanVerifiedExactly"]]&&

@@ -30,7 +30,9 @@ PrepareMeasuredCurrentContribution[card_Association,mode_String:"resume"]:=Catch
  If[Lookup[card["Channels"][card["Channel"]],"Observed",None]=!=None,
   projectFail["AllFinalMomentaIntegratedForTupleMeasurementRequired"]];
  specification=card["Assembly"]["FinalStateMeasurement"];
- definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->request,"PhaseSpace"->geometry,
+ (* IBP search budgets do not change an amplitude or measurement. Keep them
+    in the consuming reduction request, outside the physical source identity. *)
+ definition=<|"ProcessDefinition"->setup,"AssemblyRequest"->KeyDrop[request,{"Reduction"}],"PhaseSpace"->geometry,
    "FinalStateMeasurement"->specification,"SymmetryFactor"->Lookup[card,"SymmetryFactor",1],
    "FlavorMultiplicity"->Lookup[card,"FlavorMultiplicity",1]|>;
  file=path<>"/MeasuredIntegrands.wl";

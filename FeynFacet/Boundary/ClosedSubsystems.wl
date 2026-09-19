@@ -1,0 +1,80 @@
+(* Restriction of exact local solution spaces to closed original-coordinate
+   subsystems. This determines a generic-regulator map, not physical values. *)
+BeginPackage["FeynFacet`"];
+ConstructClosedSubsystemBoundaryMap::usage=
+ "ConstructClosedSubsystemBoundaryMap[preparation,rows,selection,request] maps selected full Frobenius amplitudes to a closed original-coordinate subsystem. Rational gauge pole orders determine a sufficient exact normal jet; no epsilon truncation is used. request may supply AmplitudeBasisChange, ParameterVerificationRules and TimeLimit. Partial physical coefficient records are a separate input.";
+Begin["`Private`"];
+ConstructClosedSubsystemBoundaryMap[prep_Association,rows_List,selection_Association,
+ request_Association:<||>]:=Catch[Module[
+ {normal=prep["NormalizedDifferentialSystem"],a,z,e,n,c,columns,groups,known,knownPrimary,
+  w,low,depth,allSeed,left,change,blocks={},jets={},coefficient,group,cols,
+  eigenvalue,nilpotency,spectral=Unique["spectral"],jet,negatives,response,block,
+  positions,matching,null,reduced,intertwiner,fail},
+ fail[tag_]:=Throw[Failure[tag,<||>],"ClosedBoundarySubsystem"];
+ {z,e}=Lookup[normal,{"Variable","DimensionalRegulator"}];
+ a=Normal[prep["OriginalDifferentialSystem"]["ConnectionMatrix"]];n=Length[a];
+ columns=Lookup[selection,"RetainedColumns",{}];c=Length[columns];
+ If[rows==={}||!DuplicateFreeQ[rows]||!AllTrue[rows,IntegerQ[#]&&1<=#<=n&]||
+   c===0||!DuplicateFreeQ[columns]||!AllTrue[columns,IntegerQ[#]&&1<=#<=n&],
+  fail["NonemptyDistinctSubsystemRowsAndAmplitudeColumnsRequired"]];
+ If[!solutionMatrixZero[a[[rows,Complement[Range[n],rows]]]],
+  fail["OriginalCoordinateSubsystemMustBeClosed"]];
+ groups=Select[prep["PrimaryDecomposition"]["Eigenspaces"],
+   Intersection[#["Columns"],columns]=!={}&];
+ If[Sort[Flatten[Lookup[groups,"Columns"]]]=!=Sort[columns],
+  fail["CompletePrimaryAmplitudeSpacesRequired"]];
+ known=FeynFacet`NormalizeRegularSingularSystem[<|"Variable"->z,"DimensionalRegulator"->e,
+   "ConnectionMatrix"->a[[rows,rows]]|>,
+   "ParameterVerificationRules"->Lookup[request,"ParameterVerificationRules",{}]];
+ If[!AssociationQ[known],Throw[known,"ClosedBoundarySubsystem"]];
+ knownPrimary=FeynFacet`DecomposeResidueEigenspaces[known];
+ If[!AssociationQ[knownPrimary],Throw[knownPrimary,"ClosedBoundarySubsystem"]];
+ If[!AllTrue[Join[Lookup[knownPrimary["Eigenspaces"],"Exponent"],Lookup[groups,"Exponent"]],
+   PolynomialQ[#,e]&&Exponent[#,e]<=1&&(#/.e->0)===0&],
+  fail["ZeroIntegerPartsOfGenericResidueExponentsRequired"]];
+ w=Map[Cancel,Normal[Inverse[FeynFacet`RegularSingularGaugeMatrix[known]].
+   prep["NormalizedToOriginalGauge"][[rows]]],{2}];
+ low=Min[exactRationalLaurentValuation[#,z]&/@Flatten[w]];
+ If[!IntegerQ[low],fail["FiniteRationalGaugePoleOrderRequired"]];depth=Max[0,-low];
+ allSeed=prep["PrimarySeedMatrix"];left=Map[Cancel,Inverse[allSeed],{2}];
+ change=Lookup[request,"AmplitudeBasisChange",IdentityMatrix[c]];
+ If[Dimensions[change]=!={c,c}||!FreeQ[change,z]||MatrixRank[change]=!=c,
+  fail["InvertibleKinematicsIndependentAmplitudeChangeRequired"]];
+ coefficient[expression_,q_]:=coefficient[expression,q]=Cancel[SeriesCoefficient[expression,{z,0,q}]];
+ Do[
+  cols=group["Columns"];eigenvalue=group["Exponent"];
+  nilpotency=SelectFirst[Range[Length[cols]],
+    solutionMatrixZero[MatrixPower[group["NilpotentPart"],#]]&,None];
+  If[nilpotency===None,fail["ExactPrimaryNilpotencyRequired"]];
+  jet=FeynFacet`ConstructPrimaryFrobeniusExpansion[normal,
+   <|"Basis"->allSeed[[All,cols]],"LeftInverse"->left[[cols]]|>,
+   <|"ResidueEigenvalue"->eigenvalue,"SpectralVariable"->spectral,
+     "ResidueAnnihilatingPolynomial"->(spectral-eigenvalue)^nilpotency,
+     "MaximumNormalOrder"->depth|>,"TimeLimit"->Lookup[request,"TimeLimit",240]];
+  If[!AssociationQ[jet],Throw[jet,"ClosedBoundarySubsystem"]];
+  negatives=Table[Map[Cancel,Sum[Map[coefficient[#,q-j]&,w,{2}].
+     Normal[jet["Coefficients"][[j+1,l+1]]],{j,0,depth}],{2}],
+    {q,low,-1},{l,0,nilpotency-1}];
+  If[!solutionMatrixZero[Flatten[negatives,1]],fail["NegativeNormalizedOutputPowerRemains"]];
+  response=Map[Cancel,Sum[Map[coefficient[#,-j]&,w,{2}].
+    Normal[jet["Coefficients"][[j+1,1]]],{j,0,depth}],{2}];
+  block=ConstantArray[0,{Length[rows],c}];
+  positions=Flatten[FirstPosition[columns,#]&/@cols];block[[All,positions]]=response;
+  AppendTo[blocks,block];AppendTo[jets,<|"Exponent"->eigenvalue,"Columns"->cols,
+    "Jet"->jet,"LeadingResponse"->response|>],{group,groups}];
+ matching=Map[Cancel,Total[blocks].change,{2}];
+ reduced=Map[Cancel,left.(Limit[z normal["ConnectionMatrix"],z->0]).allSeed,{2}][[columns,columns]];
+ reduced=Map[Cancel,Inverse[change].reduced.change,{2}];
+ intertwiner=Map[Cancel,known["Residue"].matching-matching.reduced,{2}];
+ If[!solutionMatrixZero[intertwiner],fail["ExactResidueIntertwinerRequired"]];
+ null=NullSpace[matching];
+ If[!solutionMatrixZero[matching.Transpose[null]],fail["ExactAmplitudeNullspaceRequired"]];
+ <|"DataType"->"ClosedSubsystemBoundaryAmplitudeMap","KnownRows"->rows,
+  "KnownSubsystemNormalization"->known,"KnownSubsystemPrimaryDecomposition"->knownPrimary,
+  "PrimaryJets"->jets,"MatchingMatrix"->matching,"AmplitudeBasisChange"->change,
+  "HomogeneousUnobservedAmplitudeBasis"->Transpose[null],"GenericRank"->c-Length[null],
+  "NormalDepth"->depth,"ExactResidueIntertwiner"->True,"NoFiniteEpsilonTruncation"->True,
+  "PhysicalAmplitudesFixed"->False,
+  "Argument"->"Exact subsystem closure makes the projected columns subsystem solutions. Both normalized spectra have zero integer parts. The rational middle-gauge pole order fixes the sufficient normal jet. Negative normal powers are checked to vanish, so multiplication by the inverse analytic subsystem factor (identity at zero) does not change the constant coefficient. The resulting generic-regulator residue intertwiner gives the complete restriction map."|>
+],"ClosedBoundarySubsystem"];
+End[];EndPackage[];

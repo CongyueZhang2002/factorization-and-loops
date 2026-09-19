@@ -150,13 +150,15 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
   vectorMethod=Lookup[request,"IBPVectorMethod","Ordinary"],
   protection=Lookup[request,"CutProtection","All"],searchDefinition,jobs,operators,
   savedAttempts,savedDefinition,savedWork,savedPhysics,
-  workers=Lookup[request,"GenerationKernels",1]},
+  workers=Lookup[request,"GenerationKernels",1],increment,ranked,selected,room},
  work=Lookup[request,"WorkingDirectory",None];points=Lookup[request,"SamplingPoints",None];
  limit=Lookup[request,"MaximumSeedIterations",5];seedLimit=Lookup[request,"MaximumSeeds",100000];
+ increment=Lookup[request,"MaximumNewSeedsPerIteration",10000];
  If[!StringQ[work]||!MatchQ[points,{{(_Rule)..}..}]||!IntegerQ[limit]||limit<1||
    !MemberQ[{"Ordinary","CutCompatible","Mixed"},vectorMethod]||!MemberQ[{"All","Particle"},protection]||
    !IntegerQ[workers]||!Between[workers,{1,8}]||
-   !IntegerQ[seedLimit]||seedLimit<1,cutFamilyFail["BoundedSampledBasisSearchRequestRequired"]];
+   !IntegerQ[seedLimit]||seedLimit<1||!IntegerQ[increment]||increment<1,
+  cutFamilyFail["BoundedSampledBasisSearchRequestRequired"]];
  searchDefinition=<|"Format"->"FeynFacet-BoundedIntegralBasisSearch",
   "Families"->(KeyTake[#,{"Topology","Cuts","MeasurePrefactor","TimeDirection","Assumptions"}]&/@families),
   "Targets"->targets,"Candidates"->candidates,
@@ -266,10 +268,23 @@ ReduceCutIntegralsToBasis[families:{__Association},targets:{__FeynCalc`GLI},
        "IncludeOrdinaryVectors"->(vectorMethod=!="CutCompatible"),
        "CutCompatibleVectors"->Lookup[tangentVectors,name,None]|>]];
    If[!AssociationQ[more],cutFamilyFail["BasisSearchPredecessorsRequired",<|"Cause"->more|>]];
-   AssociateTo[added,name->more["Seeds"]];AssociateTo[seeds,name->Union[seeds[name],more["Seeds"]]],
+   AssociateTo[added,name->more["Seeds"]],
    {family,families}];
   If[Total[Length/@Values[added]]>0,Break[]],{trialDepth,depth,2}];
-  If[Total[Length/@Values[added]]===0,cutFamilyFail["BasisSearchNeedsBroaderRegion",<|"History"->history|>]],
+  If[Total[Length/@Values[added]]===0,cutFamilyFail["BasisSearchNeedsBroaderRegion",<|"History"->history|>]];
+  (* Sample again after a bounded increment, rather than generating every
+     harder predecessor at once. Round-robin family ranks keep a large
+     family from consuming the entire increment. Unselected seeds remain
+     eligible on the next search; no equation or integral column is dropped. *)
+  room=Min[increment,seedLimit-Total[Length/@Values[seeds]]];
+  If[room<=0,cutFamilyFail["BasisSearchSeedLimit",<|"History"->history|>]];
+  ranked=Flatten[KeyValueMap[Function[{familyName,integrals},
+    MapIndexed[{First[#2],#1}&,
+     SortBy[integrals,Function[master,With[{profile=cutIBPProfile[byName[familyName],master[[2]]]},
+       {Total[profile],profile,master}]]]]],added],1];
+  selected=Last/@Take[SortBy[ranked,{First,Last}],UpTo[room]];
+  added=Association@Table[name->Select[selected,First[#]===name&],{name,Keys[seeds]}];
+  KeyValueMap[AssociateTo[seeds,#1->Union[seeds[#1],#2]]&,added],
  {iteration,limit}];
  cutFamilyFail["CandidateBasisSearchIncomplete",<|"History"->history,
   "Scope"->"Bounded IBP search failed; no assertion of irreducibility or master minimality."|>]

@@ -393,3 +393,24 @@ The identical-quark source currently reduces4234 targets to an exact43-integral
 unit-cut spanning set. This is not a minimal-master claim or a solved physical
 result. DifferentQuarks has a solved interior; the other measured RR channels,
 physical endpoints and complete alpha_s^2 distribution remain unfinished.
+
+### Current physical boundary constraints
+
+For identical quarks, all43 original-source inclusive moment insertions reduce
+to the closed42-coordinate DE, and every inclusive RHS is evaluated through
+finite epsilon order. The physical Gram/density estimate now excludes forbidden
+endpoint Frobenius amplitudes at generic epsilon. AdmissibleEndpointPreparation.wxf
+retains20 amplitudes at rho=1-u. KnownOutputBoundaryAmplitudeMap.wxf gives the
+exact rank10 restriction to the16 known partial output masters. The opposite
+endpoint adds exactly8 independent constraints, one first appearing at epsilon^1
+with minor coefficient64/27. PhysicalBoundaryConstraintRank.wxf therefore leaves
+2 homogeneous amplitude series beyond the known subsystem. Missing known-master
+tails still require their own sufficient-order calculation. No physical constant
+or full NLO EEC completion is implied by these rank results.
+
+The connection through epsilon^4 and all533 GPL definitions are saved in
+AdmissibleEndpointConnectionThroughOrder4GPL.wxf. OppositeEndpointAmplitudeConstraints4.wxf
+contains its complete forbidden-amplitude equations through epsilon^1. Continue
+with the43 global moments and the order-aware physical coefficient system.
+The source/gluon DE jobs and current process IDs are recorded in STATUS.md and
+component state files; inspect them before launching another main kernel.
